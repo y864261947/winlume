@@ -1,0 +1,127 @@
+"use client";
+
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
+import { lockBodyScroll, unlockBodyScroll } from "@/lib/scrollLock";
+import { useFocusTrap } from "@/lib/useFocusTrap";
+
+interface ModalProps {
+  open: boolean;
+  onClose: () => void;
+  label: string;
+  align?: "center" | "top";
+  size?: "default" | "workspace" | "onboarding";
+  children: ReactNode;
+}
+
+// 全局打开栈：后打开的 modal 获得更高层级，ESC 只关闭最上层。
+const modalStack: string[] = [];
+let nextModalId = 0;
+let nextZIndex = 100;
+
+const EXIT_DURATION = 150;
+
+export default function Modal({
+  open,
+  onClose,
+  label,
+  align = "center",
+  size = "default",
+  children,
+}: ModalProps) {
+  const [id] = useState(() => `modal-${nextModalId++}`);
+  const [rendered, setRendered] = useState(open);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  // 在 effect 中同步最新 onClose，避免渲染期写 ref
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  // 渲染期间同步打开状态
+  if (open && !rendered) setRendered(true);
+  const closing = rendered && !open;
+
+  // 关闭动画结束后再卸载
+  useEffect(() => {
+    if (open || !rendered) return;
+    const timer = window.setTimeout(() => setRendered(false), EXIT_DURATION);
+    return () => window.clearTimeout(timer);
+  }, [open, rendered]);
+
+  // 打开期间：分配层级（后打开者恒在上）、登记栈、锁定背景滚动、ESC 只关最上层
+  useEffect(() => {
+    if (!rendered) return;
+    const zIndex = nextZIndex;
+    nextZIndex += 2;
+    if (hostRef.current) hostRef.current.style.zIndex = String(zIndex);
+    modalStack.push(id);
+    lockBodyScroll();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && modalStack[modalStack.length - 1] === id) {
+        onCloseRef.current();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      const index = modalStack.indexOf(id);
+      if (index !== -1) modalStack.splice(index, 1);
+      unlockBodyScroll();
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [rendered, id]);
+
+  useFocusTrap(panelRef, rendered, () => modalStack[modalStack.length - 1] === id);
+
+  if (!rendered) return null;
+
+  return (
+    <div
+      ref={hostRef}
+      className={`fixed inset-0 ${closing ? "pointer-events-none" : ""}`}
+    >
+      <div
+        className={`absolute inset-0 bg-ink-950/35 backdrop-blur-sm ${closing ? "modal-fade-out" : "modal-fade-in"}`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="absolute inset-0 overflow-y-auto">
+        <div className="flex min-h-full w-full justify-center p-4">
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={label}
+            tabIndex={-1}
+            className={`w-full outline-none ${align === "top" ? "mt-[10dvh] mb-4" : "my-auto"} ${
+              closing ? "modal-pop-out" : "modal-pop"
+            } ${
+              size === "workspace"
+                ? "max-w-6xl"
+                : size === "onboarding"
+                  ? "max-w-4xl"
+                  : "max-w-md"
+            }`}
+          >
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ModalCloseButton({ onClose }: { onClose: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClose}
+      aria-label="关闭"
+      className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-400 transition hover:bg-canvas hover:text-ink-700"
+    >
+      <X className="h-4 w-4" />
+    </button>
+  );
+}
