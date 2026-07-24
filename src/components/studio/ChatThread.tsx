@@ -17,7 +17,7 @@ function Bubble({ message }: { message: UiChatMessage }) {
   if (message.role === "system" || message.role === "tool") {
     return (
       <div className="flex justify-center px-4">
-        <p className="max-w-2xl rounded-lg bg-canvas px-3 py-1.5 text-center text-xs text-ink-400">
+        <p className="max-w-2xl rounded-[12px] bg-white/50 px-3 py-1.5 text-center text-xs text-[#8A8298]">
           {message.content || message.role}
         </p>
       </div>
@@ -31,8 +31,8 @@ function Bubble({ message }: { message: UiChatMessage }) {
       <span
         className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
           isUser
-            ? "bg-primary-50 text-primary-600"
-            : "bg-ink-900 text-white"
+            ? "bg-gradient-to-br from-[#F2994A] to-[#C2410C] text-white shadow-[0_4px_10px_-4px_rgba(194,65,12,0.55)]"
+            : "bg-white/80 text-[#C2410C] ring-1 ring-white/90"
         }`}
         aria-hidden
       >
@@ -43,14 +43,12 @@ function Bubble({ message }: { message: UiChatMessage }) {
         )}
       </span>
       <div
-        className={`min-w-0 max-w-[min(100%,42rem)] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
-          isUser
-            ? "bg-primary-500 text-white"
-            : "border border-line bg-surface text-ink-900"
+        className={`min-w-0 max-w-[min(100%,42rem)] rounded-[18px] px-4 py-3 text-sm leading-6 ${
+          isUser ? "studio-user-bubble shadow-md" : "studio-assistant-bubble"
         }`}
       >
         {isAssistant && !message.content && message.streaming ? (
-          <span className="inline-flex items-center gap-2 text-ink-400">
+          <span className="inline-flex items-center gap-2 text-[#8A8298]">
             <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
             正在思考…
           </span>
@@ -59,7 +57,7 @@ function Bubble({ message }: { message: UiChatMessage }) {
             {message.content}
             {message.streaming && message.content ? (
               <span
-                className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-primary-400 align-middle"
+                className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-[#F2994A] align-middle"
                 aria-hidden
               />
             ) : null}

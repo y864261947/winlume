@@ -225,8 +225,8 @@ export default function StudioSessionPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-ink-500">
-        <LoaderCircle className="h-4 w-4 animate-spin" />
+      <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-[#8A8298]">
+        <LoaderCircle className="h-4 w-4 animate-spin text-[#C2410C]" />
         加载会话…
       </div>
     );
@@ -235,13 +235,13 @@ export default function StudioSessionPage() {
   if (loadError && !session) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6">
-        <p className="text-sm text-ink-600">{loadError}</p>
+        <p className="text-sm text-[#615A73]">{loadError}</p>
         <Link
           href="/studio"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#C2410C] hover:opacity-80"
         >
           <ArrowLeft className="h-4 w-4" />
-          返回新对话
+          返回开始创作
         </Link>
       </div>
     );
@@ -292,45 +292,43 @@ export default function StudioSessionPage() {
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3 sm:px-6">
+    <div className="studio-view-in flex min-h-0 flex-1 flex-col">
+      <header className="studio-glass-soft flex shrink-0 items-center gap-3 border-b border-white/50 px-4 py-3 sm:px-6">
         <Link
           href="/studio"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-500 transition hover:bg-canvas hover:text-ink-800"
-          title="新对话"
+          className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[#615A73] transition hover:bg-white/60 hover:text-[#241E36]"
+          title="开始创作"
         >
           <ArrowLeft className="h-4 w-4" />
           <span className="sr-only">返回</span>
         </Link>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-sm font-semibold text-ink-900">{title}</h1>
+          <h1 className="truncate text-sm font-semibold text-[#241E36]">{title}</h1>
           {session?.model ? (
-            <p className="truncate font-mono text-[11px] text-ink-400">
+            <p className="truncate font-mono text-[11px] text-[#8A8298]">
               {chat.model || session.model}
             </p>
           ) : null}
         </div>
-        {/* Desktop: reopen collapsed preview */}
         {!previewOpen && selectedId ? (
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
-            className="hidden h-8 items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs text-ink-600 transition hover:bg-canvas md:inline-flex"
+            className="hidden h-8 items-center gap-1.5 rounded-[10px] border border-white/70 bg-white/50 px-2.5 text-xs text-[#615A73] transition hover:bg-white md:inline-flex"
             title="打开预览"
           >
             <PanelRight className="h-3.5 w-3.5" />
             预览
           </button>
         ) : null}
-        {/* Mobile tabs */}
-        <div className="flex rounded-lg border border-line p-0.5 md:hidden">
+        <div className="flex rounded-[10px] border border-white/70 bg-white/40 p-0.5 md:hidden">
           <button
             type="button"
             onClick={() => setMobileTab("chat")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+            className={`rounded-[8px] px-2.5 py-1 text-xs font-medium transition ${
               mobileTab === "chat"
-                ? "bg-primary-500 text-white"
-                : "text-ink-600 hover:bg-canvas"
+                ? "bg-gradient-to-br from-[#F2994A] to-[#C2410C] text-white"
+                : "text-[#615A73] hover:bg-white/60"
             }`}
           >
             对话
@@ -338,10 +336,10 @@ export default function StudioSessionPage() {
           <button
             type="button"
             onClick={() => setMobileTab("works")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+            className={`rounded-[8px] px-2.5 py-1 text-xs font-medium transition ${
               mobileTab === "works"
-                ? "bg-primary-500 text-white"
-                : "text-ink-600 hover:bg-canvas"
+                ? "bg-gradient-to-br from-[#F2994A] to-[#C2410C] text-white"
+                : "text-[#615A73] hover:bg-white/60"
             }`}
           >
             作品

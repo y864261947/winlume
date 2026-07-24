@@ -118,6 +118,207 @@ button:not(:disabled) {
   }
 }
 
+/* ── WinLume Studio：对齐 Claude Design demo（暖色 / 毛玻璃） ── */
+@theme {
+  --color-lume-canvas: #f7f3ec;
+  --color-lume-ink: #241e36;
+  --color-lume-muted: #615a73;
+  --color-lume-soft: #8a8298;
+  --color-lume-amber: #f2994a;
+  --color-lume-orange: #c2410c;
+  --color-lume-rose: #ef4770;
+  --color-lume-sage: #7a8c60;
+}
+
+@keyframes studio-float-blob {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(24px, -28px) scale(1.06);
+  }
+}
+
+@keyframes studio-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 6px 14px -6px rgba(194, 65, 12, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+  50% {
+    transform: scale(1.07);
+    box-shadow:
+      0 8px 18px -6px rgba(194, 65, 12, 0.65),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+}
+
+@keyframes studio-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes studio-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.studio-root {
+  --studio-scrollbar: rgba(194, 65, 12, 0.22);
+  color: var(--color-lume-ink);
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "PingFang SC",
+    "Microsoft YaHei",
+    system-ui,
+    sans-serif;
+  background:
+    radial-gradient(1100px 560px at 8% -8%, rgba(242, 153, 74, 0.18), transparent 60%),
+    radial-gradient(950px 650px at 100% 15%, rgba(226, 142, 58, 0.15), transparent 55%),
+    radial-gradient(900px 820px at 45% 115%, rgba(122, 140, 96, 0.14), transparent 55%),
+    var(--color-lume-canvas);
+}
+
+.studio-root ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.studio-root ::-webkit-scrollbar-thumb {
+  background: var(--studio-scrollbar);
+  border-radius: 8px;
+  border: none;
+}
+.studio-root ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.studio-blob {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(30px);
+  animation: studio-float-blob 13s ease-in-out infinite;
+}
+.studio-blob-a {
+  top: -120px;
+  left: -100px;
+  width: 340px;
+  height: 340px;
+  background: radial-gradient(circle, rgba(242, 153, 74, 0.35), transparent 70%);
+}
+.studio-blob-b {
+  top: 20%;
+  right: -140px;
+  width: 380px;
+  height: 380px;
+  background: radial-gradient(circle, rgba(226, 142, 58, 0.3), transparent 70%);
+  filter: blur(34px);
+  animation-duration: 16s;
+  animation-delay: 1.5s;
+}
+.studio-blob-c {
+  bottom: -160px;
+  left: 35%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(122, 140, 96, 0.28), transparent 70%);
+  filter: blur(36px);
+  animation-duration: 18s;
+  animation-delay: 0.8s;
+}
+
+.studio-glass {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 20px 44px -16px rgba(120, 85, 45, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.studio-glass-soft {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+}
+
+.studio-logo-mark {
+  animation: studio-breathe 3.6s ease-in-out infinite;
+  background: linear-gradient(135deg, #f2994a, #c2410c);
+}
+
+.studio-view-in {
+  animation: studio-view-in 0.38s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.studio-fade-up {
+  animation: studio-fade-up 0.5s ease both;
+}
+
+.studio-nav-active {
+  background: rgba(194, 65, 12, 0.12);
+  color: #c2410c;
+  font-weight: 600;
+}
+
+.studio-nav-item:hover {
+  background: rgba(194, 65, 12, 0.08);
+  transform: translateX(2px);
+}
+
+.studio-send-btn {
+  background: linear-gradient(135deg, #f2994a, #c2410c);
+  box-shadow: 0 6px 14px -6px rgba(194, 65, 12, 0.55);
+}
+
+.studio-send-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.studio-user-bubble {
+  background: linear-gradient(135deg, #f2994a, #c2410c);
+  color: #fff;
+}
+
+.studio-assistant-bubble {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #241e36;
+  box-shadow: 0 8px 24px -12px rgba(120, 85, 45, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-blob,
+  .studio-logo-mark,
+  .studio-view-in,
+  .studio-fade-up {
+    animation: none !important;
+  }
+}
+
 /* Hero 背景：纸白上极淡的冷色水洗 */
 @utility hero-wash {
   background-image:

@@ -1,30 +1,41 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
+  Compass,
   FolderKanban,
+  HelpCircle,
+  LayoutGrid,
   LoaderCircle,
   LogOut,
-  MessageSquarePlus,
-  Settings,
+  Search,
   Sparkles,
-  UserRound,
   Wallet,
-  Wrench,
 } from "lucide-react";
-import LogoMark from "@/components/LogoMark";
 import { useModals } from "@/components/providers";
 import { formatBalance } from "@/lib/account";
 import { site } from "@/data/site";
+import { listSessions, getGatewayUserId } from "@/lib/studio/api";
+import type { Session } from "@/lib/agent/types";
 
-const navItems = [
-  { href: "/studio", label: "新对话", icon: MessageSquarePlus, exact: true },
-  { href: "/studio/skills", label: "Skills", icon: Wrench, exact: false },
-  { href: "/studio/artifacts", label: "作品", icon: FolderKanban, exact: false },
-  { href: "/studio/settings", label: "设置", icon: Settings, exact: false },
-] as const;
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof Sparkles;
+  exact?: boolean;
+  soon?: boolean;
+};
+
+const primaryNav: NavItem[] = [
+  { href: "/studio", label: "开始创作", icon: Sparkles, exact: true },
+  { href: "/studio/skills", label: "全部能力", icon: LayoutGrid },
+  { href: "/studio/artifacts", label: "我的作品", icon: FolderKanban },
+  { href: "/studio/inspire", label: "灵感广场", icon: Compass },
+  { href: "/studio", label: "任务进度", icon: BarChart3, soon: true },
+];
 
 function useSignOutAction() {
   const { signOut } = useModals();
@@ -47,7 +58,7 @@ function useSignOutAction() {
   return { pending, failed, run };
 }
 
-function navActive(pathname: string, href: string, exact: boolean) {
+function navActive(pathname: string, href: string, exact?: boolean) {
   if (exact) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -56,119 +67,221 @@ export default function StudioSidebar() {
   const pathname = usePathname();
   const { account, accountLoading, balanceConfig, openLogin } = useModals();
   const signOutAction = useSignOutAction();
+  const [recent, setRecent] = useState<Session[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+
+  useEffect(() => {
+    if (!getGatewayUserId()) {
+      setRecent([]);
+      return;
+    }
+    let cancelled = false;
+    setRecentLoading(true);
+    listSessions()
+      .then((sessions) => {
+        if (!cancelled) setRecent(sessions.slice(0, 8));
+      })
+      .catch(() => {
+        if (!cancelled) setRecent([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRecentLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [account?.id, pathname]);
+
+  const avatarLetter = (
+    account?.display_name ||
+    account?.username ||
+    "W"
+  )
+    .trim()
+    .charAt(0)
+    .toUpperCase();
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-line bg-surface">
-      <div className="flex items-center gap-2 border-b border-line px-4 py-4">
-        <Link href="/studio" className="flex min-w-0 items-center gap-2">
-          <LogoMark size="sm" />
-          <span className="truncate text-sm font-bold tracking-tight text-ink-950">
-            {site.name}
-          </span>
-          <span className="rounded-md bg-primary-50 px-1.5 py-0.5 font-mono text-[10px] font-medium text-primary-600">
-            Studio
-          </span>
-        </Link>
-      </div>
+    <aside className="studio-glass relative z-[2] flex h-full w-[222px] shrink-0 flex-col border-r border-white/70 px-4 py-5">
+      <Link href="/studio" className="mb-6 flex items-center gap-2.5 px-2">
+        <span className="studio-logo-mark flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path
+              d="M12 2L14 9L21 11L14 13L12 20L10 13L3 11L10 9L12 2Z"
+              fill="white"
+            />
+          </svg>
+        </span>
+        <span className="text-[17px] font-bold tracking-wide text-[#241E36]">
+          {site.name}
+        </span>
+      </Link>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
-        {navItems.map((item) => {
-          const active = navActive(pathname, item.href, item.exact);
+      <nav className="flex flex-col gap-0.5">
+        {primaryNav.map((item) => {
           const Icon = item.icon;
-          if ("disabled" in item && item.disabled) {
+          if (item.soon) {
             return (
               <span
-                key={item.href}
+                key={item.label}
                 title="即将上线"
-                className="flex cursor-not-allowed items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-ink-300"
+                className="studio-nav-item flex cursor-not-allowed items-center gap-2.5 rounded-[11px] px-3 py-2.5 text-[14px] text-[#8A8298] transition"
               >
-                <Icon className="h-4 w-4 shrink-0" />
+                <Icon className="h-[18px] w-[18px] shrink-0 opacity-70" strokeWidth={1.8} />
                 {item.label}
+                <span className="ml-auto rounded-md bg-white/70 px-1.5 text-[10px] text-[#8A7860]">
+                  即将
+                </span>
               </span>
             );
           }
+          const active = navActive(pathname, item.href, item.exact);
           return (
             <Link
-              key={item.href}
+              key={item.label}
               href={item.href}
-              className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
-                active
-                  ? "bg-primary-50 font-medium text-primary-700"
-                  : "text-ink-700 hover:bg-canvas hover:text-ink-900"
+              className={`studio-nav-item flex items-center gap-2.5 rounded-[11px] px-3 py-2.5 text-[14px] transition duration-150 ${
+                active ? "studio-nav-active" : "text-[#615A73]"
               }`}
             >
-              <Icon className={`h-4 w-4 shrink-0 ${active ? "text-primary-500" : "text-ink-400"}`} />
+              <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
               {item.label}
             </Link>
           );
         })}
-
-        <div className="pt-4">
-          <p className="px-3 pb-2 font-mono text-[11px] uppercase tracking-widest text-ink-400">
-            最近
-          </p>
-          <p className="px-3 text-xs leading-5 text-ink-400">
-            会话列表将在后续任务中接入。
-          </p>
-        </div>
       </nav>
 
-      <div className="border-t border-line p-3">
+      <div className="mt-5 min-h-0 flex-1 overflow-y-auto px-1">
+        <p className="mb-2 px-2 text-[11px] font-semibold tracking-wide text-[#8A8298]">
+          最近对话
+        </p>
+        {!getGatewayUserId() ? (
+          <p className="px-2 text-xs leading-5 text-[#8A8298]">登录后显示历史会话</p>
+        ) : recentLoading ? (
+          <p className="flex items-center gap-1.5 px-2 text-xs text-[#8A8298]">
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            加载中…
+          </p>
+        ) : recent.length === 0 ? (
+          <p className="px-2 text-xs leading-5 text-[#8A8298]">暂无会话，从「开始创作」发起</p>
+        ) : (
+          <ul className="space-y-0.5">
+            {recent.map((s) => {
+              const active = pathname === `/studio/c/${s.id}`;
+              return (
+                <li key={s.id}>
+                  <Link
+                    href={`/studio/c/${s.id}`}
+                    className={`studio-nav-item block truncate rounded-[10px] px-2.5 py-2 text-[13px] transition ${
+                      active
+                        ? "studio-nav-active"
+                        : "text-[#615A73] hover:text-[#241E36]"
+                    }`}
+                    title={s.title}
+                  >
+                    {s.title || "未命名对话"}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="mt-3 space-y-1 border-t border-white/50 pt-3">
+        <Link
+          href="/studio/skills"
+          className="studio-nav-item flex items-center gap-2.5 rounded-[11px] px-3 py-2.5 text-[13.5px] text-[#615A73] transition"
+        >
+          <Search className="h-4 w-4 shrink-0" strokeWidth={1.8} />
+          快速搜索
+          <span className="ml-auto inline-flex gap-1">
+            <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] border border-black/5 bg-gradient-to-b from-white to-[#f5f0e8] px-1 text-[10.5px] font-bold text-[#8A7860] shadow-sm">
+              /
+            </kbd>
+          </span>
+        </Link>
+        <button
+          type="button"
+          onClick={() => undefined}
+          className="studio-nav-item flex w-full items-center gap-2.5 rounded-[11px] px-3 py-2.5 text-left text-[13.5px] text-[#8A8298] transition"
+          title="帮助文档即将完善"
+        >
+          <HelpCircle className="h-4 w-4 shrink-0" strokeWidth={1.8} />
+          使用帮助
+        </button>
+      </div>
+
+      <div className="mt-3 border-t border-white/50 pt-3">
         {account ? (
           <div className="space-y-2">
-            <div className="flex items-center gap-2 rounded-lg bg-canvas px-3 py-2">
-              <UserRound className="h-4 w-4 shrink-0 text-ink-400" />
-              <span className="min-w-0 flex-1 truncate text-sm text-ink-700">
-                {account.display_name || account.username}
+            <div className="flex items-center gap-2.5 px-1">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F2994A] to-[#C2410C] text-sm font-bold text-white shadow-[0_6px_14px_-6px_rgba(194,65,12,0.5)]">
+                {avatarLetter}
               </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-[#241E36]">
+                  {account.display_name || account.username}
+                </p>
+                <p className="flex items-center gap-1 text-[11px] text-[#8A8298]">
+                  <Wallet className="h-3 w-3 text-[#C2410C]" />
+                  <span className="font-mono font-semibold text-[#241E36]">
+                    {formatBalance(account.quota, balanceConfig)}
+                  </span>
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 px-1 text-xs text-ink-500">
-              <Wallet className="h-3.5 w-3.5 shrink-0 text-primary-500" />
-              <span className="font-mono font-semibold text-ink-800">
-                {formatBalance(account.quota, balanceConfig)}
-              </span>
-            </div>
-            {signOutAction.failed && (
-              <p role="alert" className="px-1 text-xs text-rose-600">
+            {signOutAction.failed ? (
+              <p role="alert" className="px-1 text-xs text-[#EF4770]">
                 退出失败，请重试
               </p>
-            )}
-            <button
-              type="button"
-              disabled={signOutAction.pending}
-              onClick={() => {
-                void signOutAction.run();
-              }}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-line py-2 text-sm text-ink-700 transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {signOutAction.pending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <LogOut className="h-4 w-4" />
-              )}
-              退出登录
-            </button>
+            ) : null}
+            <div className="grid grid-cols-2 gap-1.5">
+              <Link
+                href="/studio/settings"
+                className="rounded-[10px] border border-white/80 bg-white/50 py-2 text-center text-xs text-[#615A73] transition hover:bg-white/80"
+              >
+                设置
+              </Link>
+              <button
+                type="button"
+                disabled={signOutAction.pending}
+                onClick={() => {
+                  void signOutAction.run();
+                }}
+                className="inline-flex items-center justify-center gap-1 rounded-[10px] border border-white/80 bg-white/50 py-2 text-xs text-[#615A73] transition hover:bg-white/80 disabled:opacity-60"
+              >
+                {signOutAction.pending ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <LogOut className="h-3.5 w-3.5" />
+                )}
+                退出
+              </button>
+            </div>
           </div>
         ) : accountLoading ? (
-          <div className="h-16 animate-pulse rounded-lg bg-canvas" aria-label="正在加载账户" />
+          <div
+            className="h-16 animate-pulse rounded-[12px] bg-white/40"
+            aria-label="正在加载账户"
+          />
         ) : (
           <div className="space-y-2">
-            <p className="flex items-start gap-1.5 px-1 text-xs leading-5 text-ink-500">
-              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-500" />
-              登录后可使用模型对话与余额。
+            <p className="px-1 text-xs leading-5 text-[#8A8298]">
+              登录后即可对话、使用 Skills 与保存作品。
             </p>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => openLogin("login")}
-                className="rounded-lg border border-line py-2 text-sm text-ink-800 transition hover:bg-canvas"
+                className="rounded-[11px] border border-white/80 bg-white/60 py-2 text-sm text-[#241E36] transition hover:bg-white"
               >
                 登录
               </button>
               <button
                 type="button"
                 onClick={() => openLogin("register")}
-                className="rounded-lg bg-primary-500 py-2 text-sm font-medium text-white transition hover:bg-primary-600"
+                className="studio-send-btn rounded-[11px] py-2 text-sm font-medium text-white"
               >
                 注册
               </button>

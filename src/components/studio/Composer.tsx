@@ -354,18 +354,18 @@ export default function Composer({
   };
 
   return (
-    <div className="border-t border-line bg-surface px-4 py-4 sm:px-6">
+    <div className="relative z-[1] border-t border-white/40 bg-gradient-to-t from-[rgba(247,243,236,0.95)] to-transparent px-4 py-4 sm:px-6">
       {error ? (
         <div
           role="alert"
-          className="mx-auto mb-3 flex max-w-3xl items-start justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+          className="mx-auto mb-3 flex max-w-3xl items-start justify-between gap-3 rounded-[14px] border border-[rgba(239,71,112,0.25)] bg-[rgba(239,71,112,0.08)] px-3 py-2 text-sm text-[#C2410C]"
         >
           <p className="min-w-0 flex-1 leading-5">{error}</p>
           {onClearError ? (
             <button
               type="button"
               onClick={onClearError}
-              className="shrink-0 text-xs text-rose-600 underline-offset-2 hover:underline"
+              className="shrink-0 text-xs text-[#C2410C] underline-offset-2 hover:underline"
             >
               关闭
             </button>
@@ -374,7 +374,7 @@ export default function Composer({
       ) : null}
 
       <form
-        className="relative mx-auto flex max-w-3xl flex-col gap-2 rounded-2xl border border-line bg-canvas p-2 shadow-sm"
+        className="studio-glass relative mx-auto flex max-w-3xl flex-col gap-2 rounded-[22px] p-2.5"
         onSubmit={onSubmit}
       >
         <div className="flex flex-wrap items-center gap-2 px-2 pt-1">
@@ -390,7 +390,7 @@ export default function Composer({
                 onChange={(e) => onModelChange(e.target.value)}
                 placeholder="输入模型名称"
                 disabled={disabled || streaming}
-                className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 py-1 font-mono text-xs text-ink-800 outline-none focus:border-primary-300 sm:w-48"
+                className="min-w-0 flex-1 rounded-[10px] border border-white/70 bg-white/70 px-2.5 py-1 font-mono text-xs text-[#241E36] outline-none focus:ring-2 focus:ring-[rgba(194,65,12,0.25)] sm:w-48"
               />
               <button
                 type="button"
@@ -400,7 +400,7 @@ export default function Composer({
                     onModelChange(modelOptions[0]);
                   }
                 }}
-                className="text-xs text-ink-500 hover:text-ink-800"
+                className="text-xs text-[#8A8298] hover:text-[#241E36]"
               >
                 列表
               </button>
@@ -418,7 +418,7 @@ export default function Composer({
                   onModelChange(e.target.value);
                 }}
                 disabled={disabled || streaming || modelsLoading}
-                className="appearance-none rounded-lg border border-line bg-surface py-1 pl-2.5 pr-7 font-mono text-xs text-ink-800 outline-none focus:border-primary-300 disabled:opacity-60"
+                className="appearance-none rounded-[10px] border border-white/70 bg-white/70 py-1 pl-2.5 pr-7 font-mono text-xs text-[#241E36] outline-none focus:ring-2 focus:ring-[rgba(194,65,12,0.25)] disabled:opacity-60"
               >
                 {modelOptions.map((name) => (
                   <option key={name} value={name}>
@@ -429,7 +429,7 @@ export default function Composer({
                   <option value="__custom__">自定义…</option>
                 ) : null}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-400" />
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8A8298]" />
             </div>
           )}
 
@@ -444,18 +444,18 @@ export default function Composer({
             }}
             disabled={disabled || streaming || skillsLoading}
             title="选择 Skills（或输入 /）"
-            className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink-600 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-[10px] border border-white/70 bg-white/70 px-2 py-1 text-xs text-[#615A73] transition hover:border-[rgba(194,65,12,0.25)] hover:bg-[rgba(194,65,12,0.08)] hover:text-[#C2410C] disabled:opacity-50"
           >
             <Wrench className="h-3.5 w-3.5" />
             Skills
             {selectedIds.length > 0 ? (
-              <span className="rounded-full bg-primary-100 px-1.5 text-[10px] font-medium text-primary-700">
+              <span className="rounded-full bg-[rgba(194,65,12,0.12)] px-1.5 text-[10px] font-medium text-[#C2410C]">
                 {selectedIds.length}
               </span>
             ) : null}
           </button>
 
-          <span className="text-[11px] text-ink-400">
+          <span className="text-[11px] text-[#8A8298]">
             {streaming
               ? "生成中…"
               : "Enter 发送 · / 选 Skill · Shift+Enter 换行"}
@@ -467,14 +467,14 @@ export default function Composer({
             {selectedSkills.map((s) => (
               <span
                 key={s.id}
-                className="inline-flex max-w-full items-center gap-1 rounded-full border border-primary-200 bg-primary-50 py-0.5 pl-2.5 pr-1 text-xs text-primary-800"
+                className="inline-flex max-w-full items-center gap-1 rounded-full border border-[rgba(194,65,12,0.2)] bg-[rgba(194,65,12,0.08)] py-0.5 pl-2.5 pr-1 text-xs text-[#C2410C]"
               >
                 <span className="truncate">{s.name || s.id}</span>
                 <button
                   type="button"
                   onClick={() => removeSkill(s.id)}
                   disabled={disabled || streaming}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-primary-600 hover:bg-primary-100 disabled:opacity-50"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#C2410C] hover:bg-[rgba(194,65,12,0.12)] disabled:opacity-50"
                   title="移除"
                 >
                   <X className="h-3 w-3" />
@@ -508,7 +508,7 @@ export default function Composer({
             }}
             placeholder={placeholder}
             disabled={disabled}
-            className="max-h-40 min-h-[2.75rem] flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-6 text-ink-900 outline-none placeholder:text-ink-400 disabled:opacity-60"
+            className="max-h-40 min-h-[2.75rem] flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-6 text-[#241E36] outline-none placeholder:text-[#8A8298] disabled:opacity-60"
             aria-controls={menuOpen ? menuId : undefined}
             aria-expanded={menuOpen}
             aria-autocomplete="list"
@@ -518,7 +518,7 @@ export default function Composer({
               type="button"
               onClick={() => onStop?.()}
               title="停止生成"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink-700 transition hover:bg-canvas"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-white/80 bg-white/80 text-[#615A73] transition hover:bg-white"
             >
               <Square className="h-3.5 w-3.5 fill-current" />
               <span className="sr-only">停止</span>
@@ -528,7 +528,7 @@ export default function Composer({
               type="submit"
               disabled={!canSend}
               title="发送"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500 text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
+              className="studio-send-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-white transition disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ArrowUp className="h-4 w-4" />
               <span className="sr-only">发送</span>
@@ -541,9 +541,9 @@ export default function Composer({
               id={menuId}
               role="listbox"
               aria-label="选择 Skill"
-              className="absolute bottom-full left-0 z-20 mb-2 max-h-64 w-full max-w-md overflow-auto rounded-xl border border-line bg-surface py-1 shadow-lg"
+              className="studio-glass absolute bottom-full left-0 z-20 mb-2 max-h-64 w-full max-w-md overflow-auto rounded-[16px] py-1"
             >
-              <div className="border-b border-line px-3 py-1.5 text-[11px] text-ink-400">
+              <div className="border-b border-white/50 px-3 py-1.5 text-[11px] text-[#8A8298]">
                 {skillsLoading
                   ? "加载 Skills…"
                   : menuQuery
@@ -551,7 +551,7 @@ export default function Composer({
                     : "输入 / 搜索 · 点击添加本条消息的 Skills"}
               </div>
               {menuSkills.length === 0 ? (
-                <p className="px-3 py-3 text-sm text-ink-500">
+                <p className="px-3 py-3 text-sm text-[#8A8298]">
                   {skillsLoading ? "加载中…" : "没有匹配的 Skill"}
                 </p>
               ) : (
@@ -573,18 +573,18 @@ export default function Composer({
                         }
                       }}
                       className={`flex w-full flex-col gap-0.5 px-3 py-2 text-left transition ${
-                        active ? "bg-primary-50" : "hover:bg-canvas"
+                        active ? "bg-[rgba(194,65,12,0.08)]" : "hover:bg-white/50"
                       }`}
                     >
-                      <span className="flex items-center gap-2 text-sm font-medium text-ink-900">
+                      <span className="flex items-center gap-2 text-sm font-medium text-[#241E36]">
                         <span className="truncate">{skill.name}</span>
                         {selected ? (
-                          <span className="shrink-0 rounded bg-primary-100 px-1.5 text-[10px] text-primary-700">
+                          <span className="shrink-0 rounded bg-[rgba(194,65,12,0.12)] px-1.5 text-[10px] text-[#C2410C]">
                             已选
                           </span>
                         ) : null}
                       </span>
-                      <span className="line-clamp-1 text-xs text-ink-500">
+                      <span className="line-clamp-1 text-xs text-[#8A8298]">
                         {skill.description || skill.id}
                       </span>
                     </button>

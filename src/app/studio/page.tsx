@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Clapperboard,
   FileText,
+  Globe2,
   Megaphone,
   Search,
+  ShoppingBag,
   Sparkles,
 } from "lucide-react";
 import Composer from "@/components/studio/Composer";
@@ -21,49 +24,68 @@ import {
   getDefaultModel,
 } from "@/lib/studio/prefs";
 
-/** Empty-state scene chips: prefill prompt + skill ids (demo → prefill only). */
-const SCENE_CHIPS = [
+/** Demo-aligned capability cards (prefill only — free agent core). */
+const CAPABILITY_CARDS = [
   {
     label: "做宣传内容",
+    desc: "文案、海报、图文全套宣传",
     icon: Megaphone,
     prompt:
-      "为一家新开业的社区咖啡店做一套开业宣传方案：含朋友圈文案、海报主标题副文、短视频脚本大纲，语气亲切有感染力。",
+      "帮我为上海新开的咖啡店做一套开业宣传，包括文案和海报主视觉方向，语气温暖有品质感。",
     skillIds: ["marketing-content-creator", "design-brand-guardian"],
   },
   {
     label: "做调研报告",
+    desc: "行业分析、竞品调研、趋势洞察",
     icon: Search,
     prompt:
-      "帮我做一份「智能办公软件」竞品调研提纲：市场格局、核心竞品对比维度、用户痛点与机会点，并给出简要财务视角的关注指标。",
+      "帮我做一份新式茶饮行业的竞品调研报告提纲，包含趋势与定价对比维度。",
     skillIds: ["product-trend-researcher", "finance-financial-analyst"],
   },
   {
+    label: "制作短视频",
+    desc: "脚本、配音、剪辑思路一站规划",
+    icon: Clapperboard,
+    prompt:
+      "帮我给新品奶茶做一条 15 秒抖音广告脚本，风格活泼有节奏感，含分镜与字幕建议。",
+    skillIds: ["marketing-douyin-strategist", "marketing-social-media-strategist"],
+  },
+  {
     label: "处理文件",
+    desc: "总结、提取、翻译、格式转换",
     icon: FileText,
     prompt:
-      "总结以下内容的核心观点、关键结论与可执行建议（请按条目输出，必要时补充缺失信息的假设）。\n\n【在此粘贴要处理的文本或要点】",
+      "帮我总结以下内容的核心观点、关键结论与可执行建议（按条目输出）。\n\n【在此粘贴文本】",
     skillIds: ["engineering-technical-writer"],
   },
   {
-    label: "小红书种草",
-    icon: Sparkles,
+    label: "做电商素材",
+    desc: "商品图、详情页、主图文案",
+    icon: ShoppingBag,
     prompt:
-      "写三篇小红书种草笔记：主题是「居家手冲咖啡入门」，要求有标题、正文、emoji 与话题标签，风格真实有共鸣、不硬广。",
-    skillIds: ["marketing-xiaohongshu-specialist"],
+      "帮我为新款保温杯设计一套详情页文案结构：卖点分层、场景故事与规格表说明。",
+    skillIds: ["marketing-content-creator", "design-image-prompt-engineer"],
+  },
+  {
+    label: "生成一个网页",
+    desc: "活动页、介绍页、单页网站结构",
+    icon: Globe2,
+    prompt:
+      "帮我规划一个瑜伽工作室开业活动落地页：信息架构、文案大纲与视觉风格建议。",
+    skillIds: ["design-ui-designer", "marketing-content-creator"],
   },
 ] as const;
 
 export default function StudioHomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { openLogin } = useModals();
+  const { openLogin, account } = useModals();
   const [draft, setDraft] = useState("");
   const [model, setModel] = useState(FALLBACK_DEFAULT_MODEL);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
 
-  // Default model from localStorage; query `model` / skill handoff from marketing or Skills page
   useEffect(() => {
     const prompt = searchParams.get("prompt");
     const skill = searchParams.get("skill");
@@ -77,13 +99,10 @@ export default function StudioHomePage() {
     }
   }, [searchParams]);
 
-  const applySceneChip = useCallback(
-    (chip: (typeof SCENE_CHIPS)[number]) => {
-      setDraft(chip.prompt);
-      setSelectedSkillIds([...chip.skillIds]);
-    },
-    [],
-  );
+  const applyCard = useCallback((card: (typeof CAPABILITY_CARDS)[number]) => {
+    setDraft(card.prompt);
+    setSelectedSkillIds([...card.skillIds]);
+  }, []);
 
   const startChat = useCallback(
     async (text: string, meta?: { skillIds?: string[] }) => {
@@ -121,7 +140,6 @@ export default function StudioHomePage() {
           model: requestModel,
           skillIds,
         });
-        // Clear local selection (Composer also clears after send)
         setSelectedSkillIds([]);
         router.push(`/studio/c/${session.id}`);
       } catch (err) {
@@ -137,43 +155,98 @@ export default function StudioHomePage() {
     [model, openLogin, router, selectedSkillIds, starting],
   );
 
+  const greetingName =
+    account?.display_name || account?.username
+      ? `，${account.display_name || account.username}`
+      : "";
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-10">
-        <h1 className="text-center text-2xl font-bold tracking-tight text-ink-950 sm:text-3xl">
-          今天想完成什么？
-        </h1>
-        <p className="mt-3 max-w-md text-center text-sm leading-6 text-ink-500">
-          输入需求即可开始新对话。可点场景芯片预填提示与 Skills，或在输入框用 / 选择技能。
-        </p>
-
-        {selectedSkillIds.length > 0 ? (
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
-            {selectedSkillIds.map((id) => (
+    <div className="studio-view-in flex min-h-0 flex-1 flex-col">
+      <div className="flex-1 overflow-y-auto px-6 py-8 sm:px-10 lg:px-11">
+        <div className="mx-auto max-w-[1180px]">
+          <header className="studio-fade-up mb-7 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-[26px] font-bold tracking-tight text-[#241E36] sm:whitespace-nowrap">
+                你好{greetingName}，今天想完成什么？
+              </h1>
+              <p className="mt-1.5 text-[14px] text-[#8A8298]">
+                不用挑模型，告诉我结果就行——平台会按需组合能力与 Skills。
+              </p>
+            </div>
+            <div className="hidden shrink-0 items-center gap-3 sm:flex">
               <span
-                key={id}
-                className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700"
+                className="flex h-[38px] w-[38px] items-center justify-center rounded-[12px] border border-white/80 bg-white/70 text-[#615A73] shadow-sm backdrop-blur"
+                title="通知（即将上线）"
               >
-                <Sparkles className="h-3.5 w-3.5" />
-                {id}
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9Z" />
+                  <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+                </svg>
               </span>
-            ))}
-          </div>
-        ) : null}
+            </div>
+          </header>
 
-        <div className="mt-8 flex max-w-xl flex-wrap items-center justify-center gap-2">
-          {SCENE_CHIPS.map((chip) => (
-            <button
-              key={chip.label}
-              type="button"
-              disabled={starting}
-              onClick={() => applySceneChip(chip)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-1.5 text-sm text-ink-700 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 disabled:opacity-50"
-            >
-              <chip.icon className="h-3.5 w-3.5 text-ink-400" />
-              {chip.label}
-            </button>
-          ))}
+          <section className="studio-glass studio-fade-up relative mb-8 overflow-hidden rounded-[22px] px-7 py-7">
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent"
+              aria-hidden
+            />
+            <h2 className="text-[21px] font-bold tracking-tight text-[#241E36]">
+              一句话调用多个 AI 能力
+            </h2>
+            <p className="mt-1.5 text-[13.5px] text-[#8A8298]">
+              选择方向后即可开始；也可直接在下方描述你的目标。选中方向会预填提示并挂上推荐 Skills。
+            </p>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {CAPABILITY_CARDS.map((card, i) => {
+                const Icon = card.icon;
+                const active = card.skillIds.every((id) => selectedSkillIds.includes(id))
+                  && draft.startsWith(card.prompt.slice(0, 12));
+                return (
+                  <button
+                    key={card.label}
+                    type="button"
+                    disabled={starting}
+                    onClick={() => applyCard(card)}
+                    style={{ animationDelay: `${0.04 * i}s` }}
+                    className={`studio-fade-up group rounded-[16px] border p-4 text-left transition duration-150 hover:-translate-y-0.5 disabled:opacity-50 ${
+                      active
+                        ? "border-[rgba(194,65,12,0.35)] bg-[rgba(194,65,12,0.08)] shadow-md"
+                        : "border-white/70 bg-white/50 hover:border-[rgba(194,65,12,0.2)] hover:bg-white/80"
+                    }`}
+                  >
+                    <span
+                      className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[12px] ${
+                        active
+                          ? "bg-gradient-to-br from-[#F2994A] to-[#C2410C] text-white"
+                          : "bg-[rgba(194,65,12,0.1)] text-[#C2410C]"
+                      }`}
+                    >
+                      <Icon className="h-5 w-5" strokeWidth={1.8} />
+                    </span>
+                    <p className="text-[15px] font-semibold text-[#241E36]">{card.label}</p>
+                    <p className="mt-1 text-[12.5px] leading-5 text-[#8A8298]">{card.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {selectedSkillIds.length > 0 ? (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-[#8A8298]">已挂 Skills：</span>
+              {selectedSkillIds.map((id) => (
+                <span
+                  key={id}
+                  className="inline-flex items-center gap-1 rounded-full border border-[rgba(194,65,12,0.2)] bg-[rgba(194,65,12,0.08)] px-2.5 py-1 text-[11px] font-medium text-[#C2410C]"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {id}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -188,7 +261,11 @@ export default function StudioHomePage() {
         onSkillIdsChange={setSelectedSkillIds}
         error={error}
         onClearError={() => setError(null)}
-        placeholder={starting ? "正在创建会话…" : "描述你想完成的任务…"}
+        placeholder={
+          starting
+            ? "正在创建会话…"
+            : "一句话描述你想完成的事，或点上方能力卡片…"
+        }
       />
     </div>
   );
