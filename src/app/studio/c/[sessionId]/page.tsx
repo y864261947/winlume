@@ -21,6 +21,7 @@ import {
   takePendingFirstMessage,
   StudioApiError,
 } from "@/lib/studio/api";
+import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
 
 type MobileTab = "chat" | "works";
 
@@ -95,7 +96,7 @@ export default function StudioSessionPage() {
   const chat = useStudioChat({
     sessionId: session?.id ?? sessionId,
     initialMessages,
-    model: session?.model ?? "gpt-4o-mini",
+    model: session?.model ?? FALLBACK_DEFAULT_MODEL,
     onUnauthorized,
     onArtifact,
   });

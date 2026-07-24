@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WinLume Studio
 
-## Getting Started
+Web-first AI workbench for WinLume: free-agent chat, skill injection, artifacts, and gateway-backed billing.
 
-First, run the development server:
+Primary UI lives at **`/studio`**. Marketing pages remain under `/products`, `/pricing`, etc.
+
+## Requirements
+
+- Node.js 20+ (recommended)
+- npm
+
+## Environment
+
+Copy `.env.example` to `.env.local` (or export vars in your shell):
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEW_API_URL` | No | NewAPI-compatible gateway origin. Default: `https://v2api.top` |
+| `WINLUME_GATEWAY_TOKEN` | Yes for real chat | Server-side Bearer token for `/v1/chat/completions`. Never expose to the browser. |
+| `WINLUME_DATA_DIR` | No | Override local data root (default: `./data`) |
+| `WINLUME_CHAT_PATH` | No | Override chat path (default: `/v1/chat/completions`) |
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# .env.local example
+NEW_API_URL=https://v2api.top
+WINLUME_GATEWAY_TOKEN=sk-your-token
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Develop
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open [http://localhost:3000](http://localhost:3000) — the app redirects into Studio (`/studio`).
 
-## Learn More
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Next.js dev server |
+| `npm run build` | Production build |
+| `npm start` | Serve production build |
+| `npm test` | Vitest unit tests |
+| `npm run lint` | ESLint |
 
-To learn more about Next.js, take a look at the following resources:
+## Skills import
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Curated agent skills live under `content/skills/{id}/SKILL.md`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+To re-import from [agency-agents-zh](https://github.com/) (or a local clone):
 
-## Deploy on Vercel
+```bash
+# optional: point at source tree
+set AGENCY_AGENTS_DIR=E:\CodeCode\agency-agents-zh   # Windows PowerShell
+# export AGENCY_AGENTS_DIR=../agency-agents-zh        # bash
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+node scripts/import-agency-agents.mjs
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Defaults also try `E:/CodeCode/agency-agents-zh` and `../agency-agents-zh`.
+
+## Data directory
+
+Runtime session / artifact storage (web host):
+
+```
+data/
+  users/{userId}/sessions.json
+  users/{userId}/sessions/{sessionId}.json
+  users/{userId}/artifacts.json
+  blobs/{userId}/{artifactId}
+```
+
+- Gitignored under `/data/users/`, `/data/blobs/`, etc. (see `.gitignore`)
+- Override root with `WINLUME_DATA_DIR`
+- Auth for Studio APIs uses header `x-winlume-user` (from `localStorage` key `winlume:gateway-user-id` after login)
+
+## Studio notes
+
+- **Login required** for chat, sessions, and model calls (client blocks send + opens login; server returns 401).
+- **Default model** preference: Settings → 默认模型 (`localStorage` `winlume:default-model`).
+- Marketing “立即体验” CTAs open **Studio** (not the old mock ExperienceModal workflow).
+
+## Stack
+
+- Next.js App Router + React
+- Vitest
+- Tailwind CSS v4
+- OpenAI-compatible streaming via NewAPI gateway
+
+## License
+
+Private / project-internal unless otherwise stated.

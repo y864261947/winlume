@@ -9,8 +9,9 @@ import { useModals } from "./providers";
 
 export default function ProductCard({ product }: { product: Product }) {
   const category = getCategory(product.category);
-  const { favorites, openExperience, toggleFavorite } = useModals();
+  const { favorites, toggleFavorite } = useModals();
   const favorite = favorites.includes(product.id);
+  const studioHref = `/studio?model=${encodeURIComponent(product.name)}`;
 
   return (
     <div className="spectrum-card group flex h-full flex-col rounded-lg border border-line bg-surface p-5 transition duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lg hover:shadow-ink-950/5">
@@ -44,7 +45,7 @@ export default function ProductCard({ product }: { product: Product }) {
       <div className="mt-3 rounded-md bg-canvas px-2.5 py-2 font-mono text-xs ring-1 ring-line"><PriceTag pricing={product.pricing} /></div>
       <div className="mt-4 flex gap-2 pt-1 mt-auto">
         <Link href={`/products/${product.id}`} className="flex-1 rounded-lg border border-line py-2 text-center text-xs text-ink-700 transition hover:border-line-strong hover:bg-canvas">查看详情</Link>
-        <button type="button" onClick={() => openExperience(product)} className="flex-1 rounded-lg bg-primary-500 py-2 text-center text-xs font-medium text-white transition hover:bg-primary-600">立即体验</button>
+        <Link href={studioHref} className="flex-1 rounded-lg bg-primary-500 py-2 text-center text-xs font-medium text-white transition hover:bg-primary-600">立即体验</Link>
       </div>
     </div>
   );

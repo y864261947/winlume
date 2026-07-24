@@ -12,6 +12,7 @@ import {
   streamChat,
   StudioApiError,
 } from "@/lib/studio/api";
+import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
 
 export type UiChatMessage = {
   id: string;
@@ -72,7 +73,7 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
   const {
     sessionId: sessionIdProp = null,
     initialMessages,
-    model: modelProp = "gpt-4o-mini",
+    model: modelProp = FALLBACK_DEFAULT_MODEL,
     skillIds: skillIdsProp,
     onSession,
     onUnauthorized,

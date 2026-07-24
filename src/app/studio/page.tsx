@@ -16,6 +16,10 @@ import {
   setPendingFirstMessage,
   StudioApiError,
 } from "@/lib/studio/api";
+import {
+  FALLBACK_DEFAULT_MODEL,
+  getDefaultModel,
+} from "@/lib/studio/prefs";
 
 /** Empty-state scene chips: prefill prompt + skill ids (demo → prefill only). */
 const SCENE_CHIPS = [
@@ -49,24 +53,28 @@ const SCENE_CHIPS = [
   },
 ] as const;
 
-const DEFAULT_MODEL = "gpt-4o-mini";
-
 export default function StudioHomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { openLogin } = useModals();
   const [draft, setDraft] = useState("");
-  const [model, setModel] = useState(DEFAULT_MODEL);
+  const [model, setModel] = useState(FALLBACK_DEFAULT_MODEL);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
 
-  // Skills page "使用示例" → /studio?skill=&prompt=
+  // Default model from localStorage; query `model` / skill handoff from marketing or Skills page
   useEffect(() => {
     const prompt = searchParams.get("prompt");
     const skill = searchParams.get("skill");
+    const modelParam = searchParams.get("model")?.trim();
     if (prompt) setDraft(prompt);
     if (skill) setSelectedSkillIds([skill]);
+    if (modelParam) {
+      setModel(modelParam);
+    } else {
+      setModel(getDefaultModel());
+    }
   }, [searchParams]);
 
   const applySceneChip = useCallback(
@@ -102,14 +110,15 @@ export default function StudioHomePage() {
           message.replace(/\s+/g, " ").length > 40
             ? `${message.replace(/\s+/g, " ").slice(0, 40)}…`
             : message.replace(/\s+/g, " ");
+        const requestModel = model.trim() || getDefaultModel();
         const session = await createSession({
-          model: model.trim() || DEFAULT_MODEL,
+          model: requestModel,
           title: title || "新对话",
         });
         setPendingFirstMessage({
           sessionId: session.id,
           message,
-          model: model.trim() || DEFAULT_MODEL,
+          model: requestModel,
           skillIds,
         });
         // Clear local selection (Composer also clears after send)

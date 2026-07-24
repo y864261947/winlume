@@ -3,20 +3,25 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import LoginModal from "./LoginModal";
 import SearchModal from "./SearchModal";
-import ExperienceModal from "./ExperienceModal";
 import OnboardingModal from "./OnboardingModal";
 import type { Product } from "@/data/products";
 import type { Audience } from "@/data/audience";
-import type { ExperienceSubject } from "@/lib/experience";
 import { getAccount, getBalanceConfig, logout as logoutRequest, type Account, type BalanceConfig } from "@/lib/account";
 
 type LoginMode = "login" | "register";
+
+/** Optional subject for marketing CTAs — routes into real Studio, not a mock run. */
+export type ExperienceTarget = Product | { name: string } | string;
 
 interface ModalContextValue {
   openLogin: (mode?: LoginMode) => void;
   closeLogin: () => void;
   openSearch: () => void;
-  openExperience: (target?: Product | ExperienceSubject | string) => void;
+  /**
+   * Open real Studio (no fake ExperienceModal runs).
+   * Optional target preselects model via `?model=`.
+   */
+  openExperience: (target?: ExperienceTarget) => void;
   favorites: string[];
   toggleFavorite: (productId: string) => void;
   account: Account | null;
@@ -52,8 +57,6 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginMode, setLoginMode] = useState<LoginMode>("login");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [experienceOpen, setExperienceOpen] = useState(false);
-  const [experienceSubject, setExperienceSubject] = useState<ExperienceSubject | undefined>();
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   // 初始为空、挂载后再读 localStorage，避免 SSR 与客户端首帧不一致（hydration mismatch）
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -82,9 +85,18 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const openLogin = useCallback((mode: LoginMode = "login") => { setLoginMode(mode); setLoginOpen(true); }, []);
   const closeLogin = useCallback(() => setLoginOpen(false), []);
   const openSearch = useCallback(() => setSearchOpen(true), []);
-  const openExperience = useCallback((target?: Product | ExperienceSubject | string) => {
-    setExperienceSubject(typeof target === "string" ? { name: target } : target);
-    setExperienceOpen(true);
+  /** Neutralized: marketing “立即体验” goes to Studio, not the mock ExperienceModal. */
+  const openExperience = useCallback((target?: ExperienceTarget) => {
+    const modelName =
+      typeof target === "string"
+        ? target
+        : target && typeof target === "object" && "name" in target && typeof target.name === "string"
+          ? target.name
+          : undefined;
+    const url = modelName
+      ? `/studio?model=${encodeURIComponent(modelName)}`
+      : "/studio";
+    window.location.assign(url);
   }, []);
   const toggleFavorite = useCallback((productId: string) => { setFavorites((current) => current.includes(productId) ? current.filter((id) => id !== productId) : [...current, productId]); }, []);
   const signOut = useCallback(async () => {
@@ -148,7 +160,6 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       {children}
       <LoginModal open={loginOpen} initialMode={loginMode} onClose={closeLogin} />
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
-      <ExperienceModal open={experienceOpen} subject={experienceSubject} onClose={() => setExperienceOpen(false)} />
       <OnboardingModal open={onboardingOpen} onComplete={completeOnboarding} onDismiss={dismissOnboarding} />
     </ModalContext.Provider>
   );

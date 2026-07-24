@@ -1,13 +1,20 @@
+/**
+ * @deprecated Mock experience workflow — no longer used by Studio or marketing CTAs.
+ * “立即体验” routes to `/studio` via `openExperience` in providers.
+ * Kept only so old imports do not break; do not call from new code.
+ */
+
 import type { ProductType } from "@/data/products";
 
 export type ExperienceStatus = "running" | "completed";
 
-/** 体验目标：可以是目录中的产品，也可以只是模型广场里的一个模型名。 */
+/** @deprecated */
 export interface ExperienceSubject {
   name: string;
   type?: ProductType;
 }
 
+/** @deprecated */
 export interface ExperienceRun {
   id: string;
   productName: string;
@@ -18,6 +25,7 @@ export interface ExperienceRun {
   createdAt: string;
 }
 
+/** @deprecated */
 export interface ExperiencePlan {
   estimatedCost: string;
   productName: string;
@@ -26,7 +34,11 @@ export interface ExperiencePlan {
 
 const storageKey = "winlume:experience-history-v1";
 
-export function createPlan(subject: ExperienceSubject | undefined, task: string): ExperiencePlan {
+/** @deprecated */
+export function createPlan(
+  subject: ExperienceSubject | undefined,
+  task: string,
+): ExperiencePlan {
   const base = subject?.type === "应用" ? "$0.03 - $0.08" : "$0.01 - $0.04";
   return {
     estimatedCost: base,
@@ -35,19 +47,30 @@ export function createPlan(subject: ExperienceSubject | undefined, task: string)
   };
 }
 
+/** @deprecated */
 export function loadExperienceHistory(): ExperienceRun[] {
   if (typeof window === "undefined") return [];
   try {
     const stored = window.localStorage.getItem(storageKey);
     return stored ? (JSON.parse(stored) as ExperienceRun[]) : [];
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
+/** @deprecated */
 export function saveExperienceHistory(history: ExperienceRun[]) {
   window.localStorage.setItem(storageKey, JSON.stringify(history.slice(0, 8)));
 }
 
-export async function submitExperience(input: { subject?: ExperienceSubject; task: string; prompt: string }): Promise<ExperienceRun> {
+/**
+ * @deprecated Fake async run — do not use. Prefer real Studio chat at `/studio`.
+ */
+export async function submitExperience(input: {
+  subject?: ExperienceSubject;
+  task: string;
+  prompt: string;
+}): Promise<ExperienceRun> {
   const plan = createPlan(input.subject, input.task);
   await new Promise((resolve) => window.setTimeout(resolve, 750));
   return {

@@ -1,9 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, Boxes } from "lucide-react";
 import { fetchPlaza, type PlazaModel } from "@/lib/catalog";
-import { useModals } from "./providers";
 
 function displayPrice(model: PlazaModel) {
   if (model.quota_type === 1) return `$${model.model_price.toFixed(2)} / 次`;
@@ -11,7 +11,6 @@ function displayPrice(model: PlazaModel) {
 }
 
 export function RealModelGrid({ limit = 12, compact = false }: { limit?: number; compact?: boolean }) {
-  const { openExperience } = useModals();
   const [models, setModels] = useState<PlazaModel[]>([]);
   const [vendors, setVendors] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
@@ -67,5 +66,42 @@ export function RealModelGrid({ limit = 12, compact = false }: { limit?: number;
     );
   }
 
-  return <div className={`grid gap-4 ${compact ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2 lg:grid-cols-4"}`}>{models.map((model) => <article key={model.model_name} className="spectrum-card flex min-h-52 flex-col rounded-lg border border-line bg-surface p-5 transition duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lg hover:shadow-ink-950/5"><div className="flex items-center justify-between gap-2"><span className="flex items-center gap-1.5 text-xs text-ink-500"><Boxes className="h-3.5 w-3.5 text-primary-500" />{vendors[model.vendor_id ?? 0] ?? "公开模型"}</span><span className="rounded-md bg-canvas px-2 py-0.5 font-mono text-[10px] text-ink-500 ring-1 ring-line">{model.quota_type === 1 ? "按次" : "Token"}</span></div><p className="mt-3 break-all font-mono text-sm font-semibold text-ink-900">{model.model_name}</p><p className="mt-3 rounded-md bg-canvas px-2.5 py-2 font-mono text-xs text-ink-700 ring-1 ring-line">{displayPrice(model)}</p><div className="mt-3 flex min-h-5 flex-wrap gap-1">{(model.supported_endpoint_types ?? []).slice(0, 2).map((endpoint) => <span key={endpoint} className="rounded-md border border-line px-1.5 py-0.5 text-[10px] text-ink-500">{endpoint}</span>)}</div><button type="button" onClick={() => openExperience(model.model_name)} className="mt-auto flex items-center justify-center gap-1.5 rounded-lg bg-primary-500 py-1.5 text-xs font-medium text-white transition hover:bg-primary-600">立即体验<ArrowRight className="h-3.5 w-3.5" /></button></article>)}</div>;
+  return (
+    <div className={`grid gap-4 ${compact ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2 lg:grid-cols-4"}`}>
+      {models.map((model) => (
+        <article
+          key={model.model_name}
+          className="spectrum-card flex min-h-52 flex-col rounded-lg border border-line bg-surface p-5 transition duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lg hover:shadow-ink-950/5"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-xs text-ink-500">
+              <Boxes className="h-3.5 w-3.5 text-primary-500" />
+              {vendors[model.vendor_id ?? 0] ?? "公开模型"}
+            </span>
+            <span className="rounded-md bg-canvas px-2 py-0.5 font-mono text-[10px] text-ink-500 ring-1 ring-line">
+              {model.quota_type === 1 ? "按次" : "Token"}
+            </span>
+          </div>
+          <p className="mt-3 break-all font-mono text-sm font-semibold text-ink-900">{model.model_name}</p>
+          <p className="mt-3 rounded-md bg-canvas px-2.5 py-2 font-mono text-xs text-ink-700 ring-1 ring-line">
+            {displayPrice(model)}
+          </p>
+          <div className="mt-3 flex min-h-5 flex-wrap gap-1">
+            {(model.supported_endpoint_types ?? []).slice(0, 2).map((endpoint) => (
+              <span key={endpoint} className="rounded-md border border-line px-1.5 py-0.5 text-[10px] text-ink-500">
+                {endpoint}
+              </span>
+            ))}
+          </div>
+          <Link
+            href={`/studio?model=${encodeURIComponent(model.model_name)}`}
+            className="mt-auto flex items-center justify-center gap-1.5 rounded-lg bg-primary-500 py-1.5 text-xs font-medium text-white transition hover:bg-primary-600"
+          >
+            立即体验
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </article>
+      ))}
+    </div>
+  );
 }
