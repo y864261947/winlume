@@ -10,9 +10,16 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { ArrowUp, ChevronDown, Square, Wrench, X } from "lucide-react";
+import { ArrowUp, ChevronDown, Square, Wrench } from "lucide-react";
 import { fetchPlaza } from "@/lib/catalog";
 import type { SkillMeta } from "@/lib/agent/types";
+import SkillChips from "./SkillChips";
+import SkillSlashMenu, {
+  activateSlashMenuItem,
+  getSlashMenuItems,
+  type MenuView,
+  type SkillDepartment,
+} from "./SkillSlashMenu";
 
 const FALLBACK_MODELS = [
   "gpt-4o-mini",
@@ -41,21 +48,13 @@ export type ComposerProps = {
   allowCustomModel?: boolean;
   error?: string | null;
   onClearError?: () => void;
-  /** Initial / controlled skill ids selected for the next message */
+  /** Initial / controlled skill ids selected for the next message (turn) */
   skillIds?: string[];
   onSkillIdsChange?: (ids: string[]) => void;
+  /** Session-pinned skill ids (parent may no-op until session page wired) */
+  pinnedSkillIds?: string[];
+  onPinnedSkillIdsChange?: (ids: string[]) => void;
 };
-
-function filterSkills(skills: SkillMeta[], query: string): SkillMeta[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return skills;
-  return skills.filter((s) => {
-    const hay = [s.id, s.name, s.description, s.category, ...(s.triggers ?? [])]
-      .join("\n")
-      .toLowerCase();
-    return hay.includes(q);
-  });
-}
 
 export default function Composer({
   value: controlledValue,
@@ -72,6 +71,8 @@ export default function Composer({
   onClearError,
   skillIds: skillIdsProp,
   onSkillIdsChange,
+  pinnedSkillIds: pinnedSkillIdsProp,
+  onPinnedSkillIdsChange,
 }: ComposerProps) {
   const promptId = useId();
   const modelId = useId();
@@ -81,11 +82,14 @@ export default function Composer({
   const [modelsLoading, setModelsLoading] = useState(true);
   const [customMode, setCustomMode] = useState(false);
   const [allSkills, setAllSkills] = useState<SkillMeta[]>([]);
+  const [departments, setDepartments] = useState<SkillDepartment[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [internalSkillIds, setInternalSkillIds] = useState<string[]>([]);
+  const [internalPinnedIds, setInternalPinnedIds] = useState<string[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuQuery, setMenuQuery] = useState("");
   const [menuIndex, setMenuIndex] = useState(0);
+  const [menuView, setMenuView] = useState<MenuView>({ kind: "root" });
   const [slashRange, setSlashRange] = useState<{ start: number; end: number } | null>(
     null,
   );
@@ -97,6 +101,9 @@ export default function Composer({
 
   const skillIdsControlled = skillIdsProp !== undefined;
   const selectedIds = skillIdsControlled ? skillIdsProp : internalSkillIds;
+
+  const pinnedControlled = pinnedSkillIdsProp !== undefined;
+  const pinnedIds = pinnedControlled ? pinnedSkillIdsProp : internalPinnedIds;
 
   const setDraft = useCallback(
     (next: string) => {
@@ -113,6 +120,15 @@ export default function Composer({
       onSkillIdsChange?.(resolved);
     },
     [selectedIds, skillIdsControlled, onSkillIdsChange],
+  );
+
+  const setPinnedIds = useCallback(
+    (next: string[] | ((prev: string[]) => string[])) => {
+      const resolved = typeof next === "function" ? next(pinnedIds) : next;
+      if (!pinnedControlled) setInternalPinnedIds(resolved);
+      onPinnedSkillIdsChange?.(resolved);
+    },
+    [pinnedIds, pinnedControlled, onPinnedSkillIdsChange],
   );
 
   useEffect(() => {
@@ -153,13 +169,21 @@ export default function Composer({
     fetch("/api/skills", { credentials: "same-origin" })
       .then(async (res) => {
         if (!res.ok) throw new Error("skills");
-        return res.json() as Promise<{ skills: SkillMeta[] }>;
+        return res.json() as Promise<{
+          skills: SkillMeta[];
+          departments?: SkillDepartment[];
+        }>;
       })
       .then((data) => {
-        if (!cancelled) setAllSkills(data.skills ?? []);
+        if (cancelled) return;
+        setAllSkills(data.skills ?? []);
+        setDepartments(data.departments ?? []);
       })
       .catch(() => {
-        if (!cancelled) setAllSkills([]);
+        if (!cancelled) {
+          setAllSkills([]);
+          setDepartments([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setSkillsLoading(false);
@@ -176,21 +200,36 @@ export default function Composer({
     }
   }, [model, modelOptions, customMode]);
 
-  const selectedSkills = useMemo(() => {
-    const map = new Map(allSkills.map((s) => [s.id, s]));
-    return selectedIds
-      .map((id) => map.get(id) ?? ({ id, name: id, description: "", category: "", source: "bundled" as const, enabled: true }))
-      .filter(Boolean);
-  }, [allSkills, selectedIds]);
+  const skillsById = useMemo(() => {
+    const map = new Map<string, SkillMeta>();
+    for (const s of allSkills) map.set(s.id, s);
+    return map;
+  }, [allSkills]);
 
-  const menuSkills = useMemo(
-    () => filterSkills(allSkills, menuQuery).slice(0, 12),
-    [allSkills, menuQuery],
+  const menuItems = useMemo(
+    () => getSlashMenuItems(allSkills, departments, menuQuery, menuView),
+    [allSkills, departments, menuQuery, menuView],
   );
 
+  // Reset highlight when query / open / view changes
   useEffect(() => {
     setMenuIndex(0);
-  }, [menuQuery, menuOpen]);
+  }, [menuQuery, menuOpen, menuView]);
+
+  // Keep highlight in range when item list shrinks
+  useEffect(() => {
+    if (menuItems.length === 0) return;
+    if (menuIndex >= menuItems.length) {
+      setMenuIndex(0);
+    }
+  }, [menuItems.length, menuIndex]);
+
+  // When typing a search query, leave department drill (flat search)
+  useEffect(() => {
+    if (menuQuery.trim() && menuView.kind !== "root") {
+      setMenuView({ kind: "root" });
+    }
+  }, [menuQuery, menuView.kind]);
 
   // Close slash menu on outside click
   useEffect(() => {
@@ -201,6 +240,7 @@ export default function Composer({
       if (textareaRef.current?.contains(t)) return;
       setMenuOpen(false);
       setSlashRange(null);
+      setMenuView({ kind: "root" });
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
@@ -224,13 +264,37 @@ export default function Composer({
     [setSelectedIds],
   );
 
+  const clearTurnSkills = useCallback(() => {
+    setSelectedIds([]);
+  }, [setSelectedIds]);
+
+  const togglePin = useCallback(
+    (id: string) => {
+      setPinnedIds((prev) =>
+        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+      );
+    },
+    [setPinnedIds],
+  );
+
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+    setMenuQuery("");
+    setSlashRange(null);
+    setMenuView({ kind: "root" });
+  }, []);
+
   const pickSkillFromMenu = useCallback(
     (skill: SkillMeta) => {
+      // Wrench-opened menu (no slash token): toggle; slash pick: add only
+      if (!slashRange) {
+        toggleSkill(skill.id);
+        return;
+      }
       setSelectedIds((prev) =>
         prev.includes(skill.id) ? prev : [...prev, skill.id],
       );
-      // Remove trailing /query token from draft when opened via slash
-      if (slashRange && textareaRef.current) {
+      if (textareaRef.current) {
         const el = textareaRef.current;
         const before = draft.slice(0, slashRange.start);
         const after = draft.slice(slashRange.end);
@@ -242,18 +306,20 @@ export default function Composer({
           el.setSelectionRange(pos, pos);
         });
       }
-      setMenuOpen(false);
-      setMenuQuery("");
-      setSlashRange(null);
+      closeMenu();
     },
-    [draft, setDraft, setSelectedIds, slashRange],
+    [closeMenu, draft, setDraft, setSelectedIds, slashRange, toggleSkill],
   );
 
-  const openSkillMenu = useCallback((query = "", range: { start: number; end: number } | null = null) => {
-    setMenuQuery(query);
-    setSlashRange(range);
-    setMenuOpen(true);
-  }, []);
+  const openSkillMenu = useCallback(
+    (query = "", range: { start: number; end: number } | null = null) => {
+      setMenuQuery(query);
+      setSlashRange(range);
+      setMenuView({ kind: "root" });
+      setMenuOpen(true);
+    },
+    [],
+  );
 
   const detectSlash = useCallback(
     (text: string, cursor: number) => {
@@ -264,6 +330,7 @@ export default function Composer({
         setMenuOpen(false);
         setSlashRange(null);
         setMenuQuery("");
+        setMenuView({ kind: "root" });
         return;
       }
       const token = match[0];
@@ -283,8 +350,7 @@ export default function Composer({
     void onSend(text, ids ? { skillIds: ids } : undefined);
     setDraft("");
     setSelectedIds([]);
-    setMenuOpen(false);
-    setSlashRange(null);
+    closeMenu();
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -297,45 +363,66 @@ export default function Composer({
     setDraft,
     selectedIds,
     setSelectedIds,
+    closeMenu,
   ]);
+
+  const runMenuActivate = useCallback(() => {
+    const item = menuItems[menuIndex];
+    activateSlashMenuItem(item, {
+      onPickSkill: pickSkillFromMenu,
+      onViewChange: setMenuView,
+      onClearTurnSkills: clearTurnSkills,
+      onHighlightIndexChange: setMenuIndex,
+    });
+  }, [menuItems, menuIndex, pickSkillFromMenu, clearTurnSkills]);
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (menuOpen && menuSkills[menuIndex]) {
-      pickSkillFromMenu(menuSkills[menuIndex]);
+    if (menuOpen && menuItems.length) {
+      runMenuActivate();
       return;
     }
     submit();
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (menuOpen && menuSkills.length) {
+    if (menuOpen) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setMenuIndex((i) => (i + 1) % menuSkills.length);
+        if (menuItems.length) {
+          setMenuIndex((i) => (i + 1) % menuItems.length);
+        }
         return;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setMenuIndex((i) => (i - 1 + menuSkills.length) % menuSkills.length);
+        if (menuItems.length) {
+          setMenuIndex((i) => (i - 1 + menuItems.length) % menuItems.length);
+        }
         return;
       }
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
-        const skill = menuSkills[menuIndex];
-        if (skill) pickSkillFromMenu(skill);
+        if (menuItems.length) runMenuActivate();
         return;
       }
       if (event.key === "Escape") {
         event.preventDefault();
-        setMenuOpen(false);
-        setSlashRange(null);
+        // Department drill: Esc → root first; then close
+        if (
+          menuView.kind === "department" &&
+          !menuQuery.trim()
+        ) {
+          setMenuView({ kind: "root" });
+          setMenuIndex(0);
+          return;
+        }
+        closeMenu();
         return;
       }
       if (event.key === "Tab") {
         event.preventDefault();
-        const skill = menuSkills[menuIndex];
-        if (skill) pickSkillFromMenu(skill);
+        if (menuItems.length) runMenuActivate();
         return;
       }
     }
@@ -352,6 +439,9 @@ export default function Composer({
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   };
+
+  const turnCount = selectedIds.length;
+  const pinCount = pinnedIds.length;
 
   return (
     <div className="relative z-[1] border-t border-white/40 bg-gradient-to-t from-[rgba(247,243,236,0.95)] to-transparent px-4 py-4 sm:px-6">
@@ -437,7 +527,7 @@ export default function Composer({
             type="button"
             onClick={() => {
               if (menuOpen && !slashRange) {
-                setMenuOpen(false);
+                closeMenu();
                 return;
               }
               openSkillMenu("", null);
@@ -448,9 +538,9 @@ export default function Composer({
           >
             <Wrench className="h-3.5 w-3.5" />
             Skills
-            {selectedIds.length > 0 ? (
+            {turnCount + pinCount > 0 ? (
               <span className="rounded-full bg-[rgba(194,65,12,0.12)] px-1.5 text-[10px] font-medium text-[#C2410C]">
-                {selectedIds.length}
+                {turnCount + pinCount}
               </span>
             ) : null}
           </button>
@@ -462,28 +552,15 @@ export default function Composer({
           </span>
         </div>
 
-        {selectedSkills.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5 px-2">
-            {selectedSkills.map((s) => (
-              <span
-                key={s.id}
-                className="inline-flex max-w-full items-center gap-1 rounded-full border border-[rgba(194,65,12,0.2)] bg-[rgba(194,65,12,0.08)] py-0.5 pl-2.5 pr-1 text-xs text-[#C2410C]"
-              >
-                <span className="truncate">{s.name || s.id}</span>
-                <button
-                  type="button"
-                  onClick={() => removeSkill(s.id)}
-                  disabled={disabled || streaming}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#C2410C] hover:bg-[rgba(194,65,12,0.12)] disabled:opacity-50"
-                  title="移除"
-                >
-                  <X className="h-3 w-3" />
-                  <span className="sr-only">移除 {s.name || s.id}</span>
-                </button>
-              </span>
-            ))}
-          </div>
-        ) : null}
+        <SkillChips
+          turnIds={selectedIds}
+          pinnedIds={pinnedIds}
+          skillsById={skillsById}
+          onRemoveTurn={removeSkill}
+          onTogglePin={togglePin}
+          onClearTurn={clearTurnSkills}
+          disabled={disabled || streaming}
+        />
 
         <div className="relative flex items-end gap-2">
           <label className="sr-only" htmlFor={promptId}>
@@ -535,64 +612,22 @@ export default function Composer({
             </button>
           )}
 
-          {menuOpen ? (
-            <div
-              ref={menuRef}
-              id={menuId}
-              role="listbox"
-              aria-label="选择 Skill"
-              className="studio-glass absolute bottom-full left-0 z-20 mb-2 max-h-64 w-full max-w-md overflow-auto rounded-[16px] py-1"
-            >
-              <div className="border-b border-white/50 px-3 py-1.5 text-[11px] text-[#8A8298]">
-                {skillsLoading
-                  ? "加载 Skills…"
-                  : menuQuery
-                    ? `筛选「${menuQuery}」· ↑↓ 选择 · Enter 确认`
-                    : "输入 / 搜索 · 点击添加本条消息的 Skills"}
-              </div>
-              {menuSkills.length === 0 ? (
-                <p className="px-3 py-3 text-sm text-[#8A8298]">
-                  {skillsLoading ? "加载中…" : "没有匹配的 Skill"}
-                </p>
-              ) : (
-                menuSkills.map((skill, i) => {
-                  const active = i === menuIndex;
-                  const selected = selectedIds.includes(skill.id);
-                  return (
-                    <button
-                      key={skill.id}
-                      type="button"
-                      role="option"
-                      aria-selected={active}
-                      onMouseEnter={() => setMenuIndex(i)}
-                      onClick={() => {
-                        if (slashRange) {
-                          pickSkillFromMenu(skill);
-                        } else {
-                          toggleSkill(skill.id);
-                        }
-                      }}
-                      className={`flex w-full flex-col gap-0.5 px-3 py-2 text-left transition ${
-                        active ? "bg-[rgba(194,65,12,0.08)]" : "hover:bg-white/50"
-                      }`}
-                    >
-                      <span className="flex items-center gap-2 text-sm font-medium text-[#241E36]">
-                        <span className="truncate">{skill.name}</span>
-                        {selected ? (
-                          <span className="shrink-0 rounded bg-[rgba(194,65,12,0.12)] px-1.5 text-[10px] text-[#C2410C]">
-                            已选
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="line-clamp-1 text-xs text-[#8A8298]">
-                        {skill.description || skill.id}
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          ) : null}
+          <SkillSlashMenu
+            open={menuOpen}
+            query={menuQuery}
+            skills={allSkills}
+            departments={departments}
+            selectedIds={selectedIds}
+            loading={skillsLoading}
+            highlightIndex={menuIndex}
+            onHighlightIndexChange={setMenuIndex}
+            view={menuView}
+            onViewChange={setMenuView}
+            onPickSkill={pickSkillFromMenu}
+            onClearTurnSkills={clearTurnSkills}
+            menuId={menuId}
+            menuRef={menuRef}
+          />
         </div>
       </form>
     </div>
