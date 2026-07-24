@@ -149,6 +149,23 @@ prompt body`);
     expect(meta.name).toBe(skill.name);
     expect("systemPrompt" in meta).toBe(false);
   });
+
+  it("parses featured and defaultArtifact", () => {
+    const md = `---
+name: 测试
+description: d
+category: marketing
+featured: true
+defaultArtifact: html
+source: bundled
+---
+body
+`;
+    const skill = parseSkillMarkdown(md, { fallbackId: "test-skill" });
+    expect(skill.featured).toBe(true);
+    expect(skill.defaultArtifact).toBe("html");
+    expect(skill.category).toBe("marketing");
+  });
 });
 
 describe("slugify", () => {

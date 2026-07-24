@@ -1,4 +1,4 @@
-import type { Skill, SkillMeta } from "@/lib/agent/types";
+import type { DefaultArtifactKind, Skill, SkillMeta } from "@/lib/agent/types";
 
 export type FrontmatterValue = string | boolean | number | string[] | null;
 
@@ -165,6 +165,21 @@ function asPreview(value: FrontmatterValue | undefined): SkillMeta["preview"] {
   return undefined;
 }
 
+function asDefaultArtifact(
+  value: FrontmatterValue | undefined,
+): DefaultArtifactKind | undefined {
+  const s = asString(value).toLowerCase();
+  if (
+    s === "markdown" ||
+    s === "html" ||
+    s === "image-prompt" ||
+    s === "none"
+  ) {
+    return s;
+  }
+  return undefined;
+}
+
 function asSource(value: FrontmatterValue | undefined): SkillMeta["source"] {
   const s = asString(value).toLowerCase();
   if (s === "bundled" || s === "imported" || s === "user") return s;
@@ -209,6 +224,10 @@ export function parseSkillMarkdown(markdown: string, opts: ParseSkillOptions = {
   const preview = asPreview(raw.preview);
   const source = asSource(raw.source);
   const enabled = asBool(raw.enabled, true);
+  const featured = raw.featured !== undefined ? asBool(raw.featured, false) : undefined;
+  const defaultArtifact = asDefaultArtifact(
+    raw.defaultArtifact ?? raw.default_artifact,
+  );
 
   return {
     id,
@@ -220,6 +239,8 @@ export function parseSkillMarkdown(markdown: string, opts: ParseSkillOptions = {
     preview,
     source,
     enabled,
+    featured,
+    defaultArtifact,
     systemPrompt: body.replace(/^\uFEFF/, "").trim(),
   };
 }
