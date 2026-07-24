@@ -211,6 +211,8 @@ export type PendingFirstMessage = {
   sessionId: string;
   message: string;
   model?: string;
+  /** Prefill from Skills page; Task 7 will inject on send. */
+  skillIds?: string[];
 };
 
 export function setPendingFirstMessage(payload: PendingFirstMessage): void {

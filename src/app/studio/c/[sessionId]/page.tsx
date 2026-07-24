@@ -85,6 +85,7 @@ export default function StudioSessionPage() {
     if (pending.model) chat.setModel(pending.model);
     void chat.send(pending.message, {
       model: pending.model ?? chat.model,
+      skillIds: pending.skillIds,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once after load
   }, [loading, session]);

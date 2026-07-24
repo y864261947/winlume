@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Code2, FileText, ImageIcon, Sparkles } from "lucide-react";
 import Composer from "@/components/studio/Composer";
 import { useModals } from "@/components/providers";
@@ -23,11 +23,21 @@ const DEFAULT_MODEL = "gpt-4o-mini";
 
 export default function StudioHomePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { openLogin } = useModals();
   const [draft, setDraft] = useState("");
   const [model, setModel] = useState(DEFAULT_MODEL);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prefillSkillId, setPrefillSkillId] = useState<string | null>(null);
+
+  // Skills page "使用示例" → /studio?skill=&prompt=
+  useEffect(() => {
+    const prompt = searchParams.get("prompt");
+    const skill = searchParams.get("skill");
+    if (prompt) setDraft(prompt);
+    if (skill) setPrefillSkillId(skill);
+  }, [searchParams]);
 
   const startChat = useCallback(
     async (text: string) => {
@@ -55,6 +65,7 @@ export default function StudioHomePage() {
           sessionId: session.id,
           message,
           model: model.trim() || DEFAULT_MODEL,
+          skillIds: prefillSkillId ? [prefillSkillId] : undefined,
         });
         router.push(`/studio/c/${session.id}`);
       } catch (err) {
@@ -67,7 +78,7 @@ export default function StudioHomePage() {
         setStarting(false);
       }
     },
-    [model, openLogin, router, starting],
+    [model, openLogin, prefillSkillId, router, starting],
   );
 
   return (
@@ -79,6 +90,13 @@ export default function StudioHomePage() {
         <p className="mt-3 max-w-md text-center text-sm leading-6 text-ink-500">
           输入需求即可开始新对话。支持流式回复，历史会自动保存。
         </p>
+
+        {prefillSkillId && (
+          <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
+            <Sparkles className="h-3.5 w-3.5" />
+            已关联 Skill：{prefillSkillId}
+          </p>
+        )}
 
         <div className="mt-8 flex max-w-xl flex-wrap items-center justify-center gap-2">
           {chips.map((chip) => (
