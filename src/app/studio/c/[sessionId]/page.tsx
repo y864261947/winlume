@@ -167,7 +167,11 @@ export default function StudioSessionPage() {
       />
 
       <Composer
-        onSend={(text) => chat.send(text)}
+        onSend={(text, meta) =>
+          chat.send(text, {
+            skillIds: meta?.skillIds,
+          })
+        }
         onStop={chat.stop}
         streaming={chat.streaming}
         model={chat.model}

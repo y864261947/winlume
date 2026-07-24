@@ -10,8 +10,12 @@ import {
   streamGatewayChat,
   type GatewayChatMessage,
 } from "@/lib/agent/provider/gateway";
+import {
+  buildSystemPrompt,
+  resolveSkills,
+} from "@/lib/agent/skills/inject";
 
-/** Fixed studio system policy (zh/en short). Skills injected per turn later (Task 7). */
+/** Fixed studio system policy (zh/en short). Skills injected per turn via skillIds. */
 export const BASE_POLICY = [
   "You are the WinLume Studio agent — a free-form assistant for writing, coding, analysis, and structured deliverables.",
   "Prefer clear, structured, helpful answers. Match the user's language (Chinese-first when the user writes in Chinese).",
@@ -19,13 +23,6 @@ export const BASE_POLICY = [
   "Do not claim tools or capabilities that are not available in this turn.",
   "Respect any skill instructions attached to the current user message.",
 ].join(" ");
-
-/**
- * Skill injection stub (Task 7). Accepts skillIds and returns empty system addendum for now.
- */
-export function injectSkills(_skillIds?: string[]): string {
-  return "";
-}
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -128,10 +125,8 @@ export async function* runAgentTurn(
 
   yield { type: "session", sessionId };
 
-  const skillAddendum = injectSkills(opts.skillIds);
-  const system = skillAddendum
-    ? `${BASE_POLICY}\n\n${skillAddendum}`
-    : BASE_POLICY;
+  const skills = await resolveSkills(opts.skillIds);
+  const system = buildSystemPrompt(BASE_POLICY, skills);
 
   const history = await sessions.listMessages(userId, sessionId);
   const gatewayMessages = toGatewayMessages(system, history);

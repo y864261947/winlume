@@ -211,7 +211,7 @@ export type PendingFirstMessage = {
   sessionId: string;
   message: string;
   model?: string;
-  /** Prefill from Skills page; Task 7 will inject on send. */
+  /** Per-message skill ids; injected into system prompt on send. */
   skillIds?: string[];
 };
 
