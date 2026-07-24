@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Clapperboard,
   FileText,
   Globe2,
+  LoaderCircle,
   Megaphone,
   Search,
   ShoppingBag,
@@ -123,7 +124,7 @@ function skillToCard(skill: SkillMeta, index: number): SceneCard {
   };
 }
 
-export default function StudioHomePage() {
+function StudioHomeInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { openLogin, account } = useModals();
@@ -349,5 +350,29 @@ export default function StudioHomePage() {
         }
       />
     </div>
+  );
+}
+
+function StudioHomeFallback() {
+  return (
+    <div
+      className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-sm text-[#8A8298]"
+      role="status"
+    >
+      <LoaderCircle className="h-5 w-5 animate-spin text-[#C2410C]" />
+      正在打开工作台…
+    </div>
+  );
+}
+
+/**
+ * useSearchParams must sit under Suspense; otherwise Next bails the whole
+ * segment to CSR and users only see the root "页面加载中" shell.
+ */
+export default function StudioHomePage() {
+  return (
+    <Suspense fallback={<StudioHomeFallback />}>
+      <StudioHomeInner />
+    </Suspense>
   );
 }
