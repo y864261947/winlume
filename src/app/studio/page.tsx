@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Clapperboard,
@@ -10,9 +10,11 @@ import {
   Search,
   ShoppingBag,
   Sparkles,
+  type LucideIcon,
 } from "lucide-react";
 import Composer from "@/components/studio/Composer";
 import { useModals } from "@/components/providers";
+import type { SkillMeta } from "@/lib/agent/types";
 import {
   createSession,
   getGatewayUserId,
@@ -24,9 +26,17 @@ import {
   getDefaultModel,
 } from "@/lib/studio/prefs";
 
-/** Demo-aligned capability cards (prefill only — free agent core). */
-const CAPABILITY_CARDS = [
+/** Demo-aligned capability cards (fallback when featured API empty). */
+const FALLBACK_CAPABILITY_CARDS: {
+  key: string;
+  label: string;
+  desc: string;
+  prompt: string;
+  skillIds: string[];
+  icon: LucideIcon;
+}[] = [
   {
+    key: "promo",
     label: "做宣传内容",
     desc: "文案、海报、图文全套宣传",
     icon: Megaphone,
@@ -35,6 +45,7 @@ const CAPABILITY_CARDS = [
     skillIds: ["marketing-content-creator", "design-brand-guardian"],
   },
   {
+    key: "research",
     label: "做调研报告",
     desc: "行业分析、竞品调研、趋势洞察",
     icon: Search,
@@ -43,6 +54,7 @@ const CAPABILITY_CARDS = [
     skillIds: ["product-trend-researcher", "finance-financial-analyst"],
   },
   {
+    key: "video",
     label: "制作短视频",
     desc: "脚本、配音、剪辑思路一站规划",
     icon: Clapperboard,
@@ -51,6 +63,7 @@ const CAPABILITY_CARDS = [
     skillIds: ["marketing-douyin-strategist", "marketing-social-media-strategist"],
   },
   {
+    key: "files",
     label: "处理文件",
     desc: "总结、提取、翻译、格式转换",
     icon: FileText,
@@ -59,6 +72,7 @@ const CAPABILITY_CARDS = [
     skillIds: ["engineering-technical-writer"],
   },
   {
+    key: "ecommerce",
     label: "做电商素材",
     desc: "商品图、详情页、主图文案",
     icon: ShoppingBag,
@@ -67,6 +81,7 @@ const CAPABILITY_CARDS = [
     skillIds: ["marketing-content-creator", "design-image-prompt-engineer"],
   },
   {
+    key: "web",
     label: "生成一个网页",
     desc: "活动页、介绍页、单页网站结构",
     icon: Globe2,
@@ -74,7 +89,39 @@ const CAPABILITY_CARDS = [
       "帮我规划一个瑜伽工作室开业活动落地页：信息架构、文案大纲与视觉风格建议。",
     skillIds: ["design-ui-designer", "marketing-content-creator"],
   },
-] as const;
+];
+
+const FEATURED_ICONS: LucideIcon[] = [
+  Sparkles,
+  Megaphone,
+  Search,
+  Clapperboard,
+  FileText,
+  ShoppingBag,
+  Globe2,
+];
+
+type SceneCard = {
+  key: string;
+  label: string;
+  desc: string;
+  prompt: string;
+  skillIds: string[];
+  icon: LucideIcon;
+};
+
+function skillToCard(skill: SkillMeta, index: number): SceneCard {
+  return {
+    key: skill.id,
+    label: skill.name,
+    desc: skill.description || "精选技能，一键挂载并预填示例。",
+    prompt:
+      skill.examplePrompt?.trim() ||
+      `请以「${skill.name}」的专业视角帮我完成任务。`,
+    skillIds: [skill.id],
+    icon: FEATURED_ICONS[index % FEATURED_ICONS.length] ?? Sparkles,
+  };
+}
 
 export default function StudioHomePage() {
   const router = useRouter();
@@ -85,6 +132,7 @@ export default function StudioHomePage() {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+  const [featuredSkills, setFeaturedSkills] = useState<SkillMeta[] | null>(null);
 
   useEffect(() => {
     const prompt = searchParams.get("prompt");
@@ -99,7 +147,34 @@ export default function StudioHomePage() {
     }
   }, [searchParams]);
 
-  const applyCard = useCallback((card: (typeof CAPABILITY_CARDS)[number]) => {
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/skills?featured=1", { credentials: "same-origin" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("featured");
+        return res.json() as Promise<{ skills?: SkillMeta[] }>;
+      })
+      .then((data) => {
+        if (!cancelled) setFeaturedSkills(data.skills ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setFeaturedSkills([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const sceneCards = useMemo((): SceneCard[] => {
+    const featured = featuredSkills ?? [];
+    if (featured.length > 0) {
+      return featured.slice(0, 12).map(skillToCard);
+    }
+    // While loading (null) or empty: use hard-coded fallback
+    return FALLBACK_CAPABILITY_CARDS;
+  }, [featuredSkills]);
+
+  const applyCard = useCallback((card: SceneCard) => {
     setDraft(card.prompt);
     setSelectedSkillIds([...card.skillIds]);
   }, []);
@@ -160,6 +235,11 @@ export default function StudioHomePage() {
       ? `，${account.display_name || account.username}`
       : "";
 
+  const sectionHint =
+    featuredSkills && featuredSkills.length > 0
+      ? "选择精选技能后即可开始；也可直接在下方描述你的目标。选中会预填示例并挂上该 Skill。"
+      : "选择方向后即可开始；也可直接在下方描述你的目标。选中方向会预填提示并挂上推荐 Skills。";
+
   return (
     <div className="studio-view-in flex min-h-0 flex-1 flex-col">
       <div className="flex-1 overflow-y-auto px-6 py-8 sm:px-10 lg:px-11">
@@ -194,18 +274,17 @@ export default function StudioHomePage() {
             <h2 className="text-[21px] font-bold tracking-tight text-[#241E36]">
               一句话调用多个 AI 能力
             </h2>
-            <p className="mt-1.5 text-[13.5px] text-[#8A8298]">
-              选择方向后即可开始；也可直接在下方描述你的目标。选中方向会预填提示并挂上推荐 Skills。
-            </p>
+            <p className="mt-1.5 text-[13.5px] text-[#8A8298]">{sectionHint}</p>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {CAPABILITY_CARDS.map((card, i) => {
+              {sceneCards.map((card, i) => {
                 const Icon = card.icon;
-                const active = card.skillIds.every((id) => selectedSkillIds.includes(id))
-                  && draft.startsWith(card.prompt.slice(0, 12));
+                const active =
+                  card.skillIds.every((id) => selectedSkillIds.includes(id)) &&
+                  draft.startsWith(card.prompt.slice(0, 12));
                 return (
                   <button
-                    key={card.label}
+                    key={card.key}
                     type="button"
                     disabled={starting}
                     onClick={() => applyCard(card)}
@@ -226,7 +305,9 @@ export default function StudioHomePage() {
                       <Icon className="h-5 w-5" strokeWidth={1.8} />
                     </span>
                     <p className="text-[15px] font-semibold text-[#241E36]">{card.label}</p>
-                    <p className="mt-1 text-[12.5px] leading-5 text-[#8A8298]">{card.desc}</p>
+                    <p className="mt-1 line-clamp-2 text-[12.5px] leading-5 text-[#8A8298]">
+                      {card.desc}
+                    </p>
                   </button>
                 );
               })}
