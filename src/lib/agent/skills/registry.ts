@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Skill, SkillMeta } from "@/lib/agent/types";
+import { departmentLabel, sortDepartmentIds } from "./departments";
 import { parseSkillMarkdown, toSkillMeta } from "./parse";
 
 let cache: { skills: Skill[]; loadedAt: number } | null = null;
@@ -106,11 +107,15 @@ export async function getSkill(id: string): Promise<Skill | null> {
 export async function listSkillsFiltered(opts: {
   q?: string;
   category?: string;
+  featured?: boolean;
 }): Promise<SkillMeta[]> {
   let skills = await listSkillMetas();
   const category = opts.category?.trim();
   if (category && category !== "all") {
     skills = skills.filter((s) => s.category === category);
+  }
+  if (opts.featured === true) {
+    skills = skills.filter((s) => s.featured === true);
   }
   const q = opts.q?.trim().toLowerCase();
   if (q) {
@@ -128,4 +133,19 @@ export async function listSkillsFiltered(opts: {
     });
   }
   return skills;
+}
+
+export async function listDepartments(): Promise<
+  { id: string; label: string; count: number }[]
+> {
+  const skills = await listSkillMetas();
+  const counts = new Map<string, number>();
+  for (const s of skills) {
+    counts.set(s.category, (counts.get(s.category) ?? 0) + 1);
+  }
+  return sortDepartmentIds([...counts.keys()]).map((id) => ({
+    id,
+    label: departmentLabel(id),
+    count: counts.get(id) ?? 0,
+  }));
 }
