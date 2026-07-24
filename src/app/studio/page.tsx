@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowUp, Code2, FileText, ImageIcon, Sparkles } from "lucide-react";
+import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Code2, FileText, ImageIcon, Sparkles } from "lucide-react";
+import Composer from "@/components/studio/Composer";
+import { useModals } from "@/components/providers";
+import {
+  createSession,
+  getGatewayUserId,
+  setPendingFirstMessage,
+  StudioApiError,
+} from "@/lib/studio/api";
 
 const chips = [
   { label: "写一段说明文案", icon: FileText },
@@ -10,8 +19,56 @@ const chips = [
   { label: "梳理今日待办", icon: Sparkles },
 ] as const;
 
+const DEFAULT_MODEL = "gpt-4o-mini";
+
 export default function StudioHomePage() {
+  const router = useRouter();
+  const { openLogin } = useModals();
   const [draft, setDraft] = useState("");
+  const [model, setModel] = useState(DEFAULT_MODEL);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const startChat = useCallback(
+    async (text: string) => {
+      const message = text.trim();
+      if (!message || starting) return;
+
+      if (!getGatewayUserId()) {
+        setError("请先登录后再开始对话");
+        openLogin("login");
+        return;
+      }
+
+      setStarting(true);
+      setError(null);
+      try {
+        const title =
+          message.replace(/\s+/g, " ").length > 40
+            ? `${message.replace(/\s+/g, " ").slice(0, 40)}…`
+            : message.replace(/\s+/g, " ");
+        const session = await createSession({
+          model: model.trim() || DEFAULT_MODEL,
+          title: title || "新对话",
+        });
+        setPendingFirstMessage({
+          sessionId: session.id,
+          message,
+          model: model.trim() || DEFAULT_MODEL,
+        });
+        router.push(`/studio/c/${session.id}`);
+      } catch (err) {
+        if (err instanceof StudioApiError && err.status === 401) {
+          setError("请先登录后再开始对话");
+          openLogin("login");
+        } else {
+          setError(err instanceof Error ? err.message : "创建会话失败");
+        }
+        setStarting(false);
+      }
+    },
+    [model, openLogin, router, starting],
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -20,7 +77,7 @@ export default function StudioHomePage() {
           今天想完成什么？
         </h1>
         <p className="mt-3 max-w-md text-center text-sm leading-6 text-ink-500">
-          在下方输入需求即可开始。会话与流式回复将在后续任务接入。
+          输入需求即可开始新对话。支持流式回复，历史会自动保存。
         </p>
 
         <div className="mt-8 flex max-w-xl flex-wrap items-center justify-center gap-2">
@@ -28,8 +85,9 @@ export default function StudioHomePage() {
             <button
               key={chip.label}
               type="button"
+              disabled={starting}
               onClick={() => setDraft(chip.label)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-1.5 text-sm text-ink-700 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"
+              className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-1.5 text-sm text-ink-700 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 disabled:opacity-50"
             >
               <chip.icon className="h-3.5 w-3.5 text-ink-400" />
               {chip.label}
@@ -38,36 +96,17 @@ export default function StudioHomePage() {
         </div>
       </div>
 
-      <div className="border-t border-line bg-surface px-4 py-4 sm:px-6">
-        <form
-          className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-line bg-canvas p-2 shadow-sm"
-          onSubmit={(event) => {
-            event.preventDefault();
-            // Task 5: create session on first send
-          }}
-        >
-          <label className="sr-only" htmlFor="studio-prompt">
-            输入你的需求
-          </label>
-          <textarea
-            id="studio-prompt"
-            rows={2}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="描述你想完成的任务…"
-            className="max-h-40 min-h-[2.75rem] flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-6 text-ink-900 outline-none placeholder:text-ink-400"
-          />
-          <button
-            type="submit"
-            disabled={!draft.trim()}
-            title="发送（后续任务接入）"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500 text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <ArrowUp className="h-4 w-4" />
-            <span className="sr-only">发送</span>
-          </button>
-        </form>
-      </div>
+      <Composer
+        value={draft}
+        onChange={setDraft}
+        onSend={startChat}
+        disabled={starting}
+        model={model}
+        onModelChange={setModel}
+        error={error}
+        onClearError={() => setError(null)}
+        placeholder={starting ? "正在创建会话…" : "描述你想完成的任务…"}
+      />
     </div>
   );
 }
