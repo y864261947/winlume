@@ -120,7 +120,12 @@ function createSessionStore(rootDir: string): SessionStore {
 
       const session: Session = {
         ...file.session,
-        ...patch,
+        ...(patch.title !== undefined ? { title: patch.title } : {}),
+        ...(patch.model !== undefined ? { model: patch.model } : {}),
+        // Allow [] to clear pins; omit key when undefined so pins are unchanged
+        ...(patch.pinnedSkillIds !== undefined
+          ? { pinnedSkillIds: patch.pinnedSkillIds }
+          : {}),
         updatedAt: nowIso(),
       };
       writeSessionFile(userId, { session, messages: file.messages });

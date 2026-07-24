@@ -25,7 +25,7 @@ export async function GET(request: NextRequest, context: IdContext) {
   return NextResponse.json({ session, messages });
 }
 
-/** PATCH /api/sessions/[id] — { title?, model? } */
+/** PATCH /api/sessions/[id] — { title?, model?, pinnedSkillIds? } */
 export async function PATCH(request: NextRequest, context: IdContext) {
   const userId = userIdFromRequest(request);
   if (!userId) {
@@ -34,19 +34,35 @@ export async function PATCH(request: NextRequest, context: IdContext) {
 
   const { id } = await context.params;
 
-  let body: { title?: string; model?: string } = {};
+  let body: { title?: string; model?: string; pinnedSkillIds?: string[] } = {};
   try {
     const text = await request.text();
     if (text.trim()) {
-      body = JSON.parse(text) as { title?: string; model?: string };
+      body = JSON.parse(text) as {
+        title?: string;
+        model?: string;
+        pinnedSkillIds?: string[];
+      };
     }
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const patch: { title?: string; model?: string } = {};
+  const patch: {
+    title?: string;
+    model?: string;
+    pinnedSkillIds?: string[];
+  } = {};
   if (typeof body.title === "string") patch.title = body.title;
   if (typeof body.model === "string") patch.model = body.model;
+  if (Array.isArray(body.pinnedSkillIds)) {
+    const ids = body.pinnedSkillIds
+      .filter((x): x is string => typeof x === "string")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 8);
+    patch.pinnedSkillIds = ids;
+  }
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });

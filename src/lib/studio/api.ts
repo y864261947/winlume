@@ -111,6 +111,33 @@ export async function getSessionBundle(sessionId: string): Promise<{
   return parseJson<{ session: Session; messages: Message[] }>(response);
 }
 
+/** PATCH /api/sessions/[id] — title, model, and/or pinnedSkillIds (replace entire pin list). */
+export async function patchSession(
+  id: string,
+  patch: { title?: string; model?: string; pinnedSkillIds?: string[] },
+): Promise<Session> {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: withUserHeaders(),
+    body: JSON.stringify(patch),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) {
+    throw new StudioApiError("请先登录", 401);
+  }
+  if (response.status === 404) {
+    throw new StudioApiError("会话不存在", 404);
+  }
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "更新会话失败",
+      response.status,
+    );
+  }
+  return parseJson<Session>(response);
+}
+
 export type ChatRequestBody = {
   sessionId?: string;
   message: string;
