@@ -43,6 +43,14 @@ next-env.d.ts
 
 # deployment artifacts
 *.tar.gz
+/_deploy_stage/
+/_deploy_clean/
+/_tmp_newmax_extract/
+/_tmp_newmax_peek/
+
+# local ops (secrets)
+/docs/INFRA.md
+.superpowers/
 
 # runtime data
 /data/users/

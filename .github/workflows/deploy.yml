@@ -1,0 +1,140 @@
+# Deploy WinLume Studio to production app server on push/merge to master.
+#
+# Required GitHub repo secrets:
+#   DEPLOY_HOST              e.g. 38.76.188.156
+#   DEPLOY_USER              e.g. root
+#   DEPLOY_SSH_PASSWORD      password auth (this host)
+# Optional:
+#   WINLUME_GATEWAY_TOKEN    written into /opt/winlume/.env if set
+#   NEW_API_URL              default https://v2api.top
+
+name: Deploy production
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Package standalone
+        run: node scripts/package-standalone.mjs
+
+      - name: Install ssh tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sshpass openssh-client
+
+      - name: Upload artifact
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_PASSWORD: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          test -n "$DEPLOY_SSH_PASSWORD"
+          export SSHPASS="$DEPLOY_SSH_PASSWORD"
+          sshpass -e scp -o StrictHostKeyChecking=accept-new \
+            winlume-deploy.tar.gz \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/winlume-deploy.tar.gz"
+
+      - name: Remote swap + restart
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_PASSWORD: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          WINLUME_GATEWAY_TOKEN: ${{ secrets.WINLUME_GATEWAY_TOKEN }}
+          NEW_API_URL: ${{ secrets.NEW_API_URL }}
+        run: |
+          set -euo pipefail
+          export SSHPASS="$DEPLOY_SSH_PASSWORD"
+          NEW_API_URL="${NEW_API_URL:-https://v2api.top}"
+          # shellcheck disable=SC2087
+          sshpass -e ssh -o StrictHostKeyChecking=accept-new \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            env NEW_API_URL="$NEW_API_URL" WINLUME_GATEWAY_TOKEN="${WINLUME_GATEWAY_TOKEN:-}" bash -s <<'REMOTE'
+          set -euo pipefail
+          systemctl stop winlume || true
+          rm -rf /opt/winlume.previous
+          if [ -d /opt/winlume ]; then mv /opt/winlume /opt/winlume.previous; fi
+          mkdir -p /opt/winlume
+          tar -xzf /tmp/winlume-deploy.tar.gz -C /opt/winlume
+          if [ -f /opt/winlume.previous/.env ]; then
+            cp /opt/winlume.previous/.env /opt/winlume/.env
+          fi
+          # Ensure base env keys exist; do not wipe existing token unless secret provided
+          touch /opt/winlume/.env
+          grep -q '^NODE_ENV=' /opt/winlume/.env || echo 'NODE_ENV=production' >> /opt/winlume/.env
+          grep -q '^PORT=' /opt/winlume/.env || echo 'PORT=3001' >> /opt/winlume/.env
+          grep -q '^HOSTNAME=' /opt/winlume/.env || echo 'HOSTNAME=127.0.0.1' >> /opt/winlume/.env
+          if grep -q '^NEW_API_URL=' /opt/winlume/.env; then
+            sed -i "s|^NEW_API_URL=.*|NEW_API_URL=${NEW_API_URL}|" /opt/winlume/.env
+          else
+            echo "NEW_API_URL=${NEW_API_URL}" >> /opt/winlume/.env
+          fi
+          if [ -n "${WINLUME_GATEWAY_TOKEN:-}" ]; then
+            if grep -q '^WINLUME_GATEWAY_TOKEN=' /opt/winlume/.env; then
+              sed -i "s|^WINLUME_GATEWAY_TOKEN=.*|WINLUME_GATEWAY_TOKEN=${WINLUME_GATEWAY_TOKEN}|" /opt/winlume/.env
+            else
+              echo "WINLUME_GATEWAY_TOKEN=${WINLUME_GATEWAY_TOKEN}" >> /opt/winlume/.env
+            fi
+          fi
+          cat > /etc/systemd/system/winlume.service <<'UNIT'
+          [Unit]
+          Description=WinLume Next.js Studio
+          After=network.target
+
+          [Service]
+          Type=simple
+          WorkingDirectory=/opt/winlume
+          Environment=NODE_ENV=production
+          Environment=PORT=3001
+          Environment=HOSTNAME=127.0.0.1
+          EnvironmentFile=-/opt/winlume/.env
+          ExecStart=/usr/local/bin/node server.js
+          Restart=always
+          RestartSec=3
+          StandardOutput=append:/var/log/winlume.log
+          StandardError=append:/var/log/winlume.log
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+          systemctl daemon-reload
+          systemctl enable winlume
+          systemctl restart winlume
+          sleep 3
+          systemctl is-active winlume
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/studio)
+          echo "studio_http=$code"
+          test "$code" = "200"
+          REMOTE
+
+      - name: Summary
+        run: echo "Deploy finished. Configure Cloudflare DNS winlume.v2api.top A -> DEPLOY_HOST if not already."

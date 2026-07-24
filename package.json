@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "package:deploy": "node scripts/package-standalone.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.24.0",
