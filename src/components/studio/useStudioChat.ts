@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AgentSseEvent, Message, Role } from "@/lib/agent/types";
+import type {
+  AgentSseEvent,
+  ArtifactKind,
+  Message,
+  Role,
+} from "@/lib/agent/types";
 import {
   getGatewayUserId,
   streamChat,
@@ -30,6 +35,12 @@ function clientId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+export type ArtifactEventPayload = {
+  artifactId: string;
+  name: string;
+  kind: ArtifactKind;
+};
+
 export type UseStudioChatOptions = {
   sessionId?: string | null;
   initialMessages?: Message[];
@@ -40,6 +51,8 @@ export type UseStudioChatOptions = {
   onSession?: (sessionId: string) => void;
   /** Called when user is missing (401) so UI can open login */
   onUnauthorized?: () => void;
+  /** Called when agent saves an artifact (SSE `artifact` event) */
+  onArtifact?: (event: ArtifactEventPayload) => void;
 };
 
 export type UseStudioChatResult = {
@@ -63,6 +76,7 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
     skillIds: skillIdsProp,
     onSession,
     onUnauthorized,
+    onArtifact,
   } = options;
 
   const [sessionId, setSessionId] = useState<string | null>(sessionIdProp);
@@ -76,6 +90,7 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
   const abortRef = useRef<AbortController | null>(null);
   const onSessionRef = useRef(onSession);
   const onUnauthorizedRef = useRef(onUnauthorized);
+  const onArtifactRef = useRef(onArtifact);
   const skillIdsRef = useRef(skillIdsProp);
   const sessionIdRef = useRef(sessionId);
 
@@ -85,6 +100,9 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
   useEffect(() => {
     onUnauthorizedRef.current = onUnauthorized;
   }, [onUnauthorized]);
+  useEffect(() => {
+    onArtifactRef.current = onArtifact;
+  }, [onArtifact]);
   useEffect(() => {
     skillIdsRef.current = skillIdsProp;
   }, [skillIdsProp]);
@@ -191,6 +209,14 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
                       : m,
                   ),
                 );
+                return;
+              }
+              if (event.type === "artifact") {
+                onArtifactRef.current?.({
+                  artifactId: event.artifactId,
+                  name: event.name,
+                  kind: event.kind,
+                });
                 return;
               }
               if (event.type === "error") {

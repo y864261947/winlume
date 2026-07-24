@@ -3,7 +3,7 @@
  * Always attach x-winlume-user from localStorage (winlume:gateway-user-id).
  */
 
-import type { AgentSseEvent, Message, Session } from "@/lib/agent/types";
+import type { AgentSseEvent, Artifact, Message, Session } from "@/lib/agent/types";
 
 export const GATEWAY_USER_STORAGE_KEY = "winlume:gateway-user-id";
 
@@ -203,6 +203,53 @@ export async function streamChat(
   } finally {
     reader.releaseLock();
   }
+}
+
+/* ── Artifacts ─────────────────────────────────────────────── */
+
+export async function listArtifacts(sessionId?: string): Promise<Artifact[]> {
+  const qs = sessionId
+    ? `?sessionId=${encodeURIComponent(sessionId)}`
+    : "";
+  const response = await fetch(`/api/artifacts${qs}`, {
+    headers: withUserHeaders(),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) {
+    throw new StudioApiError("请先登录", 401);
+  }
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "加载作品列表失败",
+      response.status,
+    );
+  }
+  const data = await parseJson<{ artifacts: Artifact[] }>(response);
+  return data.artifacts ?? [];
+}
+
+export async function getArtifact(
+  id: string,
+): Promise<{ artifact: Artifact; content: string }> {
+  const response = await fetch(`/api/artifacts/${encodeURIComponent(id)}`, {
+    headers: withUserHeaders(),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) {
+    throw new StudioApiError("请先登录", 401);
+  }
+  if (response.status === 404) {
+    throw new StudioApiError("作品不存在", 404);
+  }
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "读取作品失败",
+      response.status,
+    );
+  }
+  return parseJson<{ artifact: Artifact; content: string }>(response);
 }
 
 /* ── First-message handoff (home → session page) ───────────── */

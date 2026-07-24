@@ -3,17 +3,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, LoaderCircle } from "lucide-react";
+import { ArrowLeft, LoaderCircle, PanelRight } from "lucide-react";
+import ArtifactPanel from "@/components/studio/ArtifactPanel";
+import ArtifactPreview from "@/components/studio/ArtifactPreview";
 import ChatThread from "@/components/studio/ChatThread";
 import Composer from "@/components/studio/Composer";
-import { useStudioChat } from "@/components/studio/useStudioChat";
-import { useModals } from "@/components/providers";
-import type { Message, Session } from "@/lib/agent/types";
 import {
+  useStudioChat,
+  type ArtifactEventPayload,
+} from "@/components/studio/useStudioChat";
+import { useModals } from "@/components/providers";
+import type { Artifact, Message, Session } from "@/lib/agent/types";
+import {
+  getArtifact,
   getSessionBundle,
+  listArtifacts,
   takePendingFirstMessage,
   StudioApiError,
 } from "@/lib/studio/api";
+
+type MobileTab = "chat" | "works";
 
 export default function StudioSessionPage() {
   const params = useParams();
@@ -28,15 +37,67 @@ export default function StudioSessionPage() {
   );
   const pendingSentRef = useRef(false);
 
+  // Artifacts
+  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [artifactsLoading, setArtifactsLoading] = useState(false);
+  const [artifactsError, setArtifactsError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(true);
+  const [content, setContent] = useState<string | null>(null);
+  const [contentLoading, setContentLoading] = useState(false);
+  const [contentError, setContentError] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
+
   const onUnauthorized = useCallback(() => {
     openLogin("login");
   }, [openLogin]);
+
+  const refreshArtifacts = useCallback(
+    async (opts?: { preferId?: string; openPreview?: boolean }) => {
+      const sid = session?.id ?? sessionId;
+      if (!sid) return;
+      setArtifactsLoading(true);
+      setArtifactsError(null);
+      try {
+        const list = await listArtifacts(sid);
+        setArtifacts(list);
+        setSelectedId((prev) => {
+          if (opts?.preferId && list.some((a) => a.id === opts.preferId)) {
+            return opts.preferId;
+          }
+          if (prev && list.some((a) => a.id === prev)) return prev;
+          return list[0]?.id ?? null;
+        });
+        if (opts?.openPreview) setPreviewOpen(true);
+      } catch (err) {
+        if (err instanceof StudioApiError && err.status === 401) {
+          setArtifactsError("请先登录");
+        } else {
+          setArtifactsError(
+            err instanceof Error ? err.message : "加载作品失败",
+          );
+        }
+      } finally {
+        setArtifactsLoading(false);
+      }
+    },
+    [session?.id, sessionId],
+  );
+
+  const onArtifact = useCallback(
+    (event: ArtifactEventPayload) => {
+      void refreshArtifacts({ preferId: event.artifactId, openPreview: true });
+      setMobileTab("works");
+    },
+    [refreshArtifacts],
+  );
 
   const chat = useStudioChat({
     sessionId: session?.id ?? sessionId,
     initialMessages,
     model: session?.model ?? "gpt-4o-mini",
     onUnauthorized,
+    onArtifact,
   });
 
   useEffect(() => {
@@ -75,6 +136,42 @@ export default function StudioSessionPage() {
       cancelled = true;
     };
   }, [sessionId, openLogin]);
+
+  // Load artifacts when session is ready
+  useEffect(() => {
+    if (!session?.id) return;
+    void refreshArtifacts();
+  }, [session?.id, refreshArtifacts]);
+
+  // Load selected artifact content
+  useEffect(() => {
+    if (!selectedId) {
+      setContent(null);
+      setContentError(null);
+      return;
+    }
+    let cancelled = false;
+    setContentLoading(true);
+    setContentError(null);
+    void (async () => {
+      try {
+        const data = await getArtifact(selectedId);
+        if (cancelled) return;
+        setContent(data.content ?? "");
+      } catch (err) {
+        if (cancelled) return;
+        setContent(null);
+        setContentError(
+          err instanceof Error ? err.message : "读取作品失败",
+        );
+      } finally {
+        if (!cancelled) setContentLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
 
   // Auto-send first message handed off from /studio home
   useEffect(() => {
@@ -115,6 +212,16 @@ export default function StudioSessionPage() {
     [session?.title],
   );
 
+  const selected = useMemo(
+    () => artifacts.find((a) => a.id === selectedId) ?? null,
+    [artifacts, selectedId],
+  );
+
+  const handleSelect = useCallback((id: string) => {
+    setSelectedId(id);
+    setPreviewOpen(true);
+  }, []);
+
   if (loading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-ink-500">
@@ -139,6 +246,50 @@ export default function StudioSessionPage() {
     );
   }
 
+  const chatColumn = (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ChatThread
+        messages={chat.messages}
+        streaming={chat.streaming}
+        emptyHint="发送一条消息，开始与 WinLume 对话。"
+      />
+      <Composer
+        onSend={(text, meta) =>
+          chat.send(text, {
+            skillIds: meta?.skillIds,
+          })
+        }
+        onStop={chat.stop}
+        streaming={chat.streaming}
+        model={chat.model}
+        onModelChange={chat.setModel}
+        error={chat.error}
+        onClearError={chat.clearError}
+      />
+    </div>
+  );
+
+  const worksColumn = (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ArtifactPanel
+        artifacts={artifacts}
+        selectedId={selectedId}
+        onSelect={handleSelect}
+        loading={artifactsLoading}
+        error={artifactsError}
+        onRefresh={() => void refreshArtifacts()}
+        className="max-h-[40%] w-full shrink-0 border-l-0 border-b"
+      />
+      <ArtifactPreview
+        artifact={selected}
+        content={content}
+        loading={contentLoading}
+        error={contentError}
+        className="min-h-0 flex-1 border-l-0"
+      />
+    </div>
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3 sm:px-6">
@@ -158,27 +309,78 @@ export default function StudioSessionPage() {
             </p>
           ) : null}
         </div>
+        {/* Desktop: reopen collapsed preview */}
+        {!previewOpen && selectedId ? (
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className="hidden h-8 items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs text-ink-600 transition hover:bg-canvas md:inline-flex"
+            title="打开预览"
+          >
+            <PanelRight className="h-3.5 w-3.5" />
+            预览
+          </button>
+        ) : null}
+        {/* Mobile tabs */}
+        <div className="flex rounded-lg border border-line p-0.5 md:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileTab("chat")}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+              mobileTab === "chat"
+                ? "bg-primary-500 text-white"
+                : "text-ink-600 hover:bg-canvas"
+            }`}
+          >
+            对话
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("works")}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+              mobileTab === "works"
+                ? "bg-primary-500 text-white"
+                : "text-ink-600 hover:bg-canvas"
+            }`}
+          >
+            作品
+            {artifacts.length > 0 ? (
+              <span className="ml-1 tabular-nums opacity-80">
+                {artifacts.length}
+              </span>
+            ) : null}
+          </button>
+        </div>
       </header>
 
-      <ChatThread
-        messages={chat.messages}
-        streaming={chat.streaming}
-        emptyHint="发送一条消息，开始与 WinLume 对话。"
-      />
+      {/* Mobile: tabbed */}
+      <div className="flex min-h-0 flex-1 flex-col md:hidden">
+        {mobileTab === "chat" ? chatColumn : worksColumn}
+      </div>
 
-      <Composer
-        onSend={(text, meta) =>
-          chat.send(text, {
-            skillIds: meta?.skillIds,
-          })
-        }
-        onStop={chat.stop}
-        streaming={chat.streaming}
-        model={chat.model}
-        onModelChange={chat.setModel}
-        error={chat.error}
-        onClearError={chat.clearError}
-      />
+      {/* Desktop: chat | list | preview */}
+      <div className="hidden min-h-0 flex-1 md:flex">
+        {chatColumn}
+        <ArtifactPanel
+          artifacts={artifacts}
+          selectedId={selectedId}
+          onSelect={handleSelect}
+          loading={artifactsLoading}
+          error={artifactsError}
+          onRefresh={() => void refreshArtifacts()}
+          className="w-64 shrink-0"
+        />
+        {previewOpen ? (
+          <ArtifactPreview
+            artifact={selected}
+            content={content}
+            loading={contentLoading}
+            error={contentError}
+            onClose={() => setPreviewOpen(false)}
+            className="w-96 shrink-0"
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
