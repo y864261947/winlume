@@ -42,3 +42,8 @@ next-env.d.ts
 
 # deployment artifacts
 *.tar.gz
+
+# runtime data
+/data/users/
+/data/*.db
+/data/blobs/

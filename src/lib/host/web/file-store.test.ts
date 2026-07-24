@@ -1,0 +1,37 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, it, expect, afterEach } from "vitest";
+import { createWebFileStore } from "./file-store";
+
+describe("web file store", () => {
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("creates session and appends messages", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wl-"));
+    dirs.push(root);
+    const store = createWebFileStore(root);
+    const session = await store.sessions.createSession({
+      id: "s1",
+      userId: "u1",
+      title: "测试",
+      model: "gpt-4o-mini",
+    });
+    expect(session.title).toBe("测试");
+    await store.sessions.appendMessages("u1", "s1", [
+      {
+        id: "m1",
+        sessionId: "s1",
+        role: "user",
+        content: "你好",
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    const msgs = await store.sessions.listMessages("u1", "s1");
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].content).toBe("你好");
+  });
+});
