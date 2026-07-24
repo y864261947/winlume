@@ -129,10 +129,17 @@ jobs:
           systemctl daemon-reload
           systemctl enable winlume
           systemctl restart winlume
-          sleep 3
           systemctl is-active winlume
-          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/studio)
-          echo "studio_http=$code"
+          # next-server may need a few seconds after systemd reports active
+          code="000"
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            sleep 2
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/studio || true)
+            echo "try=$i studio_http=$code"
+            if [ "$code" = "200" ]; then
+              break
+            fi
+          done
           test "$code" = "200"
           REMOTE
 
