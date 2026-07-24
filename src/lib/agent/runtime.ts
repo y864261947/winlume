@@ -13,6 +13,7 @@ import {
 } from "@/lib/agent/provider/gateway";
 import {
   buildSystemPrompt,
+  mergeSkillIds,
   resolveSkills,
 } from "@/lib/agent/skills/inject";
 import { STUDIO_TOOLS } from "@/lib/agent/tools/definitions";
@@ -138,6 +139,7 @@ export async function* runAgentTurn(
   const prior = await sessions.listMessages(userId, sessionId);
   const isFirstTurn = prior.length === 0;
 
+  // Persist turn-selected ids only on Message for audit; inject uses merged set below.
   const userMessage: Message = {
     id: randomUUID(),
     sessionId,
@@ -158,7 +160,11 @@ export async function* runAgentTurn(
 
   yield { type: "session", sessionId };
 
-  const skills = await resolveSkills(opts.skillIds);
+  const effectiveSkillIds = mergeSkillIds(
+    session.pinnedSkillIds,
+    opts.skillIds,
+  );
+  const skills = await resolveSkills(effectiveSkillIds);
   const system = buildSystemPrompt(BASE_POLICY, skills);
 
   let history = await sessions.listMessages(userId, sessionId);

@@ -35,7 +35,7 @@ describe("formatSkillSections", () => {
       }),
     ];
     const out = formatSkillSections(skills);
-    expect(out).toContain("## Active skills for this turn");
+    expect(out).toContain("## Active skills (session pin + this turn)");
     expect(out).toContain("### Alpha");
     expect(out).toContain("Do alpha things.");
   });
@@ -107,7 +107,7 @@ describe("buildSystemPrompt", () => {
     ];
     const out = buildSystemPrompt("BASE POLICY", skills);
     expect(out.startsWith("BASE POLICY")).toBe(true);
-    expect(out).toContain("## Active skills for this turn");
+    expect(out).toContain("## Active skills (session pin + this turn)");
     expect(out).toContain("### Skill");
     expect(out).toContain("Be helpful.");
   });
