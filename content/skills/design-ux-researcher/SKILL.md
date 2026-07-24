@@ -10,6 +10,7 @@ triggers:
 example_prompt: 设计一份 8 题可用性访谈提纲，验证「Skills 选择」流程。
 preview: markdown
 source: bundled
+featured: false
 enabled: true
 ---
 

@@ -10,6 +10,7 @@ triggers:
 example_prompt: 针对「Skills 列表页」列一份可执行的验收检查清单。
 preview: markdown
 source: bundled
+featured: false
 enabled: true
 ---
 

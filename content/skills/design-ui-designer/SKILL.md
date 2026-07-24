@@ -10,6 +10,7 @@ triggers:
 example_prompt: 为 AI 对话工作台设计消息列表与输入区的 UI 规格（布局、状态、间距）。
 preview: markdown
 source: bundled
+featured: true
 enabled: true
 ---
 

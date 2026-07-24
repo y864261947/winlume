@@ -10,6 +10,7 @@ triggers:
 example_prompt: 为「新品发布」做 4 格视觉故事板描述与每格文案。
 preview: markdown
 source: bundled
+featured: false
 enabled: true
 ---
 

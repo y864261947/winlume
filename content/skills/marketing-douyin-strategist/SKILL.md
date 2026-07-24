@@ -10,6 +10,7 @@ triggers:
 example_prompt: 策划 5 条抖音短视频选题，目标是本地烘焙店涨粉。
 preview: markdown
 source: bundled
+featured: true
 enabled: true
 ---
 

@@ -10,6 +10,7 @@ triggers:
 example_prompt: 把下面会议记录压缩成一页高管摘要（结论、决策、待办）。
 preview: markdown
 source: bundled
+featured: false
 enabled: true
 ---
 

@@ -10,6 +10,7 @@ triggers:
 example_prompt: 为新品手冲咖啡写三篇小红书种草笔记，含标题、正文和标签建议。
 preview: markdown
 source: bundled
+featured: true
 enabled: true
 ---
 

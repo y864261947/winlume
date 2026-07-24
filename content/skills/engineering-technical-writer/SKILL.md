@@ -10,6 +10,7 @@ triggers:
 example_prompt: 为 skills 导入脚本写一段面向开发者的 README 使用说明。
 preview: markdown
 source: bundled
+featured: true
 enabled: true
 ---
 

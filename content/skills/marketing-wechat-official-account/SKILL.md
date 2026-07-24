@@ -10,6 +10,7 @@ triggers:
 example_prompt: 写一篇关于「远程办公效率」的公众号长文提纲与开篇 800 字。
 preview: markdown
 source: bundled
+featured: true
 enabled: true
 ---
 
