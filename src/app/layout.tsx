@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ModalProvider } from "@/components/providers";
-import AnnouncementBar from "@/components/AnnouncementBar";
-import SiteHeader from "@/components/SiteHeader";
-import SiteFooter from "@/components/SiteFooter";
 import { site } from "@/data/site";
 
 export const metadata: Metadata = {
@@ -18,15 +15,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body
-        className="flex min-h-screen flex-col bg-canvas font-sans text-ink-900 antialiased"
-      >
-        <ModalProvider>
-          <AnnouncementBar />
-          <SiteHeader />
-          <main className="flex-1">{children}</main>
-          <SiteFooter />
-        </ModalProvider>
+      <body className="flex min-h-screen flex-col bg-canvas font-sans text-ink-900 antialiased">
+        <ModalProvider>{children}</ModalProvider>
       </body>
     </html>
   );
