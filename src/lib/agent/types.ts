@@ -23,6 +23,8 @@ export interface Message {
   content: string;
   skillIds?: string[];
   toolCalls?: ToolCallRecord[];
+  /** For role "tool": links to the assistant tool_call id */
+  toolCallId?: string;
   attachmentIds?: string[];
   createdAt: string;
 }

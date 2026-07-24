@@ -22,7 +22,7 @@ import { site } from "@/data/site";
 const navItems = [
   { href: "/studio", label: "新对话", icon: MessageSquarePlus, exact: true },
   { href: "/studio/skills", label: "Skills", icon: Wrench, exact: false },
-  { href: "/studio/artifacts", label: "作品", icon: FolderKanban, exact: false, disabled: true },
+  { href: "/studio/artifacts", label: "作品", icon: FolderKanban, exact: false },
   { href: "/studio/settings", label: "设置", icon: Settings, exact: false },
 ] as const;
 

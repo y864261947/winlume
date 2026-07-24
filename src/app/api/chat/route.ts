@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
           skillIds,
           model,
           sessions: webStore.sessions,
+          artifacts: webStore.artifacts,
           signal,
           gatewayUserId: userId,
         })) {
