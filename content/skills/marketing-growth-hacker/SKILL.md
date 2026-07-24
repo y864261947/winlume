@@ -10,6 +10,7 @@ triggers:
 example_prompt: 为 B2B SaaS 试用转化设计 3 个低成本增长实验。
 preview: markdown
 source: bundled
+featured: false
 enabled: true
 ---
 

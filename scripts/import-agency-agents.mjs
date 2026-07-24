@@ -1,16 +1,28 @@
 /**
- * Import curated agents from agency-agents-zh into content/skills/{id}/SKILL.md
+ * Import agents from agency-agents-zh into content/skills/{id}/SKILL.md
  *
  * Env:
  *   AGENCY_AGENTS_DIR — source root (default: E:/CodeCode/agency-agents-zh or ../agency-agents-zh)
  *   SKILLS_OUT_DIR    — output root (default: <repo>/content/skills)
+ *   IMPORT_ALL=1      — full walk of department folders (CI/production)
+ *                       without it, imports curated allowlist only (local dev speed)
  *
  * Usage:
  *   node scripts/import-agency-agents.mjs
+ *   # PowerShell full import:
+ *   $env:IMPORT_ALL="1"; node scripts/import-agency-agents.mjs
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
-import { dirname, join, resolve, basename } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  statSync,
+  rmSync,
+} from "node:fs";
+import { dirname, join, resolve, basename, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -19,6 +31,7 @@ const REPO_ROOT = resolve(__dirname, "..");
 const DEFAULT_CANDIDATES = [
   process.env.AGENCY_AGENTS_DIR,
   "E:/CodeCode/agency-agents-zh",
+  "E:/codecode/agency-agents-zh",
   resolve(REPO_ROOT, "../agency-agents-zh"),
 ].filter(Boolean);
 
@@ -34,7 +47,21 @@ function resolveSourceDir() {
 const SOURCE_DIR = resolveSourceDir();
 const OUT_DIR = resolve(process.env.SKILLS_OUT_DIR || join(REPO_ROOT, "content", "skills"));
 
-/** Curated allowlist (~24) — marketing / design / product / eng / sales / support / finance / pm / testing */
+const IMPORT_ALL =
+  process.env.IMPORT_ALL === "1" || process.env.IMPORT_ALL === "true";
+
+/** Directories under agency-agents-zh that are not agent departments */
+const SKIP_DIRS = new Set([
+  "examples",
+  "strategy",
+  "integrations",
+  "scripts",
+  "assets",
+  ".github",
+  "node_modules",
+]);
+
+/** Curated allowlist (~24) — used when IMPORT_ALL is off */
 const CURATED = [
   "marketing/marketing-xiaohongshu-specialist.md",
   "marketing/marketing-content-creator.md",
@@ -61,6 +88,22 @@ const CURATED = [
   "project-management/project-management-meeting-notes-specialist.md",
   "testing/testing-reality-checker.md",
 ];
+
+/** Featured skills (homepage / studio highlights) */
+const FEATURED = new Set([
+  "marketing-xiaohongshu-specialist",
+  "marketing-douyin-strategist",
+  "marketing-wechat-official-account",
+  "marketing-content-creator",
+  "design-ui-designer",
+  "design-image-prompt-engineer",
+  "design-brand-guardian",
+  "product-trend-researcher",
+  "product-manager",
+  "engineering-frontend-developer",
+  "engineering-technical-writer",
+  "sales-proposal-strategist",
+]);
 
 /** Optional hand-tuned example prompts / triggers per skill id */
 const ENRICHMENT = {
@@ -162,17 +205,68 @@ const ENRICHMENT = {
   },
 };
 
-const CATEGORY_LABEL = {
-  marketing: "marketing",
-  design: "design",
-  product: "product",
-  engineering: "engineering",
-  sales: "sales",
-  support: "support",
-  finance: "finance",
-  "project-management": "project-management",
-  testing: "testing",
-};
+/**
+ * Walk a directory recursively collecting .md files.
+ * @returns {{ abs: string, rel: string }[]}
+ */
+function walkMdFiles(dir, root) {
+  const out = [];
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const ent of entries) {
+    const abs = join(dir, ent.name);
+    if (ent.isDirectory()) {
+      if (ent.name.startsWith(".") || SKIP_DIRS.has(ent.name)) continue;
+      out.push(...walkMdFiles(abs, root));
+    } else if (ent.isFile() && ent.name.endsWith(".md")) {
+      // Skip README / catalog-style docs inside departments
+      const base = ent.name.toLowerCase();
+      if (base === "readme.md" || base === "agent-list.md" || base === "catalog.md") continue;
+      const rel = relative(root, abs).replace(/\\/g, "/");
+      out.push({ abs, rel });
+    }
+  }
+  return out;
+}
+
+/**
+ * List agent files to import.
+ * @returns {{ relPath: string, category: string }[]}
+ */
+function listAgentFiles(root) {
+  if (IMPORT_ALL) {
+    const results = [];
+    let topEntries;
+    try {
+      topEntries = readdirSync(root, { withFileTypes: true });
+    } catch (e) {
+      throw new Error(`Cannot read source root ${root}: ${e.message}`);
+    }
+    for (const ent of topEntries) {
+      if (!ent.isDirectory()) continue;
+      if (ent.name.startsWith(".") || SKIP_DIRS.has(ent.name)) continue;
+      const deptDir = join(root, ent.name);
+      const files = walkMdFiles(deptDir, root);
+      for (const f of files) {
+        // category = top-level department folder name
+        const category = f.rel.split("/")[0];
+        results.push({ relPath: f.rel, category });
+      }
+    }
+    // stable sort for reproducible output
+    results.sort((a, b) => a.relPath.localeCompare(b.relPath));
+    return results;
+  }
+
+  return CURATED.map((relPath) => ({
+    relPath,
+    category: relPath.split("/")[0],
+  }));
+}
 
 function splitFrontmatter(markdown) {
   const text = markdown.replace(/^\uFEFF/, "");
@@ -246,7 +340,16 @@ function yamlEscape(value) {
   return s;
 }
 
-function buildSkillMarkdown({ id, title, description, category, triggers, examplePrompt, body }) {
+function buildSkillMarkdown({
+  id,
+  title,
+  description,
+  category,
+  triggers,
+  examplePrompt,
+  featured,
+  body,
+}) {
   const lines = [
     "---",
     `name: ${id}`,
@@ -258,6 +361,7 @@ function buildSkillMarkdown({ id, title, description, category, triggers, exampl
     `example_prompt: ${yamlEscape(examplePrompt)}`,
     "preview: markdown",
     "source: bundled",
+    `featured: ${featured ? "true" : "false"}`,
     "enabled: true",
     "---",
     "",
@@ -279,18 +383,28 @@ function defaultTriggers(category, title) {
     finance: ["财务"],
     "project-management": ["项目", "会议"],
     testing: ["测试", "验收"],
+    legal: ["法律", "合规"],
+    security: ["安全"],
+    hr: ["招聘", "人事"],
+    "game-development": ["游戏", "开发"],
+    gis: ["GIS", "地理"],
+    academic: ["学术", "研究"],
+    "paid-media": ["投放", "广告"],
+    "supply-chain": ["供应链"],
+    specialized: ["专项"],
+    "spatial-computing": ["空间计算", "XR"],
   };
-  return [...new Set([...(byCat[category] || []), ...base])].slice(0, 5);
+  return [...new Set([...(byCat[category] || [category]), ...base])].slice(0, 5);
 }
 
-function importOne(relPath) {
+function importOne(relPath, categoryOverride) {
   const srcPath = join(SOURCE_DIR, relPath);
   if (!existsSync(srcPath)) {
     return { ok: false, relPath, error: `missing source: ${srcPath}` };
   }
 
-  const categoryDir = relPath.split("/")[0];
-  const category = CATEGORY_LABEL[categoryDir] || categoryDir;
+  const categoryDir = categoryOverride || relPath.split("/")[0];
+  const category = categoryDir;
   const id = basename(relPath, ".md");
   const rawText = readFileSync(srcPath, "utf8");
   const { raw, body } = splitFrontmatter(rawText);
@@ -301,8 +415,8 @@ function importOne(relPath) {
   const triggers = enrich.triggers || defaultTriggers(category, title);
   const examplePrompt =
     enrich.example_prompt || `请以「${title}」的角色，帮助我完成：…`;
+  const featured = FEATURED.has(id);
 
-  // Body = original markdown without old frontmatter identity noise
   const cleanedBody = body.trim() || `# ${title}\n\n${description}`;
 
   const outMd = buildSkillMarkdown({
@@ -312,6 +426,7 @@ function importOne(relPath) {
     category,
     triggers,
     examplePrompt,
+    featured,
     body: cleanedBody,
   });
 
@@ -320,47 +435,127 @@ function importOne(relPath) {
   const destFile = join(destDir, "SKILL.md");
   writeFileSync(destFile, outMd, "utf8");
 
-  return { ok: true, id, destFile, category, title };
+  return { ok: true, id, destFile, category, title, featured };
+}
+
+/**
+ * When doing a full import, remove skill dirs that are no longer in the source set
+ * so the catalog does not keep stale agents. Keeps README.md at skills root.
+ */
+function pruneStaleSkills(validIds) {
+  if (!existsSync(OUT_DIR)) return [];
+  const removed = [];
+  for (const name of readdirSync(OUT_DIR)) {
+    const p = join(OUT_DIR, name);
+    let st;
+    try {
+      st = statSync(p);
+    } catch {
+      continue;
+    }
+    if (!st.isDirectory()) continue;
+    if (!validIds.has(name)) {
+      rmSync(p, { recursive: true, force: true });
+      removed.push(name);
+    }
+  }
+  return removed;
 }
 
 function main() {
   console.log(`Source: ${SOURCE_DIR}`);
   console.log(`Output: ${OUT_DIR}`);
+  console.log(`Mode:   ${IMPORT_ALL ? "IMPORT_ALL (full department walk)" : "curated allowlist"}`);
   mkdirSync(OUT_DIR, { recursive: true });
 
+  const files = listAgentFiles(SOURCE_DIR);
+  console.log(`Candidates: ${files.length}`);
+
   const results = [];
-  for (const rel of CURATED) {
-    const r = importOne(rel);
+  for (const { relPath, category } of files) {
+    const r = importOne(relPath, category);
     results.push(r);
     if (r.ok) {
-      console.log(`✓ ${r.id}  (${r.category}) ← ${rel}`);
+      const star = r.featured ? " ★" : "";
+      console.log(`✓ ${r.id}  (${r.category})${star} ← ${relPath}`);
     } else {
-      console.error(`✗ ${rel}: ${r.error}`);
+      console.error(`✗ ${relPath}: ${r.error}`);
     }
   }
 
   const ok = results.filter((r) => r.ok);
   const fail = results.filter((r) => !r.ok);
-  console.log(`\nImported ${ok.length}/${CURATED.length} skills`);
+
+  if (IMPORT_ALL) {
+    const validIds = new Set(ok.map((r) => r.id));
+    const removed = pruneStaleSkills(validIds);
+    if (removed.length) {
+      console.log(`\nPruned ${removed.length} stale skill dirs`);
+    }
+  }
+
+  const featuredCount = ok.filter((r) => r.featured).length;
+  console.log(`\nImported ${ok.length}/${files.length} skills (${featuredCount} featured)`);
   if (fail.length) {
     console.error(`Failed: ${fail.length}`);
     process.exitCode = 1;
   }
 
-  // Write a tiny index for humans
+  // Index for humans
+  const byCat = new Map();
+  for (const r of ok) {
+    if (!byCat.has(r.category)) byCat.set(r.category, []);
+    byCat.get(r.category).push(r);
+  }
+  const catKeys = [...byCat.keys()].sort();
+
   const indexPath = join(OUT_DIR, "README.md");
   const index = [
     "# Bundled skills",
     "",
-    "Generated by `scripts/import-agency-agents.mjs` from agency-agents-zh.",
+    "Generated by `scripts/import-agency-agents.mjs` from [agency-agents-zh](https://github.com/).",
     "Do not hand-edit bulk content; re-run the import script.",
     "",
-    `| id | category | title |`,
-    `|----|----------|-------|`,
-    ...ok.map((r) => `| \`${r.id}\` | ${r.category} | ${r.title} |`),
+    "## Full import",
     "",
-  ].join("\n");
-  writeFileSync(indexPath, index, "utf8");
+    "```bash",
+    "# PowerShell",
+    '$env:IMPORT_ALL="1"; node scripts/import-agency-agents.mjs',
+    "",
+    "# bash",
+    "IMPORT_ALL=1 node scripts/import-agency-agents.mjs",
+    "```",
+    "",
+    "Requires `agency-agents-zh` at `E:/CodeCode/agency-agents-zh`, `E:/codecode/agency-agents-zh`,",
+    "`../agency-agents-zh`, or set `AGENCY_AGENTS_DIR`.",
+    "",
+    "Without `IMPORT_ALL`, only the curated allowlist (~24 skills) is imported for local dev speed.",
+    "",
+    "Featured ids are controlled by `FEATURED` in the import script.",
+    "",
+    `## Summary`,
+    "",
+    `- Total: **${ok.length}** skills`,
+    `- Featured: **${featuredCount}**`,
+    `- Categories: ${catKeys.map((c) => `\`${c}\``).join(", ")}`,
+    "",
+    "## By category",
+    "",
+  ];
+
+  for (const cat of catKeys) {
+    const items = byCat.get(cat).sort((a, b) => a.id.localeCompare(b.id));
+    index.push(`### ${cat} (${items.length})`, "");
+    index.push(`| id | title | featured |`);
+    index.push(`|----|-------|----------|`);
+    for (const r of items) {
+      index.push(`| \`${r.id}\` | ${r.title} | ${r.featured ? "yes" : ""} |`);
+    }
+    index.push("");
+  }
+
+  writeFileSync(indexPath, index.join("\n"), "utf8");
+  console.log(`Wrote ${indexPath}`);
 }
 
 main();

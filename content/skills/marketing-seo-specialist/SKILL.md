@@ -10,6 +10,7 @@ triggers:
 example_prompt: 为「企业知识库」产品列 20 个中文长尾关键词并给出落地页大纲。
 preview: markdown
 source: bundled
+featured: false
 enabled: true
 ---
 

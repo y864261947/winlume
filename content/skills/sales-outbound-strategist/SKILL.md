@@ -10,6 +10,7 @@ triggers:
 example_prompt: 写 3 封面向 HR SaaS 决策人的冷启动开发信。
 preview: markdown
 source: bundled
+featured: false
 enabled: true
 ---
 

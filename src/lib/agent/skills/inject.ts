@@ -4,10 +4,31 @@ import { getSkill } from "./registry";
 /** Max total characters of skill bodies injected into the system prompt. */
 export const MAX_SKILL_CHARS = 24_000;
 
-const SECTION_HEADER = "## Active skills for this turn";
+/** Header for skill sections: session pins + this-turn selection (merged). */
+const SECTION_HEADER = "## Active skills (session pin + this turn)";
 
 const TRUNCATION_NOTE =
   "\n\n_[Skill content truncated to fit the 24,000 character budget for this turn.]_";
+
+/**
+ * Merge session-pinned skill ids with turn-selected ids for system-prompt inject.
+ * Order: pinned first, then turn extras. De-dupe; first occurrence wins (pinned preferred).
+ * Message.skillIds should store turn-only for audit; inject uses this merged set.
+ */
+export function mergeSkillIds(
+  pinned?: string[],
+  turn?: string[],
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of [...(pinned ?? []), ...(turn ?? [])]) {
+    const id = typeof raw === "string" ? raw.trim() : "";
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
 
 /**
  * Resolve skill ids to full Skill objects (order preserved, de-duplicated).

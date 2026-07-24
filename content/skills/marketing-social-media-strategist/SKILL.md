@@ -10,6 +10,7 @@ triggers:
 example_prompt: 制定两周社媒内容日历，覆盖小红书、抖音与公众号。
 preview: markdown
 source: bundled
+featured: false
 enabled: true
 ---
 

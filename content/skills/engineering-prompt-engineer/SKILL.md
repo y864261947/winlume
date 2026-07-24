@@ -10,6 +10,7 @@ triggers:
 example_prompt: 把「写周报」需求改写成可复用的系统提示词，含输入输出格式约束。
 preview: markdown
 source: bundled
+featured: false
 enabled: true
 ---
 

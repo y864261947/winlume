@@ -5,6 +5,8 @@ export interface Session {
   userId: string;
   title: string;
   model: string;
+  /** Skills applied to every turn unless overridden; UI may pin/unpin */
+  pinnedSkillIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -29,16 +31,21 @@ export interface Message {
   createdAt: string;
 }
 
+export type DefaultArtifactKind = "markdown" | "html" | "image-prompt" | "none";
+
 export interface SkillMeta {
   id: string;
   name: string;
   description: string;
+  /** Upstream department folder id (marketing, design, …) */
   category: string;
   triggers?: string[];
   examplePrompt?: string;
   preview?: "markdown" | "html" | "none";
   source: "bundled" | "imported" | "user";
   enabled: boolean;
+  featured?: boolean;
+  defaultArtifact?: DefaultArtifactKind;
 }
 
 export interface Skill extends SkillMeta {

@@ -34,4 +34,48 @@ describe("web file store", () => {
     expect(msgs).toHaveLength(1);
     expect(msgs[0].content).toBe("你好");
   });
+
+  it("persists pinnedSkillIds and allows clear with []", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wl-"));
+    dirs.push(root);
+    const store = createWebFileStore(root);
+    await store.sessions.createSession({
+      id: "s1",
+      userId: "u1",
+      title: "pins",
+      model: "gpt-4o-mini",
+    });
+
+    const withPins = await store.sessions.updateSession("u1", "s1", {
+      pinnedSkillIds: ["skill-a", "skill-b"],
+    });
+    expect(withPins.pinnedSkillIds).toEqual(["skill-a", "skill-b"]);
+
+    const reloaded = await store.sessions.getSession("u1", "s1");
+    expect(reloaded?.pinnedSkillIds).toEqual(["skill-a", "skill-b"]);
+
+    const listed = await store.sessions.listSessions("u1");
+    expect(listed.find((s) => s.id === "s1")?.pinnedSkillIds).toEqual([
+      "skill-a",
+      "skill-b",
+    ]);
+
+    const cleared = await store.sessions.updateSession("u1", "s1", {
+      pinnedSkillIds: [],
+    });
+    expect(cleared.pinnedSkillIds).toEqual([]);
+
+    const afterClear = await store.sessions.getSession("u1", "s1");
+    expect(afterClear?.pinnedSkillIds).toEqual([]);
+
+    // title-only patch leaves pins unchanged
+    await store.sessions.updateSession("u1", "s1", {
+      pinnedSkillIds: ["keep-me"],
+    });
+    const titled = await store.sessions.updateSession("u1", "s1", {
+      title: "renamed",
+    });
+    expect(titled.title).toBe("renamed");
+    expect(titled.pinnedSkillIds).toEqual(["keep-me"]);
+  });
 });

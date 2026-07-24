@@ -10,6 +10,7 @@ triggers:
 example_prompt: 把以下 10 条用户反馈聚类成 3 个主题，并给出优先级建议：…
 preview: markdown
 source: bundled
+featured: false
 enabled: true
 ---
 

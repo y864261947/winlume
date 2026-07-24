@@ -10,6 +10,7 @@ triggers:
 example_prompt: 写 3 组中英双语产品场景图 prompt，风格为极简电商主图。
 preview: markdown
 source: bundled
+featured: true
 enabled: true
 ---
 

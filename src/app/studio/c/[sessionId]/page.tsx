@@ -18,6 +18,7 @@ import {
   getArtifact,
   getSessionBundle,
   listArtifacts,
+  patchSession,
   takePendingFirstMessage,
   StudioApiError,
 } from "@/lib/studio/api";
@@ -36,6 +37,7 @@ export default function StudioSessionPage() {
   const [initialMessages, setInitialMessages] = useState<Message[] | undefined>(
     undefined,
   );
+  const [pinnedSkillIds, setPinnedSkillIds] = useState<string[]>([]);
   const pendingSentRef = useRef(false);
 
   // Artifacts
@@ -117,6 +119,7 @@ export default function StudioSessionPage() {
         const bundle = await getSessionBundle(sessionId);
         if (cancelled) return;
         setSession(bundle.session);
+        setPinnedSkillIds(bundle.session.pinnedSkillIds ?? []);
         setInitialMessages(bundle.messages);
       } catch (err) {
         if (cancelled) return;
@@ -137,6 +140,25 @@ export default function StudioSessionPage() {
       cancelled = true;
     };
   }, [sessionId, openLogin]);
+
+  const onPinnedSkillIdsChange = useCallback(
+    async (ids: string[]) => {
+      setPinnedSkillIds(ids);
+      const sid = session?.id ?? sessionId;
+      if (!sid) return;
+      try {
+        const updated = await patchSession(sid, { pinnedSkillIds: ids });
+        setSession(updated);
+        setPinnedSkillIds(updated.pinnedSkillIds ?? ids);
+      } catch (err) {
+        // Keep optimistic pins; surface auth so user can re-login
+        if (err instanceof StudioApiError && err.status === 401) {
+          openLogin("login");
+        }
+      }
+    },
+    [session?.id, sessionId, openLogin],
+  );
 
   // Load artifacts when session is ready
   useEffect(() => {
@@ -197,6 +219,7 @@ export default function StudioSessionPage() {
         const bundle = await getSessionBundle(sessionId);
         if (cancelled) return;
         setSession(bundle.session);
+        setPinnedSkillIds(bundle.session.pinnedSkillIds ?? []);
         setInitialMessages(bundle.messages);
         setLoadError(null);
       } catch {
@@ -257,6 +280,7 @@ export default function StudioSessionPage() {
       <Composer
         onSend={(text, meta) =>
           chat.send(text, {
+            // Turn-only skillIds; runtime merges session pins server-side
             skillIds: meta?.skillIds,
           })
         }
@@ -264,6 +288,10 @@ export default function StudioSessionPage() {
         streaming={chat.streaming}
         model={chat.model}
         onModelChange={chat.setModel}
+        pinnedSkillIds={pinnedSkillIds}
+        onPinnedSkillIdsChange={(ids) => {
+          void onPinnedSkillIdsChange(ids);
+        }}
         error={chat.error}
         onClearError={chat.clearError}
       />

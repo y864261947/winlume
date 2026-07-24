@@ -10,6 +10,7 @@ triggers:
 example_prompt: 把口语化会议录音转写整理成结构化会议纪要。
 preview: markdown
 source: bundled
+featured: false
 enabled: true
 ---
 

@@ -10,6 +10,7 @@ triggers:
 example_prompt: 为一键导入 Skills 功能写一页 PRD：背景、目标、范围、验收标准。
 preview: markdown
 source: bundled
+featured: true
 enabled: true
 ---
 

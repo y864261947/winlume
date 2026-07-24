@@ -10,6 +10,7 @@ triggers:
 example_prompt: 为咖啡店开业写一套多渠道宣传内容（朋友圈、海报文案、短视频脚本大纲）。
 preview: markdown
 source: bundled
+featured: true
 enabled: true
 ---
 

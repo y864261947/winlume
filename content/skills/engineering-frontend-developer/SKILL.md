@@ -10,6 +10,7 @@ triggers:
 example_prompt: 用 React + Tailwind 描述一个 Skills 卡片网格组件的实现要点。
 preview: markdown
 source: bundled
+featured: true
 enabled: true
 ---
 

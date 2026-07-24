@@ -10,6 +10,7 @@ triggers:
 example_prompt: 根据现有 logo 与主色，整理一页品牌使用规范要点（可执行清单）。
 preview: markdown
 source: bundled
+featured: true
 enabled: true
 ---
 

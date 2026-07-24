@@ -10,6 +10,7 @@ triggers:
 example_prompt: 调研国内 AI 工作台竞品在「技能/插件」上的差异，输出对比表。
 preview: markdown
 source: bundled
+featured: true
 enabled: true
 ---
 

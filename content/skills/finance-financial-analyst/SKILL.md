@@ -10,6 +10,7 @@ triggers:
 example_prompt: 根据给出的月度收入与成本数据，写一份简要财务健康分析。
 preview: markdown
 source: bundled
+featured: false
 enabled: true
 ---
 

@@ -9,7 +9,7 @@ export interface SessionStore {
   updateSession(
     userId: string,
     sessionId: string,
-    patch: Partial<Pick<Session, "title" | "model">>,
+    patch: Partial<Pick<Session, "title" | "model" | "pinnedSkillIds">>,
   ): Promise<Session>;
   deleteSession(userId: string, sessionId: string): Promise<void>;
   listMessages(userId: string, sessionId: string): Promise<Message[]>;

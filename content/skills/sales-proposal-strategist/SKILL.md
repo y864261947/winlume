@@ -10,6 +10,7 @@ triggers:
 example_prompt: 为中型企业写一份 AI 助手试点项目的商务方案大纲。
 preview: markdown
 source: bundled
+featured: true
 enabled: true
 ---
 
