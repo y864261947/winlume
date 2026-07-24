@@ -17,8 +17,14 @@ Requires `agency-agents-zh` at `E:/CodeCode/agency-agents-zh`, `E:/codecode/agen
 `../agency-agents-zh`, or set `AGENCY_AGENTS_DIR`.
 
 Without `IMPORT_ALL`, only the curated allowlist (~24 skills) is imported for local dev speed.
+**Production / CI** should use full import so the image ships the complete `content/skills` corpus.
 
 Featured ids are controlled by `FEATURED` in the import script.
+
+## Tools / MCP
+
+MCP is **not** enabled. Agent tools are **server builtin only** (e.g. artifact write/read/list).
+No MCP client, server, or marketplace in this product form.
 
 ## Summary
 

@@ -60,4 +60,13 @@ node scripts/package-standalone.mjs
 # produces winlume-deploy.tar.gz
 ```
 
+## Skills corpus
+
+Production image should include full `content/skills` (run
+`IMPORT_ALL=1 node scripts/import-agency-agents.mjs` before build if regenerating).
+
+MCP is not enabled; tools are server builtin only.
+
+See also `content/skills/README.md` for import paths, allowlist vs full mode, and featured flags.
+
 SSH ops skill: `.agents/skills/connect-app-server/`.
