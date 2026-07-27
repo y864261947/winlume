@@ -124,7 +124,7 @@ jobs:
           Environment=PORT=3001
           Environment=HOSTNAME=127.0.0.1
           EnvironmentFile=-/opt/winlume/.env
-          ExecStart=/usr/local/bin/node server.js
+          ExecStart=/usr/bin/node server.js
           Restart=always
           RestartSec=3
           StandardOutput=append:/var/log/winlume.log
@@ -136,7 +136,6 @@ jobs:
           systemctl daemon-reload
           systemctl enable winlume
           systemctl restart winlume
-          systemctl is-active winlume
           # next-server may need a few seconds after systemd reports active
           code="000"
           for i in 1 2 3 4 5 6 7 8 9 10; do
@@ -147,7 +146,11 @@ jobs:
               break
             fi
           done
-          test "$code" = "200"
+          if [ "$code" != "200" ]; then
+            systemctl status winlume --no-pager -n 30 || true
+            tail -80 /var/log/winlume.log || true
+            exit 1
+          fi
           REMOTE
 
       - name: Summary
