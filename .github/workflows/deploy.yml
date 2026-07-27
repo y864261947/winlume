@@ -1,9 +1,9 @@
-# Deploy WinLume Studio to production app server on push/merge to master.
+# Deploy WinLume Studio to its dedicated directory on the production host.
 #
 # Required GitHub repo secrets:
-#   DEPLOY_HOST              e.g. 38.76.188.156
+#   DEPLOY_HOST              e.g. 104.160.47.89
 #   DEPLOY_USER              e.g. root
-#   DEPLOY_SSH_PASSWORD      password auth (this host)
+#   DEPLOY_SSH_PRIVATE_KEY   Ed25519 private key authorized on the deploy host
 # Optional:
 #   WINLUME_GATEWAY_TOKEN    written into /opt/winlume/.env if set
 #   NEW_API_URL              default https://v2api.top
@@ -44,23 +44,28 @@ jobs:
       - name: Package standalone
         run: node scripts/package-standalone.mjs
 
-      - name: Install ssh tools
+      - name: Configure deploy key
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq sshpass openssh-client
+          set -euo pipefail
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          test -n "$DEPLOY_SSH_PRIVATE_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: Upload artifact
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_SSH_PASSWORD: ${{ secrets.DEPLOY_SSH_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "$DEPLOY_HOST"
-          test -n "$DEPLOY_USER"
-          test -n "$DEPLOY_SSH_PASSWORD"
-          export SSHPASS="$DEPLOY_SSH_PASSWORD"
-          sshpass -e scp -o StrictHostKeyChecking=accept-new \
+          scp -i ~/.ssh/id_ed25519 \
             winlume-deploy.tar.gz \
             "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/winlume-deploy.tar.gz"
 
@@ -68,15 +73,13 @@ jobs:
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_SSH_PASSWORD: ${{ secrets.DEPLOY_SSH_PASSWORD }}
           WINLUME_GATEWAY_TOKEN: ${{ secrets.WINLUME_GATEWAY_TOKEN }}
           NEW_API_URL: ${{ secrets.NEW_API_URL }}
         run: |
           set -euo pipefail
-          export SSHPASS="$DEPLOY_SSH_PASSWORD"
           NEW_API_URL="${NEW_API_URL:-https://v2api.top}"
           # shellcheck disable=SC2087
-          sshpass -e ssh -o StrictHostKeyChecking=accept-new \
+          ssh -i ~/.ssh/id_ed25519 \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
             env NEW_API_URL="$NEW_API_URL" WINLUME_GATEWAY_TOKEN="${WINLUME_GATEWAY_TOKEN:-}" bash -s <<'REMOTE'
           set -euo pipefail
@@ -87,6 +90,10 @@ jobs:
           tar -xzf /tmp/winlume-deploy.tar.gz -C /opt/winlume
           if [ -f /opt/winlume.previous/.env ]; then
             cp /opt/winlume.previous/.env /opt/winlume/.env
+          fi
+          if [ -d /opt/winlume.previous/data ]; then
+            mkdir -p /opt/winlume/data
+            cp -a /opt/winlume.previous/data/. /opt/winlume/data/
           fi
           # Ensure base env keys exist; do not wipe existing token unless secret provided
           touch /opt/winlume/.env
