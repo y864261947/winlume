@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import ModelMarket from "@/components/ModelMarket";
 
 export default function Home() {
-  redirect("/studio");
+  return <ModelMarket />;
 }
