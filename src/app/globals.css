@@ -533,11 +533,263 @@ button:not(:disabled) {
   box-shadow: 0 8px 24px -12px rgba(120, 85, 45, 0.18);
 }
 
+/* Apple-style workspace home: soft field + floating glass composer */
+.studio-home-canvas {
+  background:
+    radial-gradient(900px 520px at 50% 18%, rgba(255, 255, 255, 0.95), transparent 70%),
+    radial-gradient(700px 480px at 20% 70%, rgba(242, 153, 74, 0.08), transparent 60%),
+    radial-gradient(640px 420px at 85% 60%, rgba(122, 140, 96, 0.07), transparent 55%),
+    linear-gradient(180deg, #f7f5f2 0%, #f3f0eb 45%, #efebe4 100%);
+}
+
+.studio-home-composer {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 28px 60px -28px rgba(90, 70, 40, 0.28),
+    0 12px 28px -16px rgba(120, 85, 45, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+/* Kill system blue focus chrome inside hero composer */
+.studio-home-composer textarea,
+.studio-home-composer input,
+.studio-home-composer select,
+.studio-home-composer button {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+.studio-home-composer textarea:focus,
+.studio-home-composer textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+/* Soft product-colored focus for the glass shell instead of OS blue */
+.studio-home-composer:focus-within {
+  border-color: rgba(194, 65, 12, 0.28);
+  box-shadow:
+    0 28px 60px -28px rgba(90, 70, 40, 0.28),
+    0 12px 28px -16px rgba(120, 85, 45, 0.12),
+    0 0 0 3px rgba(194, 65, 12, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.studio-cap-card {
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow: 0 14px 36px -20px rgba(90, 70, 40, 0.22);
+  transition:
+    transform 200ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 200ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.studio-cap-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(194, 65, 12, 0.22);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 40px -18px rgba(194, 65, 12, 0.18);
+}
+
+.studio-cap-card[data-active="true"] {
+  border-color: rgba(194, 65, 12, 0.35);
+  background: rgba(255, 248, 240, 0.92);
+  box-shadow: 0 16px 36px -16px rgba(194, 65, 12, 0.22);
+}
+
+.studio-cap-peek {
+  mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 100%);
+}
+
+/*
+ * Works rail — layout width is discrete (no width tween).
+ * Slide/fade via transform + opacity only (interruptible, ≤280ms).
+ */
+.studio-works-shell {
+  --works-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --works-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.4);
+  /* width set inline — no transition on layout properties */
+  transition: border-color 200ms var(--works-ease-out);
+}
+
+.studio-works-shell[data-open="false"] {
+  border-color: transparent;
+  pointer-events: none;
+}
+
+.studio-works-shell-inner {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  transform: translateX(0);
+  opacity: 1;
+  transition:
+    transform 280ms var(--works-drawer),
+    opacity 200ms var(--works-ease-out);
+  will-change: transform, opacity;
+}
+
+.studio-works-shell[data-open="false"] .studio-works-shell-inner {
+  transform: translateX(12px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.studio-works-preview-shell {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 200ms var(--works-ease-out);
+}
+
+.studio-works-preview-shell[data-open="false"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.studio-home-composer {
+  animation: studio-home-composer-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* First row peeks under hero — light float, no duplicate section */
+.studio-cap-first-row {
+  animation: studio-cap-float 5.5s ease-in-out infinite;
+}
+.studio-cap-first-row:nth-child(2) {
+  animation-delay: 0.4s;
+}
+.studio-cap-first-row:nth-child(3) {
+  animation-delay: 0.8s;
+}
+
+@keyframes studio-cap-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes studio-home-composer-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* Collapsed edge tab — always reachable after hide */
+.studio-works-edge-tab {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 20;
+  display: none;
+  transform: translateY(-50%) translateX(0);
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-right: none;
+  border-radius: 12px 0 0 12px;
+  background: rgba(255, 255, 255, 0.88);
+  padding: 12px 8px;
+  color: #615a73;
+  box-shadow: -6px 8px 24px -10px rgba(120, 85, 45, 0.2);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  opacity: 1;
+  transition:
+    color 160ms cubic-bezier(0.32, 0.72, 0, 1),
+    background 160ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 200ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 200ms ease;
+}
+
+@media (min-width: 768px) {
+  .studio-works-edge-tab {
+    display: flex;
+  }
+}
+
+.studio-works-edge-tab:hover {
+  color: #c2410c;
+  background: rgba(255, 255, 255, 0.96);
+  transform: translateY(-50%) translateX(-2px);
+  box-shadow: -8px 10px 28px -8px rgba(194, 65, 12, 0.22);
+}
+
+.studio-works-edge-tab:active {
+  transform: translateY(-50%) translateX(0);
+}
+
+.studio-works-edge-tab[data-pulse="true"] {
+  animation: studio-works-edge-pulse 1.6s cubic-bezier(0.32, 0.72, 0, 1) 2;
+}
+
+.studio-works-edge-label {
+  writing-mode: vertical-rl;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+@keyframes studio-works-edge-pulse {
+  0%,
+  100% {
+    box-shadow: -6px 8px 24px -10px rgba(120, 85, 45, 0.2);
+  }
+  50% {
+    box-shadow: -6px 8px 28px -6px rgba(194, 65, 12, 0.45);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .studio-blob,
   .studio-logo-mark,
   .studio-view-in,
-  .studio-fade-up {
+  .studio-fade-up,
+  .studio-home-composer,
+  .studio-cap-first-row {
+    animation: none !important;
+  }
+  .studio-works-shell-inner {
+    transition: opacity 160ms ease !important;
+    transform: none !important;
+  }
+  .studio-works-preview-shell,
+  .studio-works-edge-tab {
+    transition:
+      opacity 160ms ease,
+      color 160ms ease,
+      background 160ms ease !important;
+  }
+  .studio-works-edge-tab[data-pulse="true"] {
     animation: none !important;
   }
 }

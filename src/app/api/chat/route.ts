@@ -3,6 +3,10 @@ import { NextRequest } from "next/server";
 import { getCurrentUserId } from "@/lib/auth/session";
 import type { AgentSseEvent } from "@/lib/agent/types";
 import { runAgentTurn } from "@/lib/agent/runtime";
+import {
+  registerTurn,
+  unregisterTurn,
+} from "@/lib/agent/turn-registry";
 import { webStore } from "@/lib/host/web/store-singleton";
 
 export const runtime = "nodejs";
@@ -22,7 +26,9 @@ type ChatBody = {
 /**
  * POST /api/chat — stream one agent turn as SSE (AgentSseEvent).
  * Body: { sessionId?, message, model?, skillIds? }
- * Creates a session when sessionId is omitted.
+ *
+ * Client disconnect does NOT cancel the turn (generation continues server-side).
+ * Explicit stop: POST /api/chat/stop { sessionId }.
  */
 export async function POST(request: NextRequest) {
   const userId = await getCurrentUserId();
@@ -70,20 +76,37 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const signal = request.signal;
+  const turn = registerTurn(sessionId, userId);
+  if (!turn) {
+    return Response.json(
+      { error: "该会话已有进行中的回复，请稍候或先停止" },
+      { status: 409 },
+    );
+  }
+
+  const clientSignal = request.signal;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      let clientGone = clientSignal.aborted;
+      const onClientAbort = () => {
+        clientGone = true;
+      };
+      clientSignal.addEventListener("abort", onClientAbort);
+
       const enqueue = (event: AgentSseEvent) => {
+        if (clientGone) return;
         try {
           controller.enqueue(encoder.encode(sseFrame(event)));
         } catch {
-          /* client gone */
+          clientGone = true;
         }
       };
 
       try {
+        // Use turn.controller only — NOT client disconnect — so refresh/leave
+        // does not kill generation. Stop button hits /api/chat/stop.
         for await (const event of runAgentTurn({
           userId,
           sessionId,
@@ -92,17 +115,13 @@ export async function POST(request: NextRequest) {
           model,
           sessions: webStore.sessions,
           artifacts: webStore.artifacts,
-          signal,
+          signal: turn.controller.signal,
           gatewayUserId: userId,
         })) {
-          if (signal.aborted) {
-            enqueue({ type: "done", reason: "cancelled" });
-            break;
-          }
           enqueue(event);
         }
       } catch (err) {
-        if (signal.aborted) {
+        if (turn.controller.signal.aborted) {
           enqueue({ type: "done", reason: "cancelled" });
         } else {
           const msg =
@@ -111,12 +130,18 @@ export async function POST(request: NextRequest) {
           enqueue({ type: "done", reason: "error" });
         }
       } finally {
+        clientSignal.removeEventListener("abort", onClientAbort);
+        unregisterTurn(sessionId, turn.controller);
         try {
           controller.close();
         } catch {
           /* already closed */
         }
       }
+    },
+    cancel() {
+      // Reader cancelled (client navigated/closed stream) — do NOT abort turn.
+      // Generation keeps running; results persist to session store.
     },
   });
 

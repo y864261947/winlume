@@ -104,6 +104,11 @@ export type ComposerProps = {
    * When set, text is auto-saved / restored (NewMax draft persistence).
    */
   draftKey?: string | null;
+  /**
+   * `hero` — floating pill for Apple-style workspace home (larger, no dock chrome).
+   * `default` — sticky session composer.
+   */
+  variant?: "default" | "hero";
 };
 
 function PastedBlockCard({
@@ -224,7 +229,9 @@ export default function Composer({
   onRemoveFromQueue,
   onClearQueue,
   draftKey = null,
+  variant = "default",
 }: ComposerProps) {
+  const isHero = variant === "hero";
   const promptId = useId();
   const modelId = useId();
   const menuId = useId();
@@ -719,8 +726,10 @@ export default function Composer({
       files,
     });
     if (!outbound) return;
-    const ids = selectedIds.length ? [...selectedIds] : undefined;
-    void onSend(outbound, ids ? { skillIds: ids } : undefined);
+    const meta: ComposerSendMeta | undefined = selectedIds.length
+      ? { skillIds: [...selectedIds] }
+      : undefined;
+    void onSend(outbound, meta);
     setDraft("");
     setSelectedIds([]);
     clearAttachments();
@@ -817,7 +826,8 @@ export default function Composer({
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    const maxH = isHero ? 220 : 160;
+    el.style.height = `${Math.min(el.scrollHeight, maxH)}px`;
   };
 
   const turnCount = selectedIds.length;
@@ -826,11 +836,19 @@ export default function Composer({
     pastedBlocks.length > 0 || images.length > 0 || files.length > 0;
 
   return (
-    <div className="relative z-[1] border-t border-white/40 bg-gradient-to-t from-[rgba(247,243,236,0.95)] to-transparent px-4 py-4 sm:px-6">
+    <div
+      className={
+        isHero
+          ? "relative z-[1] w-full px-0 py-0"
+          : "relative z-[1] border-t border-white/40 bg-gradient-to-t from-[rgba(247,243,236,0.95)] to-transparent px-4 py-4 sm:px-6"
+      }
+    >
       {error ? (
         <div
           role="alert"
-          className="mx-auto mb-3 flex max-w-3xl items-start justify-between gap-3 rounded-[14px] border border-[rgba(239,71,112,0.25)] bg-[rgba(239,71,112,0.08)] px-3 py-2 text-sm text-[#C2410C]"
+          className={`mx-auto mb-3 flex items-start justify-between gap-3 rounded-[14px] border border-[rgba(239,71,112,0.25)] bg-[rgba(239,71,112,0.08)] px-3 py-2 text-sm text-[#C2410C] ${
+            isHero ? "max-w-none" : "max-w-3xl"
+          }`}
         >
           <p className="min-w-0 flex-1 leading-5">{error}</p>
           {onClearError ? (
@@ -846,7 +864,11 @@ export default function Composer({
       ) : null}
 
       {queue.length > 0 ? (
-        <div className="mx-auto mb-3 max-w-3xl rounded-[14px] border border-[rgba(194,65,12,0.18)] bg-[rgba(242,153,74,0.08)] px-3 py-2">
+        <div
+          className={`mx-auto mb-3 rounded-[14px] border border-[rgba(194,65,12,0.18)] bg-[rgba(242,153,74,0.08)] px-3 py-2 ${
+            isHero ? "max-w-none" : "max-w-3xl"
+          }`}
+        >
           <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-[#C2410C]">
             <ListOrdered className="h-3.5 w-3.5" />
             排队中 {queue.length}/{MAX_MESSAGE_QUEUE_SIZE}
@@ -889,7 +911,11 @@ export default function Composer({
       ) : null}
 
       <form
-        className={`studio-glass relative mx-auto flex max-w-3xl flex-col gap-2 rounded-[22px] p-2.5 transition ${
+        className={`relative mx-auto flex w-full flex-col gap-2 transition ${
+          isHero
+            ? "studio-home-composer max-w-none rounded-[28px] p-3.5 sm:p-4"
+            : "studio-glass max-w-3xl rounded-[22px] p-2.5"
+        } ${
           dragOver
             ? "ring-2 ring-[rgba(194,65,12,0.45)] ring-offset-2 ring-offset-[rgba(247,243,236,0.9)]"
             : ""
@@ -901,7 +927,11 @@ export default function Composer({
         onDrop={onDrop}
       >
         {dragOver ? (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[22px] bg-[rgba(242,153,74,0.12)] text-sm font-medium text-[#C2410C]">
+          <div
+            className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-[rgba(242,153,74,0.12)] text-sm font-medium text-[#C2410C] ${
+              isHero ? "rounded-[28px]" : "rounded-[22px]"
+            }`}
+          >
             松开以添加文件或图片
           </div>
         ) : null}
@@ -1161,7 +1191,11 @@ export default function Composer({
                   : placeholder
             }
             disabled={disabled}
-            className="max-h-40 min-h-[2.75rem] flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-6 text-[#241E36] outline-none placeholder:text-[#8A8298] disabled:opacity-60"
+            className={`flex-1 resize-none bg-transparent px-3 text-[#241E36] outline-none ring-0 placeholder:text-[#8A8298] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 disabled:opacity-60 ${
+              isHero
+                ? "max-h-56 min-h-[4.5rem] py-3 text-[15px] leading-7"
+                : "max-h-40 min-h-[2.75rem] py-2 text-sm leading-6"
+            }`}
             aria-controls={menuOpen ? menuId : undefined}
             aria-expanded={menuOpen}
             aria-autocomplete="list"
