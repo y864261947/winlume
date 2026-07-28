@@ -17,6 +17,8 @@ Copy `.env.example` to `.env.local` (or export vars in your shell):
 |----------|----------|-------------|
 | `NEW_API_URL` | No | NewAPI-compatible gateway origin. Default: `https://v2api.top` |
 | `WINLUME_GATEWAY_TOKEN` | Yes for real chat | Server-side Bearer token for `/v1/chat/completions`. Never expose to the browser. |
+| `WINLUME_IMAGE_GATEWAY_TOKEN` | Yes for image generation | Separate server-side Bearer token for `/v1/images/generations` and `/v1/images/edits`. Different channel/token from chat — never expose to the browser. |
+| `WINLUME_IMAGE_MODEL` | No | Default image model id when a tool call omits `model`. Default: `gpt-image-2` |
 | `WINLUME_DATA_DIR` | No | Override local data root (default: `./data`) |
 | `WINLUME_CHAT_PATH` | No | Override chat path (default: `/v1/chat/completions`) |
 
@@ -24,6 +26,7 @@ Copy `.env.example` to `.env.local` (or export vars in your shell):
 # .env.local example
 NEW_API_URL=https://v2api.top
 WINLUME_GATEWAY_TOKEN=sk-your-token
+WINLUME_IMAGE_GATEWAY_TOKEN=sk-your-image-token
 ```
 
 ## Develop
