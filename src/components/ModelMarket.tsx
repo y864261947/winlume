@@ -99,8 +99,12 @@ export default function ModelMarket() {
   const featured = visibleProducts[0] ?? products[0];
   const personalActive = audience !== "business";
 
-  const chooseAudience = (next: Audience) => {
+  const saveAudience = (next: Audience) => {
     selectAudience(next, industryPrefs);
+  };
+
+  const chooseAudience = (next: Audience) => {
+    saveAudience(next);
     notify(`已切换到${next === "personal" ? "个人版" : "企业版"}`);
   };
 
@@ -114,22 +118,22 @@ export default function ModelMarket() {
             </Link>
 
             <div className="market-audience" role="group" aria-label="版本选择">
-              <button
-                type="button"
-                aria-pressed={personalActive}
+              <Link
+                href="/studio"
+                aria-current={personalActive ? "page" : undefined}
                 className={personalActive ? "is-active" : undefined}
-                onClick={() => chooseAudience("personal")}
+                onClick={() => saveAudience("personal")}
               >
                 个人版
-              </button>
-              <button
-                type="button"
-                aria-pressed={!personalActive}
+              </Link>
+              <Link
+                href="/business"
+                aria-current={!personalActive ? "page" : undefined}
                 className={!personalActive ? "is-active" : undefined}
-                onClick={() => chooseAudience("business")}
+                onClick={() => saveAudience("business")}
               >
                 企业版
-              </button>
+              </Link>
             </div>
 
             <form

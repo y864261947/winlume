@@ -1,0 +1,72 @@
+/* Enterprise page motion is kept in one route-local sheet to avoid Studio style drift. */
+.zen-hero::after {
+  background: none;
+}
+
+.zen-hero-pointer-light {
+  position: fixed;
+  z-index: 2;
+  width: 16rem;
+  height: 16rem;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: .46;
+  background: radial-gradient(circle, rgba(220, 216, 235, .72), rgba(210, 224, 216, .2) 42%, transparent 72%);
+  filter: blur(2px);
+  transform: translate3d(-50%, -50%, 0);
+  will-change: transform;
+}
+
+.zen-button,
+.zen-nav-cta,
+.zen-link-arrow,
+.zen-expand,
+.zen-audio-control,
+.zen-question-options button,
+.zen-scenario-switcher button,
+.zen-faq article button,
+.zen-nav-menu {
+  transition: transform 160ms var(--zen-ease-out), background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .zen-platform-card,
+  .zen-case,
+  .zen-audio-control,
+  .zen-question-options button,
+  .zen-scenario-switcher button {
+    transition: transform 220ms var(--zen-ease-out), box-shadow 220ms ease, border-color 180ms ease, background-color 180ms ease, color 180ms ease;
+  }
+}
+
+@media (max-width: 760px), (prefers-reduced-motion: reduce) {
+  .zen-hero-pointer-light {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zen-button,
+  .zen-nav-cta,
+  .zen-link-arrow,
+  .zen-expand,
+  .zen-audio-control,
+  .zen-question-options button,
+  .zen-scenario-switcher button,
+  .zen-faq article button,
+  .zen-nav-menu {
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+
+  .zen-button:active,
+  .zen-nav-cta:active,
+  .zen-link-arrow:active,
+  .zen-expand:active,
+  .zen-audio-control:active,
+  .zen-question-options button:active,
+  .zen-scenario-switcher button:active,
+  .zen-faq article button:active,
+  .zen-nav-menu:active {
+    transform: none;
+  }
+}
