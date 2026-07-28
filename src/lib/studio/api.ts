@@ -299,6 +299,11 @@ export type PendingFirstMessage = {
   model?: string;
   /** Per-message skill ids; injected into system prompt on send. */
   skillIds?: string[];
+  /**
+   * Session snapshot from createSession — lets /studio/c/[id] paint chrome
+   * on the first client frame without waiting for getSessionBundle.
+   */
+  session?: Session;
 };
 
 export function setPendingFirstMessage(payload: PendingFirstMessage): void {
@@ -307,6 +312,35 @@ export function setPendingFirstMessage(payload: PendingFirstMessage): void {
     PENDING_FIRST_MESSAGE_KEY,
     JSON.stringify(payload),
   );
+}
+
+/**
+ * Synchronous client bootstrap for the session route.
+ * Safe to call from useState initializers (window-gated).
+ */
+export function readHandoffBootstrap(sessionId: string): {
+  message: string;
+  model?: string;
+  skillIds?: string[];
+  session: Session | null;
+  userMessage: Message;
+} | null {
+  if (!sessionId || typeof window === "undefined") return null;
+  const pending = readPendingFirstMessage(sessionId);
+  if (!pending?.message?.trim()) return null;
+  return {
+    message: pending.message,
+    model: pending.model,
+    skillIds: pending.skillIds,
+    session: pending.session ?? null,
+    userMessage: {
+      id: `pending-user-${sessionId}`,
+      sessionId,
+      role: "user",
+      content: pending.message,
+      createdAt: new Date().toISOString(),
+    },
+  };
 }
 
 function readPendingFirstMessage(

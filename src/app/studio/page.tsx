@@ -28,6 +28,75 @@ import {
   getDefaultModel,
 } from "@/lib/studio/prefs";
 
+const DOCK_MS = 340;
+const DOCK_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+
+/**
+ * FLIP the home composer from hero center down to a bottom-docked slot
+ * before View Transition navigation (no second DOM tree / no cover).
+ */
+function flipComposerToDock(
+  setDocking: (v: boolean) => void,
+): Promise<void> {
+  if (typeof document === "undefined") return Promise.resolve();
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    setDocking(true);
+    return Promise.resolve();
+  }
+
+  const form = document.querySelector<HTMLElement>(
+    "#studio-home-composer .studio-liquid-glass",
+  );
+  if (!form) {
+    setDocking(true);
+    return Promise.resolve();
+  }
+
+  const first = form.getBoundingClientRect();
+  setDocking(true);
+
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const last = form.getBoundingClientRect();
+        const dx = first.left - last.left;
+        const dy = first.top - last.top;
+        const sx = last.width ? first.width / last.width : 1;
+        const sy = last.height ? first.height / last.height : 1;
+
+        form.style.transformOrigin = "top left";
+        form.style.transition = "none";
+        form.style.willChange = "transform";
+        form.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+        // force invert frame
+        void form.getBoundingClientRect();
+
+        requestAnimationFrame(() => {
+          form.style.transition = `transform ${DOCK_MS}ms ${DOCK_EASE}`;
+          form.style.transform = "translate(0, 0) scale(1)";
+
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            form.style.transition = "";
+            form.style.transform = "";
+            form.style.willChange = "";
+            form.style.transformOrigin = "";
+            form.removeEventListener("transitionend", onEnd);
+            resolve();
+          };
+          const onEnd = (e: TransitionEvent) => {
+            if (e.target === form && e.propertyName === "transform") finish();
+          };
+          form.addEventListener("transitionend", onEnd);
+          window.setTimeout(finish, DOCK_MS + 80);
+        });
+      });
+    });
+  });
+}
+
 /** Demo-aligned capability cards (fallback when featured API empty). */
 const FALLBACK_CAPABILITY_CARDS: {
   key: string;
@@ -173,6 +242,8 @@ function StudioHomeInner() {
   const [draft, setDraft] = useState("");
   const [model, setModel] = useState(FALLBACK_DEFAULT_MODEL);
   const [starting, setStarting] = useState(false);
+  /** FLIP composer to bottom dock before route change (visual only). */
+  const [docking, setDocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [featuredSkills, setFeaturedSkills] = useState<SkillMeta[] | null>(null);
@@ -274,6 +345,8 @@ function StudioHomeInner() {
             ? selectedSkillIds
             : undefined;
 
+      // 1) Slide composer to bottom (FLIP) while creating session
+      // 2) View Transition navigate — shared studio-composer morph, no cover
       setStarting(true);
       setError(null);
       try {
@@ -282,24 +355,28 @@ function StudioHomeInner() {
             ? `${message.replace(/\s+/g, " ").slice(0, 40)}…`
             : message.replace(/\s+/g, " ");
         const requestModel = model.trim() || getDefaultModel();
-        // Create session then jump immediately — session page paints optimistic
-        // user bubble so there is no blank "创建会话" interstitial.
-        const session = await createSession({
+        const sessionPromise = createSession({
           model: requestModel,
           title: title || "新对话",
         });
+        const dockPromise = flipComposerToDock(setDocking);
+        const session = await sessionPromise;
+        await dockPromise;
         setPendingFirstMessage({
           sessionId: session.id,
           message,
           model: requestModel,
           skillIds,
+          session,
         });
         setSelectedSkillIds([]);
         clearComposerDraft("home");
-        router.push(`/studio/c/${session.id}`);
-        // Keep draft until unmount so the home screen doesn't flash empty
-        // during the soft navigation.
+        // Keep draft until unmount so composer shared-element still has content.
+        router.push(`/studio/c/${session.id}`, {
+          transitionTypes: ["studio-handoff"],
+        });
       } catch (err) {
+        setDocking(false);
         if (err instanceof StudioApiError && err.status === 401) {
           setError("请先登录后再开始对话");
           openLogin("login");
@@ -320,9 +397,16 @@ function StudioHomeInner() {
   );
 
   return (
-    <div className="studio-home-canvas studio-view-in relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <div
+      className="studio-home-canvas studio-view-in relative flex min-h-0 flex-1 flex-col overflow-y-auto"
+      data-docking={docking ? "true" : "false"}
+    >
       {/* Soft top-right utility */}
-      <div className="pointer-events-none absolute right-5 top-4 z-[2] sm:right-8 sm:top-5">
+      <div
+        className={`pointer-events-none absolute right-5 top-4 z-[2] sm:right-8 sm:top-5 transition-opacity duration-200 ${
+          docking ? "opacity-0" : "opacity-100"
+        }`}
+      >
         <span
           className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#8A8298] shadow-sm backdrop-blur"
           title="通知（即将上线）"
@@ -332,18 +416,31 @@ function StudioHomeInner() {
       </div>
 
       {/*
-        Continuous page (no mid-scroll cliff):
-        hero ~72dvh so first capability cards naturally peek;
-        one shared grid below — no duplicated peek row / floating CTA.
+        Continuous page (no mid-scroll cliff).
+        On send: FLIP composer to bottom dock, then View Transition into session.
       */}
       <section
         id="studio-home-composer"
-        className="relative flex min-h-[72dvh] flex-col sm:min-h-[75dvh]"
+        className={`studio-home-hero relative flex flex-col ${
+          docking
+            ? "min-h-0 flex-1"
+            : "min-h-[72dvh] sm:min-h-[75dvh]"
+        }`}
       >
-        <div className="flex flex-1 flex-col items-center justify-center px-5 pb-10 pt-16 sm:px-10 sm:pb-12 sm:pt-20">
-          <div className="w-full max-w-[720px]">
+        <div
+          className={`studio-home-hero-inner flex min-h-0 flex-1 flex-col px-5 sm:px-10 ${
+            docking
+              ? "items-stretch justify-end pb-2 pt-0 sm:pb-3"
+              : "items-center justify-center pb-10 pt-16 sm:pb-12 sm:pt-20"
+          }`}
+        >
+          <div
+            className={`w-full ${
+              docking ? "mx-auto max-w-3xl" : "max-w-[720px]"
+            }`}
+          >
             <Composer
-              variant="hero"
+              variant={docking ? "default" : "hero"}
               value={draft}
               onChange={setDraft}
               onSend={startChat}
@@ -365,10 +462,10 @@ function StudioHomeInner() {
         </div>
       </section>
 
-      {/* Continuous catalog — first row peeks under the hero on tall screens */}
       <section
         id="studio-capabilities"
-        className="relative z-[1] px-5 pb-16 pt-2 sm:px-10 sm:pb-20 sm:pt-4"
+        className="studio-home-capabilities relative z-[1] px-5 pb-16 pt-2 sm:px-10 sm:pb-20 sm:pt-4"
+        aria-hidden={docking}
       >
         <div className="mx-auto max-w-[1100px]">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-6">

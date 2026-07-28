@@ -24,7 +24,6 @@ import {
   Paperclip,
   Square,
   X,
-  Wrench,
 } from "lucide-react";
 import { fetchPlaza } from "@/lib/catalog";
 import type { SkillMeta } from "@/lib/agent/types";
@@ -59,6 +58,7 @@ import SkillSlashMenu, {
   type MenuView,
   type SkillDepartment,
 } from "./SkillSlashMenu";
+import StudioViewTransition from "./StudioViewTransition";
 import type { QueuedMessage } from "./useStudioChat";
 import { MAX_MESSAGE_QUEUE_SIZE } from "./useStudioChat";
 
@@ -138,7 +138,7 @@ function PastedBlockCard({
       : `粘贴 · ${block.lineCount} 行 · ${formatFileSize(block.charCount)}`);
 
   return (
-    <div className="group flex w-full max-w-full flex-col gap-1 rounded-[12px] border border-white/70 bg-white/55 p-1.5">
+    <div className="group flex w-full max-w-full flex-col gap-1 rounded-[12px] border border-white/60 bg-white/40 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-sm">
       <div className="flex items-center gap-1.5 px-1 text-[11px] text-[#615A73]">
         <FileText className="h-3.5 w-3.5 shrink-0 text-[#0F172A]" />
         <span className="min-w-0 flex-1 truncate font-medium text-[#241E36]">
@@ -347,10 +347,15 @@ export default function Composer({
           ),
         ].slice(0, PLAZA_LIMIT);
         if (names.length) {
-          setModelOptions(names);
-          if (model && !names.includes(model) && allowCustomModel) {
-            setCustomMode(true);
-          }
+          // Always stay on the list control; inject current model if missing.
+          setModelOptions((prev) => {
+            const base = names;
+            if (model && !base.includes(model)) {
+              return [model, ...base.filter((n) => n !== model)];
+            }
+            return base;
+          });
+          setCustomMode(false);
         }
       })
       .catch(() => {
@@ -395,6 +400,7 @@ export default function Composer({
     };
   }, []);
 
+  // Keep select list as primary UX — never auto-switch to free-text mode.
   useEffect(() => {
     if (model && !modelOptions.includes(model) && !customMode) {
       setModelOptions((prev) => [model, ...prev.filter((m) => m !== model)]);
@@ -840,7 +846,7 @@ export default function Composer({
       className={
         isHero
           ? "relative z-[1] w-full px-0 py-0"
-          : "relative z-[1] border-t border-white/40 bg-gradient-to-t from-[rgba(247,243,236,0.95)] to-transparent px-4 py-4 sm:px-6"
+          : "studio-composer-dock"
       }
     >
       {error ? (
@@ -865,7 +871,7 @@ export default function Composer({
 
       {queue.length > 0 ? (
         <div
-          className={`mx-auto mb-3 rounded-[14px] border border-[rgba(15, 23, 42,0.18)] bg-[rgba(51, 65, 85,0.08)] px-3 py-2 ${
+          className={`mx-auto mb-3 rounded-[16px] border border-white/70 bg-white/50 px-3 py-2 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.14),inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-xl ${
             isHero ? "max-w-none" : "max-w-3xl"
           }`}
         >
@@ -910,16 +916,17 @@ export default function Composer({
         </div>
       ) : null}
 
+      <StudioViewTransition
+        name="studio-composer"
+        share="studio-morph"
+        default="none"
+      >
       <form
-        className={`relative mx-auto flex w-full flex-col gap-2 transition ${
-          isHero
-            ? "studio-home-composer max-w-none rounded-[28px] p-3.5 sm:p-4"
-            : "studio-glass max-w-3xl rounded-[22px] p-2.5"
-        } ${
-          dragOver
-            ? "ring-2 ring-[rgba(15, 23, 42,0.45)] ring-offset-2 ring-offset-[rgba(247,243,236,0.9)]"
-            : ""
+        className={`studio-liquid-glass relative mx-auto flex w-full flex-col gap-2 ${
+          isHero ? "max-w-none p-3.5 sm:p-4" : "max-w-3xl p-2.5 sm:p-3"
         }`}
+        data-variant={isHero ? "hero" : "session"}
+        data-drag-over={dragOver ? "true" : "false"}
         onSubmit={onSubmit}
         onDragEnter={onDragEnter}
         onDragLeave={onDragLeave}
@@ -927,11 +934,7 @@ export default function Composer({
         onDrop={onDrop}
       >
         {dragOver ? (
-          <div
-            className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-[rgba(51, 65, 85,0.12)] text-sm font-medium text-[#0F172A] ${
-              isHero ? "rounded-[28px]" : "rounded-[22px]"
-            }`}
-          >
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-[rgba(15,23,42,0.06)] text-sm font-medium text-[#0F172A] backdrop-blur-[2px]">
             松开以添加文件或图片
           </div>
         ) : null}
@@ -949,7 +952,7 @@ export default function Composer({
                 onChange={(e) => onModelChange(e.target.value)}
                 placeholder="输入模型名称"
                 disabled={disabled}
-                className="min-w-0 flex-1 rounded-[10px] border border-white/70 bg-white/70 px-2.5 py-1 font-mono text-xs text-[#241E36] outline-none focus:ring-2 focus:ring-[rgba(15, 23, 42,0.25)] sm:w-48"
+                className="studio-liquid-chip min-w-0 flex-1 rounded-[10px] px-2.5 py-1 font-mono text-xs text-[#241E36] sm:w-48"
               />
               <button
                 type="button"
@@ -977,7 +980,7 @@ export default function Composer({
                   onModelChange(e.target.value);
                 }}
                 disabled={disabled || modelsLoading}
-                className="appearance-none rounded-[10px] border border-white/70 bg-white/70 py-1 pl-2.5 pr-7 font-mono text-xs text-[#241E36] outline-none focus:ring-2 focus:ring-[rgba(15, 23, 42,0.25)] disabled:opacity-60"
+                className="studio-liquid-chip appearance-none rounded-[10px] py-1 pl-2.5 pr-7 font-mono text-xs text-[#241E36] disabled:opacity-60"
               >
                 {modelOptions.map((name) => (
                   <option key={name} value={name}>
@@ -994,32 +997,10 @@ export default function Composer({
 
           <button
             type="button"
-            onClick={() => {
-              if (menuOpen && !slashRange) {
-                closeMenu();
-                return;
-              }
-              openSkillMenu("", null);
-            }}
-            disabled={disabled || skillsLoading}
-            title="选择 Skills（或输入 /）"
-            className="inline-flex items-center gap-1 rounded-[10px] border border-white/70 bg-white/70 px-2 py-1 text-xs text-[#615A73] transition hover:border-[rgba(15, 23, 42,0.25)] hover:bg-[rgba(15, 23, 42,0.08)] hover:text-[#0F172A] disabled:opacity-50"
-          >
-            <Wrench className="h-3.5 w-3.5" />
-            Skills
-            {turnCount + pinCount > 0 ? (
-              <span className="rounded-full bg-[rgba(15, 23, 42,0.12)] px-1.5 text-[10px] font-medium text-[#0F172A]">
-                {turnCount + pinCount}
-              </span>
-            ) : null}
-          </button>
-
-          <button
-            type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
             title="添加附件或图片"
-            className="inline-flex items-center gap-1 rounded-[10px] border border-white/70 bg-white/70 px-2 py-1 text-xs text-[#615A73] transition hover:border-[rgba(15, 23, 42,0.25)] hover:bg-[rgba(15, 23, 42,0.08)] hover:text-[#0F172A] disabled:opacity-50"
+            className="studio-liquid-chip inline-flex items-center gap-1 rounded-[10px] px-2 py-1 text-xs text-[#615A73] disabled:opacity-50"
           >
             <Paperclip className="h-3.5 w-3.5" />
             附件
@@ -1215,7 +1196,7 @@ export default function Composer({
                 type="button"
                 onClick={() => onStop?.()}
                 title="停止生成"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-white/80 bg-white/80 text-[#615A73] transition hover:bg-white"
+                className="studio-liquid-chip flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-[#615A73]"
               >
                 <Square className="h-3.5 w-3.5 fill-current" />
                 <span className="sr-only">停止</span>
@@ -1251,6 +1232,7 @@ export default function Composer({
           />
         </div>
       </form>
+      </StudioViewTransition>
     </div>
   );
 }
