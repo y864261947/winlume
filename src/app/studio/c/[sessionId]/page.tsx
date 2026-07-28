@@ -13,6 +13,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   LoaderCircle,
   PanelLeftClose,
   PanelRight,
@@ -21,6 +23,8 @@ import ArtifactPanel from "@/components/studio/ArtifactPanel";
 import ArtifactPreview from "@/components/studio/ArtifactPreview";
 import ChatThread from "@/components/studio/ChatThread";
 import Composer from "@/components/studio/Composer";
+import StudioViewTransition from "@/components/studio/StudioViewTransition";
+import { useStudioHeaderSlot } from "@/components/studio/StudioShell";
 import { useResizablePanel } from "@/components/studio/useResizablePanel";
 import {
   useStudioChat,
@@ -34,6 +38,7 @@ import {
   listArtifacts,
   patchSession,
   peekPendingFirstMessage,
+  readHandoffBootstrap,
   takePendingFirstMessage,
   StudioApiError,
 } from "@/lib/studio/api";
@@ -43,6 +48,8 @@ type MobileTab = "chat" | "works";
 
 const PREVIEW_WIDTH_KEY = "winlume-artifact-preview-width";
 const LIST_WIDTH_KEY = "winlume-artifact-list-width";
+/** Collapsed list strip — keeps a discoverable control without stealing preview width. */
+const LIST_STRIP_W = 44;
 
 function optimisticUserMessage(
   sessionId: string,
@@ -62,26 +69,30 @@ export default function StudioSessionPage() {
   const sessionId = typeof params.sessionId === "string" ? params.sessionId : "";
   const { openLogin, account } = useModals();
 
-  const [loading, setLoading] = useState(true);
+  /**
+   * Handoff from /studio: sessionStorage is client-only, so bootstrap in
+   * useLayoutEffect. View Transitions handle the visual continuity.
+   */
   const [hasHandoff, setHasHandoff] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [initialMessages, setInitialMessages] = useState<
     Message[] | undefined
   >(undefined);
-
-  // Paint optimistic user bubble before paint when arriving from home send
-  useLayoutEffect(() => {
-    if (!sessionId) return;
-    const pending = peekPendingFirstMessage(sessionId);
-    if (!pending?.message) return;
-    setHasHandoff(true);
-    setLoading(false);
-    setInitialMessages([optimisticUserMessage(sessionId, pending.message)]);
-  }, [sessionId]);
   const [pinnedSkillIds, setPinnedSkillIds] = useState<string[]>([]);
   const pendingSentRef = useRef(false);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useLayoutEffect(() => {
+    if (!sessionId) return;
+    const boot = readHandoffBootstrap(sessionId);
+    if (!boot) return;
+    setHasHandoff(true);
+    setLoading(false);
+    setInitialMessages([boot.userMessage]);
+    if (boot.session) setSession(boot.session);
+  }, [sessionId]);
 
   // Artifacts
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
@@ -95,8 +106,13 @@ export default function StudioSessionPage() {
   const [worksRailOpen, setWorksRailOpen] = useState(false);
   /** Discrete layout slot (px). 0 when fully closed after exit transition. */
   const [worksRailLayoutWidth, setWorksRailLayoutWidth] = useState(0);
-  /** Preview pane within the rail. */
+  /** Preview pane within the rail (default on when rail opens). */
   const [previewOpen, setPreviewOpen] = useState(true);
+  /**
+   * Session artifact list — default collapsed so preview can focus (scheme A).
+   * Expand via strip / header 列表 when switching works.
+   */
+  const [listOpen, setListOpen] = useState(false);
   const [content, setContent] = useState<string | null>(null);
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
@@ -138,10 +154,16 @@ export default function StudioSessionPage() {
     worksRailOpenRef.current = worksRailOpen;
   }, [worksRailOpen]);
 
-  const contentRailWidth =
-    listPane.width + (previewOpen ? previewPane.width : 0);
+  const listColWidth = listOpen ? listPane.width : LIST_STRIP_W;
+  // When list is collapsed, give its space to preview so reading stays full-bleed.
+  const previewColWidth = previewOpen
+    ? listOpen
+      ? previewPane.width
+      : listPane.width + previewPane.width - LIST_STRIP_W
+    : 0;
+  const contentRailWidth = listColWidth + previewColWidth;
 
-  // While open, keep layout slot in sync with resizes / preview toggle
+  // While open, keep layout slot in sync with resizes / list·preview toggles
   useEffect(() => {
     if (worksRailOpen) {
       setWorksRailLayoutWidth(contentRailWidth);
@@ -151,6 +173,8 @@ export default function StudioSessionPage() {
   const openWorksRail = useCallback(
     (opts?: {
       preview?: boolean;
+      /** Expand session list (default false — preview-first). */
+      list?: boolean;
       animated?: boolean;
       /** true = user action (clears collapse lock); false = auto from write */
       manual?: boolean;
@@ -161,24 +185,30 @@ export default function StudioSessionPage() {
         return;
       }
       const showPreview = opts?.preview !== false;
+      const showList = opts?.list === true;
       if (showPreview) setPreviewOpen(true);
-      const target =
-        listPane.width +
-        (showPreview || previewOpen ? previewPane.width : 0);
+      setListOpen(showList);
+      const listW = showList ? listPane.width : LIST_STRIP_W;
+      const prevW = showPreview
+        ? showList
+          ? previewPane.width
+          : listPane.width + previewPane.width - LIST_STRIP_W
+        : 0;
       // Allocate flex slot first, then slide/fade in (interruptible CSS)
-      setWorksRailLayoutWidth(target);
+      setWorksRailLayoutWidth(listW + prevW);
       setEdgePulse(false);
       requestAnimationFrame(() => {
         setWorksRailOpen(true);
       });
     },
-    [listPane.width, previewPane.width, previewOpen],
+    [listPane.width, previewPane.width],
   );
 
   const closeWorksRail = useCallback(() => {
     userCollapsedWorksRef.current = true;
     setWorksRailOpen(false);
     setPreviewOpen(false);
+    setListOpen(false);
     // worksRailLayoutWidth → 0 on transition end (see shell handler)
   }, []);
 
@@ -289,7 +319,9 @@ export default function StudioSessionPage() {
     }
 
     let cancelled = false;
-    setLoading(true);
+    // Keep handoff UI interactive — don't flip back into a blocking load state
+    const pending = peekPendingFirstMessage(sessionId);
+    if (!pending) setLoading(true);
     setLoadError(null);
 
     (async () => {
@@ -433,8 +465,9 @@ export default function StudioSessionPage() {
   const handleSelect = useCallback(
     (id: string) => {
       setSelectedId(id);
-      // Manual pick: open without the big auto-reveal flourish
-      openWorksRail({ preview: true, animated: false, manual: true });
+      // Focus preview after pick — collapse list so content is front and center
+      setListOpen(false);
+      openWorksRail({ preview: true, list: false, manual: true });
     },
     [openWorksRail],
   );
@@ -466,6 +499,128 @@ export default function StudioSessionPage() {
   }, []);
 
   // Full-page block only when cold-open (no handoff) or hard error
+  const isBlockingScreen =
+    (loading && !hasHandoff) || (loadError && !session && !hasHandoff);
+
+  /** Published into StudioShell's persistent header slot — never unmounts on navigation. */
+  const headerContent = (
+    <header className="studio-session-header studio-glass-soft flex shrink-0 items-center gap-3 border-b border-white/50 px-4 py-3 sm:px-6">
+      <Link
+        href="/studio"
+        className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[#615A73] transition hover:bg-white/60 hover:text-[#241E36]"
+        title="开始创作"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        <span className="sr-only">返回</span>
+      </Link>
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-sm font-semibold text-[#241E36]">{title}</h1>
+        {session?.model || chat.model ? (
+          <p className="truncate font-mono text-[11px] text-[#8A8298]">
+            {chat.model || session?.model}
+          </p>
+        ) : null}
+      </div>
+      {/* Desktop: list toggle first, then works rail (matches left→right layout) */}
+      {worksRailOpen ? (
+        <button
+          type="button"
+          onClick={() => setListOpen((v) => !v)}
+          className={`hidden h-8 items-center gap-1.5 rounded-[10px] border px-2.5 text-xs font-medium transition md:inline-flex ${
+            listOpen
+              ? "border-[rgba(15,23,42,0.25)] bg-[rgba(15,23,42,0.08)] text-[#0F172A]"
+              : "border-white/70 bg-white/50 text-[#615A73] hover:bg-white"
+          }`}
+          title={listOpen ? "收起作品列表" : "展开作品列表"}
+          aria-pressed={listOpen}
+        >
+          {listOpen ? (
+            <ChevronLeft className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
+          列表
+          {artifacts.length > 0 ? (
+            <span className="tabular-nums opacity-80">{artifacts.length}</span>
+          ) : null}
+        </button>
+      ) : null}
+      <button
+        type="button"
+        onClick={() => {
+          if (worksRailOpen) closeWorksRail();
+          else
+            openWorksRail({
+              preview: Boolean(selectedId) || artifacts.length > 0,
+              manual: true,
+            });
+        }}
+        className={`hidden h-8 items-center gap-1.5 rounded-[10px] border px-2.5 text-xs font-medium transition md:inline-flex ${
+          worksRailOpen
+            ? "border-[rgba(15, 23, 42,0.25)] bg-[rgba(15, 23, 42,0.08)] text-[#0F172A]"
+            : "border-white/70 bg-white/50 text-[#615A73] hover:bg-white"
+        }`}
+        title={worksRailOpen ? "收起作品区" : "打开作品区"}
+        aria-pressed={worksRailOpen}
+      >
+        {worksRailOpen ? (
+          <PanelLeftClose className="h-3.5 w-3.5" />
+        ) : (
+          <PanelRight className="h-3.5 w-3.5" />
+        )}
+        作品
+        {artifacts.length > 0 ? (
+          <span className="tabular-nums opacity-80">{artifacts.length}</span>
+        ) : null}
+      </button>
+      {worksRailOpen && !previewOpen ? (
+        <button
+          type="button"
+          onClick={() => {
+            userCollapsedWorksRef.current = false;
+            setPreviewOpen(true);
+          }}
+          className="hidden h-8 items-center gap-1.5 rounded-[10px] border border-white/70 bg-white/50 px-2.5 text-xs text-[#615A73] transition hover:bg-white md:inline-flex"
+          title="打开预览"
+        >
+          <PanelRight className="h-3.5 w-3.5" />
+          预览
+        </button>
+      ) : null}
+      <div className="flex rounded-[10px] border border-white/70 bg-white/40 p-0.5 md:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileTab("chat")}
+          className={`rounded-[8px] px-2.5 py-1 text-xs font-medium transition ${
+            mobileTab === "chat"
+              ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white"
+              : "text-[#615A73] hover:bg-white/60"
+          }`}
+        >
+          对话
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab("works")}
+          className={`rounded-[8px] px-2.5 py-1 text-xs font-medium transition ${
+            mobileTab === "works"
+              ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white"
+              : "text-[#615A73] hover:bg-white/60"
+          }`}
+        >
+          作品
+          {artifacts.length > 0 ? (
+            <span className="ml-1 tabular-nums opacity-80">
+              {artifacts.length}
+            </span>
+          ) : null}
+        </button>
+      </div>
+    </header>
+  );
+
+  useStudioHeaderSlot(isBlockingScreen ? null : headerContent);
+
   if (loading && !hasHandoff) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-[#8A8298]">
@@ -492,15 +647,19 @@ export default function StudioSessionPage() {
 
   const chatColumn = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <ChatThread
-        messages={chat.messages}
-        streaming={chat.streaming || (hasHandoff && loading)}
-        emptyHint="发送一条消息，开始与 WinLume 对话。"
-        highlightMessageId={highlightMessageId}
-        onHighlightConsumed={() => setHighlightMessageId(null)}
-        artifactsByMessageId={artifactsByMessageId}
-        onOpenArtifact={openArtifactFromChat}
-      />
+      <StudioViewTransition name="studio-chat-thread">
+        <div className="studio-session-thread flex min-h-0 min-w-0 flex-1 flex-col">
+          <ChatThread
+            messages={chat.messages}
+            streaming={chat.streaming || (hasHandoff && loading)}
+            emptyHint="发送一条消息，开始与 WinLume 对话。"
+            highlightMessageId={highlightMessageId}
+            onHighlightConsumed={() => setHighlightMessageId(null)}
+            artifactsByMessageId={artifactsByMessageId}
+            onOpenArtifact={openArtifactFromChat}
+          />
+        </div>
+      </StudioViewTransition>
       <Composer
         onSend={(text, meta) =>
           chat.send(text, {
@@ -556,98 +715,10 @@ export default function StudioSessionPage() {
   );
 
   return (
-    <div className="studio-view-in flex min-h-0 flex-1 flex-col">
-      <header className="studio-glass-soft flex shrink-0 items-center gap-3 border-b border-white/50 px-4 py-3 sm:px-6">
-        <Link
-          href="/studio"
-          className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[#615A73] transition hover:bg-white/60 hover:text-[#241E36]"
-          title="开始创作"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span className="sr-only">返回</span>
-        </Link>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-sm font-semibold text-[#241E36]">{title}</h1>
-          {session?.model ? (
-            <p className="truncate font-mono text-[11px] text-[#8A8298]">
-              {chat.model || session.model}
-            </p>
-          ) : null}
-        </div>
-        {/* Desktop: always-visible works rail toggle */}
-        <button
-          type="button"
-          onClick={() => {
-            if (worksRailOpen) closeWorksRail();
-            else
-              openWorksRail({
-                preview: Boolean(selectedId) || artifacts.length > 0,
-                manual: true,
-              });
-          }}
-          className={`hidden h-8 items-center gap-1.5 rounded-[10px] border px-2.5 text-xs font-medium transition md:inline-flex ${
-            worksRailOpen
-              ? "border-[rgba(15, 23, 42,0.25)] bg-[rgba(15, 23, 42,0.08)] text-[#0F172A]"
-              : "border-white/70 bg-white/50 text-[#615A73] hover:bg-white"
-          }`}
-          title={worksRailOpen ? "收起作品区" : "打开作品区"}
-          aria-pressed={worksRailOpen}
-        >
-          {worksRailOpen ? (
-            <PanelLeftClose className="h-3.5 w-3.5" />
-          ) : (
-            <PanelRight className="h-3.5 w-3.5" />
-          )}
-          作品
-          {artifacts.length > 0 ? (
-            <span className="tabular-nums opacity-80">{artifacts.length}</span>
-          ) : null}
-        </button>
-        {worksRailOpen && !previewOpen ? (
-          <button
-            type="button"
-            onClick={() => {
-              userCollapsedWorksRef.current = false;
-              setPreviewOpen(true);
-            }}
-            className="hidden h-8 items-center gap-1.5 rounded-[10px] border border-white/70 bg-white/50 px-2.5 text-xs text-[#615A73] transition hover:bg-white md:inline-flex"
-            title="打开预览"
-          >
-            <PanelRight className="h-3.5 w-3.5" />
-            预览
-          </button>
-        ) : null}
-        <div className="flex rounded-[10px] border border-white/70 bg-white/40 p-0.5 md:hidden">
-          <button
-            type="button"
-            onClick={() => setMobileTab("chat")}
-            className={`rounded-[8px] px-2.5 py-1 text-xs font-medium transition ${
-              mobileTab === "chat"
-                ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white"
-                : "text-[#615A73] hover:bg-white/60"
-            }`}
-          >
-            对话
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileTab("works")}
-            className={`rounded-[8px] px-2.5 py-1 text-xs font-medium transition ${
-              mobileTab === "works"
-                ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white"
-                : "text-[#615A73] hover:bg-white/60"
-            }`}
-          >
-            作品
-            {artifacts.length > 0 ? (
-              <span className="ml-1 tabular-nums opacity-80">
-                {artifacts.length}
-              </span>
-            ) : null}
-          </button>
-        </div>
-      </header>
-
+    <div
+      className={`studio-session-root flex min-h-0 flex-1 flex-col ${hasHandoff ? "" : "studio-view-in"}`}
+      data-handoff={hasHandoff ? "true" : "false"}
+    >
       {/* Mobile: tabbed */}
       <div className="flex min-h-0 flex-1 flex-col md:hidden">
         {mobileTab === "chat" ? chatColumn : worksColumn}
@@ -665,45 +736,89 @@ export default function StudioSessionPage() {
         >
           <div
             className="studio-works-shell-inner relative flex h-full min-w-0"
-            style={{ width: contentRailWidth || listPane.width + previewPane.width }}
+            style={{
+              width:
+                contentRailWidth ||
+                LIST_STRIP_W + previewPane.width,
+            }}
             onTransitionEnd={onWorksRailTransitionEnd}
           >
+            {/* List column: full panel or narrow strip (scheme A) */}
             <div
-              className="relative flex h-full shrink-0 overflow-hidden"
-              style={{ width: listPane.width }}
+              className="relative flex h-full shrink-0 overflow-hidden border-r border-white/40"
+              style={{ width: listColWidth }}
+              data-list-open={listOpen ? "true" : "false"}
             >
-              <div
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="调整作品列表宽度"
-                onPointerDown={listPane.onHandlePointerDown}
-                className="absolute inset-y-0 left-0 z-[2] w-1.5 cursor-col-resize hover:bg-[rgba(15, 23, 42,0.25)] active:bg-[rgba(15, 23, 42,0.4)]"
-              />
-              <ArtifactPanel
-                artifacts={artifacts}
-                selectedId={selectedId}
-                onSelect={handleSelect}
-                loading={artifactsLoading}
-                error={artifactsError}
-                onRefresh={() => void refreshArtifacts()}
-                flashId={flashId}
-                className="w-full min-w-0"
-              />
+              {listOpen ? (
+                <>
+                  <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="调整作品列表宽度"
+                    onPointerDown={listPane.onHandlePointerDown}
+                    className="absolute inset-y-0 left-0 z-[2] w-1.5 cursor-col-resize hover:bg-[rgba(15,23,42,0.25)] active:bg-[rgba(15,23,42,0.4)]"
+                  />
+                  <ArtifactPanel
+                    artifacts={artifacts}
+                    selectedId={selectedId}
+                    onSelect={handleSelect}
+                    loading={artifactsLoading}
+                    error={artifactsError}
+                    onRefresh={() => void refreshArtifacts()}
+                    onCollapse={() => setListOpen(false)}
+                    flashId={flashId}
+                    className="w-full min-w-0"
+                  />
+                </>
+              ) : (
+                <>
+                  {/* List collapsed: drag works rail left edge to resize preview / total width */}
+                  {previewOpen ? (
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label="调整作品区宽度"
+                      onPointerDown={previewPane.onHandlePointerDown}
+                      className="absolute inset-y-0 left-0 z-[2] w-1.5 cursor-col-resize hover:bg-[rgba(15,23,42,0.25)] active:bg-[rgba(15,23,42,0.4)]"
+                    />
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setListOpen(true)}
+                    className="studio-works-list-strip flex h-full w-full flex-col items-center gap-2 py-3 text-[#64748b] transition hover:bg-white/50 hover:text-[#0f172a]"
+                    title="展开本会话作品列表"
+                    aria-label={`展开作品列表${artifacts.length ? `，共 ${artifacts.length} 个` : ""}`}
+                  >
+                    <ChevronRight className="h-4 w-4 shrink-0" />
+                    <span className="studio-works-list-strip-label text-[11px] font-semibold tracking-wide">
+                      列表
+                    </span>
+                    {artifacts.length > 0 ? (
+                      <span className="rounded-full bg-[rgba(15,23,42,0.08)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[#0f172a]">
+                        {artifacts.length}
+                      </span>
+                    ) : null}
+                  </button>
+                </>
+              )}
             </div>
 
             <div
-              className="studio-works-preview-shell relative h-full min-w-0 overflow-hidden"
+              className="studio-works-preview-shell relative h-full min-w-0 flex-1 overflow-hidden"
               data-open={previewOpen ? "true" : "false"}
-              style={{ width: previewOpen ? previewPane.width : 0 }}
+              style={{ width: previewColWidth }}
               aria-hidden={!previewOpen}
             >
-              <div
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="调整预览宽度"
-                onPointerDown={previewPane.onHandlePointerDown}
-                className="absolute inset-y-0 left-0 z-[2] w-1.5 cursor-col-resize hover:bg-[rgba(15, 23, 42,0.25)] active:bg-[rgba(15, 23, 42,0.4)]"
-              />
+              {/* List open: drag list|preview split. Collapsed: left edge of strip resizes instead. */}
+              {previewOpen && listOpen ? (
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="调整预览宽度"
+                  onPointerDown={previewPane.onHandlePointerDown}
+                  className="absolute inset-y-0 left-0 z-[2] w-1.5 cursor-col-resize hover:bg-[rgba(15,23,42,0.25)] active:bg-[rgba(15,23,42,0.4)]"
+                />
+              ) : null}
               <ArtifactPreview
                 artifact={selected}
                 content={content}

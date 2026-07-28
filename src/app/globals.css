@@ -493,6 +493,259 @@ button:not(:disabled) {
   border: 1px solid rgba(255, 255, 255, 0.65);
 }
 
+/*
+ * Liquid Glass — Apple-style material for the studio composer.
+ * Layers: frosted fill · vibrancy blur · specular rim · contact shadow · soft refraction sheen.
+ * Animate transform/opacity/shadow only; keep interruptible (short ease-out, no locked input).
+ */
+.studio-composer-dock {
+  position: relative;
+  z-index: 1;
+  /* Soft scroll-edge fade — glass reads as floating above chat */
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(248, 250, 252, 0.28) 36%,
+    rgba(248, 250, 252, 0.55) 100%
+  );
+  border-top: none;
+  padding: 0.5rem 1rem 1.15rem;
+  pointer-events: none;
+}
+.studio-composer-dock > * {
+  pointer-events: auto;
+}
+@media (min-width: 640px) {
+  .studio-composer-dock {
+    padding: 0.55rem 1.5rem 1.35rem;
+  }
+}
+
+.studio-liquid-glass {
+  --lg-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --lg-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  position: relative;
+  isolation: isolate;
+  /* no overflow:hidden — slash menu opens above the shell */
+  border-radius: 26px;
+  /* Lighter frost so blur + ambient show through (floating card) */
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.72) 0%,
+      rgba(255, 255, 255, 0.48) 46%,
+      rgba(241, 245, 249, 0.42) 100%
+    );
+  backdrop-filter: blur(48px) saturate(200%);
+  -webkit-backdrop-filter: blur(48px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  /* Deep ambient + close contact shadow = “悬空卡片” */
+  box-shadow:
+    0 1.5px 0 rgba(255, 255, 255, 0.95) inset,
+    0 -0.5px 0 rgba(15, 23, 42, 0.04) inset,
+    0 0 0 0.5px rgba(15, 23, 42, 0.04),
+    0 2px 4px rgba(15, 23, 42, 0.03),
+    0 12px 28px -8px rgba(15, 23, 42, 0.14),
+    0 32px 64px -20px rgba(15, 23, 42, 0.18),
+    0 48px 100px -40px rgba(15, 23, 42, 0.12);
+  transform: translateY(0);
+  transition:
+    border-color 200ms var(--lg-ease-out),
+    box-shadow 240ms var(--lg-ease-out),
+    background 200ms var(--lg-ease-out),
+    transform 220ms var(--lg-ease);
+}
+
+/* Specular highlight + soft refraction band */
+.studio-liquid-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.62) 0%,
+      rgba(255, 255, 255, 0.1) 26%,
+      transparent 50%
+    ),
+    radial-gradient(
+      120% 80% at 14% -12%,
+      rgba(255, 255, 255, 0.75),
+      transparent 55%
+    ),
+    radial-gradient(
+      90% 70% at 92% 115%,
+      rgba(205, 248, 247, 0.22),
+      transparent 52%
+    );
+  opacity: 1;
+  transition: opacity 200ms var(--lg-ease-out);
+}
+
+/* Soft outer glow halo (floating card rim light) */
+.studio-liquid-glass::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(
+    120% 80% at 50% 100%,
+    rgba(15, 23, 42, 0.08),
+    transparent 65%
+  );
+  filter: blur(12px);
+  opacity: 0.9;
+}
+
+.studio-liquid-glass > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Shared element names come from React <ViewTransition name=…> when experimental.viewTransition is on */
+
+/* Hero home: larger radius, deeper float */
+.studio-liquid-glass[data-variant="hero"] {
+  border-radius: 30px;
+  box-shadow:
+    0 1.5px 0 rgba(255, 255, 255, 0.98) inset,
+    0 -0.5px 0 rgba(15, 23, 42, 0.03) inset,
+    0 0 0 0.5px rgba(15, 23, 42, 0.035),
+    0 4px 8px rgba(15, 23, 42, 0.03),
+    0 18px 40px -12px rgba(15, 23, 42, 0.14),
+    0 40px 80px -28px rgba(15, 23, 42, 0.2),
+    0 64px 120px -48px rgba(15, 23, 42, 0.14);
+  animation: studio-home-composer-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Focus: brighten material only — no gray outer ring */
+.studio-liquid-glass:focus-within {
+  border-color: rgba(255, 255, 255, 0.92);
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.8) 0%,
+      rgba(255, 255, 255, 0.56) 46%,
+      rgba(241, 245, 249, 0.5) 100%
+    );
+  box-shadow:
+    0 1.5px 0 rgba(255, 255, 255, 1) inset,
+    0 -0.5px 0 rgba(15, 23, 42, 0.04) inset,
+    0 0 0 0.5px rgba(15, 23, 42, 0.05),
+    0 4px 10px rgba(15, 23, 42, 0.04),
+    0 16px 36px -10px rgba(15, 23, 42, 0.16),
+    0 36px 72px -24px rgba(15, 23, 42, 0.2),
+    0 56px 110px -44px rgba(15, 23, 42, 0.12);
+  transform: translateY(-1px);
+}
+
+.studio-liquid-glass[data-variant="hero"]:focus-within {
+  box-shadow:
+    0 1.5px 0 rgba(255, 255, 255, 1) inset,
+    0 0 0 0.5px rgba(15, 23, 42, 0.04),
+    0 6px 14px rgba(15, 23, 42, 0.04),
+    0 22px 48px -14px rgba(15, 23, 42, 0.16),
+    0 48px 96px -32px rgba(15, 23, 42, 0.2),
+    0 72px 130px -50px rgba(15, 23, 42, 0.14);
+}
+
+/* Drag-over: brighter material + mint tint (no hard gray ring) */
+.studio-liquid-glass[data-drag-over="true"] {
+  border-color: rgba(255, 255, 255, 0.95);
+  background:
+    linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.88) 0%,
+      rgba(236, 254, 255, 0.7) 50%,
+      rgba(224, 242, 254, 0.62) 100%
+    );
+  box-shadow:
+    0 1.5px 0 rgba(255, 255, 255, 1) inset,
+    0 0 0 0.5px rgba(45, 212, 191, 0.25),
+    0 20px 48px -14px rgba(15, 23, 42, 0.16);
+}
+
+/* Kill system focus chrome inside liquid glass — no gray borders on click */
+.studio-liquid-glass textarea,
+.studio-liquid-glass input,
+.studio-liquid-glass select,
+.studio-liquid-glass button {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: none;
+}
+.studio-liquid-glass textarea:focus,
+.studio-liquid-glass textarea:focus-visible,
+.studio-liquid-glass input:focus,
+.studio-liquid-glass input:focus-visible,
+.studio-liquid-glass select:focus,
+.studio-liquid-glass select:focus-visible,
+.studio-liquid-glass button:focus,
+.studio-liquid-glass button:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: inherit;
+}
+
+/* Micro-controls on glass: fill-only, no gray border flash */
+.studio-liquid-chip {
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  transition:
+    background 160ms var(--lg-ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    color 160ms ease,
+    transform 100ms ease-out;
+}
+.studio-liquid-chip:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.72);
+  color: #0f172a;
+}
+.studio-liquid-chip:focus,
+.studio-liquid-chip:focus-visible {
+  outline: none !important;
+  border-color: transparent !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65) !important;
+  background: rgba(255, 255, 255, 0.72);
+}
+.studio-liquid-chip:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Send / queue CTA on liquid shell */
+.studio-send-btn {
+  background: linear-gradient(165deg, #1e293b 0%, #0f172a 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 6px 14px -6px rgba(15, 23, 42, 0.45);
+  transition:
+    transform 100ms ease-out,
+    background 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease,
+    filter 160ms ease;
+}
+.studio-send-btn:hover:not(:disabled) {
+  background: linear-gradient(165deg, #334155 0%, #1e293b 100%);
+  filter: none;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 8px 16px -6px rgba(15, 23, 42, 0.5);
+}
+.studio-send-btn:active:not(:disabled) {
+  transform: scale(0.94);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 3px 8px -4px rgba(15, 23, 42, 0.4);
+}
+
 .studio-logo-mark {
   animation: studio-breathe 3.6s ease-in-out infinite;
   background: linear-gradient(145deg, #1e293b, #0f172a);
@@ -517,16 +770,6 @@ button:not(:disabled) {
   transform: translateX(2px);
 }
 
-.studio-send-btn {
-  background: #0f172a;
-  box-shadow: 0 6px 14px -6px rgba(15, 23, 42, 0.45);
-}
-
-.studio-send-btn:hover:not(:disabled) {
-  background: #1e293b;
-  filter: none;
-}
-
 .studio-user-bubble {
   background: #0f172a;
   color: #fff;
@@ -548,40 +791,6 @@ button:not(:disabled) {
     radial-gradient(700px 480px at 18% 72%, rgba(205, 248, 247, 0.35), transparent 58%),
     radial-gradient(640px 420px at 88% 58%, rgba(226, 232, 240, 0.55), transparent 55%),
     linear-gradient(180deg, #f8fafc 0%, #f5f7fa 48%, #eef2f7 100%);
-}
-
-.studio-home-composer {
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(28px) saturate(170%);
-  -webkit-backdrop-filter: blur(28px) saturate(170%);
-  border: 1px solid rgba(255, 255, 255, 0.92);
-  box-shadow:
-    0 28px 60px -28px rgba(15, 23, 42, 0.16),
-    0 12px 28px -16px rgba(15, 23, 42, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98);
-}
-
-/* Kill system blue focus chrome inside hero composer */
-.studio-home-composer textarea,
-.studio-home-composer input,
-.studio-home-composer select,
-.studio-home-composer button {
-  outline: none !important;
-  -webkit-tap-highlight-color: transparent;
-}
-.studio-home-composer textarea:focus,
-.studio-home-composer textarea:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
-}
-/* Soft product-colored focus for the glass shell instead of OS blue */
-.studio-home-composer:focus-within {
-  border-color: rgba(15, 23, 42, 0.22);
-  box-shadow:
-    0 28px 60px -28px rgba(15, 23, 42, 0.16),
-    0 12px 28px -16px rgba(15, 23, 42, 0.08),
-    0 0 0 3px rgba(15, 23, 42, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98);
 }
 
 .studio-cap-card {
@@ -672,8 +881,16 @@ button:not(:disabled) {
   pointer-events: none;
 }
 
-.studio-home-composer {
-  animation: studio-home-composer-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+/* Collapsed session-list strip (scheme A: preview-first) */
+.studio-works-list-strip {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.studio-works-list-strip-label {
+  writing-mode: vertical-rl;
+  letter-spacing: 0.12em;
 }
 
 /* First row peeks under hero — light float, no duplicate section */
@@ -708,6 +925,116 @@ button:not(:disabled) {
     transform: translateY(0) scale(1);
     filter: blur(0);
   }
+}
+
+/* Home send: dock composer to bottom (FLIP plays transform; layout only here) */
+.studio-home-canvas[data-docking="true"] {
+  overflow: hidden;
+}
+.studio-home-canvas[data-docking="true"] .studio-home-capabilities {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    opacity 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    max-height 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-home-canvas[data-docking="true"] .studio-home-capabilities {
+    transition: opacity 120ms ease;
+  }
+}
+
+/*
+ * View Transitions (Next experimental.viewTransition + React <ViewTransition>).
+ * Shared morph for studio-composer (+ optional handoff bubble).
+ */
+::view-transition-group(.studio-morph) {
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+::view-transition-image-pair(.studio-morph) {
+  animation-name: studio-vt-soft;
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/*
+ * Header slot + chat thread get their own named groups so they morph in
+ * on their own (size/opacity), instead of being swept into the coarse
+ * ::view-transition-old/new(root) full-page crossfade — that mismatch
+ * between "nothing" (home) and "header + thread" (session) is what read
+ * as a flash.
+ */
+::view-transition-group(.studio-header-slot),
+::view-transition-group(.studio-chat-thread) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+::view-transition-image-pair(.studio-header-slot),
+::view-transition-image-pair(.studio-chat-thread) {
+  animation-name: studio-vt-soft;
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes studio-vt-soft {
+  0%,
+  100% {
+    filter: blur(0);
+  }
+  40% {
+    filter: blur(2px);
+  }
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
+.studio-session-header {
+  min-height: 3.5rem;
+  box-sizing: border-box;
+}
+
+/*
+ * Layout-level header slot (StudioShell) — persists across route changes so
+ * only its content swaps, never the node itself. Collapsed on home (no
+ * header), expands when a page publishes content via useStudioHeaderSlot.
+ */
+.studio-header-slot {
+  flex-shrink: 0;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition:
+    max-height 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 180ms ease;
+}
+.studio-header-slot[data-active="true"] {
+  max-height: 4.5rem;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-header-slot {
+    transition: opacity 120ms ease;
+  }
+}
+/* Skip enter animation when arriving from home handoff (VT already covers it) */
+.studio-session-root[data-handoff="true"] {
+  animation: none !important;
 }
 
 /* Collapsed edge tab — always reachable after hide */
@@ -782,9 +1109,28 @@ button:not(:disabled) {
   .studio-logo-mark,
   .studio-view-in,
   .studio-fade-up,
-  .studio-home-composer,
-  .studio-cap-first-row {
+  .studio-liquid-glass[data-variant="hero"],
+  .studio-cap-first-row,
+  .studio-home-launch-thread,
+  .studio-home-launch-composer {
     animation: none !important;
+  }
+  .studio-home-hero,
+  .studio-home-hero-inner,
+  .studio-home-capabilities {
+    transition: opacity 160ms ease !important;
+  }
+  .studio-liquid-glass,
+  .studio-liquid-chip,
+  .studio-send-btn {
+    transition: opacity 160ms ease, border-color 160ms ease, background 160ms ease !important;
+  }
+  .studio-liquid-chip:active:not(:disabled),
+  .studio-send-btn:active:not(:disabled) {
+    transform: none;
+  }
+  .studio-liquid-glass:focus-within {
+    transform: none;
   }
   .studio-works-shell-inner {
     transition: opacity 160ms ease !important;
@@ -799,6 +1145,36 @@ button:not(:disabled) {
   }
   .studio-works-edge-tab[data-pulse="true"] {
     animation: none !important;
+  }
+}
+
+/* Accessibility: frostier / solid when user prefers reduced transparency */
+@media (prefers-reduced-transparency: reduce) {
+  .studio-liquid-glass {
+    background: rgba(255, 255, 255, 0.96) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .studio-liquid-glass::before,
+  .studio-liquid-glass::after {
+    opacity: 0.35;
+  }
+  .studio-composer-dock {
+    background: rgba(248, 250, 252, 0.96);
+  }
+  .studio-liquid-chip {
+    background: rgba(248, 250, 252, 0.98);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .studio-liquid-glass {
+    background: #ffffff !important;
+    border-color: rgba(15, 23, 42, 0.28) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 }
 

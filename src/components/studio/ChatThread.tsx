@@ -22,6 +22,7 @@ import type {
   UiChatMessage,
   UiToolCall,
 } from "./useStudioChat";
+import StudioViewTransition from "./StudioViewTransition";
 
 export type ChatThreadProps = {
   messages: UiChatMessage[];
@@ -446,11 +447,14 @@ function Bubble({
   highlighted,
   relatedArtifacts,
   onOpenArtifact,
+  shareTransitionName,
 }: {
   message: UiChatMessage;
   highlighted?: boolean;
   relatedArtifacts?: Artifact[];
   onOpenArtifact?: (artifactId: string) => void;
+  /** Shared element name for home → session morph (View Transition). */
+  shareTransitionName?: string;
 }) {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
@@ -489,7 +493,7 @@ function Bubble({
     (message.streaming ||
       message.executionSteps.some((s) => s.status === "done"));
 
-  return (
+  const row = (
     <div
       data-message-id={message.id}
       className={`flex gap-3 px-4 sm:px-6 scroll-mt-4 ${isUser ? "flex-row-reverse" : ""} ${
@@ -594,6 +598,17 @@ function Bubble({
       </div>
     </div>
   );
+
+  if (!shareTransitionName) return row;
+  return (
+    <StudioViewTransition
+      name={shareTransitionName}
+      share="studio-morph"
+      default="none"
+    >
+      {row}
+    </StudioViewTransition>
+  );
 }
 
 export default function ChatThread({
@@ -675,15 +690,23 @@ export default function ChatThread({
         onScroll={syncStick}
       >
         <div className="mx-auto flex max-w-3xl flex-col gap-5">
-          {messages.map((m) => (
-            <Bubble
-              key={m.id}
-              message={m}
-              highlighted={activeHighlight === m.id}
-              relatedArtifacts={artifactsByMessageId?.get(m.id)}
-              onOpenArtifact={onOpenArtifact}
-            />
-          ))}
+          {messages.map((m) => {
+            // Home→session morph only for the optimistic first bubble
+            const shareTransitionName =
+              m.role === "user" && m.id.startsWith("pending-user-")
+                ? "studio-handoff-user"
+                : undefined;
+            return (
+              <Bubble
+                key={m.id}
+                message={m}
+                highlighted={activeHighlight === m.id}
+                relatedArtifacts={artifactsByMessageId?.get(m.id)}
+                onOpenArtifact={onOpenArtifact}
+                shareTransitionName={shareTransitionName}
+              />
+            );
+          })}
           <div ref={bottomRef} className="h-px shrink-0" aria-hidden />
         </div>
       </div>

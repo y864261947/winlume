@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  ChevronLeft,
   FileCode2,
   FileJson,
   FileText,
@@ -58,6 +59,8 @@ export type ArtifactPanelProps = {
   loading?: boolean;
   error?: string | null;
   onRefresh?: () => void;
+  /** Collapse list to strip — lives in header toolbar so it never covers refresh. */
+  onCollapse?: () => void;
   /** Highlight this id briefly when a new artifact lands (NewMax “attention”). */
   flashId?: string | null;
   className?: string;
@@ -70,6 +73,7 @@ export default function ArtifactPanel({
   loading = false,
   error = null,
   onRefresh,
+  onCollapse,
   flashId = null,
   className = "",
 }: ArtifactPanelProps) {
@@ -128,6 +132,17 @@ export default function ArtifactPanel({
                 className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
               />
               <span className="sr-only">刷新</span>
+            </button>
+          ) : null}
+          {onCollapse ? (
+            <button
+              type="button"
+              onClick={onCollapse}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-500 transition hover:bg-canvas hover:text-ink-800"
+              title="收起列表，专注预览"
+              aria-label="收起作品列表"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
             </button>
           ) : null}
         </div>

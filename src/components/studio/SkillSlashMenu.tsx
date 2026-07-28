@@ -153,7 +153,7 @@ export default function SkillSlashMenu({
       id={menuId}
       role="listbox"
       aria-label="选择 Skill"
-      className="studio-glass absolute bottom-full left-0 z-20 mb-2 max-h-72 w-full max-w-md overflow-auto rounded-[16px] py-1"
+      className="studio-liquid-glass absolute bottom-full left-0 z-20 mb-2 max-h-72 w-full max-w-md overflow-auto rounded-[16px] py-1"
     >
       <div className="flex items-center gap-2 border-b border-white/50 px-3 py-1.5 text-[11px] text-[#8A8298]">
         {view.kind === "department" && !searching ? (
