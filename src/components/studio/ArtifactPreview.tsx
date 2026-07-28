@@ -81,7 +81,7 @@ export type ArtifactPreviewProps = {
   className?: string;
 };
 
-function extensionFor(kind: ArtifactKind, name: string): string {
+function extensionFor(kind: ArtifactKind, name: string, mimeType?: string): string {
   const lower = name.toLowerCase();
   if (/\.[a-z0-9]{1,8}$/i.test(lower)) return "";
   switch (kind) {
@@ -92,7 +92,9 @@ function extensionFor(kind: ArtifactKind, name: string): string {
     case "json":
       return ".json";
     case "image":
-      return "";
+      if (mimeType === "image/jpeg") return ".jpg";
+      if (mimeType === "image/webp") return ".webp";
+      return ".png";
     default:
       return ".txt";
   }
@@ -254,12 +256,33 @@ function renderPreview(
       return <MarkdownBody content={content} />;
     case "html":
       return <HtmlBody content={content} frame={htmlFrame} />;
-    case "image":
+    case "image": {
+      if (artifact.status === "pending") {
+        return (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-10 text-sm text-ink-400">
+            <LoaderCircle className="h-5 w-5 animate-spin" />
+            图片生成中…
+          </div>
+        );
+      }
+      if (artifact.status === "failed") {
+        return (
+          <p className="px-4 py-6 text-sm text-rose-600">
+            生成失败{artifact.error ? `：${artifact.error}` : ""}
+          </p>
+        );
+      }
       return (
-        <p className="px-4 py-6 text-sm text-ink-500">
-          图片作品暂不支持内联预览。
-        </p>
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-canvas/40 p-4">
+          {/* eslint-disable-next-line @next/next/no-img-element -- artifact bytes are user-scoped, not from next/image's static pipeline */}
+          <img
+            src={`/api/artifacts/${artifact.id}/raw`}
+            alt={artifact.name}
+            className="max-h-full max-w-full rounded-lg object-contain shadow-sm"
+          />
+        </div>
       );
+    }
     case "binary":
       return (
         <p className="px-4 py-6 text-sm text-ink-500">
@@ -486,7 +509,16 @@ export default function ArtifactPreview({
   }, [sourceText]);
 
   const handleDownload = useCallback(() => {
-    if (!artifact || content == null) return;
+    if (!artifact) return;
+    if (artifact.kind === "image") {
+      const ext = extensionFor(artifact.kind, artifact.name, artifact.mimeType);
+      const a = document.createElement("a");
+      a.href = `/api/artifacts/${artifact.id}/raw`;
+      a.download = `${artifact.name}${ext}`;
+      a.click();
+      return;
+    }
+    if (content == null) return;
     const ext = extensionFor(artifact.kind, artifact.name);
     const filename = `${artifact.name}${ext}`;
     const blob = new Blob([content], { type: mimeFor(artifact.kind) });
@@ -548,7 +580,7 @@ export default function ArtifactPreview({
   }, [artifact?.messageId, onJumpToMessage, maximized]);
 
   const showModeToggle = canShowSource && hasPreview;
-  const busy = loading || content == null;
+  const busy = loading || content == null || artifact?.status === "pending";
 
   const renderAction = (key: ActionKey, opts?: { inMenu?: boolean }) => {
     const inMenu = opts?.inMenu;

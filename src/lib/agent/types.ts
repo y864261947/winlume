@@ -64,6 +64,10 @@ export interface Artifact {
   mimeType: string;
   storageKey: string;
   createdAt: string;
+  /** Present for artifacts produced asynchronously (currently only `image`). Omitted → treated as ready. */
+  status?: "pending" | "ready" | "failed";
+  /** Set when status is "failed". */
+  error?: string;
 }
 
 export type AgentSseEvent =

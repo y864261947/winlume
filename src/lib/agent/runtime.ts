@@ -45,6 +45,7 @@ export const BASE_POLICY = [
   "ALWAYS call write_artifact when the user asks for notes, copy, articles, reports, outlines, scripts, multi-piece content (e.g. 几篇小红书笔记), code files, or any document longer than a short chat reply. Put the full body in the tool; keep the chat message to a short summary + what was saved.",
   "Do not dump long multi-section documents only in chat. Chat is for conversation; artifacts are for finished work.",
   "After write_artifact succeeds: do NOT paste the full artifact body again in chat. Reply with a short summary and that it was saved — the UI already previews the work.",
+  "Call generate_image when the user asks for an image, illustration, icon, mockup, or artwork, or asks to edit/modify an existing image artifact (set sourceArtifactId to that artifact's id in the latter case). It returns immediately with a pending artifact — the image renders in the panel once generation finishes; do not claim it is ready yet or describe what it looks like.",
   "You can use read_artifact and list_artifacts to inspect previously saved work in this session.",
   // Progress checklist (todo_write) — model decides; user never toggles a mode.
   "For complex multi-step work (3+ distinct stages, multi-piece deliverables, research+write), use todo_write to show a short live checklist (user's language). Create todos first, keep exactly one item in_progress, mark completed immediately when done, then merge status updates as you go.",

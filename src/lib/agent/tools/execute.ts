@@ -7,6 +7,8 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { AgentSseEvent, Artifact, ArtifactKind } from "@/lib/agent/types";
 import type { ArtifactStore } from "@/lib/host/ports";
+import { generateImage } from "@/lib/agent/provider/gateway";
+import { publishArtifactEvent } from "@/lib/agent/artifact-events";
 import {
   applyMerge,
   applyReplace,
@@ -58,6 +60,18 @@ const todoWriteSchema = z.object({
     .min(1)
     .max(12),
 });
+
+const generateImageSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  prompt: z.string().trim().min(1).max(4_000),
+  model: z.string().trim().min(1).max(100).optional(),
+  size: z.enum(["1024x1024", "1024x1536", "1536x1024"]),
+  style: z.string().trim().max(200).optional(),
+  count: z.number().int().min(1).max(4),
+  sourceArtifactId: z.string().trim().min(1).max(128).optional(),
+});
+
+export type GenerateImageArgs = z.infer<typeof generateImageSchema>;
 
 export type WriteArtifactArgs = z.infer<typeof writeArtifactSchema>;
 export type ReadArtifactArgs = z.infer<typeof readArtifactSchema>;
@@ -189,6 +203,123 @@ export async function executeWriteArtifact(
     const msg = err instanceof Error ? err.message : "write_artifact failed";
     return fail(msg);
   }
+}
+
+export interface ImageGenerationJob {
+  artifact: Artifact;
+  ctx: ToolExecuteContext;
+  prompt: string;
+  model?: string;
+  size: "1024x1024" | "1024x1536" | "1536x1024";
+  sourceImage?: { bytes: Buffer; mimeType: string };
+}
+
+/** Runs one generation call and writes the result back to `job.artifact.id`. Never throws. */
+export async function runImageGenerationJob(job: ImageGenerationJob): Promise<void> {
+  const { artifact, ctx, prompt, model, size, sourceImage } = job;
+  try {
+    const [image] = await generateImage({ prompt, model, size, n: 1, sourceImage });
+    if (!image) throw new Error("Image API returned no results");
+    await ctx.artifacts.write(
+      { ...artifact, mimeType: image.mimeType, status: "ready", error: undefined },
+      image.bytes,
+    );
+    publishArtifactEvent(ctx.userId, {
+      type: "artifact_updated",
+      artifactId: artifact.id,
+      status: "ready",
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Image generation failed";
+    try {
+      await ctx.artifacts.write(
+        { ...artifact, status: "failed", error: message },
+        Buffer.alloc(0),
+      );
+    } catch {
+      // Must never throw/reject — a failed write here (disk error, corrupt
+      // index) would otherwise become an unhandled rejection, since callers
+      // dispatch this job with a bare `void`.
+    }
+    publishArtifactEvent(ctx.userId, {
+      type: "artifact_updated",
+      artifactId: artifact.id,
+      status: "failed",
+      error: message,
+    });
+  }
+}
+
+export async function executeGenerateImage(
+  rawArgs: unknown,
+  ctx: ToolExecuteContext,
+): Promise<ToolExecuteResult> {
+  const parsed = generateImageSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return fail(`generate_image validation failed: ${formatZodError(parsed.error)}`);
+  }
+  const { name, prompt, model, size, style, count, sourceArtifactId } = parsed.data;
+
+  let sourceImage: { bytes: Buffer; mimeType: string } | undefined;
+  if (sourceArtifactId) {
+    const meta = await ctx.artifacts.get(ctx.userId, sourceArtifactId);
+    if (!meta) return fail(`Source artifact not found: ${sourceArtifactId}`);
+    const buf = await ctx.artifacts.readContent(ctx.userId, sourceArtifactId);
+    if (!buf || buf.length === 0) {
+      return fail(`Source artifact content missing: ${sourceArtifactId}`);
+    }
+    sourceImage = { bytes: buf, mimeType: meta.mimeType };
+  }
+
+  const createdAt = new Date().toISOString();
+  const fullPrompt = style ? `${prompt} (style: ${style})` : prompt;
+  const pending: Artifact[] = [];
+  try {
+    for (let i = 0; i < count; i++) {
+      const id = randomUUID();
+      const artifact = await ctx.artifacts.write(
+        {
+          id,
+          userId: ctx.userId,
+          sessionId: ctx.sessionId,
+          ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
+          name: count > 1 ? `${name} (${i + 1}/${count})` : name,
+          kind: "image",
+          mimeType: "application/octet-stream",
+          storageKey: "",
+          status: "pending",
+          createdAt,
+        },
+        Buffer.alloc(0),
+      );
+      pending.push(artifact);
+      // Dispatch the job immediately after this artifact's write succeeds, so a
+      // later write failure in this loop (e.g. artifact 2 of 3) can never orphan
+      // an artifact whose write already succeeded — its job is already running.
+      void runImageGenerationJob({ artifact, ctx, prompt: fullPrompt, model, size, sourceImage });
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "generate_image failed";
+    return fail(msg);
+  }
+
+  const summary = `Started generating ${pending.length} image(s): ${pending
+    .map((a) => a.id)
+    .join(", ")}`;
+  return {
+    ok: true,
+    summary,
+    content: JSON.stringify({
+      artifacts: pending.map((a) => ({ id: a.id, name: a.name, status: a.status })),
+    }),
+    artifact: pending[0],
+    events: pending.map((a) => ({
+      type: "artifact" as const,
+      artifactId: a.id,
+      name: a.name,
+      kind: a.kind,
+    })),
+  };
 }
 
 export async function executeReadArtifact(
@@ -376,6 +507,8 @@ export async function executeStudioTool(
     }
     case "write_artifact":
       return executeWriteArtifact(rawArgs, ctx);
+    case "generate_image":
+      return executeGenerateImage(rawArgs, ctx);
     case "read_artifact":
       return executeReadArtifact(rawArgs, ctx);
     case "list_artifacts":

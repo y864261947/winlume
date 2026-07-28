@@ -5,7 +5,8 @@ import { webStore } from "@/lib/host/web/store-singleton";
 type IdContext = { params: Promise<{ id: string }> };
 
 /**
- * GET /api/artifacts/[id] — metadata + utf-8 content for one artifact (user-scoped).
+ * GET /api/artifacts/[id]/raw — raw bytes with the artifact's real
+ * mimeType, for direct use as an <img src> (or any binary download).
  */
 export async function GET(request: NextRequest, context: IdContext) {
   const userId = await getCurrentUserId();
@@ -23,9 +24,17 @@ export async function GET(request: NextRequest, context: IdContext) {
     return NextResponse.json({ error: "Artifact not found" }, { status: 404 });
   }
 
-  const isBinaryKind = artifact.kind === "image" || artifact.kind === "binary";
-  const buf = isBinaryKind ? null : await webStore.artifacts.readContent(userId, id);
-  const content = isBinaryKind ? null : buf ? buf.toString("utf8") : "";
+  const buf = await webStore.artifacts.readContent(userId, id);
+  if (!buf || buf.length === 0) {
+    return NextResponse.json({ error: "Artifact content not ready" }, { status: 404 });
+  }
 
-  return NextResponse.json({ artifact, content });
+  return new NextResponse(new Uint8Array(buf), {
+    headers: {
+      "Content-Type": artifact.mimeType || "application/octet-stream",
+      "Cache-Control": "private, max-age=31536000, immutable",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Disposition": "inline",
+    },
+  });
 }
