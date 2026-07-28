@@ -150,8 +150,8 @@ function CapabilityCard({
       <span
         className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[12px] ${
           active
-            ? "bg-gradient-to-br from-[#F2994A] to-[#C2410C] text-white"
-            : "bg-[rgba(194,65,12,0.1)] text-[#C2410C]"
+            ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white"
+            : "bg-[rgba(15, 23, 42,0.1)] text-[#0F172A]"
         }`}
       >
         <Icon className="h-5 w-5" strokeWidth={1.8} />
@@ -386,7 +386,7 @@ function StudioHomeInner() {
                 {selectedSkillIds.map((id) => (
                   <span
                     key={id}
-                    className="inline-flex items-center gap-1 rounded-full border border-[rgba(194,65,12,0.2)] bg-[rgba(194,65,12,0.08)] px-2.5 py-1 text-[11px] font-medium text-[#C2410C]"
+                    className="inline-flex items-center gap-1 rounded-full border border-[rgba(15, 23, 42,0.2)] bg-[rgba(15, 23, 42,0.08)] px-2.5 py-1 text-[11px] font-medium text-[#0F172A]"
                   >
                     <Sparkles className="h-3 w-3" />
                     {id}
@@ -420,7 +420,7 @@ function StudioHomeFallback() {
       className="studio-home-canvas flex flex-1 flex-col items-center justify-center gap-2 px-4 text-sm text-[#8A8298]"
       role="status"
     >
-      <LoaderCircle className="h-5 w-5 animate-spin text-[#C2410C]" />
+      <LoaderCircle className="h-5 w-5 animate-spin text-[#0F172A]" />
       正在打开工作台…
     </div>
   );

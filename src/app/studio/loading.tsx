@@ -6,7 +6,7 @@ export default function StudioLoading() {
       role="status"
       aria-label="加载中"
     >
-      <div className="h-8 w-8 animate-pulse rounded-full bg-[rgba(194,65,12,0.15)]" />
+      <div className="h-8 w-8 animate-pulse rounded-full bg-[rgba(15, 23, 42,0.15)]" />
     </div>
   );
 }

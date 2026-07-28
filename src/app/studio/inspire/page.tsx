@@ -51,7 +51,7 @@ export default function StudioInspirePage() {
       <div className="mx-auto max-w-[1100px]">
         <header className="studio-fade-up mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-medium text-[#C2410C]">
+            <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-medium text-[#0F172A]">
               <Compass className="h-3.5 w-3.5" />
               灵感广场
             </p>
@@ -67,7 +67,7 @@ export default function StudioInspirePage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="搜索能力、模板或关键词…"
-            className="studio-glass-soft w-full max-w-xs rounded-[12px] px-3.5 py-2.5 text-sm text-[#241E36] outline-none placeholder:text-[#8A8298] focus:ring-2 focus:ring-[rgba(194,65,12,0.25)] sm:w-72"
+            className="studio-glass-soft w-full max-w-xs rounded-[12px] px-3.5 py-2.5 text-sm text-[#241E36] outline-none placeholder:text-[#8A8298] focus:ring-2 focus:ring-[rgba(15, 23, 42,0.25)] sm:w-72"
           />
         </header>
 
@@ -86,10 +86,10 @@ export default function StudioInspirePage() {
                 style={{ animationDelay: `${Math.min(i, 12) * 0.03}s` }}
                 className="studio-glass studio-fade-up group block rounded-[18px] p-5 transition hover:-translate-y-0.5 hover:shadow-lg"
               >
-                <span className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-[11px] bg-[rgba(194,65,12,0.1)] text-[#C2410C]">
+                <span className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-[11px] bg-[rgba(15, 23, 42,0.1)] text-[#0F172A]">
                   <Sparkles className="h-4 w-4" />
                 </span>
-                <p className="text-[15px] font-semibold text-[#241E36] group-hover:text-[#C2410C]">
+                <p className="text-[15px] font-semibold text-[#241E36] group-hover:text-[#0F172A]">
                   {skill.name}
                 </p>
                 <p className="mt-1 line-clamp-2 text-xs text-[#8A8298]">
@@ -98,7 +98,7 @@ export default function StudioInspirePage() {
                 <p className="mt-3 line-clamp-3 rounded-[12px] bg-white/50 px-3 py-2 text-[12px] leading-5 text-[#615A73]">
                   {skill.examplePrompt}
                 </p>
-                <span className="mt-3 inline-block text-xs font-medium text-[#C2410C]">
+                <span className="mt-3 inline-block text-xs font-medium text-[#0F172A]">
                   使用此灵感 →
                 </span>
               </Link>

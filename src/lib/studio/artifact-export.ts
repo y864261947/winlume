@@ -151,10 +151,10 @@ const PRINT_CSS = `
   p, li { margin: 0.4em 0; }
   pre { background: #f6f4f0; padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; }
-  blockquote { border-left: 3px solid #c2410c; margin: 0.8em 0; padding: 0.2em 0 0.2em 1em; color: #555; }
+  blockquote { border-left: 3px solid #0F172A; margin: 0.8em 0; padding: 0.2em 0 0.2em 1em; color: #555; }
   table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
   th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
-  a { color: #c2410c; }
+  a { color: #0F172A; }
   @media print { body { margin: 0; max-width: none; } }
 `;
 

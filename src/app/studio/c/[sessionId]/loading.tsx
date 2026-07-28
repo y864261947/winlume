@@ -15,7 +15,7 @@ export default function SessionRouteLoading() {
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 px-4 py-6 sm:px-6">
           <div className="mx-auto flex max-w-3xl flex-col gap-4">
-            <div className="ml-auto h-16 w-[min(100%,20rem)] animate-pulse rounded-[18px] bg-[rgba(194,65,12,0.12)]" />
+            <div className="ml-auto h-16 w-[min(100%,20rem)] animate-pulse rounded-[18px] bg-[rgba(15, 23, 42,0.12)]" />
             <div className="h-12 w-[min(100%,16rem)] animate-pulse rounded-[18px] bg-white/50" />
           </div>
         </div>

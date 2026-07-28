@@ -216,7 +216,7 @@ export default function StudioSidebar() {
         {account ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2.5 px-1">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F2994A] to-[#C2410C] text-sm font-bold text-white shadow-[0_6px_14px_-6px_rgba(194,65,12,0.5)]">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#334155] to-[#0F172A] text-sm font-bold text-white shadow-[0_6px_14px_-6px_rgba(15, 23, 42,0.5)]">
                 {avatarLetter}
               </span>
               <div className="min-w-0 flex-1">
@@ -224,7 +224,7 @@ export default function StudioSidebar() {
                   {account.display_name || account.username}
                 </p>
                 <p className="flex items-center gap-1 text-[11px] text-[#8A8298]">
-                  <Wallet className="h-3 w-3 text-[#C2410C]" />
+                  <Wallet className="h-3 w-3 text-[#0F172A]" />
                   <span className="font-mono font-semibold text-[#241E36]">
                     {formatBalance(account.quota, balanceConfig)}
                   </span>
