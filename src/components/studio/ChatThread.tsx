@@ -99,6 +99,8 @@ function useLiveElapsed(startedAt?: number, active?: boolean): number {
   return elapsed;
 }
 
+const ROTATE_INTERVAL_MS = 2000;
+
 function useRotatingLoadingWord(active: boolean): string {
   const [index, setIndex] = useState<number | null>(null);
   useEffect(() => {
@@ -109,7 +111,7 @@ function useRotatingLoadingWord(active: boolean): string {
     setIndex((i) => nextLoadingWordIndex(i, LOADING_WORDS.length));
     const id = window.setInterval(() => {
       setIndex((i) => nextLoadingWordIndex(i, LOADING_WORDS.length));
-    }, 2000);
+    }, ROTATE_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [active]);
   return LOADING_WORDS[index ?? 0];
@@ -168,9 +170,12 @@ function ExecutionMap({
           任务进度
         </span>
         {streaming ? (
-          <span className="inline-flex items-center gap-1 text-[10px] text-[#0F172A]">
+          <span
+            className="inline-flex items-center gap-1 text-[10px] text-[#0F172A]"
+            aria-label="进行中"
+          >
             <StreamingPulse phase="tool" />
-            {rotatingWord}
+            <span aria-hidden>{rotatingWord}</span>
           </span>
         ) : null}
       </div>
