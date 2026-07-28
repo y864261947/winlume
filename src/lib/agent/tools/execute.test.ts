@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWebFileStore } from "@/lib/host/web/file-store";
 import {
   executeListArtifacts,
@@ -154,5 +154,151 @@ describe("executeStudioTool + ArtifactStore", () => {
     );
     expect(res.ok).toBe(true);
     expect(res.summary).toContain("Saved artifact");
+  });
+});
+
+import { generateImage } from "../provider/gateway";
+import {
+  executeGenerateImage,
+  runImageGenerationJob,
+} from "./execute";
+
+vi.mock("../provider/gateway", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../provider/gateway")>();
+  return { ...actual, generateImage: vi.fn() };
+});
+
+describe("executeGenerateImage", () => {
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+    vi.mocked(generateImage).mockReset();
+  });
+
+  function makeStore() {
+    const dir = mkdtempSync(join(tmpdir(), "winlume-imagegen-"));
+    dirs.push(dir);
+    return createWebFileStore(dir).artifacts;
+  }
+
+  it("writes N pending image artifacts immediately and returns their ids", async () => {
+    const artifacts = makeStore();
+    // Never resolve: the background job must not be awaited by executeGenerateImage,
+    // so nothing here should race a real generateImage() completion against the
+    // assertions below (see self-review note in task-4-report.md).
+    vi.mocked(generateImage).mockImplementation(() => new Promise(() => {}));
+    const result = await executeGenerateImage(
+      { name: "Fox", prompt: "a red fox", size: "1024x1024", count: 2 },
+      { userId: "u1", sessionId: "s1", artifacts },
+    );
+
+    expect(result.ok).toBe(true);
+    const parsed = JSON.parse(result.content) as {
+      artifacts: { id: string; name: string; status: string }[];
+    };
+    expect(parsed.artifacts).toHaveLength(2);
+    expect(parsed.artifacts.every((a) => a.status === "pending")).toBe(true);
+    expect(result.events).toHaveLength(2);
+    expect(result.events?.[0]).toMatchObject({ type: "artifact", kind: "image" });
+
+    const stored = await artifacts.get("u1", parsed.artifacts[0]!.id);
+    expect(stored?.status).toBe("pending");
+    expect(stored?.kind).toBe("image");
+  });
+
+  it("rejects invalid arguments", async () => {
+    const artifacts = makeStore();
+    const result = await executeGenerateImage(
+      { name: "Fox", prompt: "a red fox", size: "bogus", count: 2 },
+      { userId: "u1", sessionId: "s1", artifacts },
+    );
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain("validation failed");
+  });
+});
+
+describe("runImageGenerationJob", () => {
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+    vi.mocked(generateImage).mockReset();
+  });
+
+  function makeStore() {
+    const dir = mkdtempSync(join(tmpdir(), "winlume-imagegen-job-"));
+    dirs.push(dir);
+    return createWebFileStore(dir).artifacts;
+  }
+
+  it("marks the artifact ready and writes the returned bytes on success", async () => {
+    const artifacts = makeStore();
+    const pending = await artifacts.write(
+      {
+        id: "art-1",
+        userId: "u1",
+        sessionId: "s1",
+        name: "Fox",
+        kind: "image",
+        mimeType: "application/octet-stream",
+        storageKey: "",
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      },
+      Buffer.alloc(0),
+    );
+    vi.mocked(generateImage).mockResolvedValue([
+      { bytes: Buffer.from("PNGDATA"), mimeType: "image/png" },
+    ]);
+
+    const received: unknown[] = [];
+    const { subscribeArtifactEvents } = await import("../artifact-events");
+    const unsubscribe = subscribeArtifactEvents("u1", (e) => received.push(e));
+
+    await runImageGenerationJob({
+      artifact: pending,
+      ctx: { userId: "u1", sessionId: "s1", artifacts },
+      prompt: "a red fox",
+      size: "1024x1024",
+    });
+    unsubscribe();
+
+    const stored = await artifacts.get("u1", "art-1");
+    expect(stored?.status).toBe("ready");
+    expect(stored?.mimeType).toBe("image/png");
+    const content = await artifacts.readContent("u1", "art-1");
+    expect(content?.toString()).toBe("PNGDATA");
+    expect(received).toEqual([
+      { type: "artifact_updated", artifactId: "art-1", status: "ready" },
+    ]);
+  });
+
+  it("marks the artifact failed with an error message when generation throws", async () => {
+    const artifacts = makeStore();
+    const pending = await artifacts.write(
+      {
+        id: "art-2",
+        userId: "u1",
+        sessionId: "s1",
+        name: "Fox",
+        kind: "image",
+        mimeType: "application/octet-stream",
+        storageKey: "",
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      },
+      Buffer.alloc(0),
+    );
+    vi.mocked(generateImage).mockRejectedValue(new Error("quota exceeded"));
+
+    await runImageGenerationJob({
+      artifact: pending,
+      ctx: { userId: "u1", sessionId: "s1", artifacts },
+      prompt: "a red fox",
+      size: "1024x1024",
+    });
+
+    const stored = await artifacts.get("u1", "art-2");
+    expect(stored?.status).toBe("failed");
+    expect(stored?.error).toBe("quota exceeded");
   });
 });
