@@ -109,6 +109,13 @@ export type ComposerProps = {
    * `default` — sticky session composer.
    */
   variant?: "default" | "hero";
+  /**
+   * Name for the home→session shared-element morph. Two Composer instances
+   * with the same name mounted at once (e.g. a duplicate responsive layout
+   * tree) breaks View Transitions — pass `null` on any instance that isn't
+   * the one participating in the morph to opt it out.
+   */
+  shareTransitionName?: string | null;
 };
 
 function PastedBlockCard({
@@ -230,6 +237,7 @@ export default function Composer({
   onClearQueue,
   draftKey = null,
   variant = "default",
+  shareTransitionName = "studio-composer",
 }: ComposerProps) {
   const isHero = variant === "hero";
   const promptId = useId();
@@ -917,7 +925,7 @@ export default function Composer({
       ) : null}
 
       <StudioViewTransition
-        name="studio-composer"
+        name={shareTransitionName ?? undefined}
         share="studio-morph"
         default="none"
       >

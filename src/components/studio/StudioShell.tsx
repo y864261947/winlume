@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -35,9 +36,16 @@ export function useStudioHeaderSlot(content: ReactNode) {
 /** Full-height workbench chrome — demo warm canvas + glass sidebar (no marketing chrome). */
 export default function StudioShell({ children }: { children: ReactNode }) {
   const [header, setHeader] = useState<ReactNode>(null);
+  // Stable identity — an inline object literal here would recreate the
+  // context value on every StudioShell re-render (e.g. whenever a page
+  // publishes new header content), which then falsely trips consumers'
+  // `useEffect(() => cleanup, [ctx])` in useStudioHeaderSlot below and
+  // wipes the header via its unmount-style cleanup even though nothing
+  // actually unmounted.
+  const headerSlotCtx = useMemo(() => ({ setHeader }), []);
 
   return (
-    <HeaderSlotContext.Provider value={{ setHeader }}>
+    <HeaderSlotContext.Provider value={headerSlotCtx}>
       <div className="studio-root relative flex h-dvh min-h-0 w-full overflow-hidden">
         <div className="studio-blob studio-blob-a" aria-hidden />
         <div className="studio-blob studio-blob-b" aria-hidden />
