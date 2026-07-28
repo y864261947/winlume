@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { AgentSseEvent, Message, ToolCallRecord } from "@/lib/agent/types";
+import type { AgentSseEvent, Artifact, Message, ToolCallRecord } from "@/lib/agent/types";
 import type { ArtifactStore, SessionStore } from "@/lib/host/ports";
 import {
   streamGatewayChat,
@@ -130,6 +130,15 @@ function buildSessionReminder(artifactCount: number): string {
   ].join("\n");
 }
 
+export function buildReferencedArtifactReminder(artifact: Artifact | null): string {
+  if (!artifact) return "";
+  return [
+    "<system-reminder>",
+    `The user referenced artifact "${artifact.name}" (id=${artifact.id}, kind=${artifact.kind}) via @-mention in this message. If — and only if — the user's own words are asking to modify, edit, or regenerate this image, call generate_image with sourceArtifactId="${artifact.id}". Do not guess a different id, and do not treat every message that follows a mention as an edit request.`,
+    "</system-reminder>",
+  ].join("\n");
+}
+
 export interface RunAgentTurnOpts {
   userId: string;
   sessionId: string;
@@ -221,8 +230,22 @@ export async function* runAgentTurn(
     /* ignore */
   }
   const reminder = buildSessionReminder(artifactCount);
+
+  let referencedArtifact: Artifact | null = null;
+  if (opts.referencedArtifactId) {
+    try {
+      const found = await artifacts.get(userId, opts.referencedArtifactId);
+      // Only honor it when it's actually an image the user can reference for editing.
+      if (found && found.kind === "image") referencedArtifact = found;
+    } catch {
+      /* ignore — falls through as "no reference" */
+    }
+  }
+  const artifactReminder = buildReferencedArtifactReminder(referencedArtifact);
+
+  const combinedReminder = [reminder, artifactReminder].filter(Boolean).join("\n\n");
   const system = buildSystemPrompt(
-    reminder ? `${BASE_POLICY}\n\n${reminder}` : BASE_POLICY,
+    combinedReminder ? `${BASE_POLICY}\n\n${combinedReminder}` : BASE_POLICY,
     skills,
   );
   // todo_write is always available; the model chooses when to use it.
