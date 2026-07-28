@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { webStore } from "@/lib/host/web/store-singleton";
-
-function userIdFromRequest(request: NextRequest): string | null {
-  const fromHeader = request.headers.get("x-winlume-user")?.trim();
-  return fromHeader || null;
-}
 
 /**
  * GET /api/artifacts — list artifacts for the authenticated user.
  * Query: ?sessionId= optional filter to one session.
  */
 export async function GET(request: NextRequest) {
-  const userId = userIdFromRequest(request);
+  const userId = await getCurrentUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

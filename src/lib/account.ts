@@ -12,35 +12,13 @@ export interface Account {
   username: string;
   display_name?: string;
   email?: string;
-  quota: number;
-  used_quota: number;
-  request_count: number;
+  quota?: number;
+  used_quota?: number;
+  request_count?: number;
   group?: string;
 }
 
 interface ApiResponse<T> { success: boolean; message?: string; data?: T; }
-
-const userStorageKey = "winlume:gateway-user-id";
-
-function currentUserId() {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(userStorageKey);
-}
-
-function withUserHeader(headers?: HeadersInit) {
-  const nextHeaders = new Headers(headers);
-  const userId = currentUserId();
-  if (userId) nextHeaders.set("x-winlume-user", userId);
-  return nextHeaders;
-}
-
-function persistUserId(userId: number) {
-  window.localStorage.setItem(userStorageKey, String(userId));
-}
-
-function clearUserId() {
-  window.localStorage.removeItem(userStorageKey);
-}
 
 async function responsePayload<T>(response: Response): Promise<ApiResponse<T>> {
   const text = await response.text();
@@ -52,7 +30,7 @@ async function responsePayload<T>(response: Response): Promise<ApiResponse<T>> {
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
-    headers: withUserHeader({ "content-type": "application/json", ...(init?.headers ?? {}) }),
+    headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
     credentials: "same-origin",
   });
   const payload = await responsePayload<T>(response);
@@ -62,17 +40,17 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return payload.data;
 }
 
-export async function getAccount() { return api<Account>("/api/auth/self"); }
+export async function getAccount() { return api<Account>("/api/account/self"); }
 export async function getBalanceConfig() { return api<BalanceConfig>("/api/account/config"); }
 export async function login(username: string, password: string) {
-  const account = await api<Account>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
-  persistUserId(account.id);
-  return account;
+  const result = await signIn("credentials", { username, password, redirect: false });
+  if (!result?.ok) throw new Error("用户名或密码错误，或账户暂时不可用。");
+  return getAccount();
 }
 export async function register(input: { username: string; password: string; email: string; display_name: string }) {
-  const response = await fetch("/api/auth/register", {
+  const response = await fetch("/api/account/register", {
     method: "POST",
-    headers: withUserHeader({ "content-type": "application/json" }),
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
     credentials: "same-origin",
   });
@@ -80,13 +58,11 @@ export async function register(input: { username: string; password: string; emai
   if (!response.ok || !payload.success) throw new Error(payload.message || "注册未完成，请稍后重试。");
 }
 export async function logout() {
-  const response = await fetch("/api/auth/logout", { headers: withUserHeader(), credentials: "same-origin" });
-  const payload = await responsePayload<unknown>(response);
-  if (!response.ok || !payload.success) throw new Error(payload.message || "退出失败，请重试。");
-  clearUserId();
+  await signOut({ redirect: false });
 }
 
-export function formatBalance(quota: number, config: BalanceConfig | null) {
+export function formatBalance(quota: number | undefined, config: BalanceConfig | null) {
+  if (typeof quota !== "number") return "请在 v2api 查看";
   const perUnit = config?.quota_per_unit;
   if (!perUnit || perUnit <= 0) return "余额同步中";
   const multiplier = config?.quota_display_type === "custom"
@@ -98,3 +74,4 @@ export function formatBalance(quota: number, config: BalanceConfig | null) {
     : "$";
   return `${symbol}${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(amount)}`;
 }
+import { signIn, signOut } from "next-auth/react";

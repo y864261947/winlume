@@ -7,6 +7,16 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { AgentSseEvent, Artifact, ArtifactKind } from "@/lib/agent/types";
 import type { ArtifactStore } from "@/lib/host/ports";
+import {
+  applyMerge,
+  applyReplace,
+  shouldAutoMerge,
+  summarizeTodoState,
+  validateNoDuplicateIds,
+  type TodoState,
+  type TodoStatus,
+  type TodoUpdate,
+} from "@/lib/agent/todo-state";
 
 /** Soft cap for content returned to the model from read_artifact. */
 export const READ_CONTENT_MAX_CHARS = 24_000;
@@ -26,6 +36,28 @@ const listArtifactsSchema = z
     scope: z.enum(["session", "user"]).optional(),
   })
   .default({});
+
+const todoStatusSchema = z.enum([
+  "pending",
+  "in_progress",
+  "completed",
+  "cancelled",
+]);
+
+const todoWriteSchema = z.object({
+  merge: z.boolean().optional().default(true),
+  explanation: z.string().trim().max(200).optional(),
+  todos: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(64),
+        content: z.string().trim().max(80).optional(),
+        status: todoStatusSchema.optional(),
+      }),
+    )
+    .min(1)
+    .max(12),
+});
 
 export type WriteArtifactArgs = z.infer<typeof writeArtifactSchema>;
 export type ReadArtifactArgs = z.infer<typeof readArtifactSchema>;
@@ -78,6 +110,11 @@ export interface ToolExecuteContext {
   artifacts: ArtifactStore;
   /** Optional link to the assistant message that issued the tool call */
   messageId?: string;
+  /**
+   * Mutable turn-scoped todo checklist (shared across tool rounds).
+   * Required for todo_write merge semantics.
+   */
+  todoState?: TodoState;
 }
 
 export interface ToolExecuteResult {
@@ -230,6 +267,75 @@ export async function executeListArtifacts(
   }
 }
 
+export async function executeTodoWrite(
+  rawArgs: unknown,
+  ctx: ToolExecuteContext,
+): Promise<ToolExecuteResult> {
+  const parsed = todoWriteSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return fail(`todo_write validation failed: ${formatZodError(parsed.error)}`);
+  }
+  if (!ctx.todoState) {
+    return fail("todo_write: no turn state available");
+  }
+
+  const updates: TodoUpdate[] = parsed.data.todos.map((t) => ({
+    id: t.id.trim(),
+    ...(t.content !== undefined ? { content: t.content } : {}),
+    ...(t.status !== undefined ? { status: t.status as TodoStatus } : {}),
+  }));
+
+  const dup = validateNoDuplicateIds(updates);
+  if (dup) {
+    return fail(
+      `Duplicate todo ID in request: "${dup}". Each todo item must have a unique ID.`,
+    );
+  }
+
+  const state = ctx.todoState;
+  const merge = shouldAutoMerge(state, parsed.data.merge !== false, updates);
+  if (merge) {
+    applyMerge(state, updates);
+  } else {
+    applyReplace(state, updates);
+  }
+
+  const todos = state.list();
+  const summaryForPrompt = summarizeTodoState(state);
+  const explanation = parsed.data.explanation?.trim();
+  const active = todos.find((t) => t.status === "in_progress");
+  const baseSummary = active
+    ? `进度更新 · 进行中：${active.content}`
+    : todos.every((t) => t.status === "completed" || t.status === "cancelled")
+      ? `进度完成 · ${todos.length} 项`
+      : `进度更新 · ${todos.length} 项`;
+  const summary = explanation
+    ? `${baseSummary} · ${explanation.slice(0, 80)}`
+    : baseSummary;
+
+  return {
+    ok: true,
+    summary,
+    content: JSON.stringify({
+      todos,
+      summary: summaryForPrompt,
+      merge,
+      ...(explanation ? { explanation } : {}),
+    }),
+    events: [
+      {
+        type: "plan",
+        todos: todos.map((t) => ({
+          id: t.id,
+          content: t.content,
+          status: t.status,
+        })),
+        ...(explanation ? { summary: explanation } : {}),
+      },
+    ],
+  };
+}
+
 export async function executeStudioTool(
   name: string,
   argumentsJson: string,
@@ -244,6 +350,30 @@ export async function executeStudioTool(
   }
 
   switch (name) {
+    case "todo_write":
+      // Accept legacy name during transition
+      return executeTodoWrite(rawArgs, ctx);
+    case "declare_plan": {
+      // Legacy: { steps: string[] } → replace todos
+      const legacy = rawArgs as { steps?: unknown; summary?: unknown };
+      if (Array.isArray(legacy?.steps)) {
+        const steps = legacy.steps
+          .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+          .slice(0, 12);
+        return executeTodoWrite(
+          {
+            merge: false,
+            todos: steps.map((content, i) => ({
+              id: `step_${i + 1}`,
+              content: content.trim().slice(0, 80),
+              status: i === 0 ? "in_progress" : "pending",
+            })),
+          },
+          ctx,
+        );
+      }
+      return executeTodoWrite(rawArgs, ctx);
+    }
     case "write_artifact":
       return executeWriteArtifact(rawArgs, ctx);
     case "read_artifact":

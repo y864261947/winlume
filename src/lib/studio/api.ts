@@ -1,26 +1,15 @@
 /**
  * Browser-side Studio API helpers.
- * Always attach x-winlume-user from localStorage (winlume:gateway-user-id).
+ * Authentication is supplied by the HttpOnly Auth.js session cookie.
  */
 
 import type { AgentSseEvent, Artifact, Message, Session } from "@/lib/agent/types";
 
-export const GATEWAY_USER_STORAGE_KEY = "winlume:gateway-user-id";
-
 const PENDING_FIRST_MESSAGE_KEY = "winlume:pending-first-message";
-
-export function getGatewayUserId(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(GATEWAY_USER_STORAGE_KEY);
-}
 
 export function withUserHeaders(headers?: HeadersInit): Headers {
   const next = new Headers(headers);
-  const userId = getGatewayUserId();
-  if (userId) next.set("x-winlume-user", userId);
-  if (!next.has("content-type")) {
-    next.set("content-type", "application/json");
-  }
+  if (!next.has("content-type")) next.set("content-type", "application/json");
   return next;
 }
 
@@ -145,6 +134,27 @@ export type ChatRequestBody = {
   skillIds?: string[];
 };
 
+/** Explicit server-side stop (disconnect alone does not cancel generation). */
+export async function stopChatTurn(sessionId: string): Promise<void> {
+  const response = await fetch("/api/chat/stop", {
+    method: "POST",
+    headers: withUserHeaders(),
+    body: JSON.stringify({ sessionId }),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) {
+    throw new StudioApiError("请先登录", 401);
+  }
+  // 404 / no active turn — still OK for idempotent stop
+  if (!response.ok && response.status !== 404) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "停止失败",
+      response.status,
+    );
+  }
+}
+
 /**
  * POST /api/chat and parse SSE AgentSseEvent frames.
  * Calls onEvent for each event; throws on non-OK HTTP (before stream).
@@ -156,11 +166,6 @@ export async function streamChat(
     onEvent: (event: AgentSseEvent) => void;
   },
 ): Promise<void> {
-  const userId = getGatewayUserId();
-  if (!userId) {
-    throw new StudioApiError("请先登录", 401);
-  }
-
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: withUserHeaders(),
@@ -171,6 +176,13 @@ export async function streamChat(
 
   if (response.status === 401) {
     throw new StudioApiError("请先登录", 401);
+  }
+
+  if (response.status === 409) {
+    throw new StudioApiError(
+      "该会话已有进行中的回复，请稍候或点击停止后再发送",
+      409,
+    );
   }
 
   if (!response.ok) {
@@ -297,7 +309,7 @@ export function setPendingFirstMessage(payload: PendingFirstMessage): void {
   );
 }
 
-export function takePendingFirstMessage(
+function readPendingFirstMessage(
   sessionId: string,
 ): PendingFirstMessage | null {
   if (typeof window === "undefined") return null;
@@ -306,10 +318,40 @@ export function takePendingFirstMessage(
   try {
     const data = JSON.parse(raw) as PendingFirstMessage;
     if (data.sessionId !== sessionId || !data.message?.trim()) return null;
-    window.sessionStorage.removeItem(PENDING_FIRST_MESSAGE_KEY);
     return data;
   } catch {
-    window.sessionStorage.removeItem(PENDING_FIRST_MESSAGE_KEY);
     return null;
   }
+}
+
+/** Peek without consuming — used for optimistic chat UI during session load. */
+export function peekPendingFirstMessage(
+  sessionId: string,
+): PendingFirstMessage | null {
+  return readPendingFirstMessage(sessionId);
+}
+
+export function takePendingFirstMessage(
+  sessionId: string,
+): PendingFirstMessage | null {
+  const data = readPendingFirstMessage(sessionId);
+  if (!data) {
+    // Clear corrupt / mismatched payload
+    if (typeof window !== "undefined") {
+      const raw = window.sessionStorage.getItem(PENDING_FIRST_MESSAGE_KEY);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as PendingFirstMessage;
+          if (parsed.sessionId === sessionId) {
+            window.sessionStorage.removeItem(PENDING_FIRST_MESSAGE_KEY);
+          }
+        } catch {
+          window.sessionStorage.removeItem(PENDING_FIRST_MESSAGE_KEY);
+        }
+      }
+    }
+    return null;
+  }
+  window.sessionStorage.removeItem(PENDING_FIRST_MESSAGE_KEY);
+  return data;
 }

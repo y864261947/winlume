@@ -17,7 +17,22 @@ import {
   resolveSkills,
 } from "@/lib/agent/skills/inject";
 import { STUDIO_TOOLS } from "@/lib/agent/tools/definitions";
-import { executeStudioTool } from "@/lib/agent/tools/execute";
+import {
+  executeStudioTool,
+  mimeTypeForKind,
+} from "@/lib/agent/tools/execute";
+import {
+  artifactNameFromTurn,
+  inferArtifactKind,
+  shouldAutoPersistArtifact,
+} from "@/lib/agent/auto-artifact";
+import { extractPartialJsonStringField } from "@/lib/agent/partial-json";
+import { TodoState } from "@/lib/agent/todo-state";
+import {
+  buildRepairToolMessages,
+  repairDanglingInStore,
+} from "@/lib/agent/dangling";
+import { compactMessagesForGateway } from "@/lib/agent/compact";
 
 /** Max gateway rounds that may request tools in a single user turn. */
 export const MAX_TOOL_ROUNDS = 8;
@@ -26,10 +41,23 @@ export const MAX_TOOL_ROUNDS = 8;
 export const BASE_POLICY = [
   "You are the WinLume Studio agent — a free-form assistant for writing, coding, analysis, and structured deliverables.",
   "Prefer clear, structured, helpful answers. Match the user's language (Chinese-first when the user writes in Chinese).",
-  "When tools are available, prefer write_artifact for long documents, reports, outlines, and other durable outputs instead of dumping huge walls of text in chat. After saving, briefly tell the user what was saved.",
+  "WinLume is a workbench: durable deliverables must be saved as artifacts so the user can preview/export them in the right-hand panel.",
+  "ALWAYS call write_artifact when the user asks for notes, copy, articles, reports, outlines, scripts, multi-piece content (e.g. 几篇小红书笔记), code files, or any document longer than a short chat reply. Put the full body in the tool; keep the chat message to a short summary + what was saved.",
+  "Do not dump long multi-section documents only in chat. Chat is for conversation; artifacts are for finished work.",
+  "After write_artifact succeeds: do NOT paste the full artifact body again in chat. Reply with a short summary and that it was saved — the UI already previews the work.",
   "You can use read_artifact and list_artifacts to inspect previously saved work in this session.",
+  // Progress checklist (todo_write) — model decides; user never toggles a mode.
+  "For complex multi-step work (3+ distinct stages, multi-piece deliverables, research+write), use todo_write to show a short live checklist (user's language). Create todos first, keep exactly one item in_progress, mark completed immediately when done, then merge status updates as you go.",
+  "Do not call todo_write for simple questions, single short replies, or trivial one-step work.",
+  "Do not re-list the full todo list in chat after todo_write — the UI already shows it; just briefly note what you finished and what is next.",
+  "When you change the plan mid-task, call todo_write with the updated list and optionally set explanation (one short reason).",
+  // Preamble (Codex-style): same response as tools
+  "Before non-trivial tool work, send a brief preamble in the same assistant response as the tool calls (not a separate text-only turn). Keep it to one short sentence (about 8–12 Chinese characters or English words). Group related actions in one preamble. Skip preamble for a single trivial list/read. Examples: 「先列卖点再写三篇笔记。」 / 「已看过参考，开始保存作品。」 / “Scaffolding the outline, then saving the doc.”",
+  "Never send a text-only turn when you still plan to call tools next — combine brief narration with tool calls.",
+  "Independent read tools may be requested together (list_artifacts + read_artifact). Prefer one write_artifact or todo_write at a time.",
   "Do not claim tools or capabilities that are not available in this turn.",
   "Respect any skill instructions attached to the current user message.",
+  "Text inside <system-reminder> tags is automated context — follow it, do not quote it back to the user.",
 ].join(" ");
 
 function nowIso(): string {
@@ -52,7 +80,13 @@ export function toGatewayMessages(
 ): GatewayChatMessage[] {
   const out: GatewayChatMessage[] = [{ role: "system", content: system }];
   for (const m of history) {
-    if (m.role === "system") continue;
+    // Compacted system reminders and light system notes stay in context
+    if (m.role === "system") {
+      if (m.content.includes("<system-reminder>")) {
+        out.push({ role: "system", content: m.content });
+      }
+      continue;
+    }
 
     if (m.role === "tool") {
       if (!m.toolCallId) continue;
@@ -84,6 +118,15 @@ export function toGatewayMessages(
     });
   }
   return out;
+}
+
+function buildSessionReminder(artifactCount: number): string {
+  if (artifactCount <= 0) return "";
+  return [
+    "<system-reminder>",
+    `This session already has ${artifactCount} saved artifact(s). Prefer read_artifact / list_artifacts before rewriting similar work.`,
+    "</system-reminder>",
+  ].join("\n");
 }
 
 export interface RunAgentTurnOpts {
@@ -136,6 +179,9 @@ export async function* runAgentTurn(
     session = await sessions.updateSession(userId, sessionId, { model });
   }
 
+  // Repair any dangling tool_calls from a previous aborted turn
+  await repairDanglingInStore(sessions, userId, sessionId, "interrupted");
+
   const prior = await sessions.listMessages(userId, sessionId);
   const isFirstTurn = prior.length === 0;
 
@@ -165,13 +211,35 @@ export async function* runAgentTurn(
     opts.skillIds,
   );
   const skills = await resolveSkills(effectiveSkillIds);
-  const system = buildSystemPrompt(BASE_POLICY, skills);
+  let artifactCount = 0;
+  try {
+    artifactCount = (await artifacts.listBySession(userId, sessionId)).length;
+  } catch {
+    /* ignore */
+  }
+  const reminder = buildSessionReminder(artifactCount);
+  const system = buildSystemPrompt(
+    reminder ? `${BASE_POLICY}\n\n${reminder}` : BASE_POLICY,
+    skills,
+  );
+  // todo_write is always available; the model chooses when to use it.
+  const tools = [...STUDIO_TOOLS];
+  /** Turn-scoped checklist shared across tool rounds (merge semantics). */
+  const todoState = new TodoState();
 
-  let history = await sessions.listMessages(userId, sessionId);
+  let history = compactMessagesForGateway(
+    await sessions.listMessages(userId, sessionId),
+    { sessionId },
+  );
   let gatewayMessages = toGatewayMessages(system, history);
 
   let sawError = false;
   let cancelled = false;
+  /** True when write_artifact succeeded at least once this user turn. */
+  let wroteArtifact = false;
+  /** Last non-empty assistant text streamed this turn (for auto-artifact fallback). */
+  let lastAssistantText = "";
+  let lastAssistantMessageId: string | undefined;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (signal?.aborted) {
@@ -184,11 +252,16 @@ export async function* runAgentTurn(
       [];
     let streamError = false;
 
+    // Live write_artifact argument stream → UI draft (avoid "stuck thinking")
+    const toolArgAcc = new Map<string, { name: string; arguments: string }>();
+    let lastDraftLen = 0;
+    let announcedWriteTool = false;
+
     try {
       for await (const chunk of streamGatewayChat({
         model,
         messages: gatewayMessages,
-        tools: [...STUDIO_TOOLS],
+        tools,
         userId: opts.gatewayUserId ?? userId,
         signal,
       })) {
@@ -209,7 +282,46 @@ export async function* runAgentTurn(
         }
 
         if (chunk.kind === "tool_call_delta") {
-          // Accumulated by gateway; final tool_calls chunk is authoritative.
+          const prev = toolArgAcc.get(chunk.id) ?? { name: "", arguments: "" };
+          if (chunk.name) prev.name += chunk.name;
+          if (chunk.argumentsDelta) prev.arguments += chunk.argumentsDelta;
+          toolArgAcc.set(chunk.id, prev);
+
+          const toolName = prev.name;
+          if (toolName === "write_artifact" || toolName.endsWith("write_artifact")) {
+            if (!announcedWriteTool) {
+              announcedWriteTool = true;
+              yield {
+                type: "tool_call",
+                id: chunk.id,
+                name: "write_artifact",
+                input: { streaming: true },
+              };
+            }
+            const draft = extractPartialJsonStringField(
+              prev.arguments,
+              "content",
+            );
+            const draftName =
+              extractPartialJsonStringField(prev.arguments, "name") ??
+              undefined;
+            if (draft != null && draft.length > lastDraftLen) {
+              lastDraftLen = draft.length;
+              // Unified progress + legacy artifact_draft for older clients
+              yield {
+                type: "tool_progress",
+                id: chunk.id,
+                kind: "draft",
+                text: draft,
+                ...(draftName ? { name: draftName } : {}),
+              };
+              yield {
+                type: "artifact_draft",
+                ...(draftName ? { name: draftName } : {}),
+                text: draft,
+              };
+            }
+          }
           continue;
         }
 
@@ -248,6 +360,7 @@ export async function* runAgentTurn(
     // Final text reply (no tools this round)
     if (!completedToolCalls.length) {
       if (assistantText) {
+        lastAssistantText = assistantText;
         const assistantMessage: Message = {
           id: randomUUID(),
           sessionId,
@@ -255,6 +368,7 @@ export async function* runAgentTurn(
           content: assistantText,
           createdAt: nowIso(),
         };
+        lastAssistantMessageId = assistantMessage.id;
         await sessions.appendMessages(userId, sessionId, [assistantMessage]);
       } else if (round === 0) {
         // Empty stream with no tools — still complete without persisting empty msg
@@ -264,6 +378,10 @@ export async function* runAgentTurn(
 
     // Persist assistant message that requested tools (may include intermediate text)
     const assistantId = randomUUID();
+    if (assistantText) {
+      lastAssistantText = assistantText;
+      lastAssistantMessageId = assistantId;
+    }
     const toolCallRecords: ToolCallRecord[] = completedToolCalls.map((c) => ({
       id: c.id,
       name: c.name,
@@ -281,14 +399,14 @@ export async function* runAgentTurn(
       },
     ]);
 
-    const toolMessages: Message[] = [];
+    // Announce all tool calls first (UI), then run independent tools in parallel
+    type CallResult = {
+      call: (typeof completedToolCalls)[number];
+      parsedInput: unknown;
+      result: Awaited<ReturnType<typeof executeStudioTool>>;
+    };
 
     for (const call of completedToolCalls) {
-      if (signal?.aborted) {
-        cancelled = true;
-        break;
-      }
-
       let parsedInput: unknown = {};
       try {
         parsedInput = call.arguments?.trim()
@@ -297,20 +415,90 @@ export async function* runAgentTurn(
       } catch {
         parsedInput = { _raw: call.arguments };
       }
-
       yield {
         type: "tool_call",
         id: call.id,
         name: call.name,
         input: parsedInput,
       };
+    }
 
+    if (signal?.aborted) {
+      cancelled = true;
+      // Repair: assistant tool_calls already persisted, no results yet
+      const dangling = completedToolCalls.map((c) => ({
+        id: c.id,
+        name: c.name,
+      }));
+      if (dangling.length) {
+        await sessions.appendMessages(
+          userId,
+          sessionId,
+          buildRepairToolMessages(sessionId, dangling, "cancelled"),
+        );
+      }
+      break;
+    }
+
+    // Codex-style: only mark tools that are safe to parallelize.
+    // write_artifact / todo_write stay serial (shared stores); reads can parallel.
+    const canParallel = (name: string) =>
+      name === "read_artifact" || name === "list_artifacts";
+
+    const runOne = async (
+      call: (typeof completedToolCalls)[number],
+    ): Promise<CallResult> => {
+      let parsedInput: unknown = {};
+      try {
+        parsedInput = call.arguments?.trim()
+          ? (JSON.parse(call.arguments) as unknown)
+          : {};
+      } catch {
+        parsedInput = { _raw: call.arguments };
+      }
       const result = await executeStudioTool(call.name, call.arguments, {
         userId,
         sessionId,
         artifacts,
         messageId: assistantId,
+        todoState,
       });
+      return { call, parsedInput, result };
+    };
+
+    const settled: CallResult[] = [];
+    let i = 0;
+    while (i < completedToolCalls.length) {
+      if (signal?.aborted) {
+        cancelled = true;
+        break;
+      }
+      const call = completedToolCalls[i]!;
+      if (canParallel(call.name)) {
+        const batch: typeof completedToolCalls = [];
+        while (
+          i < completedToolCalls.length &&
+          canParallel(completedToolCalls[i]!.name)
+        ) {
+          batch.push(completedToolCalls[i]!);
+          i += 1;
+        }
+        settled.push(...(await Promise.all(batch.map(runOne))));
+      } else {
+        settled.push(await runOne(call));
+        i += 1;
+      }
+    }
+
+    if (signal?.aborted) {
+      cancelled = true;
+    }
+
+    const toolMessages: Message[] = [];
+    for (const { call, result } of settled) {
+      if (call.name === "write_artifact" && result.ok) {
+        wroteArtifact = true;
+      }
 
       yield {
         type: "tool_result",
@@ -342,11 +530,79 @@ export async function* runAgentTurn(
     if (cancelled) break;
 
     // Continue next gateway round with tool results in history
-    history = await sessions.listMessages(userId, sessionId);
+    history = compactMessagesForGateway(
+      await sessions.listMessages(userId, sessionId),
+      { sessionId },
+    );
     gatewayMessages = toGatewayMessages(system, history);
   }
 
   if (signal?.aborted) cancelled = true;
+
+  // Ensure no dangling tool_calls remain after cancel mid-turn
+  if (cancelled) {
+    await repairDanglingInStore(sessions, userId, sessionId, "cancelled");
+  }
+
+  // Workbench guarantee: long / structured deliverables become artifacts even if
+  // the model only replied in chat (common with gpt-* when tool use is ignored).
+  if (!cancelled && !sawError && !wroteArtifact && lastAssistantText) {
+    if (shouldAutoPersistArtifact(userText, lastAssistantText)) {
+      try {
+        const name = artifactNameFromTurn(userText, lastAssistantText);
+        const kind = inferArtifactKind(lastAssistantText);
+        const id = randomUUID();
+        const createdAt = nowIso();
+        const artifact = await artifacts.write(
+          {
+            id,
+            userId,
+            sessionId,
+            ...(lastAssistantMessageId
+              ? { messageId: lastAssistantMessageId }
+              : {}),
+            name,
+            kind,
+            mimeType: mimeTypeForKind(kind),
+            storageKey: "",
+            createdAt,
+          },
+          lastAssistantText,
+        );
+        wroteArtifact = true;
+        yield {
+          type: "artifact",
+          artifactId: artifact.id,
+          name: artifact.name,
+          kind: artifact.kind,
+        };
+        // Brief system note in the stream so UI can show "已归档为作品"
+        yield {
+          type: "text_delta",
+          text: `\n\n——\n已自动保存为作品「${artifact.name}」，可在右侧预览与导出。`,
+        };
+        // Persist the note on the assistant message when possible
+        if (lastAssistantMessageId) {
+          const msgs = await sessions.listMessages(userId, sessionId);
+          const target = msgs.find((m) => m.id === lastAssistantMessageId);
+          if (target && target.role === "assistant") {
+            // Session store may not support patch — append a light system line as new message
+            await sessions.appendMessages(userId, sessionId, [
+              {
+                id: randomUUID(),
+                sessionId,
+                role: "system",
+                content: `已自动保存为作品「${artifact.name}」（id=${artifact.id}）`,
+                createdAt: nowIso(),
+              },
+            ]);
+          }
+        }
+      } catch {
+        // Auto-artifact must never fail the turn
+      }
+    }
+  }
 
   if (cancelled) {
     yield { type: "done", reason: "cancelled" };

@@ -128,7 +128,7 @@ describe("streamGatewayChat", () => {
 
     expect(textChunks(out)).toEqual(["Hi", "!"]);
     expect(fetchImpl).toHaveBeenCalledOnce();
-    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://gateway.test/v1/chat/completions");
     expect(init.method).toBe("POST");
     const headers = init.headers as Record<string, string>;

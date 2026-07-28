@@ -1,46 +1,45 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type {
-  AgentSseEvent,
-  ArtifactKind,
-  Message,
-  Role,
-} from "@/lib/agent/types";
 import {
-  getGatewayUserId,
-  streamChat,
-  StudioApiError,
-} from "@/lib/studio/api";
+  useCallback,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+  type SetStateAction,
+} from "react";
+import type { Message } from "@/lib/agent/types";
+import {
+  bindLiveChatHooks,
+  clearLiveChatError,
+  clearLiveChatQueue,
+  emptyLiveChatSnapshot,
+  getLiveChatSnapshot,
+  MAX_MESSAGE_QUEUE_SIZE,
+  removeLiveChatQueueItem,
+  seedLiveChatFromServer,
+  sendLiveChat,
+  setLiveChatMessages,
+  setLiveChatModel,
+  stopLiveChat,
+  subscribeLiveChat,
+  type ArtifactEventPayload,
+  type LiveChatSnapshot,
+  type QueuedMessage,
+  type StreamPhase,
+  type UiChatMessage,
+  type UiToolCall,
+} from "@/lib/studio/live-chat-session";
 import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
 
-export type UiChatMessage = {
-  id: string;
-  role: Role;
-  content: string;
-  streaming?: boolean;
+export { MAX_MESSAGE_QUEUE_SIZE };
+export type {
+  ArtifactEventPayload,
+  QueuedMessage,
+  StreamPhase,
+  UiChatMessage,
+  UiToolCall,
 };
-
-function toUiMessages(messages: Message[]): UiChatMessage[] {
-  return messages.map((m) => ({
-    id: m.id,
-    role: m.role,
-    content: m.content,
-  }));
-}
-
-function clientId(prefix: string): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `${prefix}-${crypto.randomUUID()}`;
-  }
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-export type ArtifactEventPayload = {
-  artifactId: string;
-  name: string;
-  kind: ArtifactKind;
-};
+export type { ExecutionStep } from "@/lib/studio/execution-map";
 
 export type UseStudioChatOptions = {
   sessionId?: string | null;
@@ -63,13 +62,30 @@ export type UseStudioChatResult = {
   error: string | null;
   model: string;
   setModel: (model: string) => void;
-  setMessages: React.Dispatch<React.SetStateAction<UiChatMessage[]>>;
-  send: (text: string, overrides?: { model?: string; skillIds?: string[] }) => Promise<void>;
+  setMessages: React.Dispatch<SetStateAction<UiChatMessage[]>>;
+  /**
+   * Send immediately, or enqueue when a turn is already streaming.
+   * Returns `"sent" | "queued" | "rejected"`.
+   */
+  send: (
+    text: string,
+    overrides?: { model?: string; skillIds?: string[] },
+  ) => Promise<"sent" | "queued" | "rejected">;
   stop: () => void;
   clearError: () => void;
+  /** Pending turns waiting for the current stream to finish. */
+  queue: QueuedMessage[];
+  removeFromQueue: (id: string) => void;
+  clearQueue: () => void;
 };
 
-export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChatResult {
+/**
+ * Studio chat hook backed by a session-scoped live store.
+ * Leaving the page does not abort generation — return to resume the UI.
+ */
+export function useStudioChat(
+  options: UseStudioChatOptions = {},
+): UseStudioChatResult {
   const {
     sessionId: sessionIdProp = null,
     initialMessages,
@@ -80,206 +96,132 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
     onArtifact,
   } = options;
 
-  const [sessionId, setSessionId] = useState<string | null>(sessionIdProp);
-  const [messages, setMessages] = useState<UiChatMessage[]>(() =>
-    initialMessages ? toUiMessages(initialMessages) : [],
+  const sessionId = sessionIdProp;
+
+  // Keep UI hooks current while this page is mounted (stream may outlive mount).
+  useEffect(() => {
+    if (!sessionId) return;
+    return bindLiveChatHooks(sessionId, {
+      onArtifact,
+      onUnauthorized,
+      onSession,
+    });
+  }, [sessionId, onArtifact, onUnauthorized, onSession]);
+
+  // Seed from server history — never clobbers an in-flight live turn.
+  useEffect(() => {
+    if (!sessionId) return;
+    if (initialMessages) {
+      seedLiveChatFromServer(sessionId, initialMessages, modelProp);
+    } else if (modelProp) {
+      setLiveChatModel(sessionId, modelProp);
+    }
+  }, [sessionId, initialMessages, modelProp]);
+
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      if (!sessionId) return () => {};
+      return subscribeLiveChat(sessionId, onStoreChange);
+    },
+    [sessionId],
   );
-  const [streaming, setStreaming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [model, setModel] = useState(modelProp);
 
-  const abortRef = useRef<AbortController | null>(null);
-  const onSessionRef = useRef(onSession);
-  const onUnauthorizedRef = useRef(onUnauthorized);
-  const onArtifactRef = useRef(onArtifact);
-  const skillIdsRef = useRef(skillIdsProp);
-  const sessionIdRef = useRef(sessionId);
-
-  useEffect(() => {
-    onSessionRef.current = onSession;
-  }, [onSession]);
-  useEffect(() => {
-    onUnauthorizedRef.current = onUnauthorized;
-  }, [onUnauthorized]);
-  useEffect(() => {
-    onArtifactRef.current = onArtifact;
-  }, [onArtifact]);
-  useEffect(() => {
-    skillIdsRef.current = skillIdsProp;
-  }, [skillIdsProp]);
-  useEffect(() => {
-    sessionIdRef.current = sessionId;
+  const getSnapshot = useCallback((): LiveChatSnapshot => {
+    if (!sessionId) return emptyLiveChatSnapshot();
+    return getLiveChatSnapshot(sessionId);
   }, [sessionId]);
 
-  // Sync when parent loads session bundle
-  useEffect(() => {
-    setSessionId(sessionIdProp);
-  }, [sessionIdProp]);
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  useEffect(() => {
-    if (initialMessages) {
-      setMessages(toUiMessages(initialMessages));
-    }
-  }, [initialMessages]);
+  const setModel = useCallback(
+    (model: string) => {
+      if (!sessionId) return;
+      setLiveChatModel(sessionId, model);
+    },
+    [sessionId],
+  );
 
-  useEffect(() => {
-    if (modelProp) setModel(modelProp);
-  }, [modelProp]);
-
-  // Abort in-flight request on unmount
-  useEffect(() => {
-    return () => {
-      abortRef.current?.abort();
-    };
-  }, []);
-
-  const stop = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setStreaming(false);
-    setMessages((prev) =>
-      prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)),
-    );
-  }, []);
-
-  const clearError = useCallback(() => setError(null), []);
+  const setMessages = useCallback(
+    (update: SetStateAction<UiChatMessage[]>) => {
+      if (!sessionId) return;
+      setLiveChatMessages(sessionId, update);
+    },
+    [sessionId],
+  );
 
   const send = useCallback(
     async (
       text: string,
-      overrides?: { model?: string; skillIds?: string[] },
-    ) => {
-      const trimmed = text.trim();
-      if (!trimmed) return;
-      if (abortRef.current) {
-        // Ignore double-send while a turn is in flight
-        return;
-      }
-
-      if (!getGatewayUserId()) {
-        setError("请先登录后再发送消息");
-        onUnauthorizedRef.current?.();
-        return;
-      }
-
-      setError(null);
-      const userMsg: UiChatMessage = {
-        id: clientId("user"),
-        role: "user",
-        content: trimmed,
-      };
-      const assistantId = clientId("assistant");
-      const assistantMsg: UiChatMessage = {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        streaming: true,
-      };
-
-      setMessages((prev) => [...prev, userMsg, assistantMsg]);
-      setStreaming(true);
-
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      const requestModel = overrides?.model?.trim() || model;
-      const requestSkillIds = overrides?.skillIds ?? skillIdsRef.current;
-
-      try {
-        await streamChat(
-          {
-            ...(sessionIdRef.current ? { sessionId: sessionIdRef.current } : {}),
-            message: trimmed,
-            model: requestModel,
-            ...(requestSkillIds?.length ? { skillIds: requestSkillIds } : {}),
-          },
-          {
-            signal: controller.signal,
-            onEvent: (event: AgentSseEvent) => {
-              if (event.type === "session") {
-                setSessionId(event.sessionId);
-                sessionIdRef.current = event.sessionId;
-                onSessionRef.current?.(event.sessionId);
-                return;
-              }
-              if (event.type === "text_delta") {
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, content: m.content + event.text, streaming: true }
-                      : m,
-                  ),
-                );
-                return;
-              }
-              if (event.type === "artifact") {
-                onArtifactRef.current?.({
-                  artifactId: event.artifactId,
-                  name: event.name,
-                  kind: event.kind,
-                });
-                return;
-              }
-              if (event.type === "error") {
-                setError(event.message);
-                return;
-              }
-              if (event.type === "done") {
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId ? { ...m, streaming: false } : m,
-                  ),
-                );
-                if (event.reason === "cancelled") {
-                  /* stop() already set streaming false */
-                }
-              }
-            },
-          },
-        );
-      } catch (err) {
-        if (controller.signal.aborted) {
-          // user stopped
-        } else if (err instanceof StudioApiError && err.status === 401) {
-          setError(err.message);
-          onUnauthorizedRef.current?.();
-        } else if (err instanceof Error && err.name === "AbortError") {
-          /* ignore */
-        } else {
-          const message =
-            err instanceof Error ? err.message : "发送失败，请稍后重试";
-          setError(message);
-        }
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, streaming: false } : m,
-          ),
-        );
-      } finally {
-        if (abortRef.current === controller) {
-          abortRef.current = null;
-        }
-        setStreaming(false);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId && m.streaming ? { ...m, streaming: false } : m,
-          ),
-        );
-      }
+      overrides?: {
+        model?: string;
+        skillIds?: string[];
+      },
+    ): Promise<"sent" | "queued" | "rejected"> => {
+      if (!sessionId) return "rejected";
+      // Turn-only skillIds from composer; fall back to hook prop if any.
+      const skillIds = overrides?.skillIds ?? skillIdsProp;
+      return sendLiveChat(sessionId, text, {
+        ...overrides,
+        skillIds,
+      });
     },
-    [model],
+    [sessionId, skillIdsProp],
   );
 
-  return {
-    sessionId,
-    messages,
-    streaming,
-    error,
-    model,
-    setModel,
-    setMessages,
-    send,
-    stop,
-    clearError,
-  };
+  const stop = useCallback(() => {
+    if (!sessionId) return;
+    stopLiveChat(sessionId);
+  }, [sessionId]);
+
+  const clearError = useCallback(() => {
+    if (!sessionId) return;
+    clearLiveChatError(sessionId);
+  }, [sessionId]);
+
+  const removeFromQueue = useCallback(
+    (id: string) => {
+      if (!sessionId) return;
+      removeLiveChatQueueItem(sessionId, id);
+    },
+    [sessionId],
+  );
+
+  const clearQueue = useCallback(() => {
+    if (!sessionId) return;
+    clearLiveChatQueue(sessionId);
+  }, [sessionId]);
+
+  return useMemo(
+    () => ({
+      sessionId,
+      messages: snapshot.messages,
+      streaming: snapshot.streaming,
+      error: snapshot.error,
+      model: snapshot.model || modelProp || FALLBACK_DEFAULT_MODEL,
+      setModel,
+      setMessages,
+      send,
+      stop,
+      clearError,
+      queue: snapshot.queue,
+      removeFromQueue,
+      clearQueue,
+    }),
+    [
+      sessionId,
+      snapshot.messages,
+      snapshot.streaming,
+      snapshot.error,
+      snapshot.model,
+      snapshot.queue,
+      modelProp,
+      setModel,
+      setMessages,
+      send,
+      stop,
+      clearError,
+      removeFromQueue,
+      clearQueue,
+    ],
+  );
 }

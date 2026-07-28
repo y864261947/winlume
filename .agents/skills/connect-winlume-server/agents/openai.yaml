@@ -1,0 +1,4 @@
+interface:
+  display_name: "Connect WinLume Server"
+  short_description: "Operate the WinLume production server safely."
+  default_prompt: "Use $connect-winlume-server to inspect or deploy WinLume safely."

@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { webStore } from "@/lib/host/web/store-singleton";
-
-function userIdFromRequest(request: NextRequest): string | null {
-  const fromHeader = request.headers.get("x-winlume-user")?.trim();
-  return fromHeader || null;
-}
 
 type IdContext = { params: Promise<{ id: string }> };
 
 /** GET /api/sessions/[id] — { session, messages } */
 export async function GET(request: NextRequest, context: IdContext) {
-  const userId = userIdFromRequest(request);
+  const userId = await getCurrentUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -27,7 +23,7 @@ export async function GET(request: NextRequest, context: IdContext) {
 
 /** PATCH /api/sessions/[id] — { title?, model?, pinnedSkillIds? } */
 export async function PATCH(request: NextRequest, context: IdContext) {
-  const userId = userIdFromRequest(request);
+  const userId = await getCurrentUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -78,7 +74,7 @@ export async function PATCH(request: NextRequest, context: IdContext) {
 
 /** DELETE /api/sessions/[id] */
 export async function DELETE(request: NextRequest, context: IdContext) {
-  const userId = userIdFromRequest(request);
+  const userId = await getCurrentUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

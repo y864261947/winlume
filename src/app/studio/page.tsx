@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Bell,
   Clapperboard,
   FileText,
   Globe2,
@@ -18,10 +19,10 @@ import { useModals } from "@/components/providers";
 import type { SkillMeta } from "@/lib/agent/types";
 import {
   createSession,
-  getGatewayUserId,
   setPendingFirstMessage,
   StudioApiError,
 } from "@/lib/studio/api";
+import { clearComposerDraft } from "@/lib/studio/composer-draft";
 import {
   FALLBACK_DEFAULT_MODEL,
   getDefaultModel,
@@ -124,6 +125,47 @@ function skillToCard(skill: SkillMeta, index: number): SceneCard {
   };
 }
 
+function CapabilityCard({
+  card,
+  active,
+  disabled,
+  onClick,
+  className = "",
+}: {
+  card: SceneCard;
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  const Icon = card.icon;
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      data-active={active ? "true" : "false"}
+      className={`studio-cap-card group rounded-[18px] p-4 text-left disabled:opacity-50 ${className}`}
+    >
+      <span
+        className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[12px] ${
+          active
+            ? "bg-gradient-to-br from-[#F2994A] to-[#C2410C] text-white"
+            : "bg-[rgba(194,65,12,0.1)] text-[#C2410C]"
+        }`}
+      >
+        <Icon className="h-5 w-5" strokeWidth={1.8} />
+      </span>
+      <p className="text-[15px] font-semibold tracking-tight text-[#241E36]">
+        {card.label}
+      </p>
+      <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-5 text-[#8A8298]">
+        {card.desc}
+      </p>
+    </button>
+  );
+}
+
 function StudioHomeInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -134,6 +176,7 @@ function StudioHomeInner() {
   const [error, setError] = useState<string | null>(null);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [featuredSkills, setFeaturedSkills] = useState<SkillMeta[] | null>(null);
+  const [allSkills, setAllSkills] = useState<SkillMeta[]>([]);
 
   useEffect(() => {
     const prompt = searchParams.get("prompt");
@@ -166,18 +209,51 @@ function StudioHomeInner() {
     };
   }, []);
 
+  // Full catalog for scroll discovery under the fold
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/skills", { credentials: "same-origin" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("skills");
+        return res.json() as Promise<{ skills?: SkillMeta[] }>;
+      })
+      .then((data) => {
+        if (!cancelled) setAllSkills(data.skills ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setAllSkills([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const sceneCards = useMemo((): SceneCard[] => {
     const featured = featuredSkills ?? [];
-    if (featured.length > 0) {
-      return featured.slice(0, 12).map(skillToCard);
-    }
-    // While loading (null) or empty: use hard-coded fallback
+    const byId = new Map<string, SceneCard>();
+    featured.forEach((s, i) => byId.set(s.id, skillToCard(s, i)));
+    allSkills.forEach((s, i) => {
+      if (!byId.has(s.id)) byId.set(s.id, skillToCard(s, featured.length + i));
+    });
+    const list = [...byId.values()];
+    if (list.length > 0) return list.slice(0, 36);
     return FALLBACK_CAPABILITY_CARDS;
-  }, [featuredSkills]);
+  }, [featuredSkills, allSkills]);
 
   const applyCard = useCallback((card: SceneCard) => {
     setDraft(card.prompt);
     setSelectedSkillIds([...card.skillIds]);
+    // Bring focus back to the hero composer
+    requestAnimationFrame(() => {
+      document
+        .getElementById("studio-home-composer")
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Focus textarea without blue system outline (we style focus ourselves)
+      const ta = document.querySelector<HTMLTextAreaElement>(
+        "#studio-home-composer textarea",
+      );
+      ta?.focus({ preventScroll: true });
+    });
   }, []);
 
   const startChat = useCallback(
@@ -185,7 +261,7 @@ function StudioHomeInner() {
       const message = text.trim();
       if (!message || starting) return;
 
-      if (!getGatewayUserId()) {
+      if (!account) {
         setError("请先登录后再开始对话");
         openLogin("login");
         return;
@@ -206,6 +282,8 @@ function StudioHomeInner() {
             ? `${message.replace(/\s+/g, " ").slice(0, 40)}…`
             : message.replace(/\s+/g, " ");
         const requestModel = model.trim() || getDefaultModel();
+        // Create session then jump immediately — session page paints optimistic
+        // user bubble so there is no blank "创建会话" interstitial.
         const session = await createSession({
           model: requestModel,
           title: title || "新对话",
@@ -217,7 +295,10 @@ function StudioHomeInner() {
           skillIds,
         });
         setSelectedSkillIds([]);
+        clearComposerDraft("home");
         router.push(`/studio/c/${session.id}`);
+        // Keep draft until unmount so the home screen doesn't flash empty
+        // during the soft navigation.
       } catch (err) {
         if (err instanceof StudioApiError && err.status === 401) {
           setError("请先登录后再开始对话");
@@ -228,127 +309,107 @@ function StudioHomeInner() {
         setStarting(false);
       }
     },
-    [model, openLogin, router, selectedSkillIds, starting],
+    [account, model, openLogin, router, selectedSkillIds, starting],
   );
 
-  const greetingName =
-    account?.display_name || account?.username
-      ? `，${account.display_name || account.username}`
-      : "";
-
-  const sectionHint =
-    featuredSkills && featuredSkills.length > 0
-      ? "选择精选技能后即可开始；也可直接在下方描述你的目标。选中会预填示例并挂上该 Skill。"
-      : "选择方向后即可开始；也可直接在下方描述你的目标。选中方向会预填提示并挂上推荐 Skills。";
+  const isCardActive = useCallback(
+    (card: SceneCard) =>
+      card.skillIds.every((id) => selectedSkillIds.includes(id)) &&
+      draft.startsWith(card.prompt.slice(0, 12)),
+    [draft, selectedSkillIds],
+  );
 
   return (
-    <div className="studio-view-in flex min-h-0 flex-1 flex-col">
-      <div className="flex-1 overflow-y-auto px-6 py-8 sm:px-10 lg:px-11">
-        <div className="mx-auto max-w-[1180px]">
-          <header className="studio-fade-up mb-7 flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="text-[26px] font-bold tracking-tight text-[#241E36] sm:whitespace-nowrap">
-                你好{greetingName}，今天想完成什么？
-              </h1>
-              <p className="mt-1.5 text-[14px] text-[#8A8298]">
-                不用挑模型，告诉我结果就行——平台会按需组合能力与 Skills。
-              </p>
-            </div>
-            <div className="hidden shrink-0 items-center gap-3 sm:flex">
-              <span
-                className="flex h-[38px] w-[38px] items-center justify-center rounded-[12px] border border-white/80 bg-white/70 text-[#615A73] shadow-sm backdrop-blur"
-                title="通知（即将上线）"
-              >
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9Z" />
-                  <path d="M13.7 21a2 2 0 0 1-3.4 0" />
-                </svg>
-              </span>
-            </div>
-          </header>
-
-          <section className="studio-glass studio-fade-up relative mb-8 overflow-hidden rounded-[22px] px-7 py-7">
-            <div
-              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent"
-              aria-hidden
-            />
-            <h2 className="text-[21px] font-bold tracking-tight text-[#241E36]">
-              一句话调用多个 AI 能力
-            </h2>
-            <p className="mt-1.5 text-[13.5px] text-[#8A8298]">{sectionHint}</p>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {sceneCards.map((card, i) => {
-                const Icon = card.icon;
-                const active =
-                  card.skillIds.every((id) => selectedSkillIds.includes(id)) &&
-                  draft.startsWith(card.prompt.slice(0, 12));
-                return (
-                  <button
-                    key={card.key}
-                    type="button"
-                    disabled={starting}
-                    onClick={() => applyCard(card)}
-                    style={{ animationDelay: `${0.04 * i}s` }}
-                    className={`studio-fade-up group rounded-[16px] border p-4 text-left transition duration-150 hover:-translate-y-0.5 disabled:opacity-50 ${
-                      active
-                        ? "border-[rgba(194,65,12,0.35)] bg-[rgba(194,65,12,0.08)] shadow-md"
-                        : "border-white/70 bg-white/50 hover:border-[rgba(194,65,12,0.2)] hover:bg-white/80"
-                    }`}
-                  >
-                    <span
-                      className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[12px] ${
-                        active
-                          ? "bg-gradient-to-br from-[#F2994A] to-[#C2410C] text-white"
-                          : "bg-[rgba(194,65,12,0.1)] text-[#C2410C]"
-                      }`}
-                    >
-                      <Icon className="h-5 w-5" strokeWidth={1.8} />
-                    </span>
-                    <p className="text-[15px] font-semibold text-[#241E36]">{card.label}</p>
-                    <p className="mt-1 line-clamp-2 text-[12.5px] leading-5 text-[#8A8298]">
-                      {card.desc}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          {selectedSkillIds.length > 0 ? (
-            <div className="mb-3 flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-[#8A8298]">已挂 Skills：</span>
-              {selectedSkillIds.map((id) => (
-                <span
-                  key={id}
-                  className="inline-flex items-center gap-1 rounded-full border border-[rgba(194,65,12,0.2)] bg-[rgba(194,65,12,0.08)] px-2.5 py-1 text-[11px] font-medium text-[#C2410C]"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  {id}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
+    <div className="studio-home-canvas studio-view-in relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+      {/* Soft top-right utility */}
+      <div className="pointer-events-none absolute right-5 top-4 z-[2] sm:right-8 sm:top-5">
+        <span
+          className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#8A8298] shadow-sm backdrop-blur"
+          title="通知（即将上线）"
+        >
+          <Bell className="h-4 w-4" strokeWidth={1.8} />
+        </span>
       </div>
 
-      <Composer
-        value={draft}
-        onChange={setDraft}
-        onSend={startChat}
-        disabled={starting}
-        model={model}
-        onModelChange={setModel}
-        skillIds={selectedSkillIds}
-        onSkillIdsChange={setSelectedSkillIds}
-        error={error}
-        onClearError={() => setError(null)}
-        placeholder={
-          starting
-            ? "正在创建会话…"
-            : "一句话描述你想完成的事，或点上方能力卡片…"
-        }
-      />
+      {/*
+        Continuous page (no mid-scroll cliff):
+        hero ~72dvh so first capability cards naturally peek;
+        one shared grid below — no duplicated peek row / floating CTA.
+      */}
+      <section
+        id="studio-home-composer"
+        className="relative flex min-h-[72dvh] flex-col sm:min-h-[75dvh]"
+      >
+        <div className="flex flex-1 flex-col items-center justify-center px-5 pb-10 pt-16 sm:px-10 sm:pb-12 sm:pt-20">
+          <div className="w-full max-w-[720px]">
+            <Composer
+              variant="hero"
+              value={draft}
+              onChange={setDraft}
+              onSend={startChat}
+              disabled={starting}
+              model={model}
+              onModelChange={setModel}
+              skillIds={selectedSkillIds}
+              onSkillIdsChange={setSelectedSkillIds}
+              error={error}
+              onClearError={() => setError(null)}
+              draftKey="home"
+              placeholder={
+                starting
+                  ? "正在进入对话…"
+                  : "描述你想完成的事，或点下方能力卡片…"
+              }
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Continuous catalog — first row peeks under the hero on tall screens */}
+      <section
+        id="studio-capabilities"
+        className="relative z-[1] px-5 pb-16 pt-2 sm:px-10 sm:pb-20 sm:pt-4"
+      >
+        <div className="mx-auto max-w-[1100px]">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
+            <div>
+              <h2 className="text-[18px] font-semibold tracking-tight text-[#241E36] sm:text-[20px]">
+                能力与 Skills
+              </h2>
+              <p className="mt-1 text-[13px] text-[#8A8298]">
+                点选后会预填示例并挂载技能，可在上方输入框继续修改。
+              </p>
+            </div>
+            {selectedSkillIds.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-[#8A8298]">已挂载</span>
+                {selectedSkillIds.map((id) => (
+                  <span
+                    key={id}
+                    className="inline-flex items-center gap-1 rounded-full border border-[rgba(194,65,12,0.2)] bg-[rgba(194,65,12,0.08)] px-2.5 py-1 text-[11px] font-medium text-[#C2410C]"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    {id}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {sceneCards.map((card, i) => (
+              <CapabilityCard
+                key={card.key}
+                card={card}
+                active={isCardActive(card)}
+                disabled={starting}
+                onClick={() => applyCard(card)}
+                className={i < 3 ? "studio-cap-first-row" : undefined}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -356,7 +417,7 @@ function StudioHomeInner() {
 function StudioHomeFallback() {
   return (
     <div
-      className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-sm text-[#8A8298]"
+      className="studio-home-canvas flex flex-1 flex-col items-center justify-center gap-2 px-4 text-sm text-[#8A8298]"
       role="status"
     >
       <LoaderCircle className="h-5 w-5 animate-spin text-[#C2410C]" />
