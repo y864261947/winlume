@@ -265,6 +265,7 @@ export async function executeGenerateImage(
   }
 
   const createdAt = new Date().toISOString();
+  const fullPrompt = style ? `${prompt} (style: ${style})` : prompt;
   const pending: Artifact[] = [];
   try {
     for (let i = 0; i < count; i++) {
@@ -285,15 +286,14 @@ export async function executeGenerateImage(
         Buffer.alloc(0),
       );
       pending.push(artifact);
+      // Dispatch the job immediately after this artifact's write succeeds, so a
+      // later write failure in this loop (e.g. artifact 2 of 3) can never orphan
+      // an artifact whose write already succeeded — its job is already running.
+      void runImageGenerationJob({ artifact, ctx, prompt: fullPrompt, model, size, sourceImage });
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "generate_image failed";
     return fail(msg);
-  }
-
-  const fullPrompt = style ? `${prompt} (style: ${style})` : prompt;
-  for (const artifact of pending) {
-    void runImageGenerationJob({ artifact, ctx, prompt: fullPrompt, model, size, sourceImage });
   }
 
   const summary = `Started generating ${pending.length} image(s): ${pending

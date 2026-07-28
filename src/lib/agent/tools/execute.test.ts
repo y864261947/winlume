@@ -215,6 +215,96 @@ describe("executeGenerateImage", () => {
     expect(result.ok).toBe(false);
     expect(result.summary).toContain("validation failed");
   });
+
+  it("fails cleanly when sourceArtifactId points at a nonexistent artifact", async () => {
+    const artifacts = makeStore();
+    const result = await executeGenerateImage(
+      {
+        name: "Fox",
+        prompt: "a red fox",
+        size: "1024x1024",
+        count: 1,
+        sourceArtifactId: "does-not-exist",
+      },
+      { userId: "u1", sessionId: "s1", artifacts },
+    );
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain("Source artifact not found");
+    expect(generateImage).not.toHaveBeenCalled();
+  });
+
+  it("fails cleanly when the source artifact has missing/empty content", async () => {
+    const artifacts = makeStore();
+    await artifacts.write(
+      {
+        id: "src-empty",
+        userId: "u1",
+        sessionId: "s1",
+        name: "Empty Source",
+        kind: "image",
+        mimeType: "image/png",
+        storageKey: "",
+        createdAt: new Date().toISOString(),
+      },
+      Buffer.alloc(0),
+    );
+
+    const result = await executeGenerateImage(
+      {
+        name: "Fox",
+        prompt: "a red fox",
+        size: "1024x1024",
+        count: 1,
+        sourceArtifactId: "src-empty",
+      },
+      { userId: "u1", sessionId: "s1", artifacts },
+    );
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain("Source artifact content missing");
+    expect(generateImage).not.toHaveBeenCalled();
+  });
+
+  it("reads a valid sourceArtifactId's bytes/mimeType and forwards them as sourceImage", async () => {
+    const artifacts = makeStore();
+    const sourceBytes = Buffer.from("SOURCE-PNG-BYTES");
+    await artifacts.write(
+      {
+        id: "src-1",
+        userId: "u1",
+        sessionId: "s1",
+        name: "Source Image",
+        kind: "image",
+        mimeType: "image/png",
+        storageKey: "",
+        status: "ready",
+        createdAt: new Date().toISOString(),
+      },
+      sourceBytes,
+    );
+
+    // Never resolve: keep the background job from completing so the synchronous
+    // part of the test can assert on the mock's call args deterministically.
+    vi.mocked(generateImage).mockImplementation(() => new Promise(() => {}));
+
+    const result = await executeGenerateImage(
+      {
+        name: "Fox edit",
+        prompt: "add a hat",
+        size: "1024x1024",
+        count: 1,
+        sourceArtifactId: "src-1",
+      },
+      { userId: "u1", sessionId: "s1", artifacts },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(generateImage).toHaveBeenCalledTimes(1);
+    expect(generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceImage: { bytes: sourceBytes, mimeType: "image/png" },
+      }),
+    );
+  });
 });
 
 describe("runImageGenerationJob", () => {
