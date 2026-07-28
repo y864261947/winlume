@@ -339,19 +339,34 @@ export default function StudioSessionPage() {
 
   // Background image generation jobs push status changes here, independent
   // of any single chat turn's own SSE stream (see artifact-events.ts).
+  // Subscribed once with stable deps — re-subscribing on every artifact
+  // click would tear down and reopen the EventSource, and any
+  // artifact_updated event published during that reconnect window would be
+  // lost forever (no server-side replay). Refs let the handler always read
+  // the latest selectedId / reloadContent without needing them as deps.
+  const selectedIdRef = useRef(selectedId);
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+  const reloadContentRef = useRef(reloadContent);
+  useEffect(() => {
+    reloadContentRef.current = reloadContent;
+  }, [reloadContent]);
   useEffect(() => {
     const unsubscribe = subscribeArtifactStream((event) => {
       setArtifacts((prev) =>
         prev.map((a) =>
-          a.id === event.artifactId ? { ...a, status: event.status } : a,
+          a.id === event.artifactId
+            ? { ...a, status: event.status, ...(event.error ? { error: event.error } : {}) }
+            : a,
         ),
       );
-      if (event.artifactId === selectedId) {
-        void reloadContent();
+      if (event.artifactId === selectedIdRef.current) {
+        void reloadContentRef.current();
       }
     });
     return unsubscribe;
-  }, [selectedId, reloadContent]);
+  }, []);
 
   const chat = useStudioChat({
     sessionId: session?.id ?? sessionId,

@@ -33,6 +33,8 @@ export async function GET(request: NextRequest, context: IdContext) {
     headers: {
       "Content-Type": artifact.mimeType || "application/octet-stream",
       "Cache-Control": "private, max-age=31536000, immutable",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Disposition": "inline",
     },
   });
 }

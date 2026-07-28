@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
   const encoder = new TextEncoder();
   const clientSignal = request.signal;
 
+  let cleanup = () => {};
+
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false;
@@ -44,7 +46,7 @@ export async function GET(request: NextRequest) {
       const unsubscribe = subscribeArtifactEvents(userId, send);
       const heartbeat = setInterval(() => send({ type: "ping" }), HEARTBEAT_MS);
 
-      const cleanup = () => {
+      cleanup = () => {
         if (closed) return;
         closed = true;
         clearInterval(heartbeat);
@@ -57,6 +59,12 @@ export async function GET(request: NextRequest) {
       };
 
       clientSignal.addEventListener("abort", cleanup);
+    },
+    cancel() {
+      // Reader cancelled (client navigated/closed stream) without the
+      // request signal aborting — still tear down the heartbeat and pub/sub
+      // subscription so they don't leak.
+      cleanup();
     },
   });
 

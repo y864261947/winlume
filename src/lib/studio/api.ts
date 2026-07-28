@@ -270,7 +270,7 @@ export async function listArtifacts(sessionId?: string): Promise<Artifact[]> {
 
 export async function getArtifact(
   id: string,
-): Promise<{ artifact: Artifact; content: string }> {
+): Promise<{ artifact: Artifact; content: string | null }> {
   const response = await fetch(`/api/artifacts/${encodeURIComponent(id)}`, {
     headers: withUserHeaders(),
     credentials: "same-origin",
@@ -288,7 +288,7 @@ export async function getArtifact(
       response.status,
     );
   }
-  return parseJson<{ artifact: Artifact; content: string }>(response);
+  return parseJson<{ artifact: Artifact; content: string | null }>(response);
 }
 
 /* ── First-message handoff (home → session page) ───────────── */

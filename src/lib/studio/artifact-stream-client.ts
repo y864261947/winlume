@@ -1,8 +1,6 @@
 "use client";
 
-export type ArtifactStreamEvent =
-  | { type: "artifact_updated"; artifactId: string; status: "pending" | "ready" | "failed" }
-  | { type: "ping" };
+import type { ArtifactStreamEvent } from "@/lib/agent/artifact-events";
 
 /**
  * Opens one long-lived EventSource against /api/artifacts/stream and calls

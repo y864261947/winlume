@@ -231,14 +231,21 @@ export async function runImageGenerationJob(job: ImageGenerationJob): Promise<vo
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Image generation failed";
-    await ctx.artifacts.write(
-      { ...artifact, status: "failed", error: message },
-      Buffer.alloc(0),
-    );
+    try {
+      await ctx.artifacts.write(
+        { ...artifact, status: "failed", error: message },
+        Buffer.alloc(0),
+      );
+    } catch {
+      // Must never throw/reject — a failed write here (disk error, corrupt
+      // index) would otherwise become an unhandled rejection, since callers
+      // dispatch this job with a bare `void`.
+    }
     publishArtifactEvent(ctx.userId, {
       type: "artifact_updated",
       artifactId: artifact.id,
       status: "failed",
+      error: message,
     });
   }
 }

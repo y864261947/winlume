@@ -449,7 +449,11 @@ async function resolveGeneratedImage(
       throw new Error(`Failed to download generated image (${res.status})`);
     }
     const arrayBuffer = await res.arrayBuffer();
-    const mimeType = res.headers.get("content-type") ?? "image/png";
+    const remoteContentType = res.headers.get("content-type") ?? "";
+    // Never trust the remote host's content-type verbatim — it ends up as
+    // this artifact's persisted mimeType and is later echoed as the
+    // same-origin Content-Type of a top-level-navigable URL.
+    const mimeType = /^image\//.test(remoteContentType) ? remoteContentType : "image/png";
     return { bytes: Buffer.from(arrayBuffer), mimeType };
   }
   throw new Error("Image API returned an item with neither b64_json nor url");

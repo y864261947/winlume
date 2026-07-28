@@ -11,6 +11,7 @@ export type ArtifactStreamEvent =
       type: "artifact_updated";
       artifactId: string;
       status: "pending" | "ready" | "failed";
+      error?: string;
     }
   | { type: "ping" };
 
