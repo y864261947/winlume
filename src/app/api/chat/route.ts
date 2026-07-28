@@ -26,7 +26,7 @@ type ChatBody = {
 
 /**
  * POST /api/chat — stream one agent turn as SSE (AgentSseEvent).
- * Body: { sessionId?, message, model?, skillIds? }
+ * Body: { sessionId?, message, model?, skillIds?, referencedArtifactId? }
  *
  * Client disconnect does NOT cancel the turn (generation continues server-side).
  * Explicit stop: POST /api/chat/stop { sessionId }.
