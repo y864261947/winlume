@@ -90,20 +90,87 @@ function clientId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/**
+ * Best-effort read of a persisted tool-role message's raw content (the
+ * value the LLM sees, not the human `tool_result.summary` from the live SSE
+ * stream — that string is never persisted). Only used to reconstruct a
+ * result line for the reloaded/static view; falls back to the raw content.
+ */
+function summarizeToolContent(
+  name: string,
+  rawContent: string,
+): { ok: boolean; summary: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawContent);
+  } catch {
+    return { ok: true, summary: rawContent };
+  }
+  if (!parsed || typeof parsed !== "object") {
+    return { ok: true, summary: rawContent };
+  }
+  const p = parsed as Record<string, unknown>;
+  if (typeof p.error === "string") {
+    return { ok: false, summary: p.error };
+  }
+  if (
+    name === "write_artifact" &&
+    typeof p.name === "string" &&
+    typeof p.kind === "string" &&
+    typeof p.chars === "number"
+  ) {
+    return {
+      ok: true,
+      summary: `Saved artifact "${p.name}" (id=${p.id ?? ""}, kind=${p.kind}, ${p.chars} chars)`,
+    };
+  }
+  if ((name === "todo_write" || name === "declare_plan") && typeof p.summary === "string") {
+    return { ok: true, summary: p.summary };
+  }
+  return { ok: true, summary: rawContent };
+}
+
+/**
+ * Reconstructs the same folded view a live turn shows: each tool call's
+ * result gets merged back onto its parent assistant message (matching what
+ * `tool_result` does in-memory during streaming), and the standalone
+ * tool-role receipt message — never rendered as its own bubble live — is
+ * dropped so a reloaded session looks identical to the just-streamed one
+ * instead of surfacing raw JSON receipts.
+ */
 export function toUiMessages(messages: Message[]): UiChatMessage[] {
-  return messages.map((m) => ({
-    id: m.id,
-    role: m.role,
-    content: m.content,
-    toolCalls: m.toolCalls?.map((tc) => ({
-      id: tc.id,
-      name: tc.name,
-      input: tc.arguments,
-      resultSummary: tc.result,
-      ok: tc.result !== undefined ? true : undefined,
-      status: "done" as const,
-    })),
-  }));
+  const callNameById = new Map<string, string>();
+  for (const m of messages) {
+    if (m.role === "assistant" && m.toolCalls) {
+      for (const tc of m.toolCalls) callNameById.set(tc.id, tc.name);
+    }
+  }
+  const resultByCallId = new Map<string, { ok: boolean; summary: string }>();
+  for (const m of messages) {
+    if (m.role === "tool" && m.toolCallId) {
+      const name = callNameById.get(m.toolCallId) ?? "tool";
+      resultByCallId.set(m.toolCallId, summarizeToolContent(name, m.content));
+    }
+  }
+
+  return messages
+    .filter((m) => m.role !== "tool")
+    .map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      toolCalls: m.toolCalls?.map((tc) => {
+        const result = resultByCallId.get(tc.id);
+        return {
+          id: tc.id,
+          name: tc.name,
+          input: tc.arguments,
+          resultSummary: result?.summary ?? tc.result,
+          ok: result ? result.ok : tc.result !== undefined ? true : undefined,
+          status: "done" as const,
+        };
+      }),
+    }));
 }
 
 function ensureEntry(sessionId: string, model?: string): Entry {

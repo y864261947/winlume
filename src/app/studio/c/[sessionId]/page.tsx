@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  startTransition,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -15,13 +16,13 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  LoaderCircle,
   PanelLeftClose,
   PanelRight,
 } from "lucide-react";
 import ArtifactPanel from "@/components/studio/ArtifactPanel";
 import ArtifactPreview from "@/components/studio/ArtifactPreview";
 import ChatThread from "@/components/studio/ChatThread";
+import ChatThreadSkeleton from "@/components/studio/ChatThreadSkeleton";
 import Composer from "@/components/studio/Composer";
 import StudioViewTransition from "@/components/studio/StudioViewTransition";
 import { useStudioHeaderSlot } from "@/components/studio/StudioShell";
@@ -63,6 +64,7 @@ function optimisticUserMessage(
     createdAt: new Date().toISOString(),
   };
 }
+
 
 export default function StudioSessionPage() {
   const params = useParams();
@@ -106,6 +108,16 @@ export default function StudioSessionPage() {
   const [worksRailOpen, setWorksRailOpen] = useState(false);
   /** Discrete layout slot (px). 0 when fully closed after exit transition. */
   const [worksRailLayoutWidth, setWorksRailLayoutWidth] = useState(0);
+  /**
+   * True only for the brief open/close toggle window — eases the width
+   * change so the panel grows/shrinks in step with its content instead of
+   * snapping to size instantly. Left off during live drag-resize (which
+   * updates worksRailLayoutWidth continuously) so the handle stays 1:1.
+   */
+  const [worksRailWidthAnimating, setWorksRailWidthAnimating] = useState(false);
+  const worksRailAnimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   /** Preview pane within the rail (default on when rail opens). */
   const [previewOpen, setPreviewOpen] = useState(true);
   /**
@@ -170,6 +182,22 @@ export default function StudioSessionPage() {
     }
   }, [worksRailOpen, contentRailWidth]);
 
+  /** Eases the panel width for one open/close cycle, then hands width sync back to the instant/1:1 drag path. */
+  const pulseWorksRailWidthAnim = useCallback(() => {
+    setWorksRailWidthAnimating(true);
+    if (worksRailAnimTimerRef.current) clearTimeout(worksRailAnimTimerRef.current);
+    worksRailAnimTimerRef.current = setTimeout(
+      () => setWorksRailWidthAnimating(false),
+      360,
+    );
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (worksRailAnimTimerRef.current) clearTimeout(worksRailAnimTimerRef.current);
+    };
+  }, []);
+
   const openWorksRail = useCallback(
     (opts?: {
       preview?: boolean;
@@ -194,14 +222,16 @@ export default function StudioSessionPage() {
           ? previewPane.width
           : listPane.width + previewPane.width - LIST_STRIP_W
         : 0;
-      // Allocate flex slot first, then slide/fade in (interruptible CSS)
+      // Ease the width open alongside the slot allocation, then slide/fade
+      // the content in on the next frame (interruptible CSS both ways).
+      pulseWorksRailWidthAnim();
       setWorksRailLayoutWidth(listW + prevW);
       setEdgePulse(false);
       requestAnimationFrame(() => {
         setWorksRailOpen(true);
       });
     },
-    [listPane.width, previewPane.width],
+    [listPane.width, previewPane.width, pulseWorksRailWidthAnim],
   );
 
   const closeWorksRail = useCallback(() => {
@@ -219,10 +249,13 @@ export default function StudioSessionPage() {
         return;
       }
       if (!worksRailOpenRef.current) {
+        // Content has already faded out — ease the now-empty slot shut too
+        // instead of letting it snap to 0.
+        pulseWorksRailWidthAnim();
         setWorksRailLayoutWidth(0);
       }
     },
-    [],
+    [pulseWorksRailWidthAnim],
   );
 
   const refreshArtifacts = useCallback(
@@ -328,19 +361,23 @@ export default function StudioSessionPage() {
       try {
         const bundle = await getSessionBundle(sessionId);
         if (cancelled) return;
-        setSession(bundle.session);
-        setPinnedSkillIds(bundle.session.pinnedSkillIds ?? []);
         // Don't wipe optimistic first bubble while pending send is still queued
         const stillPending = peekPendingFirstMessage(sessionId);
-        if (bundle.messages.length > 0) {
-          setInitialMessages(bundle.messages);
-        } else if (stillPending?.message) {
-          setInitialMessages([
-            optimisticUserMessage(sessionId, stillPending.message),
-          ]);
-        } else {
-          setInitialMessages(bundle.messages);
-        }
+        const messages =
+          bundle.messages.length > 0
+            ? bundle.messages
+            : stillPending?.message
+              ? [optimisticUserMessage(sessionId, stillPending.message)]
+              : bundle.messages;
+        // Reveal inside a Transition so the named ViewTransition wrappers
+        // (studio-chat-thread / studio-header-slot) can crossfade the
+        // skeleton → real content swap instead of popping in instantly.
+        startTransition(() => {
+          setSession(bundle.session);
+          setPinnedSkillIds(bundle.session.pinnedSkillIds ?? []);
+          setInitialMessages(messages);
+          setLoading(false);
+        });
       } catch (err) {
         if (cancelled) return;
         if (err instanceof StudioApiError && err.status === 401) {
@@ -351,7 +388,6 @@ export default function StudioSessionPage() {
         } else {
           setLoadError(err instanceof Error ? err.message : "加载会话失败");
         }
-      } finally {
         if (!cancelled) setLoading(false);
       }
     })();
@@ -439,10 +475,12 @@ export default function StudioSessionPage() {
       try {
         const bundle = await getSessionBundle(sessionId);
         if (cancelled) return;
-        setSession(bundle.session);
-        setPinnedSkillIds(bundle.session.pinnedSkillIds ?? []);
-        setInitialMessages(bundle.messages);
-        setLoadError(null);
+        startTransition(() => {
+          setSession(bundle.session);
+          setPinnedSkillIds(bundle.session.pinnedSkillIds ?? []);
+          setInitialMessages(bundle.messages);
+          setLoadError(null);
+        });
       } catch {
         /* keep error */
       }
@@ -498,9 +536,8 @@ export default function StudioSessionPage() {
     setHighlightMessageId(messageId);
   }, []);
 
-  // Full-page block only when cold-open (no handoff) or hard error
-  const isBlockingScreen =
-    (loading && !hasHandoff) || (loadError && !session && !hasHandoff);
+  /** No handoff bootstrap and the server bundle hasn't resolved yet. */
+  const showThreadSkeleton = !hasHandoff && initialMessages === undefined;
 
   /** Published into StudioShell's persistent header slot — never unmounts on navigation. */
   const headerContent = (
@@ -619,16 +656,7 @@ export default function StudioSessionPage() {
     </header>
   );
 
-  useStudioHeaderSlot(isBlockingScreen ? null : headerContent);
-
-  if (loading && !hasHandoff) {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-[#8A8298]">
-        <LoaderCircle className="h-4 w-4 animate-spin text-[#0F172A]" />
-        加载中…
-      </div>
-    );
-  }
+  useStudioHeaderSlot(headerContent);
 
   if (loadError && !session && !hasHandoff) {
     return (
@@ -645,19 +673,32 @@ export default function StudioSessionPage() {
     );
   }
 
-  const chatColumn = (
+  /**
+   * Mobile and desktop both mount this column (CSS toggles which is visible),
+   * so a shared hardcoded ViewTransition name would mount twice at once and
+   * React errors ("two <ViewTransition> with the same name"). Only the
+   * desktop copy — the one this feature's morph/crossfade work targets —
+   * keeps the real names; the mobile copy opts out.
+   */
+  const renderChatColumn = (withTransitionNames: boolean) => (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <StudioViewTransition name="studio-chat-thread">
+      <StudioViewTransition
+        name={withTransitionNames ? "studio-chat-thread" : undefined}
+      >
         <div className="studio-session-thread flex min-h-0 min-w-0 flex-1 flex-col">
-          <ChatThread
-            messages={chat.messages}
-            streaming={chat.streaming || (hasHandoff && loading)}
-            emptyHint="发送一条消息，开始与 WinLume 对话。"
-            highlightMessageId={highlightMessageId}
-            onHighlightConsumed={() => setHighlightMessageId(null)}
-            artifactsByMessageId={artifactsByMessageId}
-            onOpenArtifact={openArtifactFromChat}
-          />
+          {showThreadSkeleton ? (
+            <ChatThreadSkeleton />
+          ) : (
+            <ChatThread
+              messages={chat.messages}
+              streaming={chat.streaming || (hasHandoff && loading)}
+              emptyHint="发送一条消息，开始与 WinLume 对话。"
+              highlightMessageId={highlightMessageId}
+              onHighlightConsumed={() => setHighlightMessageId(null)}
+              artifactsByMessageId={artifactsByMessageId}
+              onOpenArtifact={openArtifactFromChat}
+            />
+          )}
         </div>
       </StudioViewTransition>
       <Composer
@@ -669,7 +710,7 @@ export default function StudioSessionPage() {
         }
         onStop={chat.stop}
         streaming={chat.streaming || (hasHandoff && loading)}
-        disabled={loading && hasHandoff}
+        disabled={showThreadSkeleton || (loading && hasHandoff)}
         model={chat.model}
         onModelChange={chat.setModel}
         pinnedSkillIds={pinnedSkillIds}
@@ -685,6 +726,7 @@ export default function StudioSessionPage() {
         placeholder={
           hasHandoff && loading ? "正在连接…" : undefined
         }
+        shareTransitionName={withTransitionNames ? "studio-composer" : null}
       />
     </div>
   );
@@ -721,16 +763,17 @@ export default function StudioSessionPage() {
     >
       {/* Mobile: tabbed */}
       <div className="flex min-h-0 flex-1 flex-col md:hidden">
-        {mobileTab === "chat" ? chatColumn : worksColumn}
+        {mobileTab === "chat" ? renderChatColumn(false) : worksColumn}
       </div>
 
       {/* Desktop: chat | works rail — shell stays mounted; layout width discrete, slide via CSS */}
       <div className="relative hidden min-h-0 flex-1 md:flex">
-        {chatColumn}
+        {renderChatColumn(true)}
 
         <div
           className="studio-works-shell border-l border-white/40"
           data-open={worksRailOpen ? "true" : "false"}
+          data-width-animating={worksRailWidthAnimating ? "true" : "false"}
           style={{ width: worksRailLayoutWidth }}
           aria-hidden={!worksRailOpen}
         >
