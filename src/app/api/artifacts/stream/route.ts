@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
         try {
           controller.enqueue(encoder.encode(sseFrame(event)));
         } catch {
-          closed = true;
+          cleanup();
         }
       };
 
