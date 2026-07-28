@@ -3,15 +3,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Brain,
+  Check,
   ChevronDown,
   ChevronRight,
   FileStack,
   Sparkles,
   UserRound,
-  Wrench,
 } from "lucide-react";
 import type { Artifact } from "@/lib/agent/types";
+import {
+  friendlyToolGroupSummary,
+  friendlyToolView,
+  toolActionLabel,
+} from "@/lib/studio/tool-display";
 import type {
+  ExecutionStep,
   StreamPhase,
   UiChatMessage,
   UiToolCall,
@@ -104,8 +110,8 @@ function ActivityStatus({
   const label =
     phase === "tool"
       ? toolName
-        ? `正在调用 ${toolName}…`
-        : "正在调用工具…"
+        ? `${toolActionLabel(toolName)}…`
+        : "处理中…"
       : phase === "producing"
         ? "正在撰写…"
         : "思考中…";
@@ -119,6 +125,118 @@ function ActivityStatus({
           {formatThinkingDuration(elapsed)}
         </span>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Horizontal execution map — user sees which step the agent is on
+ * instead of a blank "thinking" void while tools stream.
+ */
+function ExecutionMap({
+  steps,
+  streaming,
+}: {
+  steps: ExecutionStep[];
+  streaming?: boolean;
+}) {
+  if (!steps.length) return null;
+  return (
+    <div
+      className="mb-3 rounded-[14px] border border-white/60 bg-white/45 px-2.5 py-2.5"
+      role="status"
+      aria-label="执行进度"
+    >
+      <div className="mb-1.5 flex items-center justify-between px-0.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-[#8A8298]">
+          任务进度
+        </span>
+        {streaming ? (
+          <span className="inline-flex items-center gap-1 text-[10px] text-[#C2410C]">
+            <StreamingPulse phase="tool" />
+            进行中
+          </span>
+        ) : null}
+      </div>
+      <ol className="flex items-center gap-0">
+        {steps.map((step, i) => {
+          const isLast = i === steps.length - 1;
+          const done = step.status === "done";
+          const active = step.status === "active";
+          return (
+            <li key={step.id} className="flex min-w-0 flex-1 items-center">
+              <div className="flex min-w-0 flex-col items-center gap-1 px-0.5">
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold transition ${
+                    done
+                      ? "bg-emerald-500/15 text-emerald-700"
+                      : active
+                        ? "bg-[rgba(194,65,12,0.15)] text-[#C2410C] ring-2 ring-[rgba(194,65,12,0.25)]"
+                        : "bg-white/70 text-[#B0A9BC]"
+                  }`}
+                >
+                  {done ? (
+                    <Check className="h-3 w-3" strokeWidth={2.5} />
+                  ) : (
+                    i + 1
+                  )}
+                </span>
+                <span
+                  className={`max-w-[4.5rem] truncate text-center text-[10px] leading-tight ${
+                    active
+                      ? "font-semibold text-[#C2410C]"
+                      : done
+                        ? "text-[#615A73]"
+                        : "text-[#B0A9BC]"
+                  }`}
+                  title={step.label}
+                >
+                  {step.label}
+                </span>
+              </div>
+              {!isLast ? (
+                <div
+                  className={`mb-4 h-0.5 min-w-[8px] flex-1 rounded-full ${
+                    done || active
+                      ? "bg-[rgba(194,65,12,0.35)]"
+                      : "bg-white/70"
+                  }`}
+                  aria-hidden
+                />
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+/** Live markdown body while write_artifact args stream in */
+function ArtifactDraftPreview({
+  name,
+  text,
+}: {
+  name?: string;
+  text: string;
+}) {
+  if (!text.trim()) return null;
+  return (
+    <div className="mb-3 overflow-hidden rounded-[14px] border border-dashed border-[rgba(194,65,12,0.22)] bg-[rgba(255,248,240,0.65)]">
+      <div className="flex items-center gap-1.5 border-b border-[rgba(194,65,12,0.1)] px-2.5 py-1.5 text-[11px] text-[#C2410C]">
+        <FileStack className="h-3.5 w-3.5" />
+        <span className="font-medium">
+          {name ? `正在写入「${name}」` : "正在写入作品"}
+        </span>
+        <StreamingPulse phase="tool" />
+      </div>
+      <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words px-3 py-2 font-sans text-[12.5px] leading-5 text-[#241E36]">
+        {text}
+        <span
+          className="ml-0.5 inline-block h-3.5 w-1 animate-pulse rounded-sm bg-[#F2994A] align-middle"
+          aria-hidden
+        />
+      </pre>
     </div>
   );
 }
@@ -209,28 +327,32 @@ function ThinkingBlock({
 function ToolGroup({
   tools,
   thinkingDurationSec,
+  onOpenArtifact,
 }: {
   tools: UiToolCall[];
   thinkingDurationSec?: number;
+  onOpenArtifact?: (artifactId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   if (!tools.length) return null;
 
   const running = tools.some((t) => t.status === "running");
-  const names = tools.map((t) => t.name).filter(Boolean);
-  const unique = [...new Set(names)];
-  const summary =
-    unique.length === 0
-      ? `${tools.length} 个工具`
-      : unique.length <= 2
-        ? unique.join(" · ")
-        : `${unique.slice(0, 2).join(" · ")} 等 ${tools.length} 项`;
+  const summary = friendlyToolGroupSummary(tools);
+  const allWriteOk =
+    !running &&
+    tools.length > 0 &&
+    tools.every((t) => t.name === "write_artifact" && t.ok !== false);
 
-  // NewMax tool-group-header: "summary · Thinking 12s"
   const thinkingSuffix =
     !running && thinkingDurationSec && thinkingDurationSec > 0
       ? ` · 思考 ${formatThinkingDuration(thinkingDurationSec)}`
       : "";
+
+  const headerTitle = running
+    ? "正在处理"
+    : allWriteOk
+      ? "已保存作品"
+      : "本轮操作";
 
   return (
     <div className="mb-2 rounded-[12px] border border-white/60 bg-white/40 text-xs text-[#615A73]">
@@ -244,45 +366,75 @@ function ToolGroup({
         ) : (
           <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-70" />
         )}
-        <Wrench className="h-3 w-3 shrink-0 text-[#C2410C]" />
+        {allWriteOk && !running ? (
+          <Check className="h-3 w-3 shrink-0 text-emerald-600" />
+        ) : (
+          <FileStack className="h-3 w-3 shrink-0 text-[#C2410C]" />
+        )}
         <span className="min-w-0 flex-1 truncate">
-          {running ? "正在调用工具…" : "已使用工具"}
-          <span className="ml-1.5 text-[#8A8298]">
-            {summary}
-            {thinkingSuffix}
-          </span>
+          <span className="font-medium text-[#241E36]">{headerTitle}</span>
+          {summary ? (
+            <span className="ml-1.5 text-[#8A8298]">
+              {summary}
+              {thinkingSuffix}
+            </span>
+          ) : thinkingSuffix ? (
+            <span className="ml-1.5 text-[#8A8298]">{thinkingSuffix.trim()}</span>
+          ) : null}
         </span>
         {running ? <StreamingPulse phase="tool" /> : null}
       </button>
       {open ? (
         <ul className="space-y-1.5 border-t border-white/50 px-2.5 py-2">
-          {tools.map((t) => (
-            <li key={t.id} className="rounded-[8px] bg-white/50 px-2 py-1.5">
-              <div className="flex items-center gap-1.5 font-medium text-[#241E36]">
-                <span className="font-mono text-[11px]">{t.name}</span>
-                <span
-                  className={`ml-auto text-[10px] ${
-                    t.status === "running"
-                      ? "text-[#C2410C]"
+          {tools.map((t) => {
+            const view = friendlyToolView(t.name, {
+              status: t.status,
+              ok: t.ok,
+              summary: t.resultSummary,
+              input: t.input,
+            });
+            return (
+              <li
+                key={t.id}
+                className="flex flex-col gap-1 rounded-[10px] bg-white/55 px-2.5 py-2"
+              >
+                <div className="flex items-start gap-2">
+                  <span className="min-w-0 flex-1 text-[12px] font-medium leading-4 text-[#241E36]">
+                    {view.actionLabel}
+                  </span>
+                  <span
+                    className={`shrink-0 text-[10px] ${
+                      t.status === "running"
+                        ? "text-[#C2410C]"
+                        : t.ok === false
+                          ? "text-red-500"
+                          : "text-emerald-600"
+                    }`}
+                  >
+                    {t.status === "running"
+                      ? "进行中"
                       : t.ok === false
-                        ? "text-red-500"
-                        : "text-[#8A8298]"
-                  }`}
-                >
-                  {t.status === "running"
-                    ? "运行中"
-                    : t.ok === false
-                      ? "失败"
-                      : "完成"}
-                </span>
-              </div>
-              {t.resultSummary ? (
-                <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-[11px] leading-4 text-[#615A73]">
-                  {t.resultSummary}
-                </p>
-              ) : null}
-            </li>
-          ))}
+                        ? "失败"
+                        : "完成"}
+                  </span>
+                </div>
+                {view.resultLine ? (
+                  <p className="text-[11px] leading-4 text-[#8A8298]">
+                    {view.resultLine}
+                  </p>
+                ) : null}
+                {view.artifactId && onOpenArtifact ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenArtifact(view.artifactId!)}
+                    className="self-start text-[11px] font-medium text-[#C2410C] underline-offset-2 hover:underline"
+                  >
+                    打开作品
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
     </div>
@@ -327,7 +479,15 @@ function Bubble({
   const showActivity =
     isAssistant &&
     message.streaming &&
-    (phase === "thinking" || phase === "tool" || !message.content);
+    (phase === "thinking" || phase === "tool" || !message.content) &&
+    !(message.executionSteps && message.executionSteps.length > 0);
+
+  const showMap =
+    isAssistant &&
+    message.executionSteps &&
+    message.executionSteps.length > 0 &&
+    (message.streaming ||
+      message.executionSteps.some((s) => s.status === "done"));
 
   return (
     <div
@@ -357,11 +517,25 @@ function Bubble({
           isUser ? "studio-user-bubble shadow-md" : "studio-assistant-bubble"
         }`}
       >
+        {showMap ? (
+          <ExecutionMap
+            steps={message.executionSteps!}
+            streaming={message.streaming}
+          />
+        ) : null}
+
         {isAssistant && showActivity ? (
           <ActivityStatus
             phase={phase === "done" ? "thinking" : phase}
             startedAt={message.streamStartedAt}
             toolName={runningTool?.name}
+          />
+        ) : null}
+
+        {isAssistant && message.streaming && message.artifactDraft?.text ? (
+          <ArtifactDraftPreview
+            name={message.artifactDraft.name}
+            text={message.artifactDraft.text}
           />
         ) : null}
 
@@ -380,6 +554,7 @@ function Bubble({
             thinkingDurationSec={
               message.streaming ? undefined : message.thinkingDurationSec
             }
+            onOpenArtifact={onOpenArtifact}
           />
         ) : null}
 

@@ -72,6 +72,38 @@ export type AgentSseEvent =
   | { type: "thinking"; text: string }
   | { type: "tool_call"; id: string; name: string; input: unknown }
   | { type: "tool_result"; id: string; ok: boolean; summary: string }
+  /**
+   * Streaming progress for a tool call (Grok-style Progress items).
+   * kind "draft" = write_artifact body snapshot; "text" = free-form log.
+   */
+  | {
+      type: "tool_progress";
+      id: string;
+      kind: "text" | "draft";
+      text?: string;
+      name?: string;
+    }
+  /**
+   * Live body of write_artifact while tool arguments are still streaming.
+   * Client replaces draft each time (full snapshot so far).
+   * Prefer tool_progress { kind: "draft" }; kept for compatibility.
+   */
+  | { type: "artifact_draft"; name?: string; text: string }
   | { type: "artifact"; artifactId: string; name: string; kind: ArtifactKind }
+  /**
+   * Model-maintained progress checklist (todo_write).
+   * Full snapshot after each update — client replaces UI state.
+   */
+  | {
+      type: "plan";
+      todos: Array<{
+        id: string;
+        content: string;
+        status: "pending" | "in_progress" | "completed" | "cancelled";
+      }>;
+      /** @deprecated prefer todos; kept for older clients */
+      steps?: string[];
+      summary?: string;
+    }
   | { type: "error"; message: string; code?: string }
   | { type: "done"; reason: "completed" | "cancelled" | "error" };

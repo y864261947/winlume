@@ -22,7 +22,6 @@ import {
   Minimize2,
   Monitor,
   MoreHorizontal,
-  PanelRightClose,
   RefreshCw,
   Smartphone,
   X,
@@ -786,16 +785,20 @@ export default function ArtifactPreview({
               <span className="sr-only">退出全屏</span>
             </button>
           ) : null}
-          {onClose && !maximized ? (
+          {onClose ? (
             <button
               type="button"
-              onClick={onClose}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-500 transition hover:bg-canvas hover:text-ink-800"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (maximized) setMaximized(false);
+                onClose();
+              }}
+              className="inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium text-ink-500 transition hover:bg-canvas hover:text-[#C2410C]"
               title="关闭预览"
             >
-              <PanelRightClose className="hidden h-4 w-4 sm:block" />
-              <X className="h-4 w-4 sm:hidden" />
-              <span className="sr-only">关闭预览</span>
+              <X className="h-4 w-4" />
+              <span className="hidden sm:inline">关闭预览</span>
             </button>
           ) : null}
         </div>

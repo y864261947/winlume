@@ -1,14 +1,12 @@
-import { LoaderCircle } from "lucide-react";
-
-/** Studio-segment loading — keeps sidebar chrome from layout visible when possible. */
+/** Studio-segment loading — keep chrome, avoid heavy interstitial copy. */
 export default function StudioLoading() {
   return (
     <div
-      className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-sm text-[#8A8298]"
+      className="flex flex-1 flex-col items-center justify-center gap-2 px-4"
       role="status"
+      aria-label="加载中"
     >
-      <LoaderCircle className="h-5 w-5 animate-spin text-[#C2410C]" />
-      正在打开工作台…
+      <div className="h-8 w-8 animate-pulse rounded-full bg-[rgba(194,65,12,0.15)]" />
     </div>
   );
 }

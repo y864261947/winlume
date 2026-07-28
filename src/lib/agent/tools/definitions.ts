@@ -3,12 +3,65 @@
  */
 
 export type StudioToolName =
+  | "todo_write"
   | "write_artifact"
   | "read_artifact"
   | "list_artifacts";
 
 /** OpenAI tools array passed to streamGatewayChat. */
 export const STUDIO_TOOLS = [
+  {
+    type: "function" as const,
+    function: {
+      name: "todo_write",
+      description:
+        "Create and manage a structured task list the user sees live. Use for complex work with 3+ steps. Skip for simple Q&A or single-step tasks. Merge by default: send only id+status to flip progress. Keep exactly one item in_progress until all are done. When revising the plan mid-task, set explanation with a short rationale.",
+      parameters: {
+        type: "object",
+        properties: {
+          merge: {
+            type: "boolean",
+            description:
+              "When true (default), merge into the existing list by id. When false, replace the entire list.",
+          },
+          explanation: {
+            type: "string",
+            description:
+              "Optional one-line reason when creating or changing the plan (shown to the user briefly).",
+          },
+          todos: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: {
+                  type: "string",
+                  description: "Stable id for this step (e.g. outline, draft, save)",
+                },
+                content: {
+                  type: "string",
+                  description:
+                    "Short user-facing label (user's language). Optional on merge status-only updates.",
+                },
+                status: {
+                  type: "string",
+                  enum: ["pending", "in_progress", "completed", "cancelled"],
+                  description: "pending | in_progress | completed | cancelled",
+                },
+              },
+              required: ["id"],
+              additionalProperties: false,
+            },
+            minItems: 1,
+            maxItems: 12,
+            description: "Todo items to write or merge",
+          },
+        },
+        required: ["todos"],
+        additionalProperties: false,
+      },
+    },
+  },
   {
     type: "function" as const,
     function: {
@@ -79,6 +132,7 @@ export const STUDIO_TOOLS = [
 ] as const;
 
 export const STUDIO_TOOL_NAMES: readonly StudioToolName[] = [
+  "todo_write",
   "write_artifact",
   "read_artifact",
   "list_artifacts",

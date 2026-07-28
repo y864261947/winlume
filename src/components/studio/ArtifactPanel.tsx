@@ -106,27 +106,31 @@ export default function ArtifactPanel({
       className={`flex min-h-0 flex-col border-l border-line bg-surface ${className}`}
     >
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3 py-2.5">
-        <h2 className="flex items-center gap-1.5 text-xs font-semibold text-ink-800">
-          <FolderKanban className="h-3.5 w-3.5 text-primary-500" />
-          本会话作品
+        <h2 className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-ink-800">
+          <FolderKanban className="h-3.5 w-3.5 shrink-0 text-primary-500" />
+          <span className="truncate">本会话作品</span>
           {artifacts.length > 0 ? (
             <span className="rounded-full bg-[rgba(194,65,12,0.1)] px-1.5 text-[10px] font-medium tabular-nums text-[#C2410C]">
               {artifacts.length}
             </span>
           ) : null}
         </h2>
-        {onRefresh ? (
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={loading}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-500 transition hover:bg-canvas hover:text-ink-800 disabled:opacity-50"
-            title="刷新"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            <span className="sr-only">刷新</span>
-          </button>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {onRefresh ? (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={loading}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-500 transition hover:bg-canvas hover:text-ink-800 disabled:opacity-50"
+              title="刷新"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+              />
+              <span className="sr-only">刷新</span>
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {/* Kind chips — only show when multiple kinds exist */}
