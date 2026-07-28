@@ -43,6 +43,7 @@ import {
   takePendingFirstMessage,
   StudioApiError,
 } from "@/lib/studio/api";
+import { subscribeArtifactStream } from "@/lib/studio/artifact-stream-client";
 import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
 
 type MobileTab = "chat" | "works";
@@ -335,6 +336,22 @@ export default function StudioSessionPage() {
       setContentLoading(false);
     }
   }, [selectedId]);
+
+  // Background image generation jobs push status changes here, independent
+  // of any single chat turn's own SSE stream (see artifact-events.ts).
+  useEffect(() => {
+    const unsubscribe = subscribeArtifactStream((event) => {
+      setArtifacts((prev) =>
+        prev.map((a) =>
+          a.id === event.artifactId ? { ...a, status: event.status } : a,
+        ),
+      );
+      if (event.artifactId === selectedId) {
+        void reloadContent();
+      }
+    });
+    return unsubscribe;
+  }, [selectedId, reloadContent]);
 
   const chat = useStudioChat({
     sessionId: session?.id ?? sessionId,
