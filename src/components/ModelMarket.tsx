@@ -42,12 +42,12 @@ const marketCategories: MarketCategory[] = [
 ];
 
 const logoClasses = [
-  "bg-[#625be7]",
-  "bg-[#0b1220]",
-  "bg-[#d95c94]",
-  "bg-[#e88f3e]",
-  "bg-[#2c91c8]",
-  "bg-[#283c77]",
+  "bg-[#0f172a]",
+  "bg-[#334155]",
+  "bg-[#0e7490]",
+  "bg-[#475569]",
+  "bg-[#0369a1]",
+  "bg-[#1e293b]",
 ];
 
 function priceLabel(product: Product) {

@@ -219,16 +219,16 @@ export default function SkillSlashMenu({
                   onMouseEnter={() => onHighlightIndexChange(i)}
                   onClick={() => onPickSkill(item.skill)}
                   className={`flex w-full flex-col gap-0.5 px-3 py-2 text-left transition ${
-                    active ? "bg-[rgba(194,65,12,0.08)]" : "hover:bg-white/50"
+                    active ? "bg-[rgba(15, 23, 42,0.08)]" : "hover:bg-white/50"
                   }`}
                 >
                   <span className="flex items-center gap-2 text-sm font-medium text-[#241E36]">
                     {!searching && view.kind === "root" && item.skill.featured ? (
-                      <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#C2410C]" />
+                      <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#0F172A]" />
                     ) : null}
                     <span className="truncate">{item.skill.name}</span>
                     {selectedIds.includes(item.skill.id) ? (
-                      <span className="shrink-0 rounded bg-[rgba(194,65,12,0.12)] px-1.5 text-[10px] text-[#C2410C]">
+                      <span className="shrink-0 rounded bg-[rgba(15, 23, 42,0.12)] px-1.5 text-[10px] text-[#0F172A]">
                         已选
                       </span>
                     ) : null}
@@ -247,7 +247,7 @@ export default function SkillSlashMenu({
                   onMouseEnter={() => onHighlightIndexChange(i)}
                   onClick={() => activate(item)}
                   className={`flex w-full items-center gap-2 px-3 py-2 text-left transition ${
-                    active ? "bg-[rgba(194,65,12,0.08)]" : "hover:bg-white/50"
+                    active ? "bg-[rgba(15, 23, 42,0.08)]" : "hover:bg-white/50"
                   }`}
                 >
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#241E36]">
@@ -269,8 +269,8 @@ export default function SkillSlashMenu({
                   onClick={() => activate(item)}
                   className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition ${
                     active
-                      ? "bg-[rgba(239,71,112,0.1)] text-[#C2410C]"
-                      : "text-[#615A73] hover:bg-white/50 hover:text-[#C2410C]"
+                      ? "bg-[rgba(239,71,112,0.1)] text-[#0F172A]"
+                      : "text-[#615A73] hover:bg-white/50 hover:text-[#0F172A]"
                   }`}
                 >
                   <Trash2 className="h-3.5 w-3.5 shrink-0" />

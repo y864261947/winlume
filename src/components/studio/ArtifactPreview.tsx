@@ -312,7 +312,7 @@ function MenuItem({
       role="menuitem"
       disabled={disabled}
       onClick={onClick}
-      className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-1.5 text-left text-xs text-[#241E36] transition hover:bg-[rgba(194,65,12,0.08)] disabled:opacity-40"
+      className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-1.5 text-left text-xs text-[#241E36] transition hover:bg-[rgba(15, 23, 42,0.08)] disabled:opacity-40"
     >
       {children}
     </button>
@@ -794,7 +794,7 @@ export default function ArtifactPreview({
                 if (maximized) setMaximized(false);
                 onClose();
               }}
-              className="inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium text-ink-500 transition hover:bg-canvas hover:text-[#C2410C]"
+              className="inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium text-ink-500 transition hover:bg-canvas hover:text-[#0F172A]"
               title="关闭预览"
             >
               <X className="h-4 w-4" />
@@ -816,7 +816,7 @@ export default function ArtifactPreview({
                 onClick={() => setViewMode("preview")}
                 className={`inline-flex items-center gap-1 rounded-[6px] px-2 py-0.5 text-[11px] font-medium transition ${
                   viewMode === "preview"
-                    ? "bg-white text-[#C2410C] shadow-sm"
+                    ? "bg-white text-[#0F172A] shadow-sm"
                     : "text-[#8A8298] hover:text-[#241E36]"
                 }`}
               >
@@ -828,7 +828,7 @@ export default function ArtifactPreview({
                 onClick={() => setViewMode("source")}
                 className={`inline-flex items-center gap-1 rounded-[6px] px-2 py-0.5 text-[11px] font-medium transition ${
                   viewMode === "source"
-                    ? "bg-white text-[#C2410C] shadow-sm"
+                    ? "bg-white text-[#0F172A] shadow-sm"
                     : "text-[#8A8298] hover:text-[#241E36]"
                 }`}
               >
@@ -846,7 +846,7 @@ export default function ArtifactPreview({
                 title="桌面宽度"
                 className={`inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 text-[11px] transition ${
                   htmlFrame === "desktop"
-                    ? "bg-white text-[#C2410C] shadow-sm"
+                    ? "bg-white text-[#0F172A] shadow-sm"
                     : "text-[#8A8298] hover:text-[#241E36]"
                 }`}
               >
@@ -858,7 +858,7 @@ export default function ArtifactPreview({
                 title="手机宽度 390px"
                 className={`inline-flex items-center gap-1 rounded-[6px] px-1.5 py-0.5 text-[11px] transition ${
                   htmlFrame === "mobile"
-                    ? "bg-white text-[#C2410C] shadow-sm"
+                    ? "bg-white text-[#0F172A] shadow-sm"
                     : "text-[#8A8298] hover:text-[#241E36]"
                 }`}
               >
@@ -899,7 +899,7 @@ export default function ArtifactPreview({
       ) : null}
 
       {exportError ? (
-        <div className="shrink-0 border-b border-[rgba(239,71,112,0.2)] bg-[rgba(239,71,112,0.06)] px-3 py-1.5 text-[11px] text-[#C2410C]">
+        <div className="shrink-0 border-b border-[rgba(239,71,112,0.2)] bg-[rgba(239,71,112,0.06)] px-3 py-1.5 text-[11px] text-[#0F172A]">
           {exportError}
         </div>
       ) : null}

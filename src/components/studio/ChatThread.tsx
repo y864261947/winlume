@@ -61,9 +61,9 @@ function StreamingPulse({
 }) {
   const color =
     phase === "tool"
-      ? "bg-[#C2410C]"
+      ? "bg-[#0F172A]"
       : phase === "producing"
-        ? "bg-[#F2994A]"
+        ? "bg-[#334155]"
         : "bg-[#8A8298]";
   return (
     <span className="inline-flex items-center gap-0.5" aria-hidden>
@@ -152,7 +152,7 @@ function ExecutionMap({
           任务进度
         </span>
         {streaming ? (
-          <span className="inline-flex items-center gap-1 text-[10px] text-[#C2410C]">
+          <span className="inline-flex items-center gap-1 text-[10px] text-[#0F172A]">
             <StreamingPulse phase="tool" />
             进行中
           </span>
@@ -171,7 +171,7 @@ function ExecutionMap({
                     done
                       ? "bg-emerald-500/15 text-emerald-700"
                       : active
-                        ? "bg-[rgba(194,65,12,0.15)] text-[#C2410C] ring-2 ring-[rgba(194,65,12,0.25)]"
+                        ? "bg-[rgba(15, 23, 42,0.15)] text-[#0F172A] ring-2 ring-[rgba(15, 23, 42,0.25)]"
                         : "bg-white/70 text-[#B0A9BC]"
                   }`}
                 >
@@ -184,7 +184,7 @@ function ExecutionMap({
                 <span
                   className={`max-w-[4.5rem] truncate text-center text-[10px] leading-tight ${
                     active
-                      ? "font-semibold text-[#C2410C]"
+                      ? "font-semibold text-[#0F172A]"
                       : done
                         ? "text-[#615A73]"
                         : "text-[#B0A9BC]"
@@ -198,7 +198,7 @@ function ExecutionMap({
                 <div
                   className={`mb-4 h-0.5 min-w-[8px] flex-1 rounded-full ${
                     done || active
-                      ? "bg-[rgba(194,65,12,0.35)]"
+                      ? "bg-[rgba(15, 23, 42,0.35)]"
                       : "bg-white/70"
                   }`}
                   aria-hidden
@@ -222,8 +222,8 @@ function ArtifactDraftPreview({
 }) {
   if (!text.trim()) return null;
   return (
-    <div className="mb-3 overflow-hidden rounded-[14px] border border-dashed border-[rgba(194,65,12,0.22)] bg-[rgba(255,248,240,0.65)]">
-      <div className="flex items-center gap-1.5 border-b border-[rgba(194,65,12,0.1)] px-2.5 py-1.5 text-[11px] text-[#C2410C]">
+    <div className="mb-3 overflow-hidden rounded-[14px] border border-dashed border-[rgba(15, 23, 42,0.22)] bg-[rgba(255,248,240,0.65)]">
+      <div className="flex items-center gap-1.5 border-b border-[rgba(15, 23, 42,0.1)] px-2.5 py-1.5 text-[11px] text-[#0F172A]">
         <FileStack className="h-3.5 w-3.5" />
         <span className="font-medium">
           {name ? `正在写入「${name}」` : "正在写入作品"}
@@ -233,7 +233,7 @@ function ArtifactDraftPreview({
       <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words px-3 py-2 font-sans text-[12.5px] leading-5 text-[#241E36]">
         {text}
         <span
-          className="ml-0.5 inline-block h-3.5 w-1 animate-pulse rounded-sm bg-[#F2994A] align-middle"
+          className="ml-0.5 inline-block h-3.5 w-1 animate-pulse rounded-sm bg-[#334155] align-middle"
           aria-hidden
         />
       </pre>
@@ -291,7 +291,7 @@ function ThinkingBlock({
         : "思考过程";
 
   return (
-    <div className="mb-2 overflow-hidden rounded-[12px] border border-dashed border-[rgba(194,65,12,0.18)] bg-[rgba(242,153,74,0.05)] text-xs text-[#615A73]">
+    <div className="mb-2 overflow-hidden rounded-[12px] border border-dashed border-[rgba(15, 23, 42,0.18)] bg-[rgba(51, 65, 85,0.05)] text-xs text-[#615A73]">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -302,7 +302,7 @@ function ThinkingBlock({
         ) : (
           <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-70" />
         )}
-        <Brain className="h-3 w-3 shrink-0 text-[#C2410C]" />
+        <Brain className="h-3 w-3 shrink-0 text-[#0F172A]" />
         <span className="font-medium text-[#615A73]">{header}</span>
         {streaming && phase !== "producing" ? (
           <span className="ml-auto">
@@ -315,7 +315,7 @@ function ThinkingBlock({
           <p className="whitespace-pre-wrap text-[11px] leading-4 text-[#615A73]">
             {text}
             {streaming && phase !== "producing" ? (
-              <span className="ml-0.5 inline-block h-3 w-1 animate-pulse rounded-sm bg-[#F2994A] align-middle" />
+              <span className="ml-0.5 inline-block h-3 w-1 animate-pulse rounded-sm bg-[#334155] align-middle" />
             ) : null}
           </p>
         </div>
@@ -369,7 +369,7 @@ function ToolGroup({
         {allWriteOk && !running ? (
           <Check className="h-3 w-3 shrink-0 text-emerald-600" />
         ) : (
-          <FileStack className="h-3 w-3 shrink-0 text-[#C2410C]" />
+          <FileStack className="h-3 w-3 shrink-0 text-[#0F172A]" />
         )}
         <span className="min-w-0 flex-1 truncate">
           <span className="font-medium text-[#241E36]">{headerTitle}</span>
@@ -405,7 +405,7 @@ function ToolGroup({
                   <span
                     className={`shrink-0 text-[10px] ${
                       t.status === "running"
-                        ? "text-[#C2410C]"
+                        ? "text-[#0F172A]"
                         : t.ok === false
                           ? "text-red-500"
                           : "text-emerald-600"
@@ -427,7 +427,7 @@ function ToolGroup({
                   <button
                     type="button"
                     onClick={() => onOpenArtifact(view.artifactId!)}
-                    className="self-start text-[11px] font-medium text-[#C2410C] underline-offset-2 hover:underline"
+                    className="self-start text-[11px] font-medium text-[#0F172A] underline-offset-2 hover:underline"
                   >
                     打开作品
                   </button>
@@ -494,15 +494,15 @@ function Bubble({
       data-message-id={message.id}
       className={`flex gap-3 px-4 sm:px-6 scroll-mt-4 ${isUser ? "flex-row-reverse" : ""} ${
         highlighted
-          ? "rounded-[20px] bg-[rgba(242,153,74,0.12)] py-2 ring-2 ring-[rgba(242,153,74,0.45)]"
+          ? "rounded-[20px] bg-[rgba(51, 65, 85,0.12)] py-2 ring-2 ring-[rgba(51, 65, 85,0.45)]"
           : ""
       }`}
     >
       <span
         className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
           isUser
-            ? "bg-gradient-to-br from-[#F2994A] to-[#C2410C] text-white shadow-[0_4px_10px_-4px_rgba(194,65,12,0.55)]"
-            : "bg-white/80 text-[#C2410C] ring-1 ring-white/90"
+            ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white shadow-[0_4px_10px_-4px_rgba(15, 23, 42,0.55)]"
+            : "bg-white/80 text-[#0F172A] ring-1 ring-white/90"
         }`}
         aria-hidden
       >
@@ -563,7 +563,7 @@ function Bubble({
             {message.content}
             {message.streaming && message.content ? (
               <span
-                className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-[#F2994A] align-middle"
+                className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-[#334155] align-middle"
                 aria-hidden
               />
             ) : null}
@@ -582,7 +582,7 @@ function Bubble({
                 key={a.id}
                 type="button"
                 onClick={() => onOpenArtifact?.(a.id)}
-                className="inline-flex max-w-full items-center gap-1 rounded-full border border-[rgba(194,65,12,0.2)] bg-[rgba(194,65,12,0.06)] px-2 py-0.5 text-[11px] font-medium text-[#C2410C] transition hover:bg-[rgba(194,65,12,0.12)]"
+                className="inline-flex max-w-full items-center gap-1 rounded-full border border-[rgba(15, 23, 42,0.2)] bg-[rgba(15, 23, 42,0.06)] px-2 py-0.5 text-[11px] font-medium text-[#0F172A] transition hover:bg-[rgba(15, 23, 42,0.12)]"
                 title={`打开作品：${a.name}`}
               >
                 <FileStack className="h-3 w-3 shrink-0" />
@@ -697,7 +697,7 @@ export default function ChatThread({
           <ChevronDown className="h-3.5 w-3.5" />
           回到底部
           {streaming ? (
-            <span className="ml-0.5 h-1.5 w-1.5 animate-pulse rounded-full bg-[#F2994A]" />
+            <span className="ml-0.5 h-1.5 w-1.5 animate-pulse rounded-full bg-[#334155]" />
           ) : null}
         </button>
       ) : null}

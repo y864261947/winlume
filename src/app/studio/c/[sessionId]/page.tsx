@@ -469,7 +469,7 @@ export default function StudioSessionPage() {
   if (loading && !hasHandoff) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-[#8A8298]">
-        <LoaderCircle className="h-4 w-4 animate-spin text-[#C2410C]" />
+        <LoaderCircle className="h-4 w-4 animate-spin text-[#0F172A]" />
         加载中…
       </div>
     );
@@ -481,7 +481,7 @@ export default function StudioSessionPage() {
         <p className="text-sm text-[#615A73]">{loadError}</p>
         <Link
           href="/studio"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#C2410C] hover:opacity-80"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#0F172A] hover:opacity-80"
         >
           <ArrowLeft className="h-4 w-4" />
           返回开始创作
@@ -587,7 +587,7 @@ export default function StudioSessionPage() {
           }}
           className={`hidden h-8 items-center gap-1.5 rounded-[10px] border px-2.5 text-xs font-medium transition md:inline-flex ${
             worksRailOpen
-              ? "border-[rgba(194,65,12,0.25)] bg-[rgba(194,65,12,0.08)] text-[#C2410C]"
+              ? "border-[rgba(15, 23, 42,0.25)] bg-[rgba(15, 23, 42,0.08)] text-[#0F172A]"
               : "border-white/70 bg-white/50 text-[#615A73] hover:bg-white"
           }`}
           title={worksRailOpen ? "收起作品区" : "打开作品区"}
@@ -623,7 +623,7 @@ export default function StudioSessionPage() {
             onClick={() => setMobileTab("chat")}
             className={`rounded-[8px] px-2.5 py-1 text-xs font-medium transition ${
               mobileTab === "chat"
-                ? "bg-gradient-to-br from-[#F2994A] to-[#C2410C] text-white"
+                ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white"
                 : "text-[#615A73] hover:bg-white/60"
             }`}
           >
@@ -634,7 +634,7 @@ export default function StudioSessionPage() {
             onClick={() => setMobileTab("works")}
             className={`rounded-[8px] px-2.5 py-1 text-xs font-medium transition ${
               mobileTab === "works"
-                ? "bg-gradient-to-br from-[#F2994A] to-[#C2410C] text-white"
+                ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white"
                 : "text-[#615A73] hover:bg-white/60"
             }`}
           >
@@ -677,7 +677,7 @@ export default function StudioSessionPage() {
                 aria-orientation="vertical"
                 aria-label="调整作品列表宽度"
                 onPointerDown={listPane.onHandlePointerDown}
-                className="absolute inset-y-0 left-0 z-[2] w-1.5 cursor-col-resize hover:bg-[rgba(194,65,12,0.25)] active:bg-[rgba(194,65,12,0.4)]"
+                className="absolute inset-y-0 left-0 z-[2] w-1.5 cursor-col-resize hover:bg-[rgba(15, 23, 42,0.25)] active:bg-[rgba(15, 23, 42,0.4)]"
               />
               <ArtifactPanel
                 artifacts={artifacts}
@@ -702,7 +702,7 @@ export default function StudioSessionPage() {
                 aria-orientation="vertical"
                 aria-label="调整预览宽度"
                 onPointerDown={previewPane.onHandlePointerDown}
-                className="absolute inset-y-0 left-0 z-[2] w-1.5 cursor-col-resize hover:bg-[rgba(194,65,12,0.25)] active:bg-[rgba(194,65,12,0.4)]"
+                className="absolute inset-y-0 left-0 z-[2] w-1.5 cursor-col-resize hover:bg-[rgba(15, 23, 42,0.25)] active:bg-[rgba(15, 23, 42,0.4)]"
               />
               <ArtifactPreview
                 artifact={selected}
@@ -730,7 +730,7 @@ export default function StudioSessionPage() {
             <PanelRight className="h-4 w-4" />
             <span className="studio-works-edge-label">作品</span>
             {artifacts.length > 0 ? (
-              <span className="rounded-full bg-[rgba(194,65,12,0.12)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[#C2410C]">
+              <span className="rounded-full bg-[rgba(15, 23, 42,0.12)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[#0F172A]">
                 {artifacts.length}
               </span>
             ) : null}

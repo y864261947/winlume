@@ -46,7 +46,7 @@ export default function SkillChips({
             return (
               <span
                 key={`pin-${id}`}
-                className="inline-flex max-w-full items-center gap-0.5 rounded-full border border-[rgba(99,102,241,0.25)] bg-[rgba(99,102,241,0.08)] py-0.5 pl-2.5 pr-1 text-xs text-[#4F46E5]"
+                className="inline-flex max-w-full items-center gap-0.5 rounded-full border border-[rgba(71, 85, 105,0.25)] bg-[rgba(71, 85, 105,0.08)] py-0.5 pl-2.5 pr-1 text-xs text-[#4F46E5]"
               >
                 <Pin className="h-3 w-3 shrink-0 fill-current opacity-80" />
                 <span className="truncate">{s.name}</span>
@@ -54,7 +54,7 @@ export default function SkillChips({
                   type="button"
                   onClick={() => onTogglePin(id)}
                   disabled={disabled}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#4F46E5] hover:bg-[rgba(99,102,241,0.14)] disabled:opacity-50"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#4F46E5] hover:bg-[rgba(71, 85, 105,0.14)] disabled:opacity-50"
                   title="取消钉住"
                 >
                   <PinOff className="h-3 w-3" />
@@ -77,14 +77,14 @@ export default function SkillChips({
             return (
               <span
                 key={`turn-${id}`}
-                className="inline-flex max-w-full items-center gap-0.5 rounded-full border border-[rgba(194,65,12,0.2)] bg-[rgba(194,65,12,0.08)] py-0.5 pl-2.5 pr-1 text-xs text-[#C2410C]"
+                className="inline-flex max-w-full items-center gap-0.5 rounded-full border border-[rgba(15, 23, 42,0.2)] bg-[rgba(15, 23, 42,0.08)] py-0.5 pl-2.5 pr-1 text-xs text-[#0F172A]"
               >
                 <span className="truncate">{s.name}</span>
                 <button
                   type="button"
                   onClick={() => onTogglePin(id)}
                   disabled={disabled}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#C2410C] hover:bg-[rgba(194,65,12,0.12)] disabled:opacity-50"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#0F172A] hover:bg-[rgba(15, 23, 42,0.12)] disabled:opacity-50"
                   title={pinned ? "取消钉住" : "钉住到会话"}
                 >
                   {pinned ? (
@@ -100,7 +100,7 @@ export default function SkillChips({
                   type="button"
                   onClick={() => onRemoveTurn(id)}
                   disabled={disabled}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#C2410C] hover:bg-[rgba(194,65,12,0.12)] disabled:opacity-50"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#0F172A] hover:bg-[rgba(15, 23, 42,0.12)] disabled:opacity-50"
                   title="移除本轮"
                 >
                   <X className="h-3 w-3" />
@@ -114,7 +114,7 @@ export default function SkillChips({
               type="button"
               onClick={onClearTurn}
               disabled={disabled}
-              className="text-[11px] text-[#8A8298] underline-offset-2 hover:text-[#C2410C] hover:underline disabled:opacity-50"
+              className="text-[11px] text-[#8A8298] underline-offset-2 hover:text-[#0F172A] hover:underline disabled:opacity-50"
             >
               清空本轮
             </button>

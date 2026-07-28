@@ -110,7 +110,7 @@ export default function ArtifactPanel({
           <FolderKanban className="h-3.5 w-3.5 shrink-0 text-primary-500" />
           <span className="truncate">本会话作品</span>
           {artifacts.length > 0 ? (
-            <span className="rounded-full bg-[rgba(194,65,12,0.1)] px-1.5 text-[10px] font-medium tabular-nums text-[#C2410C]">
+            <span className="rounded-full bg-[rgba(15, 23, 42,0.1)] px-1.5 text-[10px] font-medium tabular-nums text-[#0F172A]">
               {artifacts.length}
             </span>
           ) : null}
@@ -147,7 +147,7 @@ export default function ArtifactPanel({
                 onClick={() => setKindFilter(f.key)}
                 className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition ${
                   active
-                    ? "bg-[rgba(194,65,12,0.12)] text-[#C2410C]"
+                    ? "bg-[rgba(15, 23, 42,0.12)] text-[#0F172A]"
                     : "text-[#8A8298] hover:bg-white/60 hover:text-[#241E36]"
                 }`}
               >
@@ -206,7 +206,7 @@ export default function ArtifactPanel({
                         : "hover:bg-canvas"
                     } ${
                       flash
-                        ? "animate-pulse ring-2 ring-[rgba(242,153,74,0.55)]"
+                        ? "animate-pulse ring-2 ring-[rgba(51, 65, 85,0.55)]"
                         : ""
                     }`}
                   >
@@ -215,7 +215,7 @@ export default function ArtifactPanel({
                       <span className="block truncate text-xs font-medium text-ink-900">
                         {a.name}
                         {flash ? (
-                          <span className="ml-1.5 inline-block rounded bg-[rgba(242,153,74,0.2)] px-1 text-[9px] font-semibold uppercase tracking-wide text-[#C2410C]">
+                          <span className="ml-1.5 inline-block rounded bg-[rgba(51, 65, 85,0.2)] px-1 text-[9px] font-semibold uppercase tracking-wide text-[#0F172A]">
                             NEW
                           </span>
                         ) : null}

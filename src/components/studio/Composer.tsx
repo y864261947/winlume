@@ -140,7 +140,7 @@ function PastedBlockCard({
   return (
     <div className="group flex w-full max-w-full flex-col gap-1 rounded-[12px] border border-white/70 bg-white/55 p-1.5">
       <div className="flex items-center gap-1.5 px-1 text-[11px] text-[#615A73]">
-        <FileText className="h-3.5 w-3.5 shrink-0 text-[#C2410C]" />
+        <FileText className="h-3.5 w-3.5 shrink-0 text-[#0F172A]" />
         <span className="min-w-0 flex-1 truncate font-medium text-[#241E36]">
           {title}
         </span>
@@ -170,7 +170,7 @@ function PastedBlockCard({
           title="移除"
           disabled={disabled}
           onClick={onRemove}
-          className="rounded p-0.5 text-[#8A8298] hover:bg-white hover:text-[#C2410C] disabled:opacity-40"
+          className="rounded p-0.5 text-[#8A8298] hover:bg-white hover:text-[#0F172A] disabled:opacity-40"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -189,7 +189,7 @@ function PastedBlockCard({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="inline-flex items-center gap-0.5 self-start px-1 text-[11px] font-medium text-[#C2410C] hover:underline"
+          className="inline-flex items-center gap-0.5 self-start px-1 text-[11px] font-medium text-[#0F172A] hover:underline"
         >
           {expanded ? (
             <>
@@ -846,7 +846,7 @@ export default function Composer({
       {error ? (
         <div
           role="alert"
-          className={`mx-auto mb-3 flex items-start justify-between gap-3 rounded-[14px] border border-[rgba(239,71,112,0.25)] bg-[rgba(239,71,112,0.08)] px-3 py-2 text-sm text-[#C2410C] ${
+          className={`mx-auto mb-3 flex items-start justify-between gap-3 rounded-[14px] border border-[rgba(239,71,112,0.25)] bg-[rgba(239,71,112,0.08)] px-3 py-2 text-sm text-[#0F172A] ${
             isHero ? "max-w-none" : "max-w-3xl"
           }`}
         >
@@ -855,7 +855,7 @@ export default function Composer({
             <button
               type="button"
               onClick={onClearError}
-              className="shrink-0 text-xs text-[#C2410C] underline-offset-2 hover:underline"
+              className="shrink-0 text-xs text-[#0F172A] underline-offset-2 hover:underline"
             >
               关闭
             </button>
@@ -865,18 +865,18 @@ export default function Composer({
 
       {queue.length > 0 ? (
         <div
-          className={`mx-auto mb-3 rounded-[14px] border border-[rgba(194,65,12,0.18)] bg-[rgba(242,153,74,0.08)] px-3 py-2 ${
+          className={`mx-auto mb-3 rounded-[14px] border border-[rgba(15, 23, 42,0.18)] bg-[rgba(51, 65, 85,0.08)] px-3 py-2 ${
             isHero ? "max-w-none" : "max-w-3xl"
           }`}
         >
-          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-[#C2410C]">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-[#0F172A]">
             <ListOrdered className="h-3.5 w-3.5" />
             排队中 {queue.length}/{MAX_MESSAGE_QUEUE_SIZE}
             {onClearQueue ? (
               <button
                 type="button"
                 onClick={onClearQueue}
-                className="ml-auto text-[11px] font-normal text-[#8A8298] underline-offset-2 hover:text-[#C2410C] hover:underline"
+                className="ml-auto text-[11px] font-normal text-[#8A8298] underline-offset-2 hover:text-[#0F172A] hover:underline"
               >
                 清空
               </button>
@@ -898,7 +898,7 @@ export default function Composer({
                   <button
                     type="button"
                     onClick={() => onRemoveFromQueue(item.id)}
-                    className="shrink-0 rounded p-0.5 text-[#8A8298] hover:bg-white hover:text-[#C2410C]"
+                    className="shrink-0 rounded p-0.5 text-[#8A8298] hover:bg-white hover:text-[#0F172A]"
                     title="移出队列"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -917,7 +917,7 @@ export default function Composer({
             : "studio-glass max-w-3xl rounded-[22px] p-2.5"
         } ${
           dragOver
-            ? "ring-2 ring-[rgba(194,65,12,0.45)] ring-offset-2 ring-offset-[rgba(247,243,236,0.9)]"
+            ? "ring-2 ring-[rgba(15, 23, 42,0.45)] ring-offset-2 ring-offset-[rgba(247,243,236,0.9)]"
             : ""
         }`}
         onSubmit={onSubmit}
@@ -928,7 +928,7 @@ export default function Composer({
       >
         {dragOver ? (
           <div
-            className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-[rgba(242,153,74,0.12)] text-sm font-medium text-[#C2410C] ${
+            className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-[rgba(51, 65, 85,0.12)] text-sm font-medium text-[#0F172A] ${
               isHero ? "rounded-[28px]" : "rounded-[22px]"
             }`}
           >
@@ -949,7 +949,7 @@ export default function Composer({
                 onChange={(e) => onModelChange(e.target.value)}
                 placeholder="输入模型名称"
                 disabled={disabled}
-                className="min-w-0 flex-1 rounded-[10px] border border-white/70 bg-white/70 px-2.5 py-1 font-mono text-xs text-[#241E36] outline-none focus:ring-2 focus:ring-[rgba(194,65,12,0.25)] sm:w-48"
+                className="min-w-0 flex-1 rounded-[10px] border border-white/70 bg-white/70 px-2.5 py-1 font-mono text-xs text-[#241E36] outline-none focus:ring-2 focus:ring-[rgba(15, 23, 42,0.25)] sm:w-48"
               />
               <button
                 type="button"
@@ -977,7 +977,7 @@ export default function Composer({
                   onModelChange(e.target.value);
                 }}
                 disabled={disabled || modelsLoading}
-                className="appearance-none rounded-[10px] border border-white/70 bg-white/70 py-1 pl-2.5 pr-7 font-mono text-xs text-[#241E36] outline-none focus:ring-2 focus:ring-[rgba(194,65,12,0.25)] disabled:opacity-60"
+                className="appearance-none rounded-[10px] border border-white/70 bg-white/70 py-1 pl-2.5 pr-7 font-mono text-xs text-[#241E36] outline-none focus:ring-2 focus:ring-[rgba(15, 23, 42,0.25)] disabled:opacity-60"
               >
                 {modelOptions.map((name) => (
                   <option key={name} value={name}>
@@ -1003,12 +1003,12 @@ export default function Composer({
             }}
             disabled={disabled || skillsLoading}
             title="选择 Skills（或输入 /）"
-            className="inline-flex items-center gap-1 rounded-[10px] border border-white/70 bg-white/70 px-2 py-1 text-xs text-[#615A73] transition hover:border-[rgba(194,65,12,0.25)] hover:bg-[rgba(194,65,12,0.08)] hover:text-[#C2410C] disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-[10px] border border-white/70 bg-white/70 px-2 py-1 text-xs text-[#615A73] transition hover:border-[rgba(15, 23, 42,0.25)] hover:bg-[rgba(15, 23, 42,0.08)] hover:text-[#0F172A] disabled:opacity-50"
           >
             <Wrench className="h-3.5 w-3.5" />
             Skills
             {turnCount + pinCount > 0 ? (
-              <span className="rounded-full bg-[rgba(194,65,12,0.12)] px-1.5 text-[10px] font-medium text-[#C2410C]">
+              <span className="rounded-full bg-[rgba(15, 23, 42,0.12)] px-1.5 text-[10px] font-medium text-[#0F172A]">
                 {turnCount + pinCount}
               </span>
             ) : null}
@@ -1019,7 +1019,7 @@ export default function Composer({
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
             title="添加附件或图片"
-            className="inline-flex items-center gap-1 rounded-[10px] border border-white/70 bg-white/70 px-2 py-1 text-xs text-[#615A73] transition hover:border-[rgba(194,65,12,0.25)] hover:bg-[rgba(194,65,12,0.08)] hover:text-[#C2410C] disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-[10px] border border-white/70 bg-white/70 px-2 py-1 text-xs text-[#615A73] transition hover:border-[rgba(15, 23, 42,0.25)] hover:bg-[rgba(15, 23, 42,0.08)] hover:text-[#0F172A] disabled:opacity-50"
           >
             <Paperclip className="h-3.5 w-3.5" />
             附件
@@ -1092,7 +1092,7 @@ export default function Composer({
                 key={f.id}
                 className="inline-flex max-w-[12rem] items-center gap-1.5 rounded-[12px] border border-white/70 bg-white/60 px-2 py-1.5 text-[11px] text-[#241E36]"
               >
-                <FileText className="h-3.5 w-3.5 shrink-0 text-[#C2410C]" />
+                <FileText className="h-3.5 w-3.5 shrink-0 text-[#0F172A]" />
                 <span className="min-w-0 flex-1 truncate" title={f.name}>
                   {f.name}
                 </span>
@@ -1105,7 +1105,7 @@ export default function Composer({
                   onClick={() =>
                     setFiles((prev) => prev.filter((x) => x.id !== f.id))
                   }
-                  className="rounded p-0.5 text-[#8A8298] hover:text-[#C2410C]"
+                  className="rounded p-0.5 text-[#8A8298] hover:text-[#0F172A]"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -1131,7 +1131,7 @@ export default function Composer({
         ) : null}
 
         {attachError ? (
-          <p className="px-2 text-[11px] text-[#C2410C]">{attachError}</p>
+          <p className="px-2 text-[11px] text-[#0F172A]">{attachError}</p>
         ) : null}
 
         {hasAttachments ? (
@@ -1152,7 +1152,7 @@ export default function Composer({
               type="button"
               onClick={clearAttachments}
               disabled={disabled}
-              className="text-[10px] text-[#8A8298] underline-offset-2 hover:text-[#C2410C] hover:underline"
+              className="text-[10px] text-[#8A8298] underline-offset-2 hover:text-[#0F172A] hover:underline"
             >
               清空附件
             </button>
