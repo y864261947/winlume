@@ -80,7 +80,7 @@ type OpenAiChunk = {
   }>;
 };
 
-function errorMessageFromBody(text: string, status: number): string {
+export function errorMessageFromBody(text: string, status: number): string {
   try {
     const json = JSON.parse(text) as {
       error?: { message?: string } | string;
@@ -407,4 +407,125 @@ export async function* streamGatewayChat(
       yield { kind: "tool_calls", calls };
     }
   }
+}
+
+export interface GenerateImageParams {
+  prompt: string;
+  size: "1024x1024" | "1024x1536" | "1536x1024";
+  n: number;
+  model?: string;
+  /** Present → calls the image-edit endpoint instead of generation. */
+  sourceImage?: { bytes: Buffer; mimeType: string };
+  token?: string;
+  baseUrl?: string;
+  fetchImpl?: typeof fetch;
+}
+
+export interface GeneratedImage {
+  bytes: Buffer;
+  mimeType: string;
+}
+
+interface ImagesApiItem {
+  b64_json?: string;
+  url?: string;
+}
+
+interface ImagesApiResponse {
+  data?: ImagesApiItem[];
+  error?: { message?: string } | string;
+}
+
+async function resolveGeneratedImage(
+  item: ImagesApiItem,
+  fetchImpl: typeof fetch,
+): Promise<GeneratedImage> {
+  if (item.b64_json) {
+    return { bytes: Buffer.from(item.b64_json, "base64"), mimeType: "image/png" };
+  }
+  if (item.url) {
+    const res = await fetchImpl(item.url);
+    if (!res.ok) {
+      throw new Error(`Failed to download generated image (${res.status})`);
+    }
+    const arrayBuffer = await res.arrayBuffer();
+    const mimeType = res.headers.get("content-type") ?? "image/png";
+    return { bytes: Buffer.from(arrayBuffer), mimeType };
+  }
+  throw new Error("Image API returned an item with neither b64_json nor url");
+}
+
+/**
+ * Text-to-image (default) or image-edit (when `sourceImage` is set) against
+ * the NewAPI gateway's OpenAI-compatible Images API.
+ */
+/** Default image model — the only model id verified reachable on the image gateway token as of 2026-07-29. */
+const DEFAULT_IMAGE_MODEL = "gpt-image-2";
+
+/**
+ * Image generation uses a separate gateway token/channel from chat
+ * (`WINLUME_IMAGE_GATEWAY_TOKEN`, not `WINLUME_GATEWAY_TOKEN`) — confirmed by
+ * a live call: the chat token has no access to any image model, and hashing
+ * both tokens shows they are different secrets, not just different env names.
+ */
+export async function generateImage(
+  params: GenerateImageParams,
+): Promise<GeneratedImage[]> {
+  const baseUrl = getGatewayBaseUrl(params.baseUrl);
+  const token = params.token ?? process.env.WINLUME_IMAGE_GATEWAY_TOKEN ?? "";
+  const model = params.model ?? process.env.WINLUME_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL;
+  const fetchImpl = params.fetchImpl ?? fetch;
+  const isEdit = Boolean(params.sourceImage);
+  const path = isEdit ? "/v1/images/edits" : "/v1/images/generations";
+  const url = `${baseUrl}${path}`;
+
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let body: BodyInit;
+  if (isEdit) {
+    const form = new FormData();
+    form.set("model", model);
+    form.set("prompt", params.prompt);
+    form.set("size", params.size);
+    form.set("n", String(params.n));
+    const sourceImage = params.sourceImage!;
+    form.set(
+      "image",
+      new Blob([new Uint8Array(sourceImage.bytes)], { type: sourceImage.mimeType }),
+      "source",
+    );
+    body = form;
+    // Do NOT set Content-Type — fetch derives the multipart boundary from the FormData body.
+  } else {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify({
+      model,
+      prompt: params.prompt,
+      size: params.size,
+      n: params.n,
+    });
+  }
+
+  const response = await fetchImpl(url, { method: "POST", headers, body });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(errorMessageFromBody(text, response.status));
+  }
+
+  let json: ImagesApiResponse;
+  try {
+    json = JSON.parse(text) as ImagesApiResponse;
+  } catch {
+    throw new Error(errorMessageFromBody(text, response.status));
+  }
+  if (json.error) {
+    const msg = typeof json.error === "string" ? json.error : json.error.message;
+    throw new Error(msg ?? "Image generation failed");
+  }
+  const items = json.data ?? [];
+  if (!items.length) {
+    throw new Error("Image API returned no results");
+  }
+  return Promise.all(items.map((item) => resolveGeneratedImage(item, fetchImpl)));
 }

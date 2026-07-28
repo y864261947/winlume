@@ -188,3 +188,117 @@ describe("streamGatewayChat", () => {
     expect(out).toEqual([{ kind: "text", text: "full reply" }]);
   });
 });
+
+import { generateImage } from "./gateway";
+
+describe("generateImage", () => {
+  it("posts to /v1/images/generations and decodes a b64_json result", async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ data: [{ b64_json: Buffer.from("hello").toString("base64") }] }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const result = await generateImage({
+      prompt: "a red fox",
+      size: "1024x1024",
+      n: 1,
+      token: "test-token",
+      baseUrl: "https://gw.test",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    expect(result).toEqual([{ bytes: Buffer.from("hello"), mimeType: "image/png" }]);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://gw.test/v1/images/generations");
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer test-token");
+    const body = JSON.parse(init.body as string);
+    expect(body).toEqual({
+      model: "gpt-image-2",
+      prompt: "a red fox",
+      size: "1024x1024",
+      n: 1,
+    });
+  });
+
+  it("fetches image bytes when the API returns a url instead of b64_json", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: [{ url: "https://cdn.test/img.png" }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), {
+          status: 200,
+          headers: { "content-type": "image/webp" },
+        }),
+      );
+
+    const result = await generateImage({
+      prompt: "a red fox",
+      size: "1024x1024",
+      n: 1,
+      token: "test-token",
+      baseUrl: "https://gw.test",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    expect(result).toEqual([{ bytes: Buffer.from([1, 2, 3]), mimeType: "image/webp" }]);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl.mock.calls[1]?.[0]).toBe("https://cdn.test/img.png");
+  });
+
+  it("posts multipart to /v1/images/edits when sourceImage is set", async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ data: [{ b64_json: Buffer.from("edited").toString("base64") }] }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    await generateImage({
+      prompt: "make the sky purple",
+      size: "1024x1024",
+      n: 1,
+      token: "test-token",
+      baseUrl: "https://gw.test",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      sourceImage: { bytes: Buffer.from("orig"), mimeType: "image/png" },
+    });
+
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://gw.test/v1/images/edits");
+    expect(init.body).toBeInstanceOf(FormData);
+    const form = init.body as FormData;
+    expect(form.get("prompt")).toBe("make the sky purple");
+    expect(form.get("size")).toBe("1024x1024");
+    expect(form.get("image")).toBeInstanceOf(Blob);
+    // Content-Type must be left unset so fetch can add the multipart boundary itself.
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+  });
+
+  it("throws with the gateway's error message on a non-ok response", async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(JSON.stringify({ error: { message: "quota exceeded" } }), {
+        status: 429,
+      }),
+    );
+
+    await expect(
+      generateImage({
+        prompt: "a red fox",
+        size: "1024x1024",
+        n: 1,
+        token: "test-token",
+        baseUrl: "https://gw.test",
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow("quota exceeded");
+  });
+});
