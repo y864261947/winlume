@@ -382,6 +382,8 @@ export function stopLiveChat(sessionId: string): void {
 export type SendOverrides = {
   model?: string;
   skillIds?: string[];
+  /** Id of an image artifact the user @-referenced in the composer, if any. */
+  referencedArtifactId?: string;
 };
 
 /**
@@ -436,6 +438,7 @@ async function runLiveTurn(
     const requestModel =
       overrides?.model?.trim() || entry.snapshot.model || FALLBACK_DEFAULT_MODEL;
     const requestSkillIds = overrides?.skillIds;
+    const requestReferencedArtifactId = overrides?.referencedArtifactId;
 
     const userMsg: UiChatMessage = {
       id: clientId("user"),
@@ -523,6 +526,9 @@ async function runLiveTurn(
           message: text,
           model: requestModel,
           ...(requestSkillIds?.length ? { skillIds: requestSkillIds } : {}),
+          ...(requestReferencedArtifactId
+            ? { referencedArtifactId: requestReferencedArtifactId }
+            : {}),
         },
         {
           signal: controller.signal,

@@ -132,6 +132,8 @@ export type ChatRequestBody = {
   message: string;
   model?: string;
   skillIds?: string[];
+  /** Id of an image artifact the user @-referenced in the composer, if any. */
+  referencedArtifactId?: string;
 };
 
 /** Explicit server-side stop (disconnect alone does not cancel generation). */

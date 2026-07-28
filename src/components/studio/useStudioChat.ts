@@ -69,7 +69,7 @@ export type UseStudioChatResult = {
    */
   send: (
     text: string,
-    overrides?: { model?: string; skillIds?: string[] },
+    overrides?: { model?: string; skillIds?: string[]; referencedArtifactId?: string },
   ) => Promise<"sent" | "queued" | "rejected">;
   stop: () => void;
   clearError: () => void;
@@ -155,6 +155,7 @@ export function useStudioChat(
       overrides?: {
         model?: string;
         skillIds?: string[];
+        referencedArtifactId?: string;
       },
     ): Promise<"sent" | "queued" | "rejected"> => {
       if (!sessionId) return "rejected";

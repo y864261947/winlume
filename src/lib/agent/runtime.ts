@@ -135,6 +135,8 @@ export interface RunAgentTurnOpts {
   sessionId: string;
   userText: string;
   skillIds?: string[];
+  /** Id of an image artifact the user @-referenced in the composer, if any. */
+  referencedArtifactId?: string;
   model?: string;
   sessions: SessionStore;
   artifacts: ArtifactStore;
