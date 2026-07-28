@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { webStore } from "@/lib/host/web/store-singleton";
-
-function userIdFromRequest(request: NextRequest): string | null {
-  const fromHeader = request.headers.get("x-winlume-user")?.trim();
-  return fromHeader || null;
-}
 
 type IdContext = { params: Promise<{ id: string }> };
 
@@ -12,7 +8,7 @@ type IdContext = { params: Promise<{ id: string }> };
  * GET /api/artifacts/[id] — metadata + utf-8 content for one artifact (user-scoped).
  */
 export async function GET(request: NextRequest, context: IdContext) {
-  const userId = userIdFromRequest(request);
+  const userId = await getCurrentUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

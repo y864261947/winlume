@@ -8,17 +8,56 @@ import type {
   Role,
 } from "@/lib/agent/types";
 import {
-  getGatewayUserId,
   streamChat,
   StudioApiError,
 } from "@/lib/studio/api";
 import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
+
+/** Max pending user turns while a stream is in flight (NewMax: MAX_QUEUE_SIZE = 5). */
+export const MAX_MESSAGE_QUEUE_SIZE = 5;
+
+export type UiToolCall = {
+  id: string;
+  name: string;
+  input?: unknown;
+  resultSummary?: string;
+  ok?: boolean;
+  status: "running" | "done";
+};
+
+/**
+ * Stream activity phase — NewMax StreamingPulse phases (thinking / tooling / producing).
+ * Inferred from SSE events even when the provider never emits raw "thinking" tokens.
+ */
+export type StreamPhase = "thinking" | "tool" | "producing" | "done";
 
 export type UiChatMessage = {
   id: string;
   role: Role;
   content: string;
   streaming?: boolean;
+  /** Accumulated model "thinking" deltas (if provider emits them). */
+  thinking?: string;
+  /** Tool calls attached to this assistant turn (NewMax tool-group style). */
+  toolCalls?: UiToolCall[];
+  /** Live / final activity phase for status UI. */
+  streamPhase?: StreamPhase;
+  /** Epoch ms when this assistant turn started streaming. */
+  streamStartedAt?: number;
+  /**
+   * Seconds spent before first visible text (thinking + tools).
+   * Mirrors NewMax thinkingSeconds on completed turns.
+   */
+  thinkingDurationSec?: number;
+};
+
+/** Queued outbound turn — mirrors NewMax message-queue item (stripped to web needs). */
+export type QueuedMessage = {
+  id: string;
+  content: string;
+  model?: string;
+  skillIds?: string[];
+  createdAt: number;
 };
 
 function toUiMessages(messages: Message[]): UiChatMessage[] {
@@ -26,6 +65,14 @@ function toUiMessages(messages: Message[]): UiChatMessage[] {
     id: m.id,
     role: m.role,
     content: m.content,
+    toolCalls: m.toolCalls?.map((tc) => ({
+      id: tc.id,
+      name: tc.name,
+      input: tc.arguments,
+      resultSummary: tc.result,
+      ok: tc.result !== undefined ? true : undefined,
+      status: "done" as const,
+    })),
   }));
 }
 
@@ -64,9 +111,20 @@ export type UseStudioChatResult = {
   model: string;
   setModel: (model: string) => void;
   setMessages: React.Dispatch<React.SetStateAction<UiChatMessage[]>>;
-  send: (text: string, overrides?: { model?: string; skillIds?: string[] }) => Promise<void>;
+  /**
+   * Send immediately, or enqueue when a turn is already streaming.
+   * Returns `"sent" | "queued" | "rejected"`.
+   */
+  send: (
+    text: string,
+    overrides?: { model?: string; skillIds?: string[] },
+  ) => Promise<"sent" | "queued" | "rejected">;
   stop: () => void;
   clearError: () => void;
+  /** Pending turns waiting for the current stream to finish. */
+  queue: QueuedMessage[];
+  removeFromQueue: (id: string) => void;
+  clearQueue: () => void;
 };
 
 export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChatResult {
@@ -87,6 +145,7 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [model, setModel] = useState(modelProp);
+  const [queue, setQueue] = useState<QueuedMessage[]>([]);
 
   const abortRef = useRef<AbortController | null>(null);
   const onSessionRef = useRef(onSession);
@@ -94,6 +153,17 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
   const onArtifactRef = useRef(onArtifact);
   const skillIdsRef = useRef(skillIdsProp);
   const sessionIdRef = useRef(sessionId);
+  const modelRef = useRef(model);
+  const queueRef = useRef(queue);
+  /** Prevent re-entrant drain while popping next queued item. */
+  const drainingRef = useRef(false);
+  const sendImplRef = useRef<
+    | ((
+        text: string,
+        overrides?: { model?: string; skillIds?: string[] },
+      ) => Promise<"sent" | "queued" | "rejected">)
+    | null
+  >(null);
 
   useEffect(() => {
     onSessionRef.current = onSession;
@@ -110,6 +180,12 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
+  useEffect(() => {
+    modelRef.current = model;
+  }, [model]);
+  useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
 
   // Sync when parent loads session bundle
   useEffect(() => {
@@ -140,27 +216,45 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
     setMessages((prev) =>
       prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)),
     );
+    // Keep queue; user can still clear or let it drain after a fresh send.
   }, []);
 
   const clearError = useCallback(() => setError(null), []);
 
-  const send = useCallback(
+  const removeFromQueue = useCallback((id: string) => {
+    setQueue((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const clearQueue = useCallback(() => {
+    setQueue([]);
+  }, []);
+
+  const drainQueue = useCallback(() => {
+    if (drainingRef.current) return;
+    if (abortRef.current) return;
+    const next = queueRef.current[0];
+    if (!next) return;
+
+    drainingRef.current = true;
+    setQueue((prev) => prev.slice(1));
+    // Defer so state settles; then fire next turn
+    queueMicrotask(() => {
+      drainingRef.current = false;
+      void sendImplRef.current?.(next.content, {
+        model: next.model,
+        skillIds: next.skillIds,
+      });
+    });
+  }, []);
+
+  const runTurn = useCallback(
     async (
       text: string,
       overrides?: { model?: string; skillIds?: string[] },
-    ) => {
+    ): Promise<"sent" | "rejected"> => {
       const trimmed = text.trim();
-      if (!trimmed) return;
-      if (abortRef.current) {
-        // Ignore double-send while a turn is in flight
-        return;
-      }
-
-      if (!getGatewayUserId()) {
-        setError("请先登录后再发送消息");
-        onUnauthorizedRef.current?.();
-        return;
-      }
+      if (!trimmed) return "rejected";
+      if (abortRef.current) return "rejected";
 
       setError(null);
       const userMsg: UiChatMessage = {
@@ -169,11 +263,15 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
         content: trimmed,
       };
       const assistantId = clientId("assistant");
+      const streamStartedAt = Date.now();
       const assistantMsg: UiChatMessage = {
         id: assistantId,
         role: "assistant",
         content: "",
         streaming: true,
+        toolCalls: [],
+        streamPhase: "thinking",
+        streamStartedAt,
       };
 
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
@@ -182,8 +280,41 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const requestModel = overrides?.model?.trim() || model;
+      const requestModel =
+        overrides?.model?.trim() || modelRef.current || model;
       const requestSkillIds = overrides?.skillIds ?? skillIdsRef.current;
+
+      /** Seconds before first text token (NewMax thinkingSeconds). */
+      let preTextMs: number | null = null;
+      const markFirstText = () => {
+        if (preTextMs == null) preTextMs = Date.now() - streamStartedAt;
+      };
+
+      const finalizeAssistant = (partial: Partial<UiChatMessage>) => {
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== assistantId) return m;
+            const durationSec =
+              partial.thinkingDurationSec ??
+              m.thinkingDurationSec ??
+              (preTextMs != null
+                ? Math.max(1, Math.round(preTextMs / 1000))
+                : m.streamStartedAt
+                  ? Math.max(
+                      1,
+                      Math.round((Date.now() - m.streamStartedAt) / 1000),
+                    )
+                  : undefined);
+            return {
+              ...m,
+              ...partial,
+              streaming: false,
+              streamPhase: "done",
+              thinkingDurationSec: durationSec,
+            };
+          }),
+        );
+      };
 
       try {
         await streamChat(
@@ -203,12 +334,103 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
                 return;
               }
               if (event.type === "text_delta") {
+                markFirstText();
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantId
-                      ? { ...m, content: m.content + event.text, streaming: true }
+                      ? {
+                          ...m,
+                          content: m.content + event.text,
+                          streaming: true,
+                          streamPhase: "producing",
+                        }
                       : m,
                   ),
+                );
+                return;
+              }
+              if (event.type === "thinking") {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? {
+                          ...m,
+                          thinking: (m.thinking ?? "") + event.text,
+                          streaming: true,
+                          streamPhase:
+                            m.streamPhase === "producing" ? "producing" : "thinking",
+                        }
+                      : m,
+                  ),
+                );
+                return;
+              }
+              if (event.type === "tool_call") {
+                setMessages((prev) =>
+                  prev.map((m) => {
+                    if (m.id !== assistantId) return m;
+                    const existing = m.toolCalls ?? [];
+                    const idx = existing.findIndex((t) => t.id === event.id);
+                    const nextCall: UiToolCall = {
+                      id: event.id,
+                      name: event.name,
+                      input: event.input,
+                      status: "running",
+                    };
+                    const toolCalls =
+                      idx >= 0
+                        ? existing.map((t, i) =>
+                            i === idx ? { ...t, ...nextCall } : t,
+                          )
+                        : [...existing, nextCall];
+                    return {
+                      ...m,
+                      toolCalls,
+                      streaming: true,
+                      streamPhase: "tool",
+                    };
+                  }),
+                );
+                return;
+              }
+              if (event.type === "tool_result") {
+                setMessages((prev) =>
+                  prev.map((m) => {
+                    if (m.id !== assistantId) return m;
+                    const existing = m.toolCalls ?? [];
+                    const toolCalls = existing.map((t) =>
+                      t.id === event.id
+                        ? {
+                            ...t,
+                            resultSummary: event.summary,
+                            ok: event.ok,
+                            status: "done" as const,
+                          }
+                        : t,
+                    );
+                    if (!toolCalls.some((t) => t.id === event.id)) {
+                      toolCalls.push({
+                        id: event.id,
+                        name: "tool",
+                        resultSummary: event.summary,
+                        ok: event.ok,
+                        status: "done",
+                      });
+                    }
+                    const stillRunning = toolCalls.some(
+                      (t) => t.status === "running",
+                    );
+                    return {
+                      ...m,
+                      toolCalls,
+                      streaming: true,
+                      streamPhase: stillRunning
+                        ? "tool"
+                        : m.content
+                          ? "producing"
+                          : "thinking",
+                    };
+                  }),
                 );
                 return;
               }
@@ -225,14 +447,7 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
                 return;
               }
               if (event.type === "done") {
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId ? { ...m, streaming: false } : m,
-                  ),
-                );
-                if (event.reason === "cancelled") {
-                  /* stop() already set streaming false */
-                }
+                finalizeAssistant({});
               }
             },
           },
@@ -250,25 +465,84 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
             err instanceof Error ? err.message : "发送失败，请稍后重试";
           setError(message);
         }
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, streaming: false } : m,
-          ),
-        );
+        finalizeAssistant({});
       } finally {
         if (abortRef.current === controller) {
           abortRef.current = null;
         }
         setStreaming(false);
         setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId && m.streaming ? { ...m, streaming: false } : m,
-          ),
+          prev.map((m) => {
+            if (m.id !== assistantId) return m;
+            if (!m.streaming && m.streamPhase === "done") return m;
+            const durationSec =
+              m.thinkingDurationSec ??
+              (preTextMs != null
+                ? Math.max(1, Math.round(preTextMs / 1000))
+                : m.streamStartedAt
+                  ? Math.max(
+                      1,
+                      Math.round((Date.now() - m.streamStartedAt) / 1000),
+                    )
+                  : undefined);
+            return {
+              ...m,
+              streaming: false,
+              streamPhase: "done",
+              thinkingDurationSec: durationSec,
+            };
+          }),
         );
+        // NewMax pattern: auto-drain queue when the turn finishes
+        queueMicrotask(() => drainQueue());
       }
+
+      return "sent";
     },
-    [model],
+    [drainQueue, model],
   );
+
+  const send = useCallback(
+    async (
+      text: string,
+      overrides?: { model?: string; skillIds?: string[] },
+    ): Promise<"sent" | "queued" | "rejected"> => {
+      const trimmed = text.trim();
+      if (!trimmed) return "rejected";
+
+      // Streaming: enqueue (NewMax message queue)
+      if (abortRef.current) {
+        let queued = false;
+        setQueue((prev) => {
+          if (prev.length >= MAX_MESSAGE_QUEUE_SIZE) {
+            queued = false;
+            return prev;
+          }
+          queued = true;
+          return [
+            ...prev,
+            {
+              id: clientId("q"),
+              content: trimmed,
+              model: overrides?.model,
+              skillIds: overrides?.skillIds,
+              createdAt: Date.now(),
+            },
+          ];
+        });
+        if (!queued) {
+          setError(`队列已满（最多 ${MAX_MESSAGE_QUEUE_SIZE} 条），请等待当前回复完成`);
+          return "rejected";
+        }
+        return "queued";
+      }
+
+      return runTurn(trimmed, overrides);
+    },
+    [runTurn],
+  );
+
+  sendImplRef.current = send;
 
   return {
     sessionId,
@@ -281,5 +555,8 @@ export function useStudioChat(options: UseStudioChatOptions = {}): UseStudioChat
     send,
     stop,
     clearError,
+    queue,
+    removeFromQueue,
+    clearQueue,
   };
 }

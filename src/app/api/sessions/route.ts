@@ -1,15 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { webStore } from "@/lib/host/web/store-singleton";
 
-function userIdFromRequest(request: NextRequest): string | null {
-  const fromHeader = request.headers.get("x-winlume-user")?.trim();
-  return fromHeader || null;
-}
-
 /** GET /api/sessions — list sessions for the authenticated user */
-export async function GET(request: NextRequest) {
-  const userId = userIdFromRequest(request);
+export async function GET(_request: NextRequest) {
+  const userId = await getCurrentUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -20,7 +16,7 @@ export async function GET(request: NextRequest) {
 
 /** POST /api/sessions — create a session; body: { model?, title? } */
 export async function POST(request: NextRequest) {
-  const userId = userIdFromRequest(request);
+  const userId = await getCurrentUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

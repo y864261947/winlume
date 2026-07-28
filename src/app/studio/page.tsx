@@ -18,10 +18,10 @@ import { useModals } from "@/components/providers";
 import type { SkillMeta } from "@/lib/agent/types";
 import {
   createSession,
-  getGatewayUserId,
   setPendingFirstMessage,
   StudioApiError,
 } from "@/lib/studio/api";
+import { clearComposerDraft } from "@/lib/studio/composer-draft";
 import {
   FALLBACK_DEFAULT_MODEL,
   getDefaultModel,
@@ -185,7 +185,7 @@ function StudioHomeInner() {
       const message = text.trim();
       if (!message || starting) return;
 
-      if (!getGatewayUserId()) {
+      if (!account) {
         setError("请先登录后再开始对话");
         openLogin("login");
         return;
@@ -217,6 +217,8 @@ function StudioHomeInner() {
           skillIds,
         });
         setSelectedSkillIds([]);
+        setDraft("");
+        clearComposerDraft("home");
         router.push(`/studio/c/${session.id}`);
       } catch (err) {
         if (err instanceof StudioApiError && err.status === 401) {
@@ -228,7 +230,7 @@ function StudioHomeInner() {
         setStarting(false);
       }
     },
-    [model, openLogin, router, selectedSkillIds, starting],
+    [account, model, openLogin, router, selectedSkillIds, starting],
   );
 
   const greetingName =
@@ -343,6 +345,7 @@ function StudioHomeInner() {
         onSkillIdsChange={setSelectedSkillIds}
         error={error}
         onClearError={() => setError(null)}
+        draftKey="home"
         placeholder={
           starting
             ? "正在创建会话…"

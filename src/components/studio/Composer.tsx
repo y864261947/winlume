@@ -7,12 +7,51 @@ import {
   useMemo,
   useRef,
   useState,
+  type ClipboardEvent,
+  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { ArrowUp, ChevronDown, Square, Wrench } from "lucide-react";
+import {
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  FileText,
+  Image as ImageIcon,
+  ListOrdered,
+  Paperclip,
+  Square,
+  X,
+  Wrench,
+} from "lucide-react";
 import { fetchPlaza } from "@/lib/catalog";
 import type { SkillMeta } from "@/lib/agent/types";
+import {
+  composeOutboundMessage,
+  createPastedBlock,
+  fileToAttachment,
+  fileToImageAttachment,
+  formatFileSize,
+  hasComposerPayload,
+  isImageFile,
+  MAX_FILES,
+  MAX_IMAGES,
+  MAX_PASTED_BLOCKS,
+  PASTED_COLLAPSED_PX,
+  PASTED_EXPANDED_PX,
+  resolveComposerPasteIntent,
+  shouldCollapsePaste,
+  type FileAttachment,
+  type ImageAttachment,
+  type PastedBlock,
+} from "@/lib/studio/composer-attachments";
+import {
+  clearComposerDraft,
+  loadComposerDraft,
+  saveComposerDraft,
+} from "@/lib/studio/composer-draft";
 import SkillChips from "./SkillChips";
 import SkillSlashMenu, {
   activateSlashMenuItem,
@@ -20,6 +59,8 @@ import SkillSlashMenu, {
   type MenuView,
   type SkillDepartment,
 } from "./SkillSlashMenu";
+import type { QueuedMessage } from "./useStudioChat";
+import { MAX_MESSAGE_QUEUE_SIZE } from "./useStudioChat";
 
 const FALLBACK_MODELS = [
   "gpt-4o-mini",
@@ -29,6 +70,7 @@ const FALLBACK_MODELS = [
 ] as const;
 
 const PLAZA_LIMIT = 30;
+const DRAFT_DEBOUNCE_MS = 400;
 
 export type ComposerSendMeta = {
   skillIds?: string[];
@@ -37,24 +79,129 @@ export type ComposerSendMeta = {
 export type ComposerProps = {
   value?: string;
   onChange?: (value: string) => void;
-  onSend: (text: string, meta?: ComposerSendMeta) => void | Promise<void>;
+  onSend: (
+    text: string,
+    meta?: ComposerSendMeta,
+  ) => void | Promise<void | string>;
   onStop?: () => void;
   streaming?: boolean;
   disabled?: boolean;
   model: string;
   onModelChange: (model: string) => void;
   placeholder?: string;
-  /** Allow free-text model name when plaza fails or for custom models */
   allowCustomModel?: boolean;
   error?: string | null;
   onClearError?: () => void;
-  /** Initial / controlled skill ids selected for the next message (turn) */
   skillIds?: string[];
   onSkillIdsChange?: (ids: string[]) => void;
-  /** Session-pinned skill ids (parent may no-op until session page wired) */
   pinnedSkillIds?: string[];
   onPinnedSkillIdsChange?: (ids: string[]) => void;
+  queue?: QueuedMessage[];
+  onRemoveFromQueue?: (id: string) => void;
+  onClearQueue?: () => void;
+  /**
+   * localStorage draft scope (e.g. session id or "home").
+   * When set, text is auto-saved / restored (NewMax draft persistence).
+   */
+  draftKey?: string | null;
 };
+
+function PastedBlockCard({
+  block,
+  onRemove,
+  disabled,
+}: {
+  block: PastedBlock;
+  onRemove: () => void;
+  disabled?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const contentRef = useRef<HTMLPreElement>(null);
+  const [overflowing, setOverflowing] = useState(false);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    setOverflowing(el.scrollHeight > PASTED_COLLAPSED_PX + 4);
+  }, [block.full, expanded]);
+
+  const title =
+    block.name ||
+    (block.source === "file"
+      ? "文件"
+      : `粘贴 · ${block.lineCount} 行 · ${formatFileSize(block.charCount)}`);
+
+  return (
+    <div className="group flex w-full max-w-full flex-col gap-1 rounded-[12px] border border-white/70 bg-white/55 p-1.5">
+      <div className="flex items-center gap-1.5 px-1 text-[11px] text-[#615A73]">
+        <FileText className="h-3.5 w-3.5 shrink-0 text-[#C2410C]" />
+        <span className="min-w-0 flex-1 truncate font-medium text-[#241E36]">
+          {title}
+        </span>
+        <button
+          type="button"
+          title="复制全文"
+          disabled={disabled}
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(block.full);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            } catch {
+              /* deny */
+            }
+          }}
+          className="rounded p-0.5 text-[#8A8298] hover:bg-white hover:text-[#241E36] disabled:opacity-40"
+        >
+          {copied ? (
+            <Check className="h-3.5 w-3.5 text-emerald-600" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+        </button>
+        <button
+          type="button"
+          title="移除"
+          disabled={disabled}
+          onClick={onRemove}
+          className="rounded p-0.5 text-[#8A8298] hover:bg-white hover:text-[#C2410C] disabled:opacity-40"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <pre
+        ref={contentRef}
+        className="overflow-hidden whitespace-pre-wrap break-words rounded-[8px] bg-white/70 px-2.5 py-2 font-mono text-[11px] leading-4 text-[#241E36]"
+        style={{
+          maxHeight: expanded ? PASTED_EXPANDED_PX : PASTED_COLLAPSED_PX,
+          overflowY: expanded ? "auto" : "hidden",
+        }}
+      >
+        {expanded ? block.full : block.preview}
+      </pre>
+      {overflowing || block.preview !== block.full ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="inline-flex items-center gap-0.5 self-start px-1 text-[11px] font-medium text-[#C2410C] hover:underline"
+        >
+          {expanded ? (
+            <>
+              <ChevronDown className="h-3 w-3" />
+              收起
+            </>
+          ) : (
+            <>
+              <ChevronRight className="h-3 w-3" />
+              展开全部
+            </>
+          )}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 export default function Composer({
   value: controlledValue,
@@ -73,10 +220,16 @@ export default function Composer({
   onSkillIdsChange,
   pinnedSkillIds: pinnedSkillIdsProp,
   onPinnedSkillIdsChange,
+  queue = [],
+  onRemoveFromQueue,
+  onClearQueue,
+  draftKey = null,
 }: ComposerProps) {
   const promptId = useId();
   const modelId = useId();
   const menuId = useId();
+  const fileInputId = useId();
+
   const [uncontrolled, setUncontrolled] = useState("");
   const [modelOptions, setModelOptions] = useState<string[]>([...FALLBACK_MODELS]);
   const [modelsLoading, setModelsLoading] = useState(true);
@@ -93,8 +246,19 @@ export default function Composer({
   const [slashRange, setSlashRange] = useState<{ start: number; end: number } | null>(
     null,
   );
+
+  const [pastedBlocks, setPastedBlocks] = useState<PastedBlock[]>([]);
+  const [images, setImages] = useState<ImageAttachment[]>([]);
+  const [files, setFiles] = useState<FileAttachment[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [draftHydrated, setDraftHydrated] = useState(!draftKey);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragCounter = useRef(0);
 
   const isControlled = controlledValue !== undefined;
   const draft = isControlled ? controlledValue : uncontrolled;
@@ -131,6 +295,37 @@ export default function Composer({
     [pinnedIds, pinnedControlled, onPinnedSkillIdsChange],
   );
 
+  // Hydrate draft from localStorage once per draftKey
+  useEffect(() => {
+    if (!draftKey) {
+      setDraftHydrated(true);
+      return;
+    }
+    const saved = loadComposerDraft(draftKey);
+    if (saved) {
+      if (isControlled) {
+        // Only fill if parent has empty draft (don't clobber intentional URL prompt)
+        if (!controlledValue?.trim()) onChange?.(saved);
+      } else {
+        setUncontrolled(saved);
+      }
+    }
+    setDraftHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once per key
+  }, [draftKey]);
+
+  // Debounced draft save (works for controlled + uncontrolled)
+  useEffect(() => {
+    if (!draftKey || !draftHydrated) return;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      saveComposerDraft(draftKey, draft);
+    }, DRAFT_DEBOUNCE_MS);
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    };
+  }, [draft, draftKey, draftHydrated]);
+
   useEffect(() => {
     let cancelled = false;
     setModelsLoading(true);
@@ -152,7 +347,7 @@ export default function Composer({
         }
       })
       .catch(() => {
-        /* keep fallback list */
+        /* keep fallback */
       })
       .finally(() => {
         if (!cancelled) setModelsLoading(false);
@@ -160,7 +355,7 @@ export default function Composer({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load plaza once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -193,7 +388,6 @@ export default function Composer({
     };
   }, []);
 
-  // Ensure selected model is visible in options
   useEffect(() => {
     if (model && !modelOptions.includes(model) && !customMode) {
       setModelOptions((prev) => [model, ...prev.filter((m) => m !== model)]);
@@ -211,27 +405,21 @@ export default function Composer({
     [allSkills, departments, menuQuery, menuView],
   );
 
-  // Reset highlight when query / open / view changes
   useEffect(() => {
     setMenuIndex(0);
   }, [menuQuery, menuOpen, menuView]);
 
-  // Keep highlight in range when item list shrinks
   useEffect(() => {
     if (menuItems.length === 0) return;
-    if (menuIndex >= menuItems.length) {
-      setMenuIndex(0);
-    }
+    if (menuIndex >= menuItems.length) setMenuIndex(0);
   }, [menuItems.length, menuIndex]);
 
-  // When typing a search query, leave department drill (flat search)
   useEffect(() => {
     if (menuQuery.trim() && menuView.kind !== "root") {
       setMenuView({ kind: "root" });
     }
   }, [menuQuery, menuView.kind]);
 
-  // Close slash menu on outside click
   useEffect(() => {
     if (!menuOpen) return;
     const onDown = (e: MouseEvent) => {
@@ -246,7 +434,22 @@ export default function Composer({
     return () => document.removeEventListener("mousedown", onDown);
   }, [menuOpen]);
 
-  const canSend = Boolean(draft.trim()) && !disabled && !streaming;
+  const queueFull = queue.length >= MAX_MESSAGE_QUEUE_SIZE;
+  const canSend =
+    hasComposerPayload({
+      draft,
+      pasted: pastedBlocks,
+      images,
+      files,
+    }) &&
+    !disabled &&
+    !(streaming && queueFull);
+
+  const focusComposer = useCallback(() => {
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+  }, []);
 
   const toggleSkill = useCallback(
     (id: string) => {
@@ -286,7 +489,6 @@ export default function Composer({
 
   const pickSkillFromMenu = useCallback(
     (skill: SkillMeta) => {
-      // Wrench-opened menu (no slash token): toggle; slash pick: add only
       if (!slashRange) {
         toggleSkill(skill.id);
         return;
@@ -323,7 +525,6 @@ export default function Composer({
 
   const detectSlash = useCallback(
     (text: string, cursor: number) => {
-      // Match `/query` token immediately before cursor (start of string or after whitespace)
       const upto = text.slice(0, cursor);
       const match = upto.match(/(?:^|[\s\n])\/([^\s/]*)$/);
       if (!match) {
@@ -342,28 +543,211 @@ export default function Composer({
     [openSkillMenu],
   );
 
+  const addImages = useCallback(async (list: File[]) => {
+    setAttachError(null);
+    const next: ImageAttachment[] = [];
+    for (const file of list) {
+      try {
+        next.push(await fileToImageAttachment(file));
+      } catch (err) {
+        setAttachError(err instanceof Error ? err.message : "添加图片失败");
+      }
+    }
+    if (!next.length) return;
+    setImages((prev) => {
+      const merged = [...prev, ...next];
+      if (merged.length > MAX_IMAGES) {
+        setAttachError(`最多 ${MAX_IMAGES} 张图片`);
+        return merged.slice(0, MAX_IMAGES);
+      }
+      return merged;
+    });
+  }, []);
+
+  const addFiles = useCallback(async (list: File[]) => {
+    setAttachError(null);
+    for (const file of list) {
+      try {
+        if (isImageFile(file)) {
+          await addImages([file]);
+          continue;
+        }
+        const result = await fileToAttachment(file);
+        if (result.pasted) {
+          setPastedBlocks((prev) => {
+            if (prev.length >= MAX_PASTED_BLOCKS) {
+              setAttachError(`最多 ${MAX_PASTED_BLOCKS} 个粘贴块`);
+              return prev;
+            }
+            return [...prev, result.pasted!];
+          });
+        } else if (result.file) {
+          setFiles((prev) => {
+            if (prev.length >= MAX_FILES) {
+              setAttachError(`最多 ${MAX_FILES} 个附件`);
+              return prev;
+            }
+            return [...prev, result.file!];
+          });
+        }
+      } catch (err) {
+        setAttachError(err instanceof Error ? err.message : "添加文件失败");
+      }
+    }
+  }, [addImages]);
+
+  const handlePaste = useCallback(
+    (e: ClipboardEvent<HTMLTextAreaElement>) => {
+      const intent = resolveComposerPasteIntent(e.clipboardData);
+      if (intent.kind === "empty" || intent.kind === "short-text") {
+        // let browser handle short text
+        return;
+      }
+
+      if (intent.kind === "long-text") {
+        e.preventDefault();
+        setPastedBlocks((prev) => {
+          if (prev.length >= MAX_PASTED_BLOCKS) {
+            setAttachError(`最多 ${MAX_PASTED_BLOCKS} 个粘贴块`);
+            return prev;
+          }
+          setAttachError(null);
+          return [...prev, createPastedBlock(intent.text)];
+        });
+        return;
+      }
+
+      if (intent.kind === "images") {
+        e.preventDefault();
+        void addImages(intent.files);
+        return;
+      }
+
+      if (intent.kind === "files") {
+        e.preventDefault();
+        void addFiles(intent.files);
+        return;
+      }
+
+      if (intent.kind === "mixed") {
+        e.preventDefault();
+        if (intent.text) {
+          if (shouldCollapsePaste(intent.text)) {
+            setPastedBlocks((prev) =>
+              prev.length >= MAX_PASTED_BLOCKS
+                ? prev
+                : [...prev, createPastedBlock(intent.text!)],
+            );
+          } else {
+            // insert short text at cursor
+            const el = textareaRef.current;
+            if (el) {
+              const start = el.selectionStart ?? draft.length;
+              const end = el.selectionEnd ?? draft.length;
+              const next = draft.slice(0, start) + intent.text + draft.slice(end);
+              setDraft(next);
+            } else {
+              setDraft(draft + intent.text);
+            }
+          }
+        }
+        if (intent.images.length) void addImages(intent.images);
+        if (intent.files.length) void addFiles(intent.files);
+      }
+    },
+    [addFiles, addImages, draft, setDraft],
+  );
+
+  const onDragEnter = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current += 1;
+    if (e.dataTransfer?.types?.includes("Files")) setDragOver(true);
+  };
+
+  const onDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setDragOver(false);
+    }
+  };
+
+  const onDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+  };
+
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setDragOver(false);
+    if (disabled) return;
+    const list = Array.from(e.dataTransfer?.files ?? []);
+    if (list.length) void addFiles(list);
+  };
+
+  const clearAttachments = useCallback(() => {
+    setPastedBlocks([]);
+    setImages([]);
+    setFiles([]);
+    setAttachError(null);
+  }, []);
+
   const submit = useCallback(() => {
-    const text = draft.trim();
-    if (!text || disabled || streaming) return;
+    if (disabled) return;
+    if (streaming && queueFull) return;
+    if (
+      !hasComposerPayload({
+        draft,
+        pasted: pastedBlocks,
+        images,
+        files,
+      })
+    ) {
+      return;
+    }
     onClearError?.();
+    const outbound = composeOutboundMessage({
+      draft,
+      pasted: pastedBlocks,
+      images,
+      files,
+    });
+    if (!outbound) return;
     const ids = selectedIds.length ? [...selectedIds] : undefined;
-    void onSend(text, ids ? { skillIds: ids } : undefined);
+    void onSend(outbound, ids ? { skillIds: ids } : undefined);
     setDraft("");
     setSelectedIds([]);
+    clearAttachments();
     closeMenu();
+    if (draftKey) clearComposerDraft(draftKey);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
+    // NewMax: refocus composer after send
+    focusComposer();
   }, [
-    draft,
     disabled,
     streaming,
-    onSend,
+    queueFull,
+    draft,
+    pastedBlocks,
+    images,
+    files,
     onClearError,
-    setDraft,
     selectedIds,
+    onSend,
+    setDraft,
     setSelectedIds,
+    clearAttachments,
     closeMenu,
+    draftKey,
+    focusComposer,
   ]);
 
   const runMenuActivate = useCallback(() => {
@@ -408,11 +792,7 @@ export default function Composer({
       }
       if (event.key === "Escape") {
         event.preventDefault();
-        // Department drill: Esc → root first; then close
-        if (
-          menuView.kind === "department" &&
-          !menuQuery.trim()
-        ) {
+        if (menuView.kind === "department" && !menuQuery.trim()) {
           setMenuView({ kind: "root" });
           setMenuIndex(0);
           return;
@@ -442,6 +822,8 @@ export default function Composer({
 
   const turnCount = selectedIds.length;
   const pinCount = pinnedIds.length;
+  const hasAttachments =
+    pastedBlocks.length > 0 || images.length > 0 || files.length > 0;
 
   return (
     <div className="relative z-[1] border-t border-white/40 bg-gradient-to-t from-[rgba(247,243,236,0.95)] to-transparent px-4 py-4 sm:px-6">
@@ -463,10 +845,67 @@ export default function Composer({
         </div>
       ) : null}
 
+      {queue.length > 0 ? (
+        <div className="mx-auto mb-3 max-w-3xl rounded-[14px] border border-[rgba(194,65,12,0.18)] bg-[rgba(242,153,74,0.08)] px-3 py-2">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-[#C2410C]">
+            <ListOrdered className="h-3.5 w-3.5" />
+            排队中 {queue.length}/{MAX_MESSAGE_QUEUE_SIZE}
+            {onClearQueue ? (
+              <button
+                type="button"
+                onClick={onClearQueue}
+                className="ml-auto text-[11px] font-normal text-[#8A8298] underline-offset-2 hover:text-[#C2410C] hover:underline"
+              >
+                清空
+              </button>
+            ) : null}
+          </div>
+          <ul className="space-y-1">
+            {queue.map((item, index) => (
+              <li
+                key={item.id}
+                className="flex items-start gap-2 rounded-[10px] bg-white/60 px-2 py-1.5 text-xs text-[#241E36]"
+              >
+                <span className="mt-0.5 shrink-0 tabular-nums text-[#8A8298]">
+                  {index + 1}.
+                </span>
+                <span className="min-w-0 flex-1 line-clamp-2 whitespace-pre-wrap">
+                  {item.content}
+                </span>
+                {onRemoveFromQueue ? (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveFromQueue(item.id)}
+                    className="shrink-0 rounded p-0.5 text-[#8A8298] hover:bg-white hover:text-[#C2410C]"
+                    title="移出队列"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <form
-        className="studio-glass relative mx-auto flex max-w-3xl flex-col gap-2 rounded-[22px] p-2.5"
+        className={`studio-glass relative mx-auto flex max-w-3xl flex-col gap-2 rounded-[22px] p-2.5 transition ${
+          dragOver
+            ? "ring-2 ring-[rgba(194,65,12,0.45)] ring-offset-2 ring-offset-[rgba(247,243,236,0.9)]"
+            : ""
+        }`}
         onSubmit={onSubmit}
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
       >
+        {dragOver ? (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[22px] bg-[rgba(242,153,74,0.12)] text-sm font-medium text-[#C2410C]">
+            松开以添加文件或图片
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center gap-2 px-2 pt-1">
           <label htmlFor={modelId} className="sr-only">
             模型
@@ -479,7 +918,7 @@ export default function Composer({
                 value={model}
                 onChange={(e) => onModelChange(e.target.value)}
                 placeholder="输入模型名称"
-                disabled={disabled || streaming}
+                disabled={disabled}
                 className="min-w-0 flex-1 rounded-[10px] border border-white/70 bg-white/70 px-2.5 py-1 font-mono text-xs text-[#241E36] outline-none focus:ring-2 focus:ring-[rgba(194,65,12,0.25)] sm:w-48"
               />
               <button
@@ -507,7 +946,7 @@ export default function Composer({
                   }
                   onModelChange(e.target.value);
                 }}
-                disabled={disabled || streaming || modelsLoading}
+                disabled={disabled || modelsLoading}
                 className="appearance-none rounded-[10px] border border-white/70 bg-white/70 py-1 pl-2.5 pr-7 font-mono text-xs text-[#241E36] outline-none focus:ring-2 focus:ring-[rgba(194,65,12,0.25)] disabled:opacity-60"
               >
                 {modelOptions.map((name) => (
@@ -532,7 +971,7 @@ export default function Composer({
               }
               openSkillMenu("", null);
             }}
-            disabled={disabled || streaming || skillsLoading}
+            disabled={disabled || skillsLoading}
             title="选择 Skills（或输入 /）"
             className="inline-flex items-center gap-1 rounded-[10px] border border-white/70 bg-white/70 px-2 py-1 text-xs text-[#615A73] transition hover:border-[rgba(194,65,12,0.25)] hover:bg-[rgba(194,65,12,0.08)] hover:text-[#C2410C] disabled:opacity-50"
           >
@@ -545,10 +984,36 @@ export default function Composer({
             ) : null}
           </button>
 
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled}
+            title="添加附件或图片"
+            className="inline-flex items-center gap-1 rounded-[10px] border border-white/70 bg-white/70 px-2 py-1 text-xs text-[#615A73] transition hover:border-[rgba(194,65,12,0.25)] hover:bg-[rgba(194,65,12,0.08)] hover:text-[#C2410C] disabled:opacity-50"
+          >
+            <Paperclip className="h-3.5 w-3.5" />
+            附件
+          </button>
+          <input
+            ref={fileInputRef}
+            id={fileInputId}
+            type="file"
+            multiple
+            className="hidden"
+            accept="image/*,.txt,.md,.json,.csv,.log,.html,.css,.js,.ts,.tsx,.py,.yml,.yaml"
+            onChange={(e) => {
+              const list = Array.from(e.target.files ?? []);
+              e.target.value = "";
+              if (list.length) void addFiles(list);
+            }}
+          />
+
           <span className="text-[11px] text-[#8A8298]">
             {streaming
-              ? "生成中…"
-              : "Enter 发送 · / 选 Skill · Shift+Enter 换行"}
+              ? queueFull
+                ? `队列已满（${MAX_MESSAGE_QUEUE_SIZE}）· 可停止当前生成`
+                : "生成中 · Enter 加入队列 · 可粘贴/拖入附件"
+              : "Enter 发送 · 粘贴长文自动折叠 · 可拖入文件"}
           </span>
         </div>
 
@@ -559,8 +1024,110 @@ export default function Composer({
           onRemoveTurn={removeSkill}
           onTogglePin={togglePin}
           onClearTurn={clearTurnSkills}
-          disabled={disabled || streaming}
+          disabled={disabled}
         />
+
+        {/* Attachment strip: images + binary file chips */}
+        {(images.length > 0 || files.length > 0) && (
+          <div className="flex flex-wrap gap-2 px-2">
+            {images.map((img) => (
+              <div
+                key={img.id}
+                className="group relative h-16 w-16 overflow-hidden rounded-[12px] border border-white/80 bg-white/70 shadow-sm"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={img.dataUrl}
+                  alt={img.name}
+                  className="h-full w-full object-cover"
+                />
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() =>
+                    setImages((prev) => prev.filter((x) => x.id !== img.id))
+                  }
+                  className="absolute right-0.5 top-0.5 rounded-full bg-black/55 p-0.5 text-white opacity-0 transition group-hover:opacity-100"
+                  title={`移除 ${img.name}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+                <span className="absolute inset-x-0 bottom-0 truncate bg-black/45 px-1 py-0.5 text-[9px] text-white">
+                  {img.name}
+                </span>
+              </div>
+            ))}
+            {files.map((f) => (
+              <div
+                key={f.id}
+                className="inline-flex max-w-[12rem] items-center gap-1.5 rounded-[12px] border border-white/70 bg-white/60 px-2 py-1.5 text-[11px] text-[#241E36]"
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0 text-[#C2410C]" />
+                <span className="min-w-0 flex-1 truncate" title={f.name}>
+                  {f.name}
+                </span>
+                <span className="shrink-0 text-[#8A8298]">
+                  {formatFileSize(f.size)}
+                </span>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() =>
+                    setFiles((prev) => prev.filter((x) => x.id !== f.id))
+                  }
+                  className="rounded p-0.5 text-[#8A8298] hover:text-[#C2410C]"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pasted long-text cards */}
+        {pastedBlocks.length > 0 ? (
+          <div className="flex flex-col gap-2 px-1">
+            {pastedBlocks.map((block) => (
+              <PastedBlockCard
+                key={block.id}
+                block={block}
+                disabled={disabled}
+                onRemove={() =>
+                  setPastedBlocks((prev) => prev.filter((b) => b.id !== block.id))
+                }
+              />
+            ))}
+          </div>
+        ) : null}
+
+        {attachError ? (
+          <p className="px-2 text-[11px] text-[#C2410C]">{attachError}</p>
+        ) : null}
+
+        {hasAttachments ? (
+          <div className="flex items-center gap-2 px-2">
+            <span className="inline-flex items-center gap-1 text-[10px] text-[#8A8298]">
+              <ImageIcon className="h-3 w-3" />
+              {pastedBlocks.length > 0
+                ? `${pastedBlocks.length} 粘贴块`
+                : null}
+              {pastedBlocks.length > 0 && images.length > 0 ? " · " : null}
+              {images.length > 0 ? `${images.length} 图` : null}
+              {(pastedBlocks.length > 0 || images.length > 0) && files.length
+                ? " · "
+                : null}
+              {files.length > 0 ? `${files.length} 文件` : null}
+            </span>
+            <button
+              type="button"
+              onClick={clearAttachments}
+              disabled={disabled}
+              className="text-[10px] text-[#8A8298] underline-offset-2 hover:text-[#C2410C] hover:underline"
+            >
+              清空附件
+            </button>
+          </div>
+        ) : null}
 
         <div className="relative flex items-end gap-2">
           <label className="sr-only" htmlFor={promptId}>
@@ -578,12 +1145,21 @@ export default function Composer({
               const cursor = e.target.selectionStart ?? next.length;
               detectSlash(next, cursor);
             }}
+            onPaste={handlePaste}
             onKeyDown={onKeyDown}
             onClick={(e) => {
               const el = e.currentTarget;
               detectSlash(el.value, el.selectionStart ?? el.value.length);
             }}
-            placeholder={placeholder}
+            placeholder={
+              streaming
+                ? queueFull
+                  ? "队列已满，请等待或停止生成…"
+                  : "继续输入，将加入发送队列…"
+                : hasAttachments
+                  ? "补充说明（可选）…"
+                  : placeholder
+            }
             disabled={disabled}
             className="max-h-40 min-h-[2.75rem] flex-1 resize-none bg-transparent px-3 py-2 text-sm leading-6 text-[#241E36] outline-none placeholder:text-[#8A8298] disabled:opacity-60"
             aria-controls={menuOpen ? menuId : undefined}
@@ -591,15 +1167,26 @@ export default function Composer({
             aria-autocomplete="list"
           />
           {streaming ? (
-            <button
-              type="button"
-              onClick={() => onStop?.()}
-              title="停止生成"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-white/80 bg-white/80 text-[#615A73] transition hover:bg-white"
-            >
-              <Square className="h-3.5 w-3.5 fill-current" />
-              <span className="sr-only">停止</span>
-            </button>
+            <>
+              <button
+                type="submit"
+                disabled={!canSend}
+                title={queueFull ? "队列已满" : "加入队列"}
+                className="studio-send-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ListOrdered className="h-4 w-4" />
+                <span className="sr-only">加入队列</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onStop?.()}
+                title="停止生成"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-white/80 bg-white/80 text-[#615A73] transition hover:bg-white"
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+                <span className="sr-only">停止</span>
+              </button>
+            </>
           ) : (
             <button
               type="submit"

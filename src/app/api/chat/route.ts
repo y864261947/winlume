@@ -1,16 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
+import { getCurrentUserId } from "@/lib/auth/session";
 import type { AgentSseEvent } from "@/lib/agent/types";
 import { runAgentTurn } from "@/lib/agent/runtime";
 import { webStore } from "@/lib/host/web/store-singleton";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function userIdFromRequest(request: NextRequest): string | null {
-  const fromHeader = request.headers.get("x-winlume-user")?.trim();
-  return fromHeader || null;
-}
 
 function sseFrame(event: AgentSseEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
@@ -29,7 +25,7 @@ type ChatBody = {
  * Creates a session when sessionId is omitted.
  */
 export async function POST(request: NextRequest) {
-  const userId = userIdFromRequest(request);
+  const userId = await getCurrentUserId();
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
