@@ -48,6 +48,8 @@ export type QueuedMessage = {
   content: string;
   model?: string;
   skillIds?: string[];
+  /** Id of an image artifact the user @-referenced in the composer, if any. */
+  referencedArtifactId?: string;
   createdAt: number;
 };
 
@@ -415,6 +417,7 @@ export async function sendLiveChat(
           content: trimmed,
           model: overrides?.model,
           skillIds: overrides?.skillIds,
+          referencedArtifactId: overrides?.referencedArtifactId,
           createdAt: Date.now(),
         },
       ],
@@ -797,6 +800,7 @@ async function drainQueue(sessionId: string): Promise<void> {
   await runLiveTurn(sessionId, next.content, {
     model: next.model,
     skillIds: next.skillIds,
+    referencedArtifactId: next.referencedArtifactId,
   });
 }
 

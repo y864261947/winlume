@@ -617,7 +617,8 @@ export default function Composer({
         const el = textareaRef.current;
         const before = draft.slice(0, mentionRange.start);
         const after = draft.slice(mentionRange.end);
-        const next = `${before}${after}`.replace(/\s{2,}/g, " ");
+        const next =
+          before.endsWith(" ") && after.startsWith(" ") ? before + after.slice(1) : before + after;
         setDraft(next);
         requestAnimationFrame(() => {
           const pos = before.length;
@@ -869,7 +870,7 @@ export default function Composer({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (mentionOpen) {
+    if (mentionOpen && !event.nativeEvent.isComposing) {
       const items = filterMentionArtifacts(imageArtifacts, mentionQuery);
       if (event.key === "ArrowDown") {
         event.preventDefault();
