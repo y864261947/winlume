@@ -211,7 +211,7 @@ describe("generateImage", () => {
 
     expect(result).toEqual([{ bytes: Buffer.from("hello"), mimeType: "image/png" }]);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://gw.test/v1/images/generations");
     expect(init.method).toBe("POST");
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer test-token");
@@ -272,7 +272,7 @@ describe("generateImage", () => {
       sourceImage: { bytes: Buffer.from("orig"), mimeType: "image/png" },
     });
 
-    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://gw.test/v1/images/edits");
     expect(init.body).toBeInstanceOf(FormData);
     const form = init.body as FormData;
