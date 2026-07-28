@@ -6,7 +6,8 @@ export type StudioToolName =
   | "todo_write"
   | "write_artifact"
   | "read_artifact"
-  | "list_artifacts";
+  | "list_artifacts"
+  | "generate_image";
 
 /** OpenAI tools array passed to streamGatewayChat. */
 export const STUDIO_TOOLS = [
@@ -129,6 +130,52 @@ export const STUDIO_TOOLS = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "generate_image",
+      description:
+        "Generate a new image from a text prompt, or edit an existing image artifact when sourceArtifactId is set. Returns immediately with pending artifact id(s); the image renders in the artifact panel once generation finishes — do not wait for it or claim it is ready in this turn.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Short human-readable title for the artifact",
+          },
+          prompt: {
+            type: "string",
+            description: "Full description of the desired image (or the desired edit, when sourceArtifactId is set)",
+          },
+          model: {
+            type: "string",
+            description: "Image model id. Omit to use the session/scenario default.",
+          },
+          size: {
+            type: "string",
+            enum: ["1024x1024", "1024x1536", "1536x1024"],
+            description: "Output image dimensions",
+          },
+          style: {
+            type: "string",
+            description: "Optional style hint appended to the prompt (e.g. 'flat illustration', 'photorealistic')",
+          },
+          count: {
+            type: "integer",
+            minimum: 1,
+            maximum: 4,
+            description: "How many images to generate (each becomes its own artifact)",
+          },
+          sourceArtifactId: {
+            type: "string",
+            description: "Id of an existing image artifact to edit. Present → image-edit; absent → text-to-image.",
+          },
+        },
+        required: ["name", "prompt", "size", "count"],
+        additionalProperties: false,
+      },
+    },
+  },
 ] as const;
 
 export const STUDIO_TOOL_NAMES: readonly StudioToolName[] = [
@@ -136,4 +183,5 @@ export const STUDIO_TOOL_NAMES: readonly StudioToolName[] = [
   "write_artifact",
   "read_artifact",
   "list_artifacts",
+  "generate_image",
 ] as const;
