@@ -18,7 +18,7 @@ import {
 import { useModals } from "@/components/providers";
 import { formatBalance } from "@/lib/account";
 import { site } from "@/data/site";
-import { listSessions, getGatewayUserId } from "@/lib/studio/api";
+import { listSessions } from "@/lib/studio/api";
 import type { Session } from "@/lib/agent/types";
 
 type NavItem = {
@@ -71,7 +71,7 @@ export default function StudioSidebar() {
   const [recentLoading, setRecentLoading] = useState(false);
 
   useEffect(() => {
-    if (!getGatewayUserId()) {
+    if (!account) {
       setRecent([]);
       return;
     }
@@ -155,7 +155,7 @@ export default function StudioSidebar() {
         <p className="mb-2 px-2 text-[11px] font-semibold tracking-wide text-[#8A8298]">
           最近对话
         </p>
-        {!getGatewayUserId() ? (
+        {!account ? (
           <p className="px-2 text-xs leading-5 text-[#8A8298]">登录后显示历史会话</p>
         ) : recentLoading ? (
           <p className="flex items-center gap-1.5 px-2 text-xs text-[#8A8298]">

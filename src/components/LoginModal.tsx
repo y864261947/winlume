@@ -1,7 +1,8 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { AlertCircle, CheckCircle2, Eye, EyeOff, LoaderCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Eye, EyeOff, KeyRound, LoaderCircle } from "lucide-react";
+import { signIn } from "next-auth/react";
 import Modal, { ModalCloseButton } from "./Modal";
 import LogoMark from "./LogoMark";
 import { login, register } from "@/lib/account";
@@ -46,14 +47,25 @@ function LoginForm({ initialMode, onClose }: { initialMode: Mode; onClose: () =>
         void refreshAccount();
       } else {
         await register({ username, password, email, display_name: displayName || username });
-        setNotice("注册成功，请使用新账户登录。");
-        setMode("login");
-        setPassword("");
-        setConfirmPassword("");
+        const account = await login(username, password);
+        completeLogin(account);
+        setNotice("账户已创建并登录。");
+        window.setTimeout(onClose, 800);
+        void refreshAccount();
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "请求未完成，请稍后重试。");
     } finally { setPending(false); }
+  };
+
+  const continueWithV2Api = async () => {
+    setPending(true);
+    setError("");
+    const result = await signIn("v2api", { callbackUrl: "/studio" });
+    if (result?.error) {
+      setError("v2api 登录暂时不可用，请稍后重试。");
+      setPending(false);
+    }
   };
 
   return (
@@ -62,7 +74,11 @@ function LoginForm({ initialMode, onClose }: { initialMode: Mode; onClose: () =>
       <div className="mt-5 grid grid-cols-2 rounded-lg bg-canvas p-1 text-sm ring-1 ring-line">
         {(["login", "register"] as Mode[]).map((item) => <button key={item} type="button" disabled={pending} onClick={() => { setMode(item); setError(""); setNotice(""); }} className={`rounded-md py-1.5 transition ${mode === item ? "bg-surface font-medium text-ink-900 shadow-sm" : "text-ink-500 hover:text-ink-700"}`}>{item === "login" ? "登录" : "注册"}</button>)}
       </div>
-      <form onSubmit={submit} className="mt-5 space-y-3">
+      <button type="button" disabled={pending} onClick={continueWithV2Api} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-surface py-2.5 text-sm font-medium text-ink-800 transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60">
+        <KeyRound className="h-4 w-4" />使用 v2api 账号继续
+      </button>
+      <div className="my-4 flex items-center gap-3 text-xs text-ink-400"><span className="h-px flex-1 bg-line" />或使用用户名和密码<span className="h-px flex-1 bg-line" /></div>
+      <form onSubmit={submit} className="space-y-3">
         <label className="block"><span className="mb-1.5 block text-xs text-ink-500">用户名</span><input value={username} onChange={(event) => setUsername(event.target.value)} minLength={1} maxLength={20} required autoComplete="username" placeholder="输入用户名" className={inputCls} /></label>
         {mode === "register" && <><label className="block"><span className="mb-1.5 block text-xs text-ink-500">邮箱</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required autoComplete="email" placeholder="name@example.com" className={inputCls} /></label><label className="block"><span className="mb-1.5 block text-xs text-ink-500">显示名称（可选）</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={20} placeholder="用于页面显示" className={inputCls} /></label></>}
         <label className="block">
@@ -81,7 +97,7 @@ function LoginForm({ initialMode, onClose }: { initialMode: Mode; onClose: () =>
         {notice && <p role="status" className="flex gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-xs leading-5 text-teal-700"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />{notice}</p>}
         <button type="submit" disabled={pending} className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 py-2.5 text-sm font-medium text-white shadow-sm shadow-primary-500/25 transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60">{pending && <LoaderCircle className="h-4 w-4 animate-spin" />}{pending ? "正在验证" : mode === "login" ? "登录" : "创建账户"}</button>
       </form>
-      <p className="mt-4 text-center text-xs leading-5 text-ink-400">账户、余额和可用模型由 API 网关提供。手机验证码与第三方 OAuth 将在对应网关能力启用后接入。</p>
+      <p className="mt-4 text-center text-xs leading-5 text-ink-400">账户与可用模型由 v2api 提供。</p>
     </div>
   );
 }

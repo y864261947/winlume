@@ -8,6 +8,7 @@ import ArtifactPanel from "@/components/studio/ArtifactPanel";
 import ArtifactPreview from "@/components/studio/ArtifactPreview";
 import ChatThread from "@/components/studio/ChatThread";
 import Composer from "@/components/studio/Composer";
+import { useResizablePanel } from "@/components/studio/useResizablePanel";
 import {
   useStudioChat,
   type ArtifactEventPayload,
@@ -26,6 +27,9 @@ import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
 
 type MobileTab = "chat" | "works";
 
+const PREVIEW_WIDTH_KEY = "winlume-artifact-preview-width";
+const LIST_WIDTH_KEY = "winlume-artifact-list-width";
+
 export default function StudioSessionPage() {
   const params = useParams();
   const sessionId = typeof params.sessionId === "string" ? params.sessionId : "";
@@ -39,6 +43,7 @@ export default function StudioSessionPage() {
   );
   const [pinnedSkillIds, setPinnedSkillIds] = useState<string[]>([]);
   const pendingSentRef = useRef(false);
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Artifacts
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
@@ -50,6 +55,26 @@ export default function StudioSessionPage() {
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const [highlightMessageId, setHighlightMessageId] = useState<string | null>(
+    null,
+  );
+
+  // NewMax-style resizable side panes (persisted)
+  const listPane = useResizablePanel({
+    storageKey: LIST_WIDTH_KEY,
+    defaultWidth: 256,
+    minWidth: 200,
+    maxWidth: 360,
+    invert: true,
+  });
+  const previewPane = useResizablePanel({
+    storageKey: PREVIEW_WIDTH_KEY,
+    defaultWidth: 384,
+    minWidth: 280,
+    maxWidth: 720,
+    invert: true,
+  });
 
   const onUnauthorized = useCallback(() => {
     openLogin("login");
@@ -87,13 +112,41 @@ export default function StudioSessionPage() {
     [session?.id, sessionId],
   );
 
+  const flashArtifact = useCallback((id: string) => {
+    setFlashId(id);
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = setTimeout(() => setFlashId(null), 2800);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    };
+  }, []);
+
   const onArtifact = useCallback(
     (event: ArtifactEventPayload) => {
       void refreshArtifacts({ preferId: event.artifactId, openPreview: true });
+      flashArtifact(event.artifactId);
       setMobileTab("works");
     },
-    [refreshArtifacts],
+    [refreshArtifacts, flashArtifact],
   );
+
+  const reloadContent = useCallback(async () => {
+    if (!selectedId) return;
+    setContentLoading(true);
+    setContentError(null);
+    try {
+      const data = await getArtifact(selectedId);
+      setContent(data.content ?? "");
+    } catch (err) {
+      setContent(null);
+      setContentError(err instanceof Error ? err.message : "读取作品失败");
+    } finally {
+      setContentLoading(false);
+    }
+  }, [selectedId]);
 
   const chat = useStudioChat({
     sessionId: session?.id ?? sessionId,
@@ -246,6 +299,29 @@ export default function StudioSessionPage() {
     setPreviewOpen(true);
   }, []);
 
+  const artifactsByMessageId = useMemo(() => {
+    const map = new Map<string, Artifact[]>();
+    for (const a of artifacts) {
+      if (!a.messageId) continue;
+      const list = map.get(a.messageId) ?? [];
+      list.push(a);
+      map.set(a.messageId, list);
+    }
+    return map;
+  }, [artifacts]);
+
+  const openArtifactFromChat = useCallback((artifactId: string) => {
+    setSelectedId(artifactId);
+    setPreviewOpen(true);
+    setMobileTab("works");
+    flashArtifact(artifactId);
+  }, [flashArtifact]);
+
+  const jumpToMessage = useCallback((messageId: string) => {
+    setMobileTab("chat");
+    setHighlightMessageId(messageId);
+  }, []);
+
   if (loading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-[#8A8298]">
@@ -276,6 +352,10 @@ export default function StudioSessionPage() {
         messages={chat.messages}
         streaming={chat.streaming}
         emptyHint="发送一条消息，开始与 WinLume 对话。"
+        highlightMessageId={highlightMessageId}
+        onHighlightConsumed={() => setHighlightMessageId(null)}
+        artifactsByMessageId={artifactsByMessageId}
+        onOpenArtifact={openArtifactFromChat}
       />
       <Composer
         onSend={(text, meta) =>
@@ -294,6 +374,10 @@ export default function StudioSessionPage() {
         }}
         error={chat.error}
         onClearError={chat.clearError}
+        queue={chat.queue}
+        onRemoveFromQueue={chat.removeFromQueue}
+        onClearQueue={chat.clearQueue}
+        draftKey={session?.id ?? sessionId}
       />
     </div>
   );
@@ -307,6 +391,7 @@ export default function StudioSessionPage() {
         loading={artifactsLoading}
         error={artifactsError}
         onRefresh={() => void refreshArtifacts()}
+        flashId={flashId}
         className="max-h-[40%] w-full shrink-0 border-l-0 border-b"
       />
       <ArtifactPreview
@@ -314,6 +399,8 @@ export default function StudioSessionPage() {
         content={content}
         loading={contentLoading}
         error={contentError}
+        onRefresh={() => void reloadContent()}
+        onJumpToMessage={jumpToMessage}
         className="min-h-0 flex-1 border-l-0"
       />
     </div>
@@ -385,27 +472,54 @@ export default function StudioSessionPage() {
         {mobileTab === "chat" ? chatColumn : worksColumn}
       </div>
 
-      {/* Desktop: chat | list | preview */}
+      {/* Desktop: chat | list | preview — resizable like NewMax split pane */}
       <div className="hidden min-h-0 flex-1 md:flex">
         {chatColumn}
-        <ArtifactPanel
-          artifacts={artifacts}
-          selectedId={selectedId}
-          onSelect={handleSelect}
-          loading={artifactsLoading}
-          error={artifactsError}
-          onRefresh={() => void refreshArtifacts()}
-          className="w-64 shrink-0"
-        />
-        {previewOpen ? (
-          <ArtifactPreview
-            artifact={selected}
-            content={content}
-            loading={contentLoading}
-            error={contentError}
-            onClose={() => setPreviewOpen(false)}
-            className="w-96 shrink-0"
+        <div
+          className="relative flex shrink-0"
+          style={{ width: listPane.width }}
+        >
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="调整作品列表宽度"
+            onPointerDown={listPane.onHandlePointerDown}
+            className="absolute inset-y-0 left-0 z-[2] w-1.5 cursor-col-resize hover:bg-[rgba(194,65,12,0.25)] active:bg-[rgba(194,65,12,0.4)]"
           />
+          <ArtifactPanel
+            artifacts={artifacts}
+            selectedId={selectedId}
+            onSelect={handleSelect}
+            loading={artifactsLoading}
+            error={artifactsError}
+            onRefresh={() => void refreshArtifacts()}
+            flashId={flashId}
+            className="w-full"
+          />
+        </div>
+        {previewOpen ? (
+          <div
+            className="relative flex min-w-0 shrink-0"
+            style={{ width: previewPane.width }}
+          >
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="调整预览宽度"
+              onPointerDown={previewPane.onHandlePointerDown}
+              className="absolute inset-y-0 left-0 z-[2] w-1.5 cursor-col-resize hover:bg-[rgba(194,65,12,0.25)] active:bg-[rgba(194,65,12,0.4)]"
+            />
+            <ArtifactPreview
+              artifact={selected}
+              content={content}
+              loading={contentLoading}
+              error={contentError}
+              onClose={() => setPreviewOpen(false)}
+              onRefresh={() => void reloadContent()}
+              onJumpToMessage={jumpToMessage}
+              className="w-full"
+            />
+          </div>
         ) : null}
       </div>
     </div>

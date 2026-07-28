@@ -1,26 +1,15 @@
 /**
  * Browser-side Studio API helpers.
- * Always attach x-winlume-user from localStorage (winlume:gateway-user-id).
+ * Authentication is supplied by the HttpOnly Auth.js session cookie.
  */
 
 import type { AgentSseEvent, Artifact, Message, Session } from "@/lib/agent/types";
 
-export const GATEWAY_USER_STORAGE_KEY = "winlume:gateway-user-id";
-
 const PENDING_FIRST_MESSAGE_KEY = "winlume:pending-first-message";
-
-export function getGatewayUserId(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(GATEWAY_USER_STORAGE_KEY);
-}
 
 export function withUserHeaders(headers?: HeadersInit): Headers {
   const next = new Headers(headers);
-  const userId = getGatewayUserId();
-  if (userId) next.set("x-winlume-user", userId);
-  if (!next.has("content-type")) {
-    next.set("content-type", "application/json");
-  }
+  if (!next.has("content-type")) next.set("content-type", "application/json");
   return next;
 }
 
@@ -156,11 +145,6 @@ export async function streamChat(
     onEvent: (event: AgentSseEvent) => void;
   },
 ): Promise<void> {
-  const userId = getGatewayUserId();
-  if (!userId) {
-    throw new StudioApiError("请先登录", 401);
-  }
-
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: withUserHeaders(),
