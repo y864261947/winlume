@@ -16,6 +16,7 @@ import {
   friendlyToolView,
   toolActionLabel,
 } from "@/lib/studio/tool-display";
+import { LOADING_WORDS, nextLoadingWordIndex } from "@/lib/studio/loading-words";
 import type {
   ExecutionStep,
   StreamPhase,
@@ -98,6 +99,22 @@ function useLiveElapsed(startedAt?: number, active?: boolean): number {
   return elapsed;
 }
 
+function useRotatingLoadingWord(active: boolean): string {
+  const [index, setIndex] = useState<number | null>(null);
+  useEffect(() => {
+    if (!active) {
+      setIndex(null);
+      return;
+    }
+    setIndex((i) => nextLoadingWordIndex(i, LOADING_WORDS.length));
+    const id = window.setInterval(() => {
+      setIndex((i) => nextLoadingWordIndex(i, LOADING_WORDS.length));
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [active]);
+  return LOADING_WORDS[index ?? 0];
+}
+
 function ActivityStatus({
   phase,
   startedAt,
@@ -108,14 +125,11 @@ function ActivityStatus({
   toolName?: string;
 }) {
   const elapsed = useLiveElapsed(startedAt, true);
+  const rotatingWord = useRotatingLoadingWord(true);
   const label =
-    phase === "tool"
-      ? toolName
-        ? `${toolActionLabel(toolName)}…`
-        : "处理中…"
-      : phase === "producing"
-        ? "正在撰写…"
-        : "思考中…";
+    phase === "tool" && toolName
+      ? `${toolActionLabel(toolName)}…`
+      : `${rotatingWord}…`;
 
   return (
     <div className="mb-1.5 flex items-center gap-2 text-[11px] leading-none text-[#8A8298]">
@@ -141,6 +155,7 @@ function ExecutionMap({
   steps: ExecutionStep[];
   streaming?: boolean;
 }) {
+  const rotatingWord = useRotatingLoadingWord(Boolean(streaming));
   if (!steps.length) return null;
   return (
     <div
@@ -155,7 +170,7 @@ function ExecutionMap({
         {streaming ? (
           <span className="inline-flex items-center gap-1 text-[10px] text-[#0F172A]">
             <StreamingPulse phase="tool" />
-            进行中
+            {rotatingWord}
           </span>
         ) : null}
       </div>
