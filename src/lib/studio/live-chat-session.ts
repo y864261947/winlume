@@ -48,6 +48,8 @@ export type QueuedMessage = {
   content: string;
   model?: string;
   skillIds?: string[];
+  /** Id of an image artifact the user @-referenced in the composer, if any. */
+  referencedArtifactId?: string;
   createdAt: number;
 };
 
@@ -382,6 +384,8 @@ export function stopLiveChat(sessionId: string): void {
 export type SendOverrides = {
   model?: string;
   skillIds?: string[];
+  /** Id of an image artifact the user @-referenced in the composer, if any. */
+  referencedArtifactId?: string;
 };
 
 /**
@@ -413,6 +417,7 @@ export async function sendLiveChat(
           content: trimmed,
           model: overrides?.model,
           skillIds: overrides?.skillIds,
+          referencedArtifactId: overrides?.referencedArtifactId,
           createdAt: Date.now(),
         },
       ],
@@ -436,6 +441,7 @@ async function runLiveTurn(
     const requestModel =
       overrides?.model?.trim() || entry.snapshot.model || FALLBACK_DEFAULT_MODEL;
     const requestSkillIds = overrides?.skillIds;
+    const requestReferencedArtifactId = overrides?.referencedArtifactId;
 
     const userMsg: UiChatMessage = {
       id: clientId("user"),
@@ -523,6 +529,9 @@ async function runLiveTurn(
           message: text,
           model: requestModel,
           ...(requestSkillIds?.length ? { skillIds: requestSkillIds } : {}),
+          ...(requestReferencedArtifactId
+            ? { referencedArtifactId: requestReferencedArtifactId }
+            : {}),
         },
         {
           signal: controller.signal,
@@ -791,6 +800,7 @@ async function drainQueue(sessionId: string): Promise<void> {
   await runLiveTurn(sessionId, next.content, {
     model: next.model,
     skillIds: next.skillIds,
+    referencedArtifactId: next.referencedArtifactId,
   });
 }
 

@@ -26,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { fetchPlaza } from "@/lib/catalog";
-import type { SkillMeta } from "@/lib/agent/types";
+import type { Artifact, SkillMeta } from "@/lib/agent/types";
 import {
   composeOutboundMessage,
   createPastedBlock,
@@ -51,6 +51,10 @@ import {
   loadComposerDraft,
   saveComposerDraft,
 } from "@/lib/studio/composer-draft";
+import ArtifactMentionMenu, {
+  detectAtMention,
+  filterMentionArtifacts,
+} from "./ArtifactMentionMenu";
 import SkillChips from "./SkillChips";
 import SkillSlashMenu, {
   activateSlashMenuItem,
@@ -74,6 +78,7 @@ const DRAFT_DEBOUNCE_MS = 400;
 
 export type ComposerSendMeta = {
   skillIds?: string[];
+  referencedArtifactId?: string;
 };
 
 export type ComposerProps = {
@@ -116,6 +121,8 @@ export type ComposerProps = {
    * the one participating in the morph to opt it out.
    */
   shareTransitionName?: string | null;
+  /** Image artifacts available for @-mention (ready or pending; failed ones are filtered out by the caller). */
+  imageArtifacts?: Artifact[];
 };
 
 function PastedBlockCard({
@@ -238,6 +245,7 @@ export default function Composer({
   draftKey = null,
   variant = "default",
   shareTransitionName = "studio-composer",
+  imageArtifacts = [],
 }: ComposerProps) {
   const isHero = variant === "hero";
   const promptId = useId();
@@ -261,6 +269,13 @@ export default function Composer({
   const [slashRange, setSlashRange] = useState<{ start: number; end: number } | null>(
     null,
   );
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionRange, setMentionRange] = useState<{ start: number; end: number } | null>(
+    null,
+  );
+  const [referencedArtifact, setReferencedArtifact] = useState<Artifact | null>(null);
 
   const [pastedBlocks, setPastedBlocks] = useState<PastedBlock[]>([]);
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -271,6 +286,7 @@ export default function Composer({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const mentionMenuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragCounter = useRef(0);
@@ -431,6 +447,10 @@ export default function Composer({
   }, [menuQuery, menuOpen, menuView]);
 
   useEffect(() => {
+    setMentionIndex(0);
+  }, [mentionQuery, mentionOpen]);
+
+  useEffect(() => {
     if (menuItems.length === 0) return;
     if (menuIndex >= menuItems.length) setMenuIndex(0);
   }, [menuItems.length, menuIndex]);
@@ -454,6 +474,19 @@ export default function Composer({
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!mentionOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (mentionMenuRef.current?.contains(t)) return;
+      if (textareaRef.current?.contains(t)) return;
+      setMentionOpen(false);
+      setMentionRange(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [mentionOpen]);
 
   const queueFull = queue.length >= MAX_MESSAGE_QUEUE_SIZE;
   const canSend =
@@ -562,6 +595,42 @@ export default function Composer({
       openSkillMenu(query, { start, end: cursor });
     },
     [openSkillMenu],
+  );
+
+  const detectMention = useCallback((text: string, cursor: number) => {
+    const hit = detectAtMention(text, cursor);
+    if (!hit) {
+      setMentionOpen(false);
+      setMentionRange(null);
+      setMentionQuery("");
+      return;
+    }
+    setMentionQuery(hit.query);
+    setMentionRange({ start: hit.start, end: hit.end });
+    setMentionOpen(true);
+  }, []);
+
+  const pickMentionArtifact = useCallback(
+    (artifact: Artifact) => {
+      setReferencedArtifact(artifact);
+      if (mentionRange && textareaRef.current) {
+        const el = textareaRef.current;
+        const before = draft.slice(0, mentionRange.start);
+        const after = draft.slice(mentionRange.end);
+        const next =
+          before.endsWith(" ") && after.startsWith(" ") ? before + after.slice(1) : before + after;
+        setDraft(next);
+        requestAnimationFrame(() => {
+          const pos = before.length;
+          el.focus();
+          el.setSelectionRange(pos, pos);
+        });
+      }
+      setMentionOpen(false);
+      setMentionRange(null);
+      setMentionQuery("");
+    },
+    [draft, mentionRange, setDraft],
   );
 
   const addImages = useCallback(async (list: File[]) => {
@@ -740,12 +809,19 @@ export default function Composer({
       files,
     });
     if (!outbound) return;
-    const meta: ComposerSendMeta | undefined = selectedIds.length
-      ? { skillIds: [...selectedIds] }
-      : undefined;
+    const meta: ComposerSendMeta | undefined =
+      selectedIds.length || referencedArtifact
+        ? {
+            ...(selectedIds.length ? { skillIds: [...selectedIds] } : {}),
+            ...(referencedArtifact
+              ? { referencedArtifactId: referencedArtifact.id }
+              : {}),
+          }
+        : undefined;
     void onSend(outbound, meta);
     setDraft("");
     setSelectedIds([]);
+    setReferencedArtifact(null);
     clearAttachments();
     closeMenu();
     if (draftKey) clearComposerDraft(draftKey);
@@ -764,6 +840,7 @@ export default function Composer({
     files,
     onClearError,
     selectedIds,
+    referencedArtifact,
     onSend,
     setDraft,
     setSelectedIds,
@@ -793,6 +870,31 @@ export default function Composer({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionOpen && !event.nativeEvent.isComposing) {
+      const items = filterMentionArtifacts(imageArtifacts, mentionQuery);
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        if (items.length) setMentionIndex((i) => (i + 1) % items.length);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        if (items.length) setMentionIndex((i) => (i - 1 + items.length) % items.length);
+        return;
+      }
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        if (items[mentionIndex]) pickMentionArtifact(items[mentionIndex]);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMentionOpen(false);
+        setMentionRange(null);
+        return;
+      }
+    }
+
     if (menuOpen) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
@@ -1046,6 +1148,31 @@ export default function Composer({
           disabled={disabled}
         />
 
+        {referencedArtifact ? (
+          <div className="flex items-center gap-2 px-2">
+            <div className="inline-flex items-center gap-1.5 rounded-[10px] border border-white/70 bg-white/60 px-2 py-1 text-[11px] text-[#241E36]">
+              <span className="h-5 w-5 shrink-0 overflow-hidden rounded-[6px] bg-white/70">
+                {/* eslint-disable-next-line @next/next/no-img-element -- small thumbnail from a user-scoped artifact route */}
+                <img
+                  src={`/api/artifacts/${referencedArtifact.id}/raw`}
+                  alt={referencedArtifact.name}
+                  className="h-full w-full object-cover"
+                />
+              </span>
+              <span className="max-w-[10rem] truncate">{referencedArtifact.name}</span>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => setReferencedArtifact(null)}
+                className="rounded p-0.5 text-[#8A8298] hover:text-[#0F172A]"
+                title="取消引用"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {/* Attachment strip: images + binary file chips */}
         {(images.length > 0 || files.length > 0) && (
           <div className="flex flex-wrap gap-2 px-2">
@@ -1163,12 +1290,19 @@ export default function Composer({
               onTextareaInput();
               const cursor = e.target.selectionStart ?? next.length;
               detectSlash(next, cursor);
+              if (!menuOpen) detectMention(next, cursor);
+              else {
+                setMentionOpen(false);
+                setMentionRange(null);
+              }
             }}
             onPaste={handlePaste}
             onKeyDown={onKeyDown}
             onClick={(e) => {
               const el = e.currentTarget;
-              detectSlash(el.value, el.selectionStart ?? el.value.length);
+              const cursor = el.selectionStart ?? el.value.length;
+              detectSlash(el.value, cursor);
+              if (!menuOpen) detectMention(el.value, cursor);
             }}
             placeholder={
               streaming
@@ -1237,6 +1371,16 @@ export default function Composer({
             onClearTurnSkills={clearTurnSkills}
             menuId={menuId}
             menuRef={menuRef}
+          />
+
+          <ArtifactMentionMenu
+            open={mentionOpen}
+            query={mentionQuery}
+            artifacts={imageArtifacts}
+            highlightIndex={mentionIndex}
+            onHighlightIndexChange={setMentionIndex}
+            onPick={pickMentionArtifact}
+            menuRef={mentionMenuRef}
           />
         </div>
       </form>

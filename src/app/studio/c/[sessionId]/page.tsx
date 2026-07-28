@@ -738,6 +738,7 @@ export default function StudioSessionPage() {
           chat.send(text, {
             // Turn-only skillIds; runtime merges session pins server-side
             skillIds: meta?.skillIds,
+            referencedArtifactId: meta?.referencedArtifactId,
           })
         }
         onStop={chat.stop}
@@ -759,6 +760,9 @@ export default function StudioSessionPage() {
           hasHandoff && loading ? "正在连接…" : undefined
         }
         shareTransitionName={withTransitionNames ? "studio-composer" : null}
+        imageArtifacts={artifacts.filter(
+          (a) => a.kind === "image" && a.status !== "failed",
+        )}
       />
     </div>
   );
