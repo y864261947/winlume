@@ -123,6 +123,9 @@ button:not(:disabled) {
   opacity: 1;
   transform: scale(1);
 }
+.image-annotation-composer textarea {
+  transition: color 160ms ease, opacity 160ms ease;
+}
 @media (prefers-reduced-motion: reduce) {
   .image-annotation-stage,
   .image-annotation-toolbar,

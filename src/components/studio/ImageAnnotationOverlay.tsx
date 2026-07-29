@@ -10,6 +10,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  ChevronLeft,
+  ChevronRight,
   LoaderCircle,
   MapPin,
   Pencil,
@@ -107,6 +109,7 @@ export default function ImageAnnotationOverlay(props: {
   const [marksForUi, setMarksForUi] = useState<ImageAnnotationMark[]>([]);
   const [activeCommentMarkId, setActiveCommentMarkId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submissionStage, setSubmissionStage] = useState<"encoding" | "sending" | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"enter" | "open" | "closing">("enter");
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -220,7 +223,9 @@ export default function ImageAnnotationOverlay(props: {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      setSubmissionStage("encoding");
       const dataUrl = await compositeImageAnnotation(image, marksRef.current);
+      setSubmissionStage("sending");
       await onSubmit({
         dataUrl,
         marks: marksRef.current,
@@ -229,6 +234,7 @@ export default function ImageAnnotationOverlay(props: {
     } catch (cause) {
       setSubmitError(cause instanceof Error ? cause.message : "提交标注失败，请重试");
     } finally {
+      setSubmissionStage(null);
       setSubmitting(false);
     }
   }, [busy, image, onSubmit, phase, submitting]);
@@ -326,6 +332,11 @@ export default function ImageAnnotationOverlay(props: {
   const canSubmit = Boolean(
     phase === "open" && allMarksCommented && hasMarks && !busy && !submitting && image,
   );
+  const completedCommentCount = marksForUi.filter((mark) => mark.comment?.trim()).length;
+  const activeCommentIndex = activeCommentMark
+    ? marksForUi.findIndex((mark) => mark.id === activeCommentMark.id)
+    : -1;
+  const missingCommentCount = marksForUi.length - completedCommentCount;
   const anchoredComment =
     rect && activeCommentMark
       ? commentAnchor(rect, activeCommentMark)
@@ -344,6 +355,13 @@ export default function ImageAnnotationOverlay(props: {
         mark.id === activeCommentMarkId ? { ...mark, comment } : mark,
       ),
     );
+  };
+
+  const selectComment = (direction: -1 | 1) => {
+    if (!marksForUi.length) return;
+    const current = Math.max(0, activeCommentIndex);
+    const next = (current + direction + marksForUi.length) % marksForUi.length;
+    setActiveCommentMarkId(marksForUi[next]?.id ?? null);
   };
 
   if (!rect || !portalTarget) return null;
@@ -429,47 +447,87 @@ export default function ImageAnnotationOverlay(props: {
           <X className="h-4 w-4" />
           <span className="sr-only">取消标注</span>
         </button>
+        {hasMarks ? (
+          <div className="ml-1 flex h-8 items-center gap-0.5 border-l border-slate-200 pl-1 text-xs text-[#615A73]">
+            <button
+              type="button"
+              onClick={() => selectComment(-1)}
+              title="上一条批注"
+              disabled={busy || submitting || marksForUi.length < 2}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[#F1F5F9] disabled:pointer-events-none disabled:opacity-40"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span className="sr-only">上一条批注</span>
+            </button>
+            <span className="min-w-12 text-center tabular-nums">
+              {Math.max(0, activeCommentIndex + 1)} / {marksForUi.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => selectComment(1)}
+              title="下一条批注"
+              disabled={busy || submitting || marksForUi.length < 2}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[#F1F5F9] disabled:pointer-events-none disabled:opacity-40"
+            >
+              <ChevronRight className="h-4 w-4" />
+              <span className="sr-only">下一条批注</span>
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {anchoredComment ? (
         <div
-          className="image-annotation-composer pointer-events-auto fixed flex w-[min(24rem,calc(100vw-2rem))] items-end gap-2 rounded-lg border border-white/80 bg-white/95 p-2 shadow-xl backdrop-blur"
+          className="image-annotation-composer pointer-events-auto fixed w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-white/80 bg-white/95 p-2 shadow-xl backdrop-blur"
           data-state={phase}
           style={anchoredComment}
         >
           <label className="sr-only" htmlFor="image-annotation-request">
             描述这个标记希望修改的内容
           </label>
-          <textarea
-            id="image-annotation-request"
-            value={activeCommentMark?.comment ?? ""}
-            rows={2}
-            disabled={busy || submitting}
-            onChange={(event) => updateActiveComment(event.target.value)}
-            onCompositionStart={() => {
-              composingRef.current = true;
-            }}
-            onCompositionEnd={() => {
-              composingRef.current = false;
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter" || event.shiftKey || composingRef.current) return;
-              event.preventDefault();
-              void send();
-            }}
-            placeholder="描述这个标记希望修改的效果…"
-            className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-[#241E36] outline-none placeholder:text-[#8A8298] disabled:opacity-60"
-          />
-          <button
-            type="button"
-            onClick={() => void send()}
-            disabled={!canSubmit}
-            title="发送标注修改"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#0F172A] text-white transition-colors hover:bg-[#1E293B] disabled:pointer-events-none disabled:opacity-40"
-          >
-            {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            <span className="sr-only">发送标注修改</span>
-          </button>
+          <div className="flex items-end gap-2">
+            <textarea
+              id="image-annotation-request"
+              value={activeCommentMark?.comment ?? ""}
+              rows={2}
+              disabled={busy || submitting}
+              onChange={(event) => updateActiveComment(event.target.value)}
+              onCompositionStart={() => {
+                composingRef.current = true;
+              }}
+              onCompositionEnd={() => {
+                composingRef.current = false;
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || event.shiftKey || composingRef.current) return;
+                event.preventDefault();
+                void send();
+              }}
+              placeholder="描述这个标记希望修改的效果…"
+              className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-[#241E36] outline-none placeholder:text-[#8A8298] disabled:opacity-60"
+            />
+          </div>
+          <div className="mt-1.5 flex items-center justify-between gap-2 border-t border-slate-100 px-1 pt-1.5">
+            <p className="min-w-0 text-xs text-[#615A73]" aria-live="polite">
+              {submissionStage === "encoding"
+                ? "正在准备批注图..."
+                : submissionStage === "sending" || busy
+                  ? "正在提交修改..."
+                  : missingCommentCount
+                    ? `还差 ${missingCommentCount} 条说明`
+                    : `${completedCommentCount} / ${marksForUi.length} 条批注已完成`}
+            </p>
+            <button
+              type="button"
+              onClick={() => void send()}
+              disabled={!canSubmit}
+              title={canSubmit ? "提交图片修改" : "请先补全每条批注说明"}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[#0F172A] px-2.5 text-xs font-medium text-white transition-[background-color,transform] duration-150 hover:bg-[#1E293B] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
+            >
+              {submitting ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              提交修改
+            </button>
+          </div>
         </div>
       ) : null}
       {visibleError ? (
