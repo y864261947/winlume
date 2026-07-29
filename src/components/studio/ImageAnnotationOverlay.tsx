@@ -104,8 +104,8 @@ export default function ImageAnnotationOverlay(props: {
   const [tool, setTool] = useState<Tool>("point");
   const [revision, setRevision] = useState(0);
   const [history, setHistory] = useState({ marks: 0, redo: 0 });
-  const [commentMark, setCommentMark] = useState<ImageAnnotationMark | null>(null);
-  const [request, setRequest] = useState("");
+  const [marksForUi, setMarksForUi] = useState<ImageAnnotationMark[]>([]);
+  const [activeCommentMarkId, setActiveCommentMarkId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"enter" | "open" | "closing">("enter");
@@ -113,6 +113,10 @@ export default function ImageAnnotationOverlay(props: {
   // The preview lives inside a glass/modal stacking context. Render the
   // drawing surface at the document root so it remains clickable above it.
   const portalTarget = typeof document === "undefined" ? null : document.body;
+
+  const syncMarksForUi = useCallback(() => {
+    setMarksForUi([...marksRef.current]);
+  }, []);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -186,23 +190,31 @@ export default function ImageAnnotationOverlay(props: {
     const mark = marksRef.current.pop();
     if (!mark) return;
     redoRef.current.push(mark);
-    setCommentMark(marksRef.current.at(-1) ?? null);
+    setActiveCommentMarkId(marksRef.current.at(-1)?.id ?? null);
+    syncMarksForUi();
     setHistory({ marks: marksRef.current.length, redo: redoRef.current.length });
     setRevision((value) => value + 1);
-  }, []);
+  }, [syncMarksForUi]);
 
   const redo = useCallback(() => {
     const mark = redoRef.current.pop();
     if (!mark) return;
     marksRef.current.push(mark);
-    setCommentMark(mark);
+    setActiveCommentMarkId(mark.id);
+    syncMarksForUi();
     setHistory({ marks: marksRef.current.length, redo: redoRef.current.length });
     setRevision((value) => value + 1);
-  }, []);
+  }, [syncMarksForUi]);
 
   const send = useCallback(async () => {
-    const trimmedRequest = request.trim();
-    if (phase !== "open" || busy || submitting || !trimmedRequest || !marksRef.current.length || !image) {
+    if (
+      phase !== "open" ||
+      busy ||
+      submitting ||
+      !marksRef.current.length ||
+      !marksRef.current.every((mark) => mark.comment?.trim()) ||
+      !image
+    ) {
       return;
     }
     setSubmitting(true);
@@ -212,14 +224,14 @@ export default function ImageAnnotationOverlay(props: {
       await onSubmit({
         dataUrl,
         marks: marksRef.current,
-        request: trimmedRequest,
+        request: "请分别按照每个标记旁的说明修改图片。",
       });
     } catch (cause) {
       setSubmitError(cause instanceof Error ? cause.message : "提交标注失败，请重试");
     } finally {
       setSubmitting(false);
     }
-  }, [busy, image, onSubmit, phase, request, submitting]);
+  }, [busy, image, onSubmit, phase, submitting]);
 
   const requestClose = useCallback(() => {
     if (busy || submitting || phase === "closing") return;
@@ -264,11 +276,13 @@ export default function ImageAnnotationOverlay(props: {
       const mark = { id: markId(), kind: "point" as const, points: [point] };
       marksRef.current.push(mark);
       redoRef.current = [];
-      setCommentMark(mark);
+      setActiveCommentMarkId(mark.id);
+      syncMarksForUi();
       setHistory({ marks: marksRef.current.length, redo: 0 });
       setRevision((value) => value + 1);
       return;
     }
+    setActiveCommentMarkId(null);
     activeMarkRef.current = { id: markId(), kind: tool, points: [point] };
     scheduleDraw();
   };
@@ -294,7 +308,8 @@ export default function ImageAnnotationOverlay(props: {
     activeMarkRef.current = null;
     marksRef.current.push(activeMark);
     redoRef.current = [];
-    setCommentMark(activeMark);
+    setActiveCommentMarkId(activeMark.id);
+    syncMarksForUi();
     setHistory({ marks: marksRef.current.length, redo: 0 });
     setRevision((value) => value + 1);
   };
@@ -302,13 +317,34 @@ export default function ImageAnnotationOverlay(props: {
   const hasMarks = history.marks > 0;
   const activeTool = TOOL_OPTIONS.find((option) => option.value === tool)?.label ?? "图钉";
   const visibleError = submitError || error;
+  const activeCommentMark = marksForUi.find(
+    (mark) => mark.id === activeCommentMarkId,
+  ) ?? null;
+  const allMarksCommented = Boolean(
+    marksForUi.length && marksForUi.every((mark) => mark.comment?.trim()),
+  );
   const canSubmit = Boolean(
-    phase === "open" && request.trim() && hasMarks && !busy && !submitting && image,
+    phase === "open" && allMarksCommented && hasMarks && !busy && !submitting && image,
   );
   const anchoredComment =
-    rect && commentMark
-      ? commentAnchor(rect, commentMark)
+    rect && activeCommentMark
+      ? commentAnchor(rect, activeCommentMark)
       : null;
+  const toolbarPosition = rect
+    ? { left: rect.left + rect.width / 2, top: Math.max(8, rect.top - 48) }
+    : undefined;
+
+  const updateActiveComment = (comment: string) => {
+    if (!activeCommentMarkId) return;
+    marksRef.current = marksRef.current.map((mark) =>
+      mark.id === activeCommentMarkId ? { ...mark, comment } : mark,
+    );
+    setMarksForUi((marks) =>
+      marks.map((mark) =>
+        mark.id === activeCommentMarkId ? { ...mark, comment } : mark,
+      ),
+    );
+  };
 
   if (!rect || !portalTarget) return null;
 
@@ -341,8 +377,9 @@ export default function ImageAnnotationOverlay(props: {
       </p>
 
       <div
-        className="image-annotation-toolbar pointer-events-auto fixed left-1/2 top-4 flex max-w-[calc(100vw-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-lg border border-white/80 bg-white/95 p-1 shadow-lg backdrop-blur"
+        className="image-annotation-toolbar pointer-events-auto fixed flex max-w-[calc(100vw-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-lg border border-white/80 bg-white/95 p-1 shadow-lg backdrop-blur"
         data-state={phase}
+        style={toolbarPosition}
       >
         <div className="flex items-center gap-0.5">
           {TOOL_OPTIONS.map(({ value, label, Icon }) => (
@@ -401,14 +438,14 @@ export default function ImageAnnotationOverlay(props: {
           style={anchoredComment}
         >
           <label className="sr-only" htmlFor="image-annotation-request">
-            描述希望修改的内容
+            描述这个标记希望修改的内容
           </label>
           <textarea
             id="image-annotation-request"
-            value={request}
+            value={activeCommentMark?.comment ?? ""}
             rows={2}
             disabled={busy || submitting}
-            onChange={(event) => setRequest(event.target.value)}
+            onChange={(event) => updateActiveComment(event.target.value)}
             onCompositionStart={() => {
               composingRef.current = true;
             }}
@@ -420,7 +457,7 @@ export default function ImageAnnotationOverlay(props: {
               event.preventDefault();
               void send();
             }}
-            placeholder="描述希望修改的区域和效果…"
+            placeholder="描述这个标记希望修改的效果…"
             className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-[#241E36] outline-none placeholder:text-[#8A8298] disabled:opacity-60"
           />
           <button
