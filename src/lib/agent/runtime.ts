@@ -194,11 +194,16 @@ export async function buildCanvasReferenceReminder(
 
   const lines: string[] = [];
   for (const canvas of canvases) {
-    const contentBuffer = await artifacts.readContent(userId, canvas.id);
-    const content = contentBuffer ? parseCanvasContent(contentBuffer.toString("utf8")) : null;
-    const summary = content?.scene
-      ? summarizeCanvasElements(content.scene.elements)
-      : "(not yet converted from Mermaid)";
+    let summary = "(content unavailable)";
+    try {
+      const contentBuffer = await artifacts.readContent(userId, canvas.id);
+      const content = contentBuffer ? parseCanvasContent(contentBuffer.toString("utf8")) : null;
+      summary = content?.scene
+        ? summarizeCanvasElements(content.scene.elements)
+        : "(not yet converted from Mermaid)";
+    } catch {
+      // A stale or unreadable artifact must not abort the user's whole turn.
+    }
     lines.push(`@${canvas.name} → id=${canvas.id}: ${summary}`);
   }
 

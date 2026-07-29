@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { serializeCanvasContent } from "@/lib/agent/canvas-content";
 import { createWebFileStore } from "@/lib/host/web/file-store";
+import type { ArtifactStore } from "@/lib/host/ports";
 import {
   buildCanvasReferenceReminder,
   buildReferencedArtifactReminder,
@@ -229,5 +230,27 @@ describe("buildCanvasReferenceReminder", () => {
     expect(text).toContain("canvas-1");
     expect(text).toContain("上线流程");
     expect(text).toContain("上线");
+  });
+
+  it("keeps the turn usable when one canvas cannot be read", async () => {
+    const canvas: Artifact = {
+      id: "unreadable-canvas",
+      userId: "u1",
+      sessionId: "s1",
+      name: "损坏画布",
+      kind: "canvas",
+      mimeType: "application/vnd.winlume.canvas+json",
+      storageKey: "",
+      createdAt: new Date().toISOString(),
+    };
+    const artifacts = {
+      readContent: async () => {
+        throw new Error("disk unavailable");
+      },
+    } as unknown as ArtifactStore;
+
+    const text = await buildCanvasReferenceReminder([canvas], artifacts, "u1");
+    expect(text).toContain("损坏画布");
+    expect(text).toContain("(content unavailable)");
   });
 });
