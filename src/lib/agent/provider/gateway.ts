@@ -414,8 +414,8 @@ export interface GenerateImageParams {
   size: "1024x1024" | "1024x1536" | "1536x1024";
   n: number;
   model?: string;
-  /** Present → calls the image-edit endpoint instead of generation. */
-  sourceImage?: { bytes: Buffer; mimeType: string };
+  /** Present → calls the image-edit endpoint with every image in order. */
+  sourceImages?: { bytes: Buffer; mimeType: string }[];
   token?: string;
   baseUrl?: string;
   fetchImpl?: typeof fetch;
@@ -460,7 +460,7 @@ async function resolveGeneratedImage(
 }
 
 /**
- * Text-to-image (default) or image-edit (when `sourceImage` is set) against
+ * Text-to-image (default) or image-edit (when `sourceImages` is set) against
  * the NewAPI gateway's OpenAI-compatible Images API.
  */
 /** Default image model — the only model id verified reachable on the image gateway token as of 2026-07-29. */
@@ -479,7 +479,7 @@ export async function generateImage(
   const token = params.token ?? process.env.WINLUME_IMAGE_GATEWAY_TOKEN ?? "";
   const model = params.model ?? process.env.WINLUME_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL;
   const fetchImpl = params.fetchImpl ?? fetch;
-  const isEdit = Boolean(params.sourceImage);
+  const isEdit = Boolean(params.sourceImages?.length);
   const path = isEdit ? "/v1/images/edits" : "/v1/images/generations";
   const url = `${baseUrl}${path}`;
 
@@ -493,12 +493,13 @@ export async function generateImage(
     form.set("prompt", params.prompt);
     form.set("size", params.size);
     form.set("n", String(params.n));
-    const sourceImage = params.sourceImage!;
-    form.set(
-      "image",
-      new Blob([new Uint8Array(sourceImage.bytes)], { type: sourceImage.mimeType }),
-      "source",
-    );
+    for (const [index, sourceImage] of params.sourceImages!.entries()) {
+      form.append(
+        "image[]",
+        new Blob([new Uint8Array(sourceImage.bytes)], { type: sourceImage.mimeType }),
+        `source-${index + 1}`,
+      );
+    }
     body = form;
     // Do NOT set Content-Type — fetch derives the multipart boundary from the FormData body.
   } else {

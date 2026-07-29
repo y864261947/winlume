@@ -254,7 +254,7 @@ describe("generateImage", () => {
     expect(fetchImpl.mock.calls[1]?.[0]).toBe("https://cdn.test/img.png");
   });
 
-  it("posts multipart to /v1/images/edits when sourceImage is set", async () => {
+  it("posts every source image as image[] to /v1/images/edits", async () => {
     const fetchImpl = vi.fn(async () =>
       new Response(
         JSON.stringify({ data: [{ b64_json: Buffer.from("edited").toString("base64") }] }),
@@ -269,7 +269,10 @@ describe("generateImage", () => {
       token: "test-token",
       baseUrl: "https://gw.test",
       fetchImpl: fetchImpl as unknown as typeof fetch,
-      sourceImage: { bytes: Buffer.from("orig"), mimeType: "image/png" },
+      sourceImages: [
+        { bytes: Buffer.from("base"), mimeType: "image/png" },
+        { bytes: Buffer.from("subject"), mimeType: "image/jpeg" },
+      ],
     });
 
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
@@ -278,7 +281,9 @@ describe("generateImage", () => {
     const form = init.body as FormData;
     expect(form.get("prompt")).toBe("make the sky purple");
     expect(form.get("size")).toBe("1024x1024");
-    expect(form.get("image")).toBeInstanceOf(Blob);
+    const images = form.getAll("image[]");
+    expect(images).toHaveLength(2);
+    expect(images.every((image) => image instanceof Blob)).toBe(true);
     // Content-Type must be left unset so fetch can add the multipart boundary itself.
     expect((init.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
   });

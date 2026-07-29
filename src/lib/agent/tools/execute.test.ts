@@ -264,7 +264,7 @@ describe("executeGenerateImage", () => {
     expect(generateImage).not.toHaveBeenCalled();
   });
 
-  it("reads a valid sourceArtifactId's bytes/mimeType and forwards them as sourceImage", async () => {
+  it("keeps legacy sourceArtifactId working and forwards its bytes/mimeType", async () => {
     const artifacts = makeStore();
     const sourceBytes = Buffer.from("SOURCE-PNG-BYTES");
     await artifacts.write(
@@ -301,7 +301,60 @@ describe("executeGenerateImage", () => {
     expect(generateImage).toHaveBeenCalledTimes(1);
     expect(generateImage).toHaveBeenCalledWith(
       expect.objectContaining({
-        sourceImage: { bytes: sourceBytes, mimeType: "image/png" },
+        sourceImages: [{ bytes: sourceBytes, mimeType: "image/png" }],
+      }),
+    );
+  });
+
+  it("forwards every source artifact and the user's exact request for multi-image composition", async () => {
+    const artifacts = makeStore();
+    const baseBytes = Buffer.from("BASE-PNG-BYTES");
+    const subjectBytes = Buffer.from("SUBJECT-JPEG-BYTES");
+    for (const source of [
+      { id: "base", bytes: baseBytes, mimeType: "image/png" },
+      { id: "subject", bytes: subjectBytes, mimeType: "image/jpeg" },
+    ]) {
+      await artifacts.write(
+        {
+          id: source.id,
+          userId: "u1",
+          sessionId: "s1",
+          name: source.id,
+          kind: "image",
+          mimeType: source.mimeType,
+          storageKey: "",
+          status: "ready",
+          createdAt: new Date().toISOString(),
+        },
+        source.bytes,
+      );
+    }
+    vi.mocked(generateImage).mockImplementation(() => new Promise(() => {}));
+
+    const result = await executeGenerateImage(
+      {
+        name: "Composite",
+        prompt: "Use the first image as the base and add the second image's subject.",
+        size: "1024x1024",
+        count: 1,
+        sourceArtifactIds: ["base", "subject"],
+      },
+      {
+        userId: "u1",
+        sessionId: "s1",
+        artifacts,
+        userIntent: "将 @图片1 放入 @图片2 中",
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("将 @图片1 放入 @图片2 中"),
+        sourceImages: [
+          { bytes: baseBytes, mimeType: "image/png" },
+          { bytes: subjectBytes, mimeType: "image/jpeg" },
+        ],
       }),
     );
   });
