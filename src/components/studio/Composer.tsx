@@ -299,6 +299,7 @@ export default function Composer({
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragCounter = useRef(0);
   const imagesRef = useRef<ImageAttachment[]>([]);
+  const activeSessionIdRef = useRef(sessionId);
   const uploadNameReservationsRef = useRef<{
     sessionId: string;
     names: Set<string>;
@@ -320,6 +321,10 @@ export default function Composer({
     },
     [isControlled, onChange],
   );
+
+  useEffect(() => {
+    activeSessionIdRef.current = sessionId;
+  }, [sessionId]);
 
   const setComposerImages = useCallback(
     (
@@ -711,6 +716,7 @@ export default function Composer({
           dataUrl: image.dataUrl,
         })
           .then((artifact) => {
+            if (artifact.sessionId !== activeSessionIdRef.current) return;
             setComposerImages((prev) =>
               prev.map((item) =>
                 item.id === image.id ? { ...item, artifactId: artifact.id } : item,
@@ -719,6 +725,7 @@ export default function Composer({
             onImageUploaded?.(artifact);
           })
           .catch(() => {
+            if (sessionId !== activeSessionIdRef.current) return;
             setAttachError("图片上传失败，仍会随消息发送，但暂时无法通过 @ 引用");
           });
       });

@@ -10,6 +10,8 @@ type UploadImageBody = {
   dataUrl?: string;
 };
 
+export const runtime = "nodejs";
+
 /** Persist a composer-uploaded image as an immediately ready Artifact. */
 export async function POST(request: NextRequest) {
   const userId = await getCurrentUserId();
@@ -40,7 +42,11 @@ export async function POST(request: NextRequest) {
   }
 
   const parsed = parseDataUrl(dataUrl);
-  if (!parsed || !/^image\/[a-z0-9][a-z0-9.+-]*$/i.test(parsed.mimeType)) {
+  if (
+    !parsed ||
+    !/^image\/[a-z0-9][a-z0-9.+-]*$/i.test(parsed.mimeType) ||
+    parsed.mimeType.toLowerCase() === "image/svg+xml"
+  ) {
     return NextResponse.json({ error: "Invalid image data URL" }, { status: 400 });
   }
   if (parsed.bytes.length > MAX_IMAGE_BYTES) {

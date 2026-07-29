@@ -765,7 +765,10 @@ export default function StudioSessionPage() {
         )}
         sessionId={session?.id ?? sessionId}
         onImageUploaded={(artifact) =>
-          setArtifacts((prev) => [artifact, ...prev])
+          setArtifacts((prev) => [
+            artifact,
+            ...prev.filter((item) => item.id !== artifact.id),
+          ])
         }
       />
     </div>
