@@ -135,7 +135,7 @@ export const STUDIO_TOOLS = [
     function: {
       name: "generate_image",
       description:
-        "Generate a new image from a text prompt, or edit an existing image artifact when sourceArtifactId is set. Returns immediately with pending artifact id(s); the image renders in the artifact panel once generation finishes — do not wait for it or claim it is ready in this turn.",
+        "Generate a new image from a text prompt, or edit/compose existing image artifacts. For any task that depends on existing images, pass every required image in sourceArtifactIds; the first image is the base and later images are references to insert or combine. Returns immediately with pending artifact id(s); the image renders in the artifact panel once generation finishes — do not wait for it or claim it is ready in this turn.",
       parameters: {
         type: "object",
         properties: {
@@ -145,7 +145,7 @@ export const STUDIO_TOOLS = [
           },
           prompt: {
             type: "string",
-            description: "Full description of the desired image (or the desired edit, when sourceArtifactId is set)",
+            description: "Full description of the desired image or edit. Preserve the user's requested operation and constraints; image ids in this text do not replace sourceArtifactIds.",
           },
           model: {
             type: "string",
@@ -168,7 +168,15 @@ export const STUDIO_TOOLS = [
           },
           sourceArtifactId: {
             type: "string",
-            description: "Id of an existing image artifact to edit. Present → image-edit; absent → text-to-image.",
+            description: "Legacy single image artifact id. Prefer sourceArtifactIds for new calls.",
+          },
+          sourceArtifactIds: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: 16,
+            description:
+              "Ordered ids of every image needed for the edit/composition. Put the base image first, followed by all reference images whose visual content the result must use.",
           },
         },
         required: ["name", "prompt", "size", "count"],

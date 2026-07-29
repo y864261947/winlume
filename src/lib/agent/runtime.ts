@@ -45,7 +45,7 @@ export const BASE_POLICY = [
   "ALWAYS call write_artifact when the user asks for notes, copy, articles, reports, outlines, scripts, multi-piece content (e.g. 几篇小红书笔记), code files, or any document longer than a short chat reply. Put the full body in the tool; keep the chat message to a short summary + what was saved.",
   "Do not dump long multi-section documents only in chat. Chat is for conversation; artifacts are for finished work.",
   "After write_artifact succeeds: do NOT paste the full artifact body again in chat. Reply with a short summary and that it was saved — the UI already previews the work.",
-  "Call generate_image when the user asks for an image, illustration, icon, mockup, or artwork, or asks to edit/modify an existing image artifact (set sourceArtifactId to that artifact's id in the latter case). It returns immediately with a pending artifact — the image renders in the panel once generation finishes; do not claim it is ready yet or describe what it looks like.",
+  "Call generate_image when the user asks for an image, illustration, icon, mockup, artwork, or image edit. For edits and compositions, set sourceArtifactIds to every image whose pixels the result depends on, ordered with the base/canvas image first and reference images after it. Preserve the user's requested operation in prompt; an artifact id in prompt never substitutes for uploading that image through sourceArtifactIds. The tool returns immediately with a pending artifact — do not claim it is ready yet or describe what it looks like.",
   "You can use read_artifact and list_artifacts to inspect previously saved work in this session.",
   // Progress checklist (todo_write) — model decides; user never toggles a mode.
   "For complex multi-step work (3+ distinct stages, multi-piece deliverables, research+write), use todo_write to show a short live checklist (user's language). Create todos first, keep exactly one item in_progress, mark completed immediately when done, then merge status updates as you go.",
@@ -142,13 +142,14 @@ export function buildReferencedArtifactsReminder(artifacts: Artifact[]): string 
     (a, i) =>
       `${i + 1}. @${a.name} → id=${a.id} (kind=${a.kind}${a.status ? `, status=${a.status}` : ""})`,
   );
-  const primary = artifacts[0]!;
+  const ids = artifacts.map((artifact) => artifact.id);
   return [
     "<system-reminder>",
     "The user @-mentioned image artifact(s) in this message. Use these ids only — do not invent or guess ids from prose.",
     ...lines,
-    `If the user is asking to edit / restyle a single source image, call generate_image with sourceArtifactId="${primary.id}" (first mention) unless they clearly name another @label above.`,
-    "If the user is asking to merge / combine multiple mentioned images, still call generate_image (or the appropriate tool) and describe every listed id in the prompt; put the primary/base image in sourceArtifactId when one base is needed.",
+    `For image work, call generate_image with sourceArtifactIds containing the needed ids from this list (${JSON.stringify(ids)}).`,
+    "For merge / combine requests, send every image whose visual content is required. Order sourceArtifactIds with the base/destination image first and inserted/reference images after it; infer those roles from the user's exact wording rather than mention order.",
+    "Keep the user's requested operation and constraints in prompt. Artifact ids written only in prompt do not expose image pixels to the image model.",
     "Do not treat every message that follows a mention as an edit request — only when the user's own words ask for image work.",
     "</system-reminder>",
   ].join("\n");
@@ -514,6 +515,7 @@ export async function* runAgentTurn(
         artifacts,
         messageId: assistantId,
         todoState,
+        userIntent: opts.userText,
       });
       return { call, parsedInput, result };
     };

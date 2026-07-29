@@ -69,6 +69,11 @@ const generateImageSchema = z.object({
   style: z.string().trim().max(200).optional(),
   count: z.number().int().min(1).max(4),
   sourceArtifactId: z.string().trim().min(1).max(128).optional(),
+  sourceArtifactIds: z
+    .array(z.string().trim().min(1).max(128))
+    .min(1)
+    .max(16)
+    .optional(),
 });
 
 export type GenerateImageArgs = z.infer<typeof generateImageSchema>;
@@ -129,6 +134,8 @@ export interface ToolExecuteContext {
    * Required for todo_write merge semantics.
    */
   todoState?: TodoState;
+  /** Exact current user request, preserved when a tool prompt is elaborated by the agent. */
+  userIntent?: string;
 }
 
 export interface ToolExecuteResult {
@@ -211,14 +218,14 @@ export interface ImageGenerationJob {
   prompt: string;
   model?: string;
   size: "1024x1024" | "1024x1536" | "1536x1024";
-  sourceImage?: { bytes: Buffer; mimeType: string };
+  sourceImages?: { bytes: Buffer; mimeType: string }[];
 }
 
 /** Runs one generation call and writes the result back to `job.artifact.id`. Never throws. */
 export async function runImageGenerationJob(job: ImageGenerationJob): Promise<void> {
-  const { artifact, ctx, prompt, model, size, sourceImage } = job;
+  const { artifact, ctx, prompt, model, size, sourceImages } = job;
   try {
-    const [image] = await generateImage({ prompt, model, size, n: 1, sourceImage });
+    const [image] = await generateImage({ prompt, model, size, n: 1, sourceImages });
     if (!image) throw new Error("Image API returned no results");
     await ctx.artifacts.write(
       { ...artifact, mimeType: image.mimeType, status: "ready", error: undefined },
@@ -258,21 +265,36 @@ export async function executeGenerateImage(
   if (!parsed.success) {
     return fail(`generate_image validation failed: ${formatZodError(parsed.error)}`);
   }
-  const { name, prompt, model, size, style, count, sourceArtifactId } = parsed.data;
+  const {
+    name,
+    prompt,
+    model,
+    size,
+    style,
+    count,
+    sourceArtifactId,
+    sourceArtifactIds,
+  } = parsed.data;
 
-  let sourceImage: { bytes: Buffer; mimeType: string } | undefined;
-  if (sourceArtifactId) {
-    const meta = await ctx.artifacts.get(ctx.userId, sourceArtifactId);
-    if (!meta) return fail(`Source artifact not found: ${sourceArtifactId}`);
-    const buf = await ctx.artifacts.readContent(ctx.userId, sourceArtifactId);
+  const requestedSourceIds = sourceArtifactIds ??
+    (sourceArtifactId ? [sourceArtifactId] : []);
+  const sourceImages: { bytes: Buffer; mimeType: string }[] = [];
+  for (const id of requestedSourceIds) {
+    const meta = await ctx.artifacts.get(ctx.userId, id);
+    if (!meta) return fail(`Source artifact not found: ${id}`);
+    const buf = await ctx.artifacts.readContent(ctx.userId, id);
     if (!buf || buf.length === 0) {
-      return fail(`Source artifact content missing: ${sourceArtifactId}`);
+      return fail(`Source artifact content missing: ${id}`);
     }
-    sourceImage = { bytes: buf, mimeType: meta.mimeType };
+    sourceImages.push({ bytes: buf, mimeType: meta.mimeType });
   }
 
   const createdAt = new Date().toISOString();
-  const fullPrompt = style ? `${prompt} (style: ${style})` : prompt;
+  const styledPrompt = style ? `${prompt} (style: ${style})` : prompt;
+  const userIntent = ctx.userIntent?.trim();
+  const fullPrompt = userIntent
+    ? `Original user request (follow exactly):\n${userIntent}\n\nExecution details:\n${styledPrompt}`
+    : styledPrompt;
   const pending: Artifact[] = [];
   try {
     for (let i = 0; i < count; i++) {
@@ -296,7 +318,14 @@ export async function executeGenerateImage(
       // Dispatch the job immediately after this artifact's write succeeds, so a
       // later write failure in this loop (e.g. artifact 2 of 3) can never orphan
       // an artifact whose write already succeeded — its job is already running.
-      void runImageGenerationJob({ artifact, ctx, prompt: fullPrompt, model, size, sourceImage });
+      void runImageGenerationJob({
+        artifact,
+        ctx,
+        prompt: fullPrompt,
+        model,
+        size,
+        sourceImages: sourceImages.length ? sourceImages : undefined,
+      });
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "generate_image failed";

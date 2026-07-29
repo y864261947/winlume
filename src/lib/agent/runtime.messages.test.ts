@@ -136,6 +136,8 @@ describe("buildReferencedArtifactReminder", () => {
     expect(reminder).toContain("@图片2");
     expect(reminder).toContain("a1");
     expect(reminder).toContain("a2");
-    expect(reminder).toContain("merge");
+    expect(reminder).toContain('sourceArtifactIds containing the needed ids from this list (["a1","a2"])');
+    expect(reminder).toContain("send every image");
+    expect(reminder).not.toContain("describe every listed id in the prompt");
   });
 });
