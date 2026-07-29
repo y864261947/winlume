@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   LoaderCircle,
   MapPin,
@@ -85,6 +86,9 @@ export default function ImageAnnotationOverlay(props: {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"enter" | "open" | "closing">("enter");
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The preview lives inside a glass/modal stacking context. Render the
+  // drawing surface at the document root so it remains clickable above it.
+  const portalTarget = typeof document === "undefined" ? null : document.body;
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -273,10 +277,15 @@ export default function ImageAnnotationOverlay(props: {
     phase === "open" && request.trim() && hasMarks && !busy && !submitting && image,
   );
 
-  if (!rect) return null;
+  if (!rect || !portalTarget) return null;
 
-  return (
-    <div className="pointer-events-none fixed inset-0 z-50" aria-label={`正在标注 ${imageName}`}>
+  return createPortal(
+    <div
+      className="pointer-events-none fixed inset-0 z-[100]"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`正在标注 ${imageName}`}
+    >
       <canvas
         ref={canvasRef}
         className="image-annotation-stage pointer-events-auto fixed touch-none"
@@ -395,6 +404,7 @@ export default function ImageAnnotationOverlay(props: {
           {visibleError}
         </p>
       ) : null}
-    </div>
+    </div>,
+    portalTarget,
   );
 }
