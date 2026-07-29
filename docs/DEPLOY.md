@@ -2,15 +2,11 @@
 
 ## Host
 
-- Server: `38.76.188.156` (aaPanel nginx + systemd)
+- Server: `104.160.47.89` (nginx + systemd)
 - App: `/opt/winlume` Next.js **standalone**, port `127.0.0.1:3001`
+- Previous release (for rollback / env copy): `/opt/winlume.previous`
 - Service: `winlume.service`
-- Public hostname (intended): **`winlume.v2api.top`**
-- nginx vhost: `/www/server/nginx/conf/winlume.v2api.top.conf` (HTTP → reverse proxy 3001)
-
-This machine is **not** the by-your-side production host of record anymore (`by-your-side` pm2 may appear stopped).
-
-Secrets and passwords: local gitignored `docs/INFRA.md` (or sibling by-your-side INFRA §1).
+- Public hostname: **`https://winlume.v2api.top`**
 
 ## Cloudflare (zone `v2api.top`)
 
@@ -18,7 +14,7 @@ Required for public HTTPS:
 
 | Record | Type | Content | Proxy |
 |--------|------|---------|--------|
-| `winlume` | A | `38.76.188.156` | **DNS only** (grey cloud) recommended first, same as historical by-your-side direct style |
+| `winlume` | A | `104.160.47.89` | **DNS only** (grey cloud) recommended first |
 
 Then on server (after DNS propagates):
 
@@ -41,15 +37,26 @@ Triggers: **push to `master`** (includes merged PRs) and manual `workflow_dispat
 
 Repo → Settings → Secrets and variables → Actions:
 
-| Secret | Example |
-|--------|---------|
-| `DEPLOY_HOST` | `38.76.188.156` |
-| `DEPLOY_USER` | `root` |
-| `DEPLOY_SSH_PASSWORD` | (server password) |
-| `WINLUME_GATEWAY_TOKEN` | (optional, chat gateway bearer) |
-| `NEW_API_URL` | optional, default `https://v2api.top` |
+| Secret | Required | Notes |
+|--------|----------|--------|
+| `DEPLOY_HOST` | Yes | `104.160.47.89` |
+| `DEPLOY_USER` | Yes | `root` |
+| `DEPLOY_SSH_PRIVATE_KEY` | Yes | Ed25519 key authorized on the host |
+| `WINLUME_GATEWAY_TOKEN` | Optional | Chat bearer. **Only overwrites** that key when set. |
+| `WINLUME_IMAGE_GATEWAY_TOKEN` | Optional | Image bearer (生图分组). **Only overwrites** when set. |
+| `WINLUME_IMAGE_MODEL` | Optional | e.g. `gpt-image-2`. Only overwrites when set. |
+| `NEW_API_URL` | Optional | Default `https://v2api.top` |
 
-Without these secrets the workflow will fail at the upload step.
+### How `.env` is handled on each deploy
+
+1. Whole tree is swapped: `/opt/winlume` → `/opt/winlume.previous`, new tarball unpacked.
+2. **`/opt/winlume.previous/.env` is copied back** into the new release (so you do **not** re-enter tokens every time).
+3. `data/` is copied the same way.
+4. GitHub secrets only **upsert** their own keys when non-empty. Empty secret ⇒ leave the value already on the server.
+
+So: set image token once on the server **or** once as `WINLUME_IMAGE_GATEWAY_TOKEN` in GitHub Secrets; subsequent deploys keep it.
+
+Without `DEPLOY_*` secrets the workflow will fail at the upload step.
 
 ## Manual package
 
