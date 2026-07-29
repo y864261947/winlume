@@ -6,9 +6,11 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { PanelLeftOpen } from "lucide-react";
 import StudioSidebar from "./StudioSidebar";
 import StudioViewTransition from "./StudioViewTransition";
 
@@ -36,6 +38,11 @@ export function useStudioHeaderSlot(content: ReactNode) {
 /** Full-height workbench chrome — demo warm canvas + glass sidebar (no marketing chrome). */
 export default function StudioShell({ children }: { children: ReactNode }) {
   const [header, setHeader] = useState<ReactNode>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarPeekRendered, setSidebarPeekRendered] = useState(false);
+  const [sidebarPeekActive, setSidebarPeekActive] = useState(false);
+  const sidebarPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sidebarPeekFrameRef = useRef<number | null>(null);
   // Stable identity — an inline object literal here would recreate the
   // context value on every StudioShell re-render (e.g. whenever a page
   // publishes new header content), which then falsely trips consumers'
@@ -44,13 +51,109 @@ export default function StudioShell({ children }: { children: ReactNode }) {
   // actually unmounted.
   const headerSlotCtx = useMemo(() => ({ setHeader }), []);
 
+  const clearSidebarPeekTimer = () => {
+    if (!sidebarPeekTimerRef.current) return;
+    clearTimeout(sidebarPeekTimerRef.current);
+    sidebarPeekTimerRef.current = null;
+  };
+
+  const clearSidebarPeekFrame = () => {
+    if (sidebarPeekFrameRef.current === null) return;
+    cancelAnimationFrame(sidebarPeekFrameRef.current);
+    sidebarPeekFrameRef.current = null;
+  };
+
+  const showSidebarPeek = () => {
+    if (!sidebarCollapsed) return;
+    clearSidebarPeekTimer();
+    clearSidebarPeekFrame();
+    setSidebarPeekRendered(true);
+    sidebarPeekFrameRef.current = requestAnimationFrame(() => {
+      sidebarPeekFrameRef.current = null;
+      setSidebarPeekActive(true);
+    });
+  };
+
+  const hideSidebarPeek = () => {
+    clearSidebarPeekFrame();
+    setSidebarPeekActive(false);
+    clearSidebarPeekTimer();
+    sidebarPeekTimerRef.current = setTimeout(() => {
+      setSidebarPeekRendered(false);
+      sidebarPeekTimerRef.current = null;
+    }, 180);
+  };
+
+  const collapseSidebar = () => {
+    setSidebarCollapsed(true);
+    hideSidebarPeek();
+  };
+
+  const expandSidebar = () => {
+    clearSidebarPeekTimer();
+    clearSidebarPeekFrame();
+    setSidebarPeekActive(false);
+    setSidebarPeekRendered(false);
+    setSidebarCollapsed(false);
+  };
+
+  useEffect(
+    () => () => {
+      clearSidebarPeekTimer();
+      clearSidebarPeekFrame();
+    },
+    [],
+  );
+
   return (
     <HeaderSlotContext.Provider value={headerSlotCtx}>
       <div className="studio-root relative flex h-dvh min-h-0 w-full overflow-hidden">
         <div className="studio-blob studio-blob-a" aria-hidden />
         <div className="studio-blob studio-blob-b" aria-hidden />
         <div className="studio-blob studio-blob-c" aria-hidden />
-        <StudioSidebar />
+        <div
+          className={`relative z-[2] block h-full shrink-0 transition-[width] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] ${
+            sidebarCollapsed ? "w-[52px]" : "w-[222px]"
+          }`}
+          onPointerEnter={(event) => {
+            if (event.pointerType === "mouse") showSidebarPeek();
+          }}
+          onPointerLeave={(event) => {
+            if (event.pointerType === "mouse") hideSidebarPeek();
+          }}
+          onFocusCapture={showSidebarPeek}
+          onBlurCapture={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) hideSidebarPeek();
+          }}
+        >
+          {sidebarCollapsed ? (
+            <div
+              className={`studio-sidebar-rail flex h-full w-[52px] items-start justify-center border-r border-white/70 pt-4 transition-opacity duration-150 ${
+                sidebarPeekRendered ? "pointer-events-none opacity-0" : "opacity-100"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={expandSidebar}
+                title="展开侧栏"
+                aria-label="展开侧栏"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#615A73] transition-[background-color,color,transform] duration-150 hover:bg-white/75 hover:text-[#241E36] active:scale-[0.97]"
+              >
+                <PanelLeftOpen className="h-4.5 w-4.5" />
+              </button>
+            </div>
+          ) : (
+            <StudioSidebar onRequestCollapse={collapseSidebar} />
+          )}
+          {sidebarCollapsed && sidebarPeekRendered ? (
+            <div
+              className="studio-sidebar-peek absolute inset-y-0 left-0 w-[222px]"
+              data-active={sidebarPeekActive}
+            >
+              <StudioSidebar temporary onRequestExpand={expandSidebar} />
+            </div>
+          ) : null}
+        </div>
         <div className="relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col">
           <StudioViewTransition name="studio-header-slot">
             <div

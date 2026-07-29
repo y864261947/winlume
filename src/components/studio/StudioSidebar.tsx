@@ -11,6 +11,8 @@ import {
   LayoutGrid,
   LoaderCircle,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   Sparkles,
   Wallet,
@@ -63,7 +65,15 @@ function navActive(pathname: string, href: string, exact?: boolean) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export default function StudioSidebar() {
+export default function StudioSidebar({
+  temporary = false,
+  onRequestCollapse,
+  onRequestExpand,
+}: {
+  temporary?: boolean;
+  onRequestCollapse?: () => void;
+  onRequestExpand?: () => void;
+}) {
   const pathname = usePathname();
   const { account, accountLoading, balanceConfig, openLogin } = useModals();
   const signOutAction = useSignOutAction();
@@ -102,20 +112,43 @@ export default function StudioSidebar() {
     .toUpperCase();
 
   return (
-    <aside className="studio-glass relative z-[2] flex h-full w-[222px] shrink-0 flex-col border-r border-white/70 px-4 py-5">
-      <Link href="/studio" className="mb-6 flex items-center gap-2.5 px-2">
-        <span className="studio-logo-mark flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M12 2L14 9L21 11L14 13L12 20L10 13L3 11L10 9L12 2Z"
-              fill="white"
-            />
-          </svg>
-        </span>
-        <span className="text-[17px] font-bold tracking-wide text-[#241E36]">
-          {site.name}
-        </span>
-      </Link>
+    <aside className={`studio-glass relative z-[2] flex h-full w-[222px] shrink-0 flex-col border-r border-white/70 px-4 py-5 ${temporary ? "shadow-[12px_0_30px_rgba(36,30,54,0.16)]" : ""}`}>
+      <div className="mb-6 flex items-center gap-1">
+        <Link href="/studio" className="flex min-w-0 flex-1 items-center gap-2.5 px-2">
+          <span className="studio-logo-mark flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M12 2L14 9L21 11L14 13L12 20L10 13L3 11L10 9L12 2Z"
+                fill="white"
+              />
+            </svg>
+          </span>
+          <span className="truncate text-[17px] font-bold tracking-wide text-[#241E36]">
+            {site.name}
+          </span>
+        </Link>
+        {temporary ? (
+          <button
+            type="button"
+            onClick={onRequestExpand}
+            title="固定展开侧栏"
+            aria-label="固定展开侧栏"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#615A73] transition-[background-color,color,transform] duration-150 hover:bg-white/75 hover:text-[#241E36] active:scale-[0.97]"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </button>
+        ) : onRequestCollapse ? (
+          <button
+            type="button"
+            onClick={onRequestCollapse}
+            title="收起侧栏"
+            aria-label="收起侧栏"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#615A73] transition-[background-color,color,transform] duration-150 hover:bg-white/75 hover:text-[#241E36] active:scale-[0.97]"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        ) : null}
+      </div>
 
       <nav className="flex flex-col gap-0.5">
         {primaryNav.map((item) => {
