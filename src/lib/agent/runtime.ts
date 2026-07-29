@@ -143,6 +143,32 @@ export function buildReferencedArtifactsReminder(artifacts: Artifact[]): string 
       `${i + 1}. @${a.name} → id=${a.id} (kind=${a.kind}${a.status ? `, status=${a.status}` : ""})`,
   );
   const ids = artifacts.map((artifact) => artifact.id);
+  const annotationArtifacts = artifacts.filter(
+    (artifact) => artifact.purpose === "annotation",
+  );
+
+  if (annotationArtifacts.length) {
+    const baseArtifact = artifacts.find(
+      (artifact) => artifact.purpose !== "annotation",
+    );
+    const baseRole = baseArtifact
+      ? `@${baseArtifact.name} (id=${baseArtifact.id}) is the editable base canvas.`
+      : "The first non-annotation image is the editable base canvas.";
+
+    return [
+      "<system-reminder>",
+      "The user @-mentioned image artifact(s) in this message. Use these ids only — do not invent or guess ids from prose.",
+      ...lines,
+      baseRole,
+      `Each annotation artifact (${annotationArtifacts.map((artifact) => `@${artifact.name} id=${artifact.id}`).join(", ")}) is a marked targeting reference, not an editable canvas.`,
+      `For this annotation refinement, call generate_image with sourceArtifactIds exactly ${JSON.stringify(ids)}. Preserve this supplied order: clean base first, marked targeting reference after it.`,
+      "Use annotation pixels only to locate the requested change. Do not reproduce or retain annotation marks, pins, boxes, strokes, labels, or overlays in the generated result.",
+      "Keep the user's requested operation and constraints in prompt, and limit changes to marked regions unless the user explicitly asks for broader changes.",
+      "Artifact ids written only in prompt do not expose image pixels to the image model.",
+      "</system-reminder>",
+    ].join("\n");
+  }
+
   return [
     "<system-reminder>",
     "The user @-mentioned image artifact(s) in this message. Use these ids only — do not invent or guess ids from prose.",

@@ -88,6 +88,40 @@ button:not(:disabled) {
   background: transparent;
 }
 
+/* Image-local refinement overlay. Canvas updates are rAF-driven; only entry UI moves. */
+.image-annotation-stage {
+  opacity: 0;
+  transform: scale(0.985);
+  transition:
+    opacity 220ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.image-annotation-stage[data-state="open"] {
+  opacity: 1;
+  transform: scale(1);
+}
+.image-annotation-toolbar,
+.image-annotation-composer {
+  opacity: 0;
+  transform: translateX(-50%) scale(0.96);
+  transition:
+    opacity 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.image-annotation-toolbar[data-state="open"],
+.image-annotation-composer[data-state="open"] {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .image-annotation-stage,
+  .image-annotation-toolbar,
+  .image-annotation-composer {
+    transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1), color 160ms ease, background-color 160ms ease !important;
+    transform: none !important;
+  }
+}
+
 /* 光谱渐变背景（LOGO 块、发丝线、圆点） */
 @utility spectrum-bg {
   background-image: var(--gradient-spectrum);

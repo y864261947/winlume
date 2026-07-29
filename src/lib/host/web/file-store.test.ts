@@ -78,4 +78,48 @@ describe("web file store", () => {
     expect(titled.title).toBe("renamed");
     expect(titled.pinnedSkillIds).toEqual(["keep-me"]);
   });
+
+  it("persists hidden annotation metadata without changing visible artifacts", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wl-"));
+    dirs.push(root);
+    const store = createWebFileStore(root);
+    const createdAt = new Date().toISOString();
+
+    await store.artifacts.write(
+      {
+        id: "visible-image",
+        userId: "u1",
+        sessionId: "s1",
+        name: "Visible image",
+        kind: "image",
+        mimeType: "image/png",
+        storageKey: "",
+        createdAt,
+      },
+      Buffer.from("visible"),
+    );
+    await store.artifacts.write(
+      {
+        id: "annotation-image",
+        userId: "u1",
+        sessionId: "s1",
+        name: "Annotation image",
+        kind: "image",
+        mimeType: "image/png",
+        storageKey: "",
+        visibility: "hidden",
+        purpose: "annotation",
+        createdAt,
+      },
+      Buffer.from("annotation"),
+    );
+
+    const visible = await store.artifacts.get("u1", "visible-image");
+    expect(visible?.visibility).toBeUndefined();
+    expect(visible?.purpose).toBeUndefined();
+
+    const annotation = await store.artifacts.get("u1", "annotation-image");
+    expect(annotation?.visibility).toBe("hidden");
+    expect(annotation?.purpose).toBe("annotation");
+  });
 });
