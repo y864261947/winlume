@@ -35,10 +35,19 @@ describe("image annotations", () => {
               { x: 0.1, y: 0.2 },
               { x: 0.4, y: 0.6 },
             ],
+            comment: "把这里改成蓝色",
           },
         ],
       }),
     ).toContain("sourceArtifactIds must be [base, marked]");
+    expect(
+      buildImageRefinementInstruction({
+        baseArtifactId: "base",
+        annotationArtifactId: "marked",
+        request: "",
+        marks: [{ id: "m1", kind: "point", points: [{ x: 0.5, y: 0.5 }], comment: "移除这里" }],
+      }),
+    ).toContain('note="移除这里"');
   });
 
   it("returns the union bound for marks", () => {

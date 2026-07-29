@@ -9,6 +9,8 @@ export type ImageAnnotationMark = {
   id: string;
   kind: AnnotationMarkKind;
   points: AnnotationPoint[];
+  /** User's instruction for this exact marked region. */
+  comment?: string;
 };
 export type ImageBounds = {
   left: number;
@@ -82,7 +84,9 @@ function markDescription(mark: ImageAnnotationMark): string {
   const boundText = bounds
     ? ` bounds=(${format(bounds.x)}, ${format(bounds.y)}, ${format(bounds.width)}, ${format(bounds.height)})`
     : "";
-  return `${mark.kind} ${points}${boundText}`;
+  const comment = mark.comment?.trim();
+  const commentText = comment ? ` note=${JSON.stringify(comment)}` : "";
+  return `${mark.kind} ${points}${boundText}${commentText}`;
 }
 
 export function buildImageRefinementInstruction(input: {
@@ -98,7 +102,8 @@ export function buildImageRefinementInstruction(input: {
     `clean base artifact id=${input.baseArtifactId}; marked reference artifact id=${input.annotationArtifactId}.`,
     "sourceArtifactIds must be [base, marked]，且顺序必须保持为干净原图在前、带标记参考图在后。",
     `标记区域（归一化 0-1 坐标）：${marks || "none"}。`,
-    `用户要求：${request || "请按标记区域修改。"}`,
+    `总体要求：${request || "请按每个标记旁的说明修改。"}`,
+    "每个标记的 note 是该区域独立的修改说明；分别执行这些说明，不要把一个区域的说明扩展到其他区域。",
     "只修改标记区域，除非用户要求明确需要影响其他区域；标记中的蓝色图钉、红色方框和画笔线仅用于定位，绝不能保留在输出图片中。",
   ].join("\n");
 }
