@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasMentionToken,
   segmentsToText,
   textToSegments,
   type MentionChipMeta,
@@ -41,5 +42,19 @@ describe("textToSegments / segmentsToText", () => {
     expect(segs.some((s) => s.type === "mention" && s.name === "Sunset")).toBe(
       true,
     );
+  });
+});
+
+describe("hasMentionToken", () => {
+  it("detects an @ mention token", () => {
+    expect(hasMentionToken("帮我把 @图片1 的背景换成蓝色")).toBe(true);
+  });
+
+  it("returns false for plain text with no @ token", () => {
+    expect(hasMentionToken("画一只坐在窗台上的猫")).toBe(false);
+  });
+
+  it("ignores a bare @ with no following non-space characters", () => {
+    expect(hasMentionToken("email me @ noon")).toBe(false);
   });
 });

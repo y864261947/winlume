@@ -14,6 +14,7 @@ import {
 } from "react";
 import {
   ArrowUp,
+  AtSign,
   Check,
   ChevronDown,
   ChevronRight,
@@ -22,6 +23,7 @@ import {
   Image as ImageIcon,
   ListOrdered,
   Paperclip,
+  RotateCw,
   Square,
   X,
 } from "lucide-react";
@@ -708,6 +710,37 @@ export default function Composer({
     [detectSlash, detectMention, menuOpen],
   );
 
+  const uploadOneImage = useCallback(
+    (image: ImageAttachment) => {
+      if (!sessionId) return;
+      void uploadImageArtifact({ sessionId, name: image.name, dataUrl: image.dataUrl })
+        .then((artifact) => {
+          if (artifact.sessionId !== activeSessionIdRef.current) return;
+          setComposerImages((prev) => prev.map((item) =>
+            item.id === image.id ? { ...item, artifactId: artifact.id, uploadFailed: false } : item,
+          ));
+          onImageUploaded?.(artifact);
+        })
+        .catch(() => {
+          if (sessionId !== activeSessionIdRef.current) return;
+          setComposerImages((prev) => prev.map((item) =>
+            item.id === image.id ? { ...item, uploadFailed: true } : item,
+          ));
+          setAttachError("图片上传失败，仍会随消息发送；发送前会再试一次以便 @ 引用");
+        });
+    },
+    [onImageUploaded, sessionId, setComposerImages],
+  );
+
+  const retryImageUpload = useCallback((imageId: string) => {
+    const image = imagesRef.current.find((item) => item.id === imageId);
+    if (!image) return;
+    setComposerImages((prev) => prev.map((item) =>
+      item.id === imageId ? { ...item, uploadFailed: false } : item,
+    ));
+    uploadOneImage(image);
+  }, [setComposerImages, uploadOneImage]);
+
   const addImages = useCallback(
     async (list: File[]) => {
       setAttachError(null);
@@ -734,29 +767,9 @@ export default function Composer({
 
       if (!sessionId) return;
 
-      // Persist under the same 图片N name so the session @ list / works rail match.
-      accepted.forEach((image) => {
-        void uploadImageArtifact({
-          sessionId,
-          name: image.name,
-          dataUrl: image.dataUrl,
-        })
-          .then((artifact) => {
-            if (artifact.sessionId !== activeSessionIdRef.current) return;
-            setComposerImages((prev) =>
-              prev.map((item) =>
-                item.id === image.id ? { ...item, artifactId: artifact.id } : item,
-              ),
-            );
-            onImageUploaded?.(artifact);
-          })
-          .catch(() => {
-            if (sessionId !== activeSessionIdRef.current) return;
-            setAttachError("图片上传失败，仍会随消息发送；发送前会再试一次以便 @ 引用");
-          });
-      });
+      accepted.forEach(uploadOneImage);
     },
-    [onImageUploaded, sessionId, setComposerImages],
+    [sessionId, setComposerImages, uploadOneImage],
   );
 
   const addFiles = useCallback(async (list: File[]) => {
@@ -923,10 +936,18 @@ export default function Composer({
               });
               const idx = uploaded.findIndex((i) => i.id === image.id);
               if (idx >= 0) {
-                uploaded[idx] = { ...uploaded[idx]!, artifactId: artifact.id };
+                uploaded[idx] = {
+                  ...uploaded[idx]!,
+                  artifactId: artifact.id,
+                  uploadFailed: false,
+                };
               }
               onImageUploaded?.(artifact);
             } catch {
+              const idx = uploaded.findIndex((i) => i.id === image.id);
+              if (idx >= 0) {
+                uploaded[idx] = { ...uploaded[idx]!, uploadFailed: true };
+              }
               setAttachError("部分图片上传失败，@ 引用可能不完整");
             }
           }
@@ -1307,9 +1328,13 @@ export default function Composer({
                 <button
                   type="button"
                   className="h-full w-full"
-                  title={`点击插入 @${img.name}`}
+                  title={img.uploadFailed ? "上传失败，点击重试" : `点击插入 @${img.name}`}
                   disabled={disabled}
                   onClick={() => {
+                    if (img.uploadFailed) {
+                      retryImageUpload(img.id);
+                      return;
+                    }
                     // Insert at caret as a real chip (ignore any open @query range).
                     editorRef.current?.insertMention(
                       {
@@ -1329,10 +1354,19 @@ export default function Composer({
                   <img
                     src={img.dataUrl}
                     alt={img.name}
-                    className="h-full w-full object-cover"
+                    className={`h-full w-full object-cover ${img.uploadFailed ? "opacity-50" : ""}`}
                   />
+                  {img.uploadFailed ? (
+                    <span className="absolute inset-0 flex items-center justify-center bg-rose-900/30">
+                      <RotateCw className="h-4 w-4 text-white" />
+                    </span>
+                  ) : (
+                    <span className="pointer-events-none absolute right-0.5 top-0.5 rounded-full bg-black/55 p-0.5 text-white opacity-0 transition group-hover:opacity-100">
+                      <AtSign className="h-3 w-3" />
+                    </span>
+                  )}
                   <span className="absolute bottom-0 left-0 right-0 bg-black/55 px-0.5 py-0.5 text-center text-[10px] font-medium leading-tight text-white">
-                    {img.name}
+                    {img.uploadFailed ? "上传失败" : img.name}
                   </span>
                 </button>
                 <button
@@ -1405,7 +1439,11 @@ export default function Composer({
                 ? `${pastedBlocks.length} 粘贴块`
                 : null}
               {pastedBlocks.length > 0 && images.length > 0 ? " · " : null}
-              {images.length > 0 ? `${images.length} 图` : null}
+              {images.length > 0 ? (
+                <span className={images.length >= MAX_IMAGES ? "font-semibold text-rose-600" : images.length === MAX_IMAGES - 1 ? "font-medium text-amber-600" : undefined}>
+                  {images.length}/{MAX_IMAGES} 图
+                </span>
+              ) : null}
               {(pastedBlocks.length > 0 || images.length > 0) && files.length
                 ? " · "
                 : null}
@@ -1511,6 +1549,9 @@ export default function Composer({
             highlightIndex={mentionIndex}
             onHighlightIndexChange={setMentionIndex}
             onPick={pickMentionCandidate}
+            onRetryUpload={(candidate) => {
+              if (candidate.localId) retryImageUpload(candidate.localId);
+            }}
             menuRef={mentionMenuRef}
           />
         </div>

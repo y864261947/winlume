@@ -38,6 +38,7 @@ export type ArtifactMentionMenuProps = {
   highlightIndex: number;
   onHighlightIndexChange: (index: number) => void;
   onPick: (candidate: MentionCandidate) => void;
+  onRetryUpload?: (candidate: MentionCandidate) => void;
   menuId?: string;
   menuRef?: Ref<HTMLDivElement>;
 };
@@ -49,6 +50,7 @@ export default function ArtifactMentionMenu({
   highlightIndex,
   onHighlightIndexChange,
   onPick,
+  onRetryUpload,
   menuId,
   menuRef,
 }: ArtifactMentionMenuProps) {
@@ -76,7 +78,11 @@ export default function ArtifactMentionMenu({
             role="option"
             aria-selected={index === highlightIndex}
             onMouseEnter={() => onHighlightIndexChange(index)}
-            onClick={() => onPick(item)}
+            onClick={() =>
+              item.status === "failed" && onRetryUpload
+                ? onRetryUpload(item)
+                : onPick(item)
+            }
             className={`flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-xs transition ${
               index === highlightIndex
                 ? "bg-[rgba(15,23,42,0.06)] text-[#0F172A]"
@@ -85,7 +91,7 @@ export default function ArtifactMentionMenu({
           >
             <span className="h-8 w-8 shrink-0 overflow-hidden rounded-[8px] border border-white/80 bg-white/70">
               {item.status === "failed" ? (
-                <span className="flex h-full w-full items-center justify-center text-[#8A8298]">
+                <span className="flex h-full w-full items-center justify-center text-rose-500">
                   <ImageIcon className="h-3.5 w-3.5" />
                 </span>
               ) : (
@@ -100,7 +106,9 @@ export default function ArtifactMentionMenu({
             <span className="min-w-0 flex-1 truncate">
               <span className="font-medium">@{item.name}</span>
               {item.source === "local" && !item.artifactId ? (
-                <span className="ml-1 text-[10px] text-[#8A8298]">本地</span>
+                <span className="ml-1 text-[10px] text-[#8A8298]">
+                  {item.status === "failed" ? "上传失败，点击重试" : "本地"}
+                </span>
               ) : null}
             </span>
           </button>

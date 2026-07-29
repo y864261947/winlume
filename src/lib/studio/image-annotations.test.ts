@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   annotationBounds,
+  applyCommentToUncommentedMarks,
   buildImageRefinementInstruction,
   dataUrlByteLength,
   getImageRefinementDisplay,
   normalizeAnnotationPoint,
+  removeAnnotationMark,
 } from "./image-annotations";
 
 describe("image annotations", () => {
@@ -90,5 +92,42 @@ describe("image annotations", () => {
       notes: ["改成比✌", "改成比拳头"],
     });
     expect(getImageRefinementDisplay("普通用户消息")).toBeNull();
+  });
+});
+
+describe("applyCommentToUncommentedMarks", () => {
+  const marks = [
+    { id: "a", kind: "point" as const, points: [{ x: 0.1, y: 0.1 }], comment: "已经填过了" },
+    { id: "b", kind: "point" as const, points: [{ x: 0.2, y: 0.2 }] },
+    { id: "c", kind: "box" as const, points: [{ x: 0.3, y: 0.3 }, { x: 0.4, y: 0.4 }], comment: "  " },
+  ];
+
+  it("fills only marks without a non-empty comment", () => {
+    expect(applyCommentToUncommentedMarks(marks, "换成红色")).toEqual([
+      marks[0],
+      { ...marks[1], comment: "换成红色" },
+      { ...marks[2], comment: "换成红色" },
+    ]);
+  });
+
+  it("does not mutate input marks", () => {
+    applyCommentToUncommentedMarks(marks, "换成红色");
+    expect(marks[1]?.comment).toBeUndefined();
+  });
+});
+
+describe("removeAnnotationMark", () => {
+  const marks = [
+    { id: "a", kind: "point" as const, points: [{ x: 0.1, y: 0.1 }] },
+    { id: "b", kind: "point" as const, points: [{ x: 0.2, y: 0.2 }] },
+    { id: "c", kind: "point" as const, points: [{ x: 0.3, y: 0.3 }] },
+  ];
+
+  it("removes exactly the requested mark", () => {
+    expect(removeAnnotationMark(marks, "b").map((mark) => mark.id)).toEqual(["a", "c"]);
+  });
+
+  it("keeps an equivalent array for a missing id", () => {
+    expect(removeAnnotationMark(marks, "missing")).toEqual(marks);
   });
 });
