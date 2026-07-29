@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import {
   useCallback,
   useEffect,
@@ -30,7 +31,18 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type {
+  ExcalidrawInitialDataState,
+  ExcalidrawProps,
+} from "@excalidraw/excalidraw/types";
 import type { Artifact, ArtifactKind } from "@/lib/agent/types";
+import {
+  needsCanvasConversion,
+  parseCanvasContent,
+  serializeCanvasContent,
+  type CanvasArtifactContent,
+  type CanvasElement,
+} from "@/lib/agent/canvas-content";
 import {
   canExportAsDocument,
   exportArtifactAsPdf,
@@ -45,6 +57,10 @@ import {
   buildImageRefinementInstruction,
 } from "@/lib/studio/image-annotations";
 import { uploadImageAnnotation } from "@/lib/studio/api";
+import {
+  buildUpdatedScene,
+  convertMermaidToCanvasElements,
+} from "@/lib/studio/canvas-convert";
 
 const KIND_LABELS: Record<ArtifactKind, string> = {
   markdown: "Markdown",
@@ -53,6 +69,7 @@ const KIND_LABELS: Record<ArtifactKind, string> = {
   json: "JSON",
   image: "图片",
   binary: "二进制",
+  canvas: "画布",
 };
 
 type ViewMode = "preview" | "source";
@@ -253,6 +270,164 @@ function HtmlBody({
   );
 }
 
+const Excalidraw = dynamic(
+  () => import("@excalidraw/excalidraw").then((module) => module.Excalidraw),
+  { ssr: false },
+);
+
+type ExcalidrawOnChange = NonNullable<ExcalidrawProps["onChange"]>;
+
+async function persistCanvas(
+  artifactId: string,
+  payload: { content: string } | { status: "failed"; error: string },
+): Promise<void> {
+  const response = await fetch(`/api/artifacts/${encodeURIComponent(artifactId)}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(payload),
+  });
+  if (response.ok) return;
+
+  let message = "保存画布失败";
+  try {
+    const body = (await response.json()) as { error?: unknown };
+    if (typeof body.error === "string" && body.error.trim()) message = body.error;
+  } catch {
+    // Use the generic message when the server returns a non-JSON error body.
+  }
+  throw new Error(message);
+}
+
+function CanvasBody({ artifactId, content }: { artifactId: string; content: string }) {
+  const [parsed, setParsed] = useState<CanvasArtifactContent | null>(() =>
+    parseCanvasContent(content),
+  );
+  const [conversionError, setConversionError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const parsedRef = useRef<CanvasArtifactContent | null>(parsed);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!parsed || !needsCanvasConversion(parsed)) return;
+
+    let cancelled = false;
+    void (async () => {
+      let next: CanvasArtifactContent;
+      try {
+        const freshElements = await convertMermaidToCanvasElements(parsed.mermaidSource);
+        if (cancelled) return;
+        next = {
+          mermaidSource: parsed.mermaidSource,
+          convertedFromMermaid: parsed.mermaidSource,
+          scene: {
+            elements: buildUpdatedScene(parsed.scene?.elements ?? [], freshElements),
+            appState: parsed.scene?.appState ?? {},
+          },
+        };
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : "Mermaid 解析失败";
+        setConversionError(message);
+        void persistCanvas(artifactId, { status: "failed", error: message }).catch(() => {
+          // The local error remains visible if reporting the conversion failure also fails.
+        });
+        return;
+      }
+
+      try {
+        await persistCanvas(artifactId, { content: serializeCanvasContent(next) });
+        if (cancelled) return;
+        parsedRef.current = next;
+        setParsed(next);
+        setSaveError(null);
+      } catch (error) {
+        if (cancelled) return;
+        setSaveError(error instanceof Error ? error.message : "保存画布失败");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [artifactId, parsed]);
+
+  const handleChange = useCallback<ExcalidrawOnChange>(
+    (elements, appState) => {
+      const current = parsedRef.current;
+      if (!current) return;
+
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        const latest = parsedRef.current;
+        if (!latest) return;
+        const next: CanvasArtifactContent = {
+          ...latest,
+          scene: {
+            elements: [...elements] as unknown as CanvasElement[],
+            appState: appState as unknown as Record<string, unknown>,
+          },
+        };
+        parsedRef.current = next;
+        setParsed(next);
+        void persistCanvas(artifactId, { content: serializeCanvasContent(next) })
+          .then(() => setSaveError(null))
+          .catch((error: unknown) => {
+            setSaveError(error instanceof Error ? error.message : "保存画布失败");
+          });
+      }, 800);
+    },
+    [artifactId],
+  );
+
+  if (conversionError) {
+    return (
+      <div className="px-4 py-6">
+        <RetryableError message={`图表生成失败：${conversionError}`} />
+      </div>
+    );
+  }
+
+  if (!parsed?.scene) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-10 text-sm text-ink-400">
+        <LoaderCircle className="h-5 w-5 animate-spin" />
+        画布生成中…
+      </div>
+    );
+  }
+
+  const initialData: ExcalidrawInitialDataState = {
+    elements: parsed.scene.elements as unknown as ExcalidrawInitialDataState["elements"],
+    appState: parsed.scene.appState as ExcalidrawInitialDataState["appState"],
+  };
+
+  return (
+    <div className="relative flex min-h-[28rem] min-w-0 flex-1 flex-col">
+      {saveError ? (
+        <p
+          role="alert"
+          className="absolute left-3 top-3 z-10 max-w-[calc(100%-1.5rem)] rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs text-rose-700 shadow-sm"
+        >
+          画布未保存：{saveError}
+        </p>
+      ) : null}
+      <Excalidraw
+        key={`${artifactId}:${parsed.convertedFromMermaid ?? "unconverted"}`}
+        initialData={initialData}
+        onChange={handleChange}
+      />
+    </div>
+  );
+}
+
 function TextBody({ content, kind }: { content: string; kind: ArtifactKind }) {
   let display = content;
   if (kind === "json") {
@@ -313,6 +488,25 @@ function renderPreview(
         </div>
       );
     }
+    case "canvas":
+      if (artifact.status === "failed") {
+        return (
+          <div className="px-4 py-6">
+            <RetryableError
+              message={`生成失败${artifact.error ? `：${artifact.error}` : ""}`}
+              onRetry={retry?.onRetry}
+              retrying={retry?.retrying}
+            />
+          </div>
+        );
+      }
+      return (
+        <CanvasBody
+          key={`${artifact.id}:${content}`}
+          artifactId={artifact.id}
+          content={content}
+        />
+      );
     case "binary":
       return (
         <p className="px-4 py-6 text-sm text-ink-500">
@@ -488,7 +682,8 @@ export default function ArtifactPreview({
     artifact &&
       content != null &&
       artifact.kind !== "binary" &&
-      artifact.kind !== "image",
+      artifact.kind !== "image" &&
+      artifact.kind !== "canvas",
   );
 
   const hasPreview = Boolean(
@@ -590,6 +785,17 @@ export default function ArtifactPreview({
     if (!artifact) return;
     if (artifact.kind === "image") {
       downloadImageArtifact(artifact);
+      return;
+    }
+    if (artifact.kind === "canvas") {
+      if (content == null) return;
+      const blob = new Blob([content], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${artifact.name}.excalidraw.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
       return;
     }
     if (content == null) return;
@@ -1113,7 +1319,7 @@ export default function ArtifactPreview({
           <div className="min-h-0 flex-1 overflow-y-auto">
             {renderPreview(artifact, content, htmlFrame, annotationImageRef, {
               onRetry:
-                artifact.kind === "image" &&
+                (artifact.kind === "image" || artifact.kind === "canvas") &&
                 artifact.status === "failed" &&
                 artifact.messageId &&
                 onRetryGeneration
