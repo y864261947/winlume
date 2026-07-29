@@ -1,7 +1,7 @@
 "use client";
 
 import type { Ref } from "react";
-import { ImageIcon } from "lucide-react";
+import { ImageIcon, PanelsTopLeft } from "lucide-react";
 import {
   filterMentionCandidates,
   type MentionCandidate,
@@ -67,8 +67,8 @@ export default function ArtifactMentionMenu({
       {items.length === 0 ? (
         <p className="px-2.5 py-3 text-center text-xs text-[#8A8298]">
           {candidates.length === 0
-            ? "先添加图片，再输入 @ 引用（如 @图片1）"
-            : "没有匹配的图片"}
+            ? "先添加图片或画布，再输入 @ 引用"
+            : "没有匹配的作品"}
         </p>
       ) : (
         items.map((item, index) => (
@@ -94,6 +94,10 @@ export default function ArtifactMentionMenu({
                 <span className="flex h-full w-full items-center justify-center text-rose-500">
                   <ImageIcon className="h-3.5 w-3.5" />
                 </span>
+              ) : item.kind === "canvas" ? (
+                <span className="flex h-full w-full items-center justify-center bg-primary-50 text-primary-600">
+                  <PanelsTopLeft className="h-3.5 w-3.5" />
+                </span>
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- local data URL or user-scoped raw route
                 <img
@@ -109,6 +113,9 @@ export default function ArtifactMentionMenu({
                 <span className="ml-1 text-[10px] text-[#8A8298]">
                   {item.status === "failed" ? "上传失败，点击重试" : "本地"}
                 </span>
+              ) : null}
+              {item.kind === "canvas" ? (
+                <span className="ml-1 text-[10px] text-[#8A8298]">画布</span>
               ) : null}
             </span>
           </button>

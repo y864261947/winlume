@@ -161,6 +161,7 @@ const MentionPromptEditor = forwardRef<
       if (!name) return;
       const meta = resolve(name);
       if (!meta) return;
+      if (meta.kind) chip.dataset.mentionKind = meta.kind;
       if (meta.artifactId) chip.dataset.artifactId = meta.artifactId;
       if (meta.localId) chip.dataset.localId = meta.localId;
       const img = chip.querySelector("img");

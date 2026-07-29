@@ -614,6 +614,7 @@ function Bubble({
               <MentionRichText
                 text={message.content}
                 imageArtifacts={imageArtifacts}
+                onOpenArtifact={onOpenArtifact}
                 tone="onDark"
               />
             )
