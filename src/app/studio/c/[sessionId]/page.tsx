@@ -763,6 +763,13 @@ export default function StudioSessionPage() {
         imageArtifacts={artifacts.filter(
           (a) => a.kind === "image" && a.status !== "failed",
         )}
+        sessionId={session?.id ?? sessionId}
+        onImageUploaded={(artifact) =>
+          setArtifacts((prev) => [
+            artifact,
+            ...prev.filter((item) => item.id !== artifact.id),
+          ])
+        }
       />
     </div>
   );

@@ -38,6 +38,7 @@ import {
   MAX_FILES,
   MAX_IMAGES,
   MAX_PASTED_BLOCKS,
+  nextUploadImageNames,
   PASTED_COLLAPSED_PX,
   PASTED_EXPANDED_PX,
   resolveComposerPasteIntent,
@@ -51,6 +52,7 @@ import {
   loadComposerDraft,
   saveComposerDraft,
 } from "@/lib/studio/composer-draft";
+import { uploadImageArtifact } from "@/lib/studio/api";
 import ArtifactMentionMenu, {
   detectAtMention,
   filterMentionArtifacts,
@@ -123,6 +125,10 @@ export type ComposerProps = {
   shareTransitionName?: string | null;
   /** Image artifacts available for @-mention (ready or pending; failed ones are filtered out by the caller). */
   imageArtifacts?: Artifact[];
+  /** Current session scope. Omitted by the pre-session home composer. */
+  sessionId?: string;
+  /** Called when an uploaded image finishes persisting as an Artifact. */
+  onImageUploaded?: (artifact: Artifact) => void;
 };
 
 function PastedBlockCard({
@@ -246,6 +252,8 @@ export default function Composer({
   variant = "default",
   shareTransitionName = "studio-composer",
   imageArtifacts = [],
+  sessionId,
+  onImageUploaded,
 }: ComposerProps) {
   const isHero = variant === "hero";
   const promptId = useId();
@@ -290,6 +298,12 @@ export default function Composer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragCounter = useRef(0);
+  const imagesRef = useRef<ImageAttachment[]>([]);
+  const activeSessionIdRef = useRef(sessionId);
+  const uploadNameReservationsRef = useRef<{
+    sessionId: string;
+    names: Set<string>;
+  } | null>(null);
 
   const isControlled = controlledValue !== undefined;
   const draft = isControlled ? controlledValue : uncontrolled;
@@ -306,6 +320,23 @@ export default function Composer({
       else setUncontrolled(next);
     },
     [isControlled, onChange],
+  );
+
+  useEffect(() => {
+    activeSessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  const setComposerImages = useCallback(
+    (
+      next:
+        | ImageAttachment[]
+        | ((prev: ImageAttachment[]) => ImageAttachment[]),
+    ) => {
+      const resolved = typeof next === "function" ? next(imagesRef.current) : next;
+      imagesRef.current = resolved;
+      setImages(resolved);
+    },
+    [],
   );
 
   const setSelectedIds = useCallback(
@@ -633,26 +664,74 @@ export default function Composer({
     [draft, mentionRange, setDraft],
   );
 
-  const addImages = useCallback(async (list: File[]) => {
-    setAttachError(null);
-    const next: ImageAttachment[] = [];
-    for (const file of list) {
-      try {
-        next.push(await fileToImageAttachment(file));
-      } catch (err) {
-        setAttachError(err instanceof Error ? err.message : "添加图片失败");
+  const addImages = useCallback(
+    async (list: File[]) => {
+      setAttachError(null);
+      const candidates: ImageAttachment[] = [];
+      for (const file of list) {
+        try {
+          candidates.push(await fileToImageAttachment(file));
+        } catch (err) {
+          setAttachError(err instanceof Error ? err.message : "添加图片失败");
+        }
       }
-    }
-    if (!next.length) return;
-    setImages((prev) => {
-      const merged = [...prev, ...next];
-      if (merged.length > MAX_IMAGES) {
+      if (!candidates.length) return;
+
+      const available = Math.max(0, MAX_IMAGES - imagesRef.current.length);
+      const accepted = candidates.slice(0, available);
+      if (accepted.length < candidates.length) {
         setAttachError(`最多 ${MAX_IMAGES} 张图片`);
-        return merged.slice(0, MAX_IMAGES);
       }
-      return merged;
-    });
-  }, []);
+      if (!accepted.length) return;
+
+      setComposerImages((prev) => [...prev, ...accepted]);
+      if (!sessionId) return;
+
+      let reservations = uploadNameReservationsRef.current;
+      if (!reservations || reservations.sessionId !== sessionId) {
+        reservations = { sessionId, names: new Set<string>() };
+        uploadNameReservationsRef.current = reservations;
+      }
+      const existingNames = new Set(
+        imageArtifacts
+          .filter((artifact) => artifact.sessionId === sessionId)
+          .map((artifact) => artifact.name),
+      );
+      for (const reservedName of reservations.names) {
+        existingNames.add(reservedName);
+      }
+      const uploadNames = nextUploadImageNames(
+        Array.from(existingNames),
+        accepted.length,
+      );
+      for (const uploadName of uploadNames) {
+        reservations.names.add(uploadName);
+      }
+
+      accepted.forEach((image, index) => {
+        const uploadName = uploadNames[index]!;
+        void uploadImageArtifact({
+          sessionId,
+          name: uploadName,
+          dataUrl: image.dataUrl,
+        })
+          .then((artifact) => {
+            if (artifact.sessionId !== activeSessionIdRef.current) return;
+            setComposerImages((prev) =>
+              prev.map((item) =>
+                item.id === image.id ? { ...item, artifactId: artifact.id } : item,
+              ),
+            );
+            onImageUploaded?.(artifact);
+          })
+          .catch(() => {
+            if (sessionId !== activeSessionIdRef.current) return;
+            setAttachError("图片上传失败，仍会随消息发送，但暂时无法通过 @ 引用");
+          });
+      });
+    },
+    [imageArtifacts, onImageUploaded, sessionId, setComposerImages],
+  );
 
   const addFiles = useCallback(async (list: File[]) => {
     setAttachError(null);
@@ -783,10 +862,10 @@ export default function Composer({
 
   const clearAttachments = useCallback(() => {
     setPastedBlocks([]);
-    setImages([]);
+    setComposerImages([]);
     setFiles([]);
     setAttachError(null);
-  }, []);
+  }, [setComposerImages]);
 
   const submit = useCallback(() => {
     if (disabled) return;
@@ -1191,7 +1270,9 @@ export default function Composer({
                   type="button"
                   disabled={disabled}
                   onClick={() =>
-                    setImages((prev) => prev.filter((x) => x.id !== img.id))
+                    setComposerImages((prev) =>
+                      prev.filter((item) => item.id !== img.id),
+                    )
                   }
                   className="absolute right-0.5 top-0.5 rounded-full bg-black/55 p-0.5 text-white opacity-0 transition group-hover:opacity-100"
                   title={`移除 ${img.name}`}
