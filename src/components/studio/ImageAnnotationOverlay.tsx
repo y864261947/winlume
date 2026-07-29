@@ -62,6 +62,29 @@ function markId(): string {
   return `annotation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function commentAnchor(
+  rect: ImageRect,
+  mark: ImageAnnotationMark,
+): { left: number; top: number } | null {
+  const point = mark.points.at(-1);
+  if (!point) return null;
+
+  const width = Math.min(384, window.innerWidth - 32);
+  const height = 104;
+  const x = rect.left + point.x * rect.width;
+  const y = rect.top + point.y * rect.height;
+  let left = x + 18;
+  let top = y + 18;
+
+  if (left + width > window.innerWidth - 16) left = x - width - 18;
+  if (top + height > window.innerHeight - 16) top = y - height - 18;
+
+  return {
+    left: Math.max(16, Math.min(left, window.innerWidth - width - 16)),
+    top: Math.max(16, Math.min(top, window.innerHeight - height - 16)),
+  };
+}
+
 export default function ImageAnnotationOverlay(props: {
   image: HTMLImageElement | null;
   imageName: string;
@@ -81,6 +104,7 @@ export default function ImageAnnotationOverlay(props: {
   const [tool, setTool] = useState<Tool>("point");
   const [revision, setRevision] = useState(0);
   const [history, setHistory] = useState({ marks: 0, redo: 0 });
+  const [commentMark, setCommentMark] = useState<ImageAnnotationMark | null>(null);
   const [request, setRequest] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -162,6 +186,7 @@ export default function ImageAnnotationOverlay(props: {
     const mark = marksRef.current.pop();
     if (!mark) return;
     redoRef.current.push(mark);
+    setCommentMark(marksRef.current.at(-1) ?? null);
     setHistory({ marks: marksRef.current.length, redo: redoRef.current.length });
     setRevision((value) => value + 1);
   }, []);
@@ -170,6 +195,7 @@ export default function ImageAnnotationOverlay(props: {
     const mark = redoRef.current.pop();
     if (!mark) return;
     marksRef.current.push(mark);
+    setCommentMark(mark);
     setHistory({ marks: marksRef.current.length, redo: redoRef.current.length });
     setRevision((value) => value + 1);
   }, []);
@@ -235,8 +261,10 @@ export default function ImageAnnotationOverlay(props: {
     if (!point) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     if (tool === "point") {
-      marksRef.current.push({ id: markId(), kind: "point", points: [point] });
+      const mark = { id: markId(), kind: "point" as const, points: [point] };
+      marksRef.current.push(mark);
       redoRef.current = [];
+      setCommentMark(mark);
       setHistory({ marks: marksRef.current.length, redo: 0 });
       setRevision((value) => value + 1);
       return;
@@ -266,6 +294,7 @@ export default function ImageAnnotationOverlay(props: {
     activeMarkRef.current = null;
     marksRef.current.push(activeMark);
     redoRef.current = [];
+    setCommentMark(activeMark);
     setHistory({ marks: marksRef.current.length, redo: 0 });
     setRevision((value) => value + 1);
   };
@@ -276,6 +305,10 @@ export default function ImageAnnotationOverlay(props: {
   const canSubmit = Boolean(
     phase === "open" && request.trim() && hasMarks && !busy && !submitting && image,
   );
+  const anchoredComment =
+    rect && commentMark
+      ? commentAnchor(rect, commentMark)
+      : null;
 
   if (!rect || !portalTarget) return null;
 
@@ -308,10 +341,10 @@ export default function ImageAnnotationOverlay(props: {
       </p>
 
       <div
-        className="image-annotation-toolbar pointer-events-auto fixed left-1/2 top-4 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-white/80 bg-white/95 p-1 shadow-lg backdrop-blur"
+        className="image-annotation-toolbar pointer-events-auto fixed left-1/2 top-4 flex max-w-[calc(100vw-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-lg border border-white/80 bg-white/95 p-1 shadow-lg backdrop-blur"
         data-state={phase}
       >
-        <div className="flex items-center gap-0.5 border-r border-line pr-1">
+        <div className="flex items-center gap-0.5">
           {TOOL_OPTIONS.map(({ value, label, Icon }) => (
             <button
               key={value}
@@ -319,14 +352,14 @@ export default function ImageAnnotationOverlay(props: {
               onClick={() => setTool(value)}
               title={label}
               aria-pressed={tool === value}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+              className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors ${
                 tool === value
                   ? "bg-[#0F172A] text-white"
                   : "text-[#615A73] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
               }`}
             >
               <Icon className="h-4 w-4" />
-              <span className="sr-only">{label}</span>
+              <span>{label}</span>
             </button>
           ))}
         </div>
@@ -361,46 +394,53 @@ export default function ImageAnnotationOverlay(props: {
         </button>
       </div>
 
-      <div
-        className="image-annotation-composer pointer-events-auto fixed bottom-4 left-1/2 flex w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 items-end gap-2 rounded-lg border border-white/80 bg-white/95 p-2 shadow-xl backdrop-blur"
-        data-state={phase}
-      >
-        <label className="sr-only" htmlFor="image-annotation-request">
-          描述希望修改的内容
-        </label>
-        <textarea
-          id="image-annotation-request"
-          value={request}
-          rows={2}
-          disabled={busy || submitting}
-          onChange={(event) => setRequest(event.target.value)}
-          onCompositionStart={() => {
-            composingRef.current = true;
-          }}
-          onCompositionEnd={() => {
-            composingRef.current = false;
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" || event.shiftKey || composingRef.current) return;
-            event.preventDefault();
-            void send();
-          }}
-          placeholder="描述希望修改的区域和效果…"
-          className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-[#241E36] outline-none placeholder:text-[#8A8298] disabled:opacity-60"
-        />
-        <button
-          type="button"
-          onClick={() => void send()}
-          disabled={!canSubmit}
-          title="发送标注修改"
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#0F172A] text-white transition-colors hover:bg-[#1E293B] disabled:pointer-events-none disabled:opacity-40"
+      {anchoredComment ? (
+        <div
+          className="image-annotation-composer pointer-events-auto fixed flex w-[min(24rem,calc(100vw-2rem))] items-end gap-2 rounded-lg border border-white/80 bg-white/95 p-2 shadow-xl backdrop-blur"
+          data-state={phase}
+          style={anchoredComment}
         >
-          {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          <span className="sr-only">发送标注修改</span>
-        </button>
-      </div>
+          <label className="sr-only" htmlFor="image-annotation-request">
+            描述希望修改的内容
+          </label>
+          <textarea
+            id="image-annotation-request"
+            value={request}
+            rows={2}
+            disabled={busy || submitting}
+            onChange={(event) => setRequest(event.target.value)}
+            onCompositionStart={() => {
+              composingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              composingRef.current = false;
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.shiftKey || composingRef.current) return;
+              event.preventDefault();
+              void send();
+            }}
+            placeholder="描述希望修改的区域和效果…"
+            className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-[#241E36] outline-none placeholder:text-[#8A8298] disabled:opacity-60"
+          />
+          <button
+            type="button"
+            onClick={() => void send()}
+            disabled={!canSubmit}
+            title="发送标注修改"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#0F172A] text-white transition-colors hover:bg-[#1E293B] disabled:pointer-events-none disabled:opacity-40"
+          >
+            {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <span className="sr-only">发送标注修改</span>
+          </button>
+        </div>
+      ) : null}
       {visibleError ? (
-        <p role="alert" className="pointer-events-auto fixed bottom-[5.25rem] left-1/2 w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700 shadow-sm">
+        <p
+          role="alert"
+          className="pointer-events-auto fixed w-[min(24rem,calc(100vw-2rem))] rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700 shadow-sm"
+          style={anchoredComment ? { left: anchoredComment.left, top: Math.max(8, anchoredComment.top - 42) } : undefined}
+        >
           {visibleError}
         </p>
       ) : null}

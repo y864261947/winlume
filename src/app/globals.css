@@ -100,18 +100,28 @@ button:not(:disabled) {
   opacity: 1;
   transform: scale(1);
 }
-.image-annotation-toolbar,
-.image-annotation-composer {
+.image-annotation-toolbar {
   opacity: 0;
   transform: translateX(-50%) scale(0.96);
   transition:
     opacity 160ms cubic-bezier(0.23, 1, 0.32, 1),
     transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.image-annotation-toolbar[data-state="open"],
-.image-annotation-composer[data-state="open"] {
+.image-annotation-toolbar[data-state="open"] {
   opacity: 1;
   transform: translateX(-50%) scale(1);
+}
+.image-annotation-composer {
+  opacity: 0;
+  transform: scale(0.96);
+  transform-origin: top left;
+  transition:
+    opacity 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.image-annotation-composer[data-state="open"] {
+  opacity: 1;
+  transform: scale(1);
 }
 @media (prefers-reduced-motion: reduce) {
   .image-annotation-stage,
