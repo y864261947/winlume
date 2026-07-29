@@ -7,7 +7,8 @@ export type StudioToolName =
   | "write_artifact"
   | "read_artifact"
   | "list_artifacts"
-  | "generate_image";
+  | "generate_image"
+  | "generate_canvas";
 
 /** OpenAI tools array passed to streamGatewayChat. */
 export const STUDIO_TOOLS = [
@@ -184,6 +185,33 @@ export const STUDIO_TOOLS = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "generate_canvas",
+      description:
+        "Generate or update an editable infinite-canvas diagram (flowchart, mind map, sequence diagram, etc.) by writing Mermaid syntax. Returns immediately with a pending artifact id; the diagram renders in the artifact panel once client-side conversion finishes. Do not wait for it or claim it is ready in this turn. Pass sourceArtifactId to update an existing canvas. When updating, read the injected structural summary of its current contents first so you do not ignore changes the user already made by hand.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Short human-readable title for the artifact",
+          },
+          mermaid: {
+            type: "string",
+            description: "Full Mermaid diagram definition (for example, 'flowchart TD\\nA-->B')",
+          },
+          sourceArtifactId: {
+            type: "string",
+            description: "Existing canvas artifact id to update. Omit to create a new canvas.",
+          },
+        },
+        required: ["name", "mermaid"],
+        additionalProperties: false,
+      },
+    },
+  },
 ] as const;
 
 export const STUDIO_TOOL_NAMES: readonly StudioToolName[] = [
@@ -192,4 +220,5 @@ export const STUDIO_TOOL_NAMES: readonly StudioToolName[] = [
   "read_artifact",
   "list_artifacts",
   "generate_image",
+  "generate_canvas",
 ] as const;
