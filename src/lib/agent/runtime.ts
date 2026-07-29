@@ -5,6 +5,8 @@
 
 import { randomUUID } from "node:crypto";
 import type { AgentSseEvent, Artifact, Message, ToolCallRecord } from "@/lib/agent/types";
+import { parseCanvasContent } from "@/lib/agent/canvas-content";
+import { summarizeCanvasElements } from "@/lib/agent/canvas-summary";
 import type { ArtifactStore, SessionStore } from "@/lib/host/ports";
 import {
   streamGatewayChat,
@@ -46,6 +48,7 @@ export const BASE_POLICY = [
   "Do not dump long multi-section documents only in chat. Chat is for conversation; artifacts are for finished work.",
   "After write_artifact succeeds: do NOT paste the full artifact body again in chat. Reply with a short summary and that it was saved — the UI already previews the work.",
   "Call generate_image when the user asks for an image, illustration, icon, mockup, artwork, or image edit. For edits and compositions, set sourceArtifactIds to every image whose pixels the result depends on, ordered with the base/canvas image first and reference images after it. Preserve the user's requested operation in prompt; an artifact id in prompt never substitutes for uploading that image through sourceArtifactIds. The tool returns immediately with a pending artifact — do not claim it is ready yet or describe what it looks like.",
+  "Call generate_canvas when the user asks for a flowchart, mind map, sequence diagram, or another diagram they can edit by hand. Write Mermaid syntax in mermaid; do not invent raw shape coordinates. It returns a pending artifact immediately, so do not claim it is ready. To revise a canvas, set sourceArtifactId and follow the injected structural summary of its current contents first.",
   "You can use read_artifact and list_artifacts to inspect previously saved work in this session.",
   // Progress checklist (todo_write) — model decides; user never toggles a mode.
   "For complex multi-step work (3+ distinct stages, multi-piece deliverables, research+write), use todo_write to show a short live checklist (user's language). Create todos first, keep exactly one item in_progress, mark completed immediately when done, then merge status updates as you go.",
@@ -181,13 +184,46 @@ export function buildReferencedArtifactsReminder(artifacts: Artifact[]): string 
   ].join("\n");
 }
 
+/** Structural canvas context for safe regeneration after manual edits. */
+export async function buildCanvasReferenceReminder(
+  canvases: Artifact[],
+  artifacts: ArtifactStore,
+  userId: string,
+): Promise<string> {
+  if (!canvases.length) return "";
+
+  const lines: string[] = [];
+  for (const canvas of canvases) {
+    let summary = "(content unavailable)";
+    try {
+      const contentBuffer = await artifacts.readContent(userId, canvas.id);
+      const content = contentBuffer ? parseCanvasContent(contentBuffer.toString("utf8")) : null;
+      summary = content?.scene
+        ? summarizeCanvasElements(content.scene.elements)
+        : "(not yet converted from Mermaid)";
+    } catch {
+      // A stale or unreadable artifact must not abort the user's whole turn.
+    }
+    lines.push(`@${canvas.name} → id=${canvas.id}: ${summary}`);
+  }
+
+  return [
+    "<system-reminder>",
+    "The user @-mentioned canvas artifact(s). The summaries below describe their CURRENT scene after manual user edits. Read them before producing Mermaid so you do not discard user changes.",
+    ...lines,
+    "To update one of these, call generate_canvas with sourceArtifactId set to its id.",
+    "The browser merges new Mermaid elements with untagged user-drawn elements; preserve the user's intent when revising the diagram.",
+    "</system-reminder>",
+  ].join("\n");
+}
+
 export interface RunAgentTurnOpts {
   userId: string;
   sessionId: string;
   userText: string;
   skillIds?: string[];
   /**
-   * Image artifact ids the user @-referenced in the composer.
+   * Image or canvas artifact ids the user @-referenced in the composer.
    * Prefer this over the singular field.
    */
   referencedArtifactIds?: string[];
@@ -287,16 +323,29 @@ export async function* runAgentTurn(
   for (const id of uniqueIds) {
     try {
       const found = await artifacts.get(userId, id);
-      if (found && found.kind === "image" && found.status !== "failed") {
+      if (
+        found &&
+        (found.kind === "image" || found.kind === "canvas") &&
+        found.status !== "failed"
+      ) {
         referencedArtifacts.push(found);
       }
     } catch {
       /* ignore invalid id */
     }
   }
-  const artifactReminder = buildReferencedArtifactsReminder(referencedArtifacts);
+  const referencedImages = referencedArtifacts.filter((artifact) => artifact.kind === "image");
+  const referencedCanvases = referencedArtifacts.filter((artifact) => artifact.kind === "canvas");
+  const artifactReminder = buildReferencedArtifactsReminder(referencedImages);
+  const canvasReminder = await buildCanvasReferenceReminder(
+    referencedCanvases,
+    artifacts,
+    userId,
+  );
 
-  const combinedReminder = [reminder, artifactReminder].filter(Boolean).join("\n\n");
+  const combinedReminder = [reminder, artifactReminder, canvasReminder]
+    .filter(Boolean)
+    .join("\n\n");
   const system = buildSystemPrompt(
     combinedReminder ? `${BASE_POLICY}\n\n${combinedReminder}` : BASE_POLICY,
     skills,

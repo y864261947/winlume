@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWebFileStore } from "@/lib/host/web/file-store";
+import { parseCanvasContent } from "@/lib/agent/canvas-content";
 import {
   executeListArtifacts,
   executeReadArtifact,
@@ -20,6 +21,10 @@ describe("mimeTypeForKind", () => {
     expect(mimeTypeForKind("html")).toContain("html");
     expect(mimeTypeForKind("json")).toContain("json");
     expect(mimeTypeForKind("text")).toContain("plain");
+  });
+
+  it("maps canvas", () => {
+    expect(mimeTypeForKind("canvas")).toContain("canvas");
   });
 });
 
@@ -154,6 +159,104 @@ describe("executeStudioTool + ArtifactStore", () => {
     );
     expect(res.ok).toBe(true);
     expect(res.summary).toContain("Saved artifact");
+  });
+});
+
+describe("executeGenerateCanvas", () => {
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  });
+
+  function setup() {
+    const root = mkdtempSync(join(tmpdir(), "wl-canvas-"));
+    dirs.push(root);
+    const store = createWebFileStore(root);
+    return {
+      store,
+      ctx: { userId: "u1", sessionId: "s1", artifacts: store.artifacts },
+    };
+  }
+
+  it("creates a pending canvas artifact with the given Mermaid source", async () => {
+    const { ctx, store } = setup();
+    const result = await executeStudioTool(
+      "generate_canvas",
+      JSON.stringify({ name: "上线流程", mermaid: "flowchart TD\nA-->B" }),
+      ctx,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.artifact?.kind).toBe("canvas");
+    expect(result.artifact?.status).toBe("pending");
+
+    const buffer = await store.artifacts.readContent("u1", result.artifact!.id);
+    const content = parseCanvasContent(buffer!.toString("utf8"));
+    expect(content?.mermaidSource).toBe("flowchart TD\nA-->B");
+    expect(content?.scene).toBeUndefined();
+  });
+
+  it("rejects missing Mermaid", async () => {
+    const { ctx } = setup();
+    const result = await executeStudioTool(
+      "generate_canvas",
+      JSON.stringify({ name: "空图" }),
+      ctx,
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("updates an existing canvas while preserving its stored scene", async () => {
+    const { ctx, store } = setup();
+    const created = await executeStudioTool(
+      "generate_canvas",
+      JSON.stringify({ name: "v1", mermaid: "flowchart TD\nA-->B" }),
+      ctx,
+    );
+    const id = created.artifact!.id;
+
+    await store.artifacts.write(
+      { ...created.artifact!, status: "ready" },
+      JSON.stringify({
+        mermaidSource: "flowchart TD\nA-->B",
+        convertedFromMermaid: "flowchart TD\nA-->B",
+        scene: { elements: [{ id: "n1" }], appState: {} },
+      }),
+    );
+
+    const updated = await executeStudioTool(
+      "generate_canvas",
+      JSON.stringify({ name: "v2", mermaid: "flowchart TD\nA-->B-->C", sourceArtifactId: id }),
+      ctx,
+    );
+
+    expect(updated.ok).toBe(true);
+    expect(updated.artifact?.id).toBe(id);
+    expect(updated.artifact?.name).toBe("v2");
+    expect(updated.artifact?.status).toBe("pending");
+
+    const buffer = await store.artifacts.readContent("u1", id);
+    const content = parseCanvasContent(buffer!.toString("utf8"));
+    expect(content?.mermaidSource).toBe("flowchart TD\nA-->B-->C");
+    expect(content?.scene?.elements).toEqual([{ id: "n1" }]);
+  });
+
+  it("rejects sourceArtifactId pointing at a non-canvas artifact", async () => {
+    const { ctx } = setup();
+    const markdown = await executeWriteArtifact(
+      { name: "doc", kind: "markdown", content: "hi" },
+      ctx,
+    );
+    const result = await executeStudioTool(
+      "generate_canvas",
+      JSON.stringify({
+        name: "x",
+        mermaid: "flowchart TD\nA-->B",
+        sourceArtifactId: markdown.artifact!.id,
+      }),
+      ctx,
+    );
+    expect(result.ok).toBe(false);
   });
 });
 

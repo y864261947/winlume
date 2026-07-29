@@ -1,6 +1,7 @@
 "use client";
 
 import type { Artifact } from "@/lib/agent/types";
+import { ImageIcon, PanelsTopLeft } from "lucide-react";
 import { textToSegments } from "@/lib/studio/mention-editor";
 
 const UPLOAD_NAME = /^图片\d+$/;
@@ -14,18 +15,20 @@ export default function MentionRichText({
   text,
   imageArtifacts = [],
   className = "",
+  onOpenArtifact,
   /** User bubbles are dark navy — use high-contrast chips there. */
   tone = "onLight",
 }: {
   text: string;
-  /** Session image artifacts used for thumbnails when name matches. */
+  /** Session image and canvas artifacts matched by their @ name. */
   imageArtifacts?: Artifact[];
   className?: string;
+  onOpenArtifact?: (artifactId: string) => void;
   tone?: "onLight" | "onDark";
 }) {
   const byName = new Map<string, Artifact>();
   for (const a of imageArtifacts) {
-    if (a.kind === "image" && a.status !== "failed") {
+    if ((a.kind === "image" || a.kind === "canvas") && a.status !== "failed") {
       byName.set(a.name, a);
     }
   }
@@ -33,9 +36,11 @@ export default function MentionRichText({
   const segments = textToSegments(text, (name) => {
     const art = byName.get(name);
     if (art) {
+      const kind: "image" | "canvas" = art.kind === "canvas" ? "canvas" : "image";
       return {
         name: art.name,
-        thumbSrc: `/api/artifacts/${art.id}/raw`,
+        thumbSrc: kind === "image" ? `/api/artifacts/${art.id}/raw` : undefined,
+        kind,
         artifactId: art.id,
       };
     }
@@ -62,19 +67,37 @@ export default function MentionRichText({
         if (seg.type === "text") {
           return <span key={i}>{seg.text}</span>;
         }
-        return (
-          <span key={i} className={chipClass} title={`@${seg.name}`}>
-            {seg.thumbSrc ? (
+        const icon = seg.thumbSrc ? (
               // eslint-disable-next-line @next/next/no-img-element -- artifact raw or data URL
-              <img
-                src={seg.thumbSrc}
-                alt=""
-                className="h-5 w-5 shrink-0 rounded-full object-cover ring-1 ring-black/10"
-              />
-            ) : (
-              <span className={fallbackIconClass}>图</span>
-            )}
+          <img
+            src={seg.thumbSrc}
+            alt=""
+            className="h-5 w-5 shrink-0 rounded-full object-cover ring-1 ring-black/10"
+          />
+        ) : (
+          <span className={fallbackIconClass}>
+            {seg.kind === "canvas" ? <PanelsTopLeft className="h-3 w-3" /> : <ImageIcon className="h-3 w-3" />}
+          </span>
+        );
+        const chip = (
+          <>
+            {icon}
             <span className="min-w-0 truncate tracking-tight">@{seg.name}</span>
+          </>
+        );
+        return seg.artifactId && onOpenArtifact ? (
+          <button
+            key={i}
+            type="button"
+            className={`${chipClass} cursor-pointer hover:border-primary-300 hover:bg-primary-50`}
+            title={`打开 @${seg.name}`}
+            onClick={() => onOpenArtifact(seg.artifactId!)}
+          >
+            {chip}
+          </button>
+        ) : (
+          <span key={i} className={chipClass} title={`@${seg.name}`}>
+            {chip}
           </span>
         );
       })}

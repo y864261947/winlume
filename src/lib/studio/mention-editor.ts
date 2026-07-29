@@ -6,13 +6,21 @@
 export type MentionChipMeta = {
   name: string;
   thumbSrc?: string;
+  kind?: "image" | "canvas";
   artifactId?: string;
   localId?: string;
 };
 
 export type EditorSegment =
   | { type: "text"; text: string }
-  | { type: "mention"; name: string; thumbSrc?: string; artifactId?: string; localId?: string };
+  | {
+      type: "mention";
+      name: string;
+      thumbSrc?: string;
+      kind?: "image" | "canvas";
+      artifactId?: string;
+      localId?: string;
+    };
 
 const MENTION_TOKEN_RE = /@([^\s@]+)/g;
 /** Zero-width space after chips so the caret can sit after them. */
@@ -53,6 +61,7 @@ export function textToSegments(
         type: "mention",
         name: meta.name || name,
         thumbSrc: meta.thumbSrc,
+        kind: meta.kind,
         artifactId: meta.artifactId,
         localId: meta.localId,
       });
@@ -87,6 +96,7 @@ export function createMentionChipElement(
   const chip = doc.createElement("span");
   chip.contentEditable = "false";
   chip.dataset.mentionName = meta.name;
+  if (meta.kind) chip.dataset.mentionKind = meta.kind;
   if (meta.artifactId) chip.dataset.artifactId = meta.artifactId;
   if (meta.localId) chip.dataset.localId = meta.localId;
   // High-contrast white chip so @图片N stays readable on glass composer
@@ -107,7 +117,7 @@ export function createMentionChipElement(
     const ph = doc.createElement("span");
     ph.className =
       "flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E2E8F0] text-[10px] font-bold text-[#334155]";
-    ph.textContent = "图";
+    ph.textContent = meta.kind === "canvas" ? "画" : "图";
     chip.appendChild(ph);
   }
 
@@ -180,6 +190,7 @@ export function renderSegmentsToEditor(
         createMentionChipElement(doc, {
           name: seg.name,
           thumbSrc: seg.thumbSrc,
+          kind: seg.kind,
           artifactId: seg.artifactId,
           localId: seg.localId,
         }),

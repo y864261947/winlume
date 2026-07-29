@@ -36,6 +36,7 @@ describe("filterMentionCandidates", () => {
     {
       key: "1",
       name: "Red Fox",
+      kind: "image",
       thumbSrc: "",
       source: "artifact",
       artifactId: "1",
@@ -43,6 +44,7 @@ describe("filterMentionCandidates", () => {
     {
       key: "2",
       name: "Blue Sky",
+      kind: "image",
       thumbSrc: "",
       source: "artifact",
       artifactId: "2",

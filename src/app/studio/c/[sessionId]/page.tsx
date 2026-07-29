@@ -761,7 +761,7 @@ export default function StudioSessionPage() {
               onHighlightConsumed={() => setHighlightMessageId(null)}
               artifactsByMessageId={artifactsByMessageId}
               imageArtifacts={artifacts.filter(
-                (a) => a.kind === "image" && a.status !== "failed",
+                (a) => (a.kind === "image" || a.kind === "canvas") && a.status !== "failed",
               )}
               onOpenArtifact={openArtifactFromChat}
             />
@@ -796,7 +796,7 @@ export default function StudioSessionPage() {
         }
         shareTransitionName={withTransitionNames ? "studio-composer" : null}
         imageArtifacts={artifacts.filter(
-          (a) => a.kind === "image" && a.status !== "failed",
+          (a) => (a.kind === "image" || a.kind === "canvas") && a.status !== "failed",
         )}
         sessionId={session?.id ?? sessionId}
         onImageUploaded={(artifact) =>

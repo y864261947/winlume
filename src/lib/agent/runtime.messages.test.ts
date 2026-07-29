@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { serializeCanvasContent } from "@/lib/agent/canvas-content";
+import { createWebFileStore } from "@/lib/host/web/file-store";
+import type { ArtifactStore } from "@/lib/host/ports";
 import {
+  buildCanvasReferenceReminder,
   buildReferencedArtifactReminder,
   buildReferencedArtifactsReminder,
   toGatewayMessages,
@@ -175,5 +182,75 @@ describe("buildReferencedArtifactReminder", () => {
     expect(reminder).toContain("marked targeting reference");
     expect(reminder).toContain('sourceArtifactIds exactly ["base-image","annotation-image"]');
     expect(reminder).toContain("Do not reproduce or retain annotation marks");
+  });
+});
+
+describe("buildCanvasReferenceReminder", () => {
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  });
+
+  function setup() {
+    const root = mkdtempSync(join(tmpdir(), "wl-runtime-canvas-"));
+    dirs.push(root);
+    return createWebFileStore(root);
+  }
+
+  it("returns an empty string for no canvases", async () => {
+    const store = setup();
+    await expect(buildCanvasReferenceReminder([], store.artifacts, "u1")).resolves.toBe("");
+  });
+
+  it("includes the id, name, and structural summary for each canvas", async () => {
+    const store = setup();
+    const artifact = await store.artifacts.write(
+      {
+        id: "canvas-1",
+        userId: "u1",
+        sessionId: "s1",
+        name: "上线流程",
+        kind: "canvas",
+        mimeType: "application/vnd.winlume.canvas+json",
+        storageKey: "",
+        status: "ready",
+        createdAt: new Date().toISOString(),
+      },
+      serializeCanvasContent({
+        mermaidSource: "flowchart TD\nA-->B",
+        convertedFromMermaid: "flowchart TD\nA-->B",
+        scene: {
+          elements: [{ id: "1", type: "text", text: "上线" }],
+          appState: {},
+        },
+      }),
+    );
+
+    const text = await buildCanvasReferenceReminder([artifact], store.artifacts, "u1");
+    expect(text).toContain("canvas-1");
+    expect(text).toContain("上线流程");
+    expect(text).toContain("上线");
+  });
+
+  it("keeps the turn usable when one canvas cannot be read", async () => {
+    const canvas: Artifact = {
+      id: "unreadable-canvas",
+      userId: "u1",
+      sessionId: "s1",
+      name: "损坏画布",
+      kind: "canvas",
+      mimeType: "application/vnd.winlume.canvas+json",
+      storageKey: "",
+      createdAt: new Date().toISOString(),
+    };
+    const artifacts = {
+      readContent: async () => {
+        throw new Error("disk unavailable");
+      },
+    } as unknown as ArtifactStore;
+
+    const text = await buildCanvasReferenceReminder([canvas], artifacts, "u1");
+    expect(text).toContain("损坏画布");
+    expect(text).toContain("(content unavailable)");
   });
 });

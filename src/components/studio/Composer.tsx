@@ -142,7 +142,7 @@ export type ComposerProps = {
    * the one participating in the morph to opt it out.
    */
   shareTransitionName?: string | null;
-  /** Image artifacts available for @-mention (ready or pending; failed ones are filtered out by the caller). */
+  /** Also carries canvas artifacts for @-mentions; prop name is retained for compatibility. */
   imageArtifacts?: Artifact[];
   /** Current session scope. Omitted by the pre-session home composer. */
   sessionId?: string;
@@ -670,6 +670,7 @@ export default function Composer({
       return {
         name: hit.name,
         thumbSrc: hit.thumbSrc,
+        kind: hit.kind,
         artifactId: hit.artifactId,
         localId: hit.localId,
       };
@@ -685,6 +686,7 @@ export default function Composer({
           {
             name: candidate.name,
             thumbSrc: candidate.thumbSrc,
+            kind: candidate.kind,
             artifactId: candidate.artifactId,
             localId: candidate.localId,
           },

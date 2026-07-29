@@ -77,6 +77,41 @@ describe("buildMentionCandidates", () => {
     );
     expect(candidates[0]).toMatchObject({ name: "图片1", status: "failed" });
   });
+
+  it("includes canvases without treating their JSON as an image thumbnail", () => {
+    const artifacts: Artifact[] = [
+      {
+        id: "canvas-1",
+        userId: "u",
+        sessionId: "s",
+        name: "上线流程",
+        kind: "canvas",
+        mimeType: "application/vnd.winlume.canvas+json",
+        storageKey: "",
+        createdAt: "t",
+        status: "ready",
+      },
+      {
+        id: "note-1",
+        userId: "u",
+        sessionId: "s",
+        name: "说明",
+        kind: "markdown",
+        mimeType: "text/markdown",
+        storageKey: "",
+        createdAt: "t",
+      },
+    ];
+
+    expect(buildMentionCandidates([], artifacts)).toEqual([
+      expect.objectContaining({
+        artifactId: "canvas-1",
+        name: "上线流程",
+        kind: "canvas",
+        thumbSrc: undefined,
+      }),
+    ]);
+  });
 });
 
 describe("extractAtMentionNames", () => {
@@ -97,6 +132,23 @@ describe("resolveReferencedArtifactIds", () => {
     expect(
       resolveReferencedArtifactIds("合并@图片1和@图片2", images, []),
     ).toEqual(["a1", "a2"]);
+  });
+
+  it("maps a named canvas mention to its artifact id", () => {
+    const artifacts: Artifact[] = [
+      {
+        id: "canvas-1",
+        userId: "u",
+        sessionId: "s",
+        name: "上线流程",
+        kind: "canvas",
+        mimeType: "application/vnd.winlume.canvas+json",
+        storageKey: "",
+        createdAt: "t",
+        status: "ready",
+      },
+    ];
+    expect(resolveReferencedArtifactIds("更新 @上线流程", [], artifacts)).toEqual(["canvas-1"]);
   });
 });
 

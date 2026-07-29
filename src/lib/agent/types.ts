@@ -52,7 +52,14 @@ export interface Skill extends SkillMeta {
   systemPrompt: string;
 }
 
-export type ArtifactKind = "markdown" | "html" | "text" | "json" | "image" | "binary";
+export type ArtifactKind =
+  | "markdown"
+  | "html"
+  | "text"
+  | "json"
+  | "image"
+  | "binary"
+  | "canvas";
 
 export interface Artifact {
   id: string;

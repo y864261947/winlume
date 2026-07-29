@@ -1,5 +1,5 @@
 /**
- * Prompt-side multi-image @ mentions.
+ * Prompt-side image and canvas @ mentions.
  * Local composer uploads are named 图片1, 图片2, … and referenced as @图片1 in text.
  */
 
@@ -15,7 +15,9 @@ export type MentionCandidate = {
   key: string;
   /** Display / @ token body, e.g. 图片1 */
   name: string;
-  thumbSrc: string;
+  /** Canvas artifacts intentionally have no image thumbnail. */
+  thumbSrc?: string;
+  kind: "image" | "canvas";
   artifactId?: string;
   localId?: string;
   status?: "ready" | "pending" | "failed";
@@ -50,6 +52,7 @@ export function buildMentionCandidates(
       key: `local:${img.id}`,
       name,
       thumbSrc: img.dataUrl,
+      kind: "image",
       artifactId: img.artifactId,
       localId: img.id,
       status: img.uploadFailed ? "failed" : img.artifactId ? "ready" : "pending",
@@ -60,14 +63,15 @@ export function buildMentionCandidates(
   }
 
   for (const a of artifacts) {
-    if (a.kind !== "image" || a.status === "failed") continue;
+    if ((a.kind !== "image" && a.kind !== "canvas") || a.status === "failed") continue;
     if (seenArtifact.has(a.id)) continue;
     // Prefer local row when same 图片N name is already an attachment.
     if (UPLOAD_NAME_PATTERN.test(a.name) && seenName.has(a.name)) continue;
     out.push({
       key: `artifact:${a.id}`,
       name: a.name,
-      thumbSrc: `/api/artifacts/${a.id}/raw`,
+      thumbSrc: a.kind === "image" ? `/api/artifacts/${a.id}/raw` : undefined,
+      kind: a.kind,
       artifactId: a.id,
       status: a.status ?? "ready",
       source: "artifact",
@@ -136,7 +140,11 @@ export function resolveReferencedArtifactIds(
     if (img.artifactId && img.name) byName.set(img.name, img.artifactId);
   }
   for (const a of artifacts) {
-    if (a.kind === "image" && a.status !== "failed" && !byName.has(a.name)) {
+    if (
+      (a.kind === "image" || a.kind === "canvas") &&
+      a.status !== "failed" &&
+      !byName.has(a.name)
+    ) {
       byName.set(a.name, a.id);
     }
   }

@@ -8,11 +8,13 @@ import {
   FileText,
   FolderKanban,
   LoaderCircle,
+  PanelsTopLeft,
   RefreshCw,
 } from "lucide-react";
 import type { Artifact, ArtifactKind } from "@/lib/agent/types";
 import { StudioApiError, withUserHeaders } from "@/lib/studio/api";
 import { useModals } from "@/components/providers";
+import ArtifactPreview from "@/components/studio/ArtifactPreview";
 
 const KIND_LABELS: Record<ArtifactKind, string> = {
   markdown: "Markdown",
@@ -21,12 +23,14 @@ const KIND_LABELS: Record<ArtifactKind, string> = {
   json: "JSON",
   image: "图片",
   binary: "二进制",
+  canvas: "画布",
 };
 
 function KindIcon({ kind }: { kind: ArtifactKind }) {
   const cls = "h-4 w-4 shrink-0 text-primary-500";
   if (kind === "json") return <FileJson className={cls} />;
   if (kind === "html") return <FileCode2 className={cls} />;
+  if (kind === "canvas") return <PanelsTopLeft className={cls} />;
   return <FileText className={cls} />;
 }
 
@@ -237,34 +241,16 @@ export default function StudioArtifactsPage() {
           )}
         </div>
 
-        <aside className="hidden w-96 shrink-0 overflow-y-auto border-l border-line bg-surface p-5 lg:block">
-          {selected ? (
-            <div className="space-y-3">
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-widest text-ink-400">
-                  {KIND_LABELS[selected.kind]}
-                </p>
-                <h2 className="mt-1 text-lg font-bold text-ink-950">{selected.name}</h2>
-                <p className="mt-1 text-xs text-ink-400">
-                  {formatTime(selected.createdAt)}
-                </p>
-              </div>
-              {contentLoading ? (
-                <div className="flex items-center gap-2 text-sm text-ink-500">
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                  读取内容…
-                </div>
-              ) : content == null ? (
-                <p className="text-sm text-ink-400">无法读取内容</p>
-              ) : (
-                <pre className="max-h-[70vh] overflow-auto rounded-xl bg-canvas p-3 text-xs leading-5 text-ink-700 whitespace-pre-wrap break-words">
-                  {content}
-                </pre>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-ink-400">选择左侧卡片查看内容</p>
-          )}
+        <aside className="hidden min-h-0 w-96 shrink-0 border-l border-line bg-surface lg:flex lg:flex-col">
+          <ArtifactPreview
+            artifact={selected}
+            content={content}
+            loading={contentLoading}
+            onRefresh={() => {
+              void load();
+            }}
+            className="min-h-0 flex-1"
+          />
         </aside>
       </div>
     </div>

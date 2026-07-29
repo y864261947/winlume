@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "@excalidraw/excalidraw/index.css";
 import StudioShell from "@/components/studio/StudioShell";
 import { site } from "@/data/site";
 

@@ -6,6 +6,11 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { AgentSseEvent, Artifact, ArtifactKind } from "@/lib/agent/types";
+import {
+  parseCanvasContent,
+  serializeCanvasContent,
+  type CanvasArtifactContent,
+} from "@/lib/agent/canvas-content";
 import type { ArtifactStore } from "@/lib/host/ports";
 import { generateImage } from "@/lib/agent/provider/gateway";
 import { publishArtifactEvent } from "@/lib/agent/artifact-events";
@@ -78,6 +83,14 @@ const generateImageSchema = z.object({
 
 export type GenerateImageArgs = z.infer<typeof generateImageSchema>;
 
+const generateCanvasSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  mermaid: z.string().trim().min(1).max(20_000),
+  sourceArtifactId: z.string().trim().min(1).max(128).optional(),
+});
+
+export type GenerateCanvasArgs = z.infer<typeof generateCanvasSchema>;
+
 export type WriteArtifactArgs = z.infer<typeof writeArtifactSchema>;
 export type ReadArtifactArgs = z.infer<typeof readArtifactSchema>;
 export type ListArtifactsArgs = z.infer<typeof listArtifactsSchema>;
@@ -94,6 +107,8 @@ export function mimeTypeForKind(kind: ArtifactKind): string {
       return "text/plain; charset=utf-8";
     case "image":
       return "application/octet-stream";
+    case "canvas":
+      return "application/vnd.winlume.canvas+json; charset=utf-8";
     case "binary":
       return "application/octet-stream";
     default:
@@ -351,6 +366,95 @@ export async function executeGenerateImage(
   };
 }
 
+/**
+ * Creates or updates a canvas artifact without waiting for client-side Mermaid
+ * conversion. Existing scenes stay intact until the browser merges new
+ * Mermaid-produced elements with any user-drawn elements.
+ */
+export async function executeGenerateCanvas(
+  rawArgs: unknown,
+  ctx: ToolExecuteContext,
+): Promise<ToolExecuteResult> {
+  const parsed = generateCanvasSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return fail(`generate_canvas validation failed: ${formatZodError(parsed.error)}`);
+  }
+
+  const { name, mermaid, sourceArtifactId } = parsed.data;
+
+  if (sourceArtifactId) {
+    const existing = await ctx.artifacts.get(ctx.userId, sourceArtifactId);
+    if (!existing) return fail(`Source artifact not found: ${sourceArtifactId}`);
+    if (existing.kind !== "canvas") {
+      return fail(`Source artifact is not a canvas: ${sourceArtifactId}`);
+    }
+
+    const existingBuffer = await ctx.artifacts.readContent(ctx.userId, sourceArtifactId);
+    const existingContent = existingBuffer
+      ? parseCanvasContent(existingBuffer.toString("utf8"))
+      : null;
+    const content: CanvasArtifactContent = {
+      mermaidSource: mermaid,
+      ...(existingContent?.scene ? { scene: existingContent.scene } : {}),
+      ...(existingContent?.convertedFromMermaid
+        ? { convertedFromMermaid: existingContent.convertedFromMermaid }
+        : {}),
+    };
+
+    try {
+      const artifact = await ctx.artifacts.write(
+        { ...existing, name, status: "pending", error: undefined },
+        serializeCanvasContent(content),
+      );
+      return {
+        ok: true,
+        summary: `Updated canvas "${artifact.name}" (id=${artifact.id})`,
+        content: JSON.stringify({ id: artifact.id, name: artifact.name, kind: artifact.kind }),
+        artifact,
+        events: [
+          { type: "artifact", artifactId: artifact.id, name: artifact.name, kind: artifact.kind },
+        ],
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "generate_canvas failed";
+      return fail(message);
+    }
+  }
+
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  const content: CanvasArtifactContent = { mermaidSource: mermaid };
+  try {
+    const artifact = await ctx.artifacts.write(
+      {
+        id,
+        userId: ctx.userId,
+        sessionId: ctx.sessionId,
+        ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
+        name,
+        kind: "canvas",
+        mimeType: mimeTypeForKind("canvas"),
+        storageKey: "",
+        status: "pending",
+        createdAt,
+      },
+      serializeCanvasContent(content),
+    );
+    return {
+      ok: true,
+      summary: `Started canvas "${artifact.name}" (id=${artifact.id})`,
+      content: JSON.stringify({ id: artifact.id, name: artifact.name, status: artifact.status }),
+      artifact,
+      events: [
+        { type: "artifact", artifactId: artifact.id, name: artifact.name, kind: artifact.kind },
+      ],
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "generate_canvas failed";
+    return fail(message);
+  }
+}
+
 export async function executeReadArtifact(
   rawArgs: unknown,
   ctx: ToolExecuteContext,
@@ -538,6 +642,8 @@ export async function executeStudioTool(
       return executeWriteArtifact(rawArgs, ctx);
     case "generate_image":
       return executeGenerateImage(rawArgs, ctx);
+    case "generate_canvas":
+      return executeGenerateCanvas(rawArgs, ctx);
     case "read_artifact":
       return executeReadArtifact(rawArgs, ctx);
     case "list_artifacts":
