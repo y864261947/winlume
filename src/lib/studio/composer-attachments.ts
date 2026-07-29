@@ -30,6 +30,8 @@ export type ImageAttachment = {
   mimeType: string;
   size: number;
   dataUrl: string;
+  /** Set once the image finishes persisting as an Artifact. */
+  artifactId?: string;
 };
 
 export type FileAttachment = {
@@ -298,4 +300,38 @@ export function hasComposerPayload(opts: {
     opts.images.length > 0 ||
     opts.files.length > 0
   );
+}
+
+const UPLOAD_NAME_PATTERN = /^图片(\d+)$/;
+
+/** Generates upload-scoped "图片N" names, ignoring model-chosen artifact names. */
+export function nextUploadImageNames(
+  existingNames: string[],
+  count: number,
+): string[] {
+  let base = existingNames.filter((name) => UPLOAD_NAME_PATTERN.test(name)).length;
+  const names: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    base += 1;
+    names.push(`图片${base}`);
+  }
+  return names;
+}
+
+const BASE64_PATTERN =
+  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+
+/** Decodes a canonical `data:<mimeType>;base64,<payload>` URL. */
+export function parseDataUrl(
+  dataUrl: string,
+): { mimeType: string; bytes: Buffer } | null {
+  const match = /^data:([^;,]+);base64,(.+)$/.exec(dataUrl);
+  if (!match) return null;
+
+  const [, mimeType, base64] = match;
+  if (!base64 || !BASE64_PATTERN.test(base64)) return null;
+
+  const bytes = Buffer.from(base64, "base64");
+  if (!bytes.length || bytes.toString("base64") !== base64) return null;
+  return { mimeType, bytes };
 }

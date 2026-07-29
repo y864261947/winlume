@@ -5,6 +5,8 @@ import {
   countTextLines,
   createPastedBlock,
   hasComposerPayload,
+  nextUploadImageNames,
+  parseDataUrl,
   shouldCollapsePaste,
 } from "./composer-attachments";
 
@@ -54,5 +56,55 @@ describe("composeOutboundMessage", () => {
         files: [],
       }),
     ).toBe(true);
+  });
+});
+
+describe("nextUploadImageNames", () => {
+  it("starts at 图片1 when there are no existing upload names", () => {
+    expect(nextUploadImageNames([], 2)).toEqual(["图片1", "图片2"]);
+  });
+
+  it("continues from the count of existing 图片N-pattern names", () => {
+    expect(nextUploadImageNames(["图片1", "图片2", "Fox"], 2)).toEqual([
+      "图片3",
+      "图片4",
+    ]);
+  });
+
+  it("ignores names that don't match the 图片N pattern when counting", () => {
+    expect(nextUploadImageNames(["Fox", "Sunset"], 1)).toEqual(["图片1"]);
+  });
+
+  it("returns an empty array for count 0", () => {
+    expect(nextUploadImageNames(["图片1"], 0)).toEqual([]);
+  });
+
+  it("supports reserving one batch before naming a rapid subsequent batch", () => {
+    const first = nextUploadImageNames([], 2);
+    expect(nextUploadImageNames(first, 2)).toEqual(["图片3", "图片4"]);
+  });
+});
+
+describe("parseDataUrl", () => {
+  it("parses a valid base64 image data URL", () => {
+    const b64 = Buffer.from("hello").toString("base64");
+    const result = parseDataUrl(`data:image/png;base64,${b64}`);
+    expect(result).toEqual({ mimeType: "image/png", bytes: Buffer.from("hello") });
+  });
+
+  it("returns null for a non-data URL", () => {
+    expect(parseDataUrl("https://example.com/a.png")).toBeNull();
+  });
+
+  it("returns null for a data URL missing the base64 marker", () => {
+    expect(parseDataUrl("data:image/png,rawtext")).toBeNull();
+  });
+
+  it("returns null for an empty base64 payload", () => {
+    expect(parseDataUrl("data:image/png;base64,")).toBeNull();
+  });
+
+  it("returns null for an illegal base64 payload", () => {
+    expect(parseDataUrl("data:image/png;base64,not-base64!")).toBeNull();
   });
 });
