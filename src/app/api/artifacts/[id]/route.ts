@@ -90,8 +90,11 @@ export async function PUT(request: NextRequest, context: IdContext) {
     return NextResponse.json({ artifact: updated });
   }
 
-  const rawContent = canvasUpdate.content;
-  const incoming = typeof rawContent === "string" ? parseCanvasContent(rawContent) : null;
+  const serializedContent = canvasUpdate.content;
+  if (typeof serializedContent !== "string") {
+    return NextResponse.json({ error: "Invalid canvas content" }, { status: 400 });
+  }
+  const incoming = parseCanvasContent(serializedContent);
   if (!incoming) {
     return NextResponse.json({ error: "Invalid canvas content" }, { status: 400 });
   }
@@ -109,7 +112,7 @@ export async function PUT(request: NextRequest, context: IdContext) {
 
   const updated = await webStore.artifacts.write(
     { ...existing, status: "ready", error: undefined },
-    rawContent,
+    serializedContent,
   );
   publishArtifactEvent(userId, {
     type: "artifact_updated",
