@@ -3,6 +3,7 @@ import {
   annotationBounds,
   buildImageRefinementInstruction,
   dataUrlByteLength,
+  getImageRefinementDisplay,
   normalizeAnnotationPoint,
 } from "./image-annotations";
 
@@ -72,5 +73,22 @@ describe("image annotations", () => {
     expect(dataUrlByteLength("data:image/jpeg;base64,YWI=")).toBe(2);
     expect(dataUrlByteLength("data:image/jpeg;base64,YQ==")).toBe(1);
     expect(dataUrlByteLength("not-a-data-url")).toBe(0);
+  });
+
+  it("turns persisted internal refinement prompts into user-facing notes", () => {
+    const prompt = buildImageRefinementInstruction({
+      baseArtifactId: "base-secret-id",
+      annotationArtifactId: "marked-secret-id",
+      request: "",
+      marks: [
+        { id: "one", kind: "box", points: [{ x: 0, y: 0 }, { x: 0.5, y: 0.5 }], comment: "改成比✌" },
+        { id: "two", kind: "point", points: [{ x: 0.8, y: 0.2 }], comment: "改成比拳头" },
+      ],
+    });
+
+    expect(getImageRefinementDisplay(prompt)).toEqual({
+      notes: ["改成比✌", "改成比拳头"],
+    });
+    expect(getImageRefinementDisplay("普通用户消息")).toBeNull();
   });
 });

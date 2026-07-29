@@ -19,6 +19,10 @@ export type ImageBounds = {
   height: number;
 };
 
+export type ImageRefinementDisplay = {
+  notes: string[];
+};
+
 /** Leave transport headroom below the shared 2 MiB image-upload limit. */
 export const MAX_ANNOTATION_IMAGE_BYTES = Math.floor(1.8 * 1024 * 1024);
 
@@ -132,6 +136,29 @@ export function buildImageRefinementInstruction(input: {
     "每个标记的 note 是该区域独立的修改说明；分别执行这些说明，不要把一个区域的说明扩展到其他区域。",
     "只修改标记区域，除非用户要求明确需要影响其他区域；标记中的蓝色图钉、红色方框和画笔线仅用于定位，绝不能保留在输出图片中。",
   ].join("\n");
+}
+
+/**
+ * Converts a persisted internal refinement prompt into user-facing chip data.
+ * The complete prompt remains stored and is still sent to the model; this only
+ * prevents artifact ids and normalized coordinates from leaking into the chat UI.
+ */
+export function getImageRefinementDisplay(
+  content: string,
+): ImageRefinementDisplay | null {
+  if (!content.startsWith("图片局部修改请求：")) return null;
+
+  const notes: string[] = [];
+  const notePattern = /\bnote=("(?:\\.|[^"\\])*")/g;
+  for (const match of content.matchAll(notePattern)) {
+    try {
+      const note = JSON.parse(match[1] ?? "") as unknown;
+      if (typeof note === "string" && note.trim()) notes.push(note.trim());
+    } catch {
+      // Ignore malformed historical text and still render a safe summary chip.
+    }
+  }
+  return { notes };
 }
 
 function pointToPixels(point: AnnotationPoint, width: number, height: number) {

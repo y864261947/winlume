@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   FileStack,
+  PencilLine,
   Sparkles,
   UserRound,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import {
   toolActionLabel,
 } from "@/lib/studio/tool-display";
 import { LOADING_WORDS, nextLoadingWordIndex } from "@/lib/studio/loading-words";
+import { getImageRefinementDisplay } from "@/lib/studio/image-annotations";
 import type {
   ExecutionStep,
   StreamPhase,
@@ -483,6 +485,9 @@ function Bubble({
 }) {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
+  const refinementDisplay = isUser
+    ? getImageRefinementDisplay(message.content)
+    : null;
 
   if (message.role === "system" || message.role === "tool") {
     return (
@@ -589,11 +594,29 @@ function Bubble({
 
         {message.content ? (
           isUser ? (
-            <MentionRichText
-              text={message.content}
-              imageArtifacts={imageArtifacts}
-              tone="onDark"
-            />
+            refinementDisplay ? (
+              <div className="flex flex-wrap items-center gap-1.5" aria-label={`已提交 ${refinementDisplay.notes.length} 处图片局部修改`}>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-xs font-medium text-white">
+                  <PencilLine className="h-3.5 w-3.5 shrink-0" />
+                  图片局部修改
+                  <span className="tabular-nums text-white/70">{refinementDisplay.notes.length} 处</span>
+                </span>
+                {refinementDisplay.notes.map((note, index) => (
+                  <span
+                    key={`${index}-${note}`}
+                    className="max-w-full break-words rounded-full bg-white/10 px-2.5 py-1 text-xs text-white/90"
+                  >
+                    {note}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <MentionRichText
+                text={message.content}
+                imageArtifacts={imageArtifacts}
+                tone="onDark"
+              />
+            )
           ) : (
             <div className="whitespace-pre-wrap break-words">
               {message.content}
