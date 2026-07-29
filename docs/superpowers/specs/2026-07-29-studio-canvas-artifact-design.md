@@ -46,7 +46,7 @@ The existing "@" artifact-reference picker in the composer (built for image-to-i
 ```ts
 interface CanvasArtifactContent {
   mermaidSource: string;   // the model's most recent authored Mermaid text
-  scene: {
+  scene?: {                // absent while status is "pending" and conversion hasn't run yet
     elements: ExcalidrawElement[]; // what is actually rendered and edited
     appState: Record<string, unknown>;
   };
