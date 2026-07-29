@@ -495,6 +495,7 @@ export default function StudioSessionPage() {
     void chat.send(pending.message, {
       model: pending.model ?? chat.model,
       skillIds: pending.skillIds,
+      referencedArtifactIds: pending.referencedArtifactIds,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once after load
   }, [loading, session]);
@@ -728,6 +729,9 @@ export default function StudioSessionPage() {
               highlightMessageId={highlightMessageId}
               onHighlightConsumed={() => setHighlightMessageId(null)}
               artifactsByMessageId={artifactsByMessageId}
+              imageArtifacts={artifacts.filter(
+                (a) => a.kind === "image" && a.status !== "failed",
+              )}
               onOpenArtifact={openArtifactFromChat}
             />
           )}
@@ -738,7 +742,7 @@ export default function StudioSessionPage() {
           chat.send(text, {
             // Turn-only skillIds; runtime merges session pins server-side
             skillIds: meta?.skillIds,
-            referencedArtifactId: meta?.referencedArtifactId,
+            referencedArtifactIds: meta?.referencedArtifactIds,
           })
         }
         onStop={chat.stop}

@@ -272,17 +272,14 @@ export function composeOutboundMessage(opts: {
     }
   }
 
-  for (const img of opts.images) {
-    // Keep payload bounded for text-only chat API
-    if (img.dataUrl.length <= 180_000) {
-      parts.push(
-        `--- 图片：${img.name}（${formatFileSize(img.size)}）---\n![${img.name}](${img.dataUrl})`,
-      );
-    } else {
-      parts.push(
-        `--- 图片：${img.name}（${img.mimeType}，${formatFileSize(img.size)}）---\n（图片较大，已在界面预览；未内联完整 base64。请结合用户文字理解。）`,
-      );
-    }
+  // Images stay as UI chips + optional @图片N / artifact uploads.
+  // Never dump "--- 图片：… ---" into the bubble — users should see their
+  // own prompt as typed. The model gets references via @ labels and
+  // server-side artifact system-reminders.
+  if (!draft && opts.images.length) {
+    parts.push(
+      opts.images.map((i) => `@${i.name}`).join(" "),
+    );
   }
 
   return parts.join("\n\n").trim();

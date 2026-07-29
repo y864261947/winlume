@@ -21,12 +21,15 @@ type ChatBody = {
   message?: string;
   model?: string;
   skillIds?: string[];
+  /** Multi @-mention image artifact ids (preferred). */
+  referencedArtifactIds?: string[];
+  /** @deprecated Use referencedArtifactIds */
   referencedArtifactId?: string;
 };
 
 /**
  * POST /api/chat — stream one agent turn as SSE (AgentSseEvent).
- * Body: { sessionId?, message, model?, skillIds?, referencedArtifactId? }
+ * Body: { sessionId?, message, model?, skillIds?, referencedArtifactIds?, referencedArtifactId? }
  *
  * Client disconnect does NOT cancel the turn (generation continues server-side).
  * Explicit stop: POST /api/chat/stop { sessionId }.
@@ -55,6 +58,11 @@ export async function POST(request: NextRequest) {
       : undefined;
   const skillIds = Array.isArray(body.skillIds)
     ? body.skillIds.filter((id): id is string => typeof id === "string")
+    : undefined;
+  const referencedArtifactIds = Array.isArray(body.referencedArtifactIds)
+    ? body.referencedArtifactIds.filter(
+        (id): id is string => typeof id === "string" && id.trim().length > 0,
+      ).map((id) => id.trim())
     : undefined;
   const referencedArtifactId =
     typeof body.referencedArtifactId === "string" && body.referencedArtifactId.trim()
@@ -117,6 +125,7 @@ export async function POST(request: NextRequest) {
           sessionId,
           userText: message,
           skillIds,
+          referencedArtifactIds,
           referencedArtifactId,
           model,
           sessions: webStore.sessions,

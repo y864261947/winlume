@@ -48,7 +48,8 @@ export type QueuedMessage = {
   content: string;
   model?: string;
   skillIds?: string[];
-  /** Id of an image artifact the user @-referenced in the composer, if any. */
+  referencedArtifactIds?: string[];
+  /** @deprecated Use referencedArtifactIds */
   referencedArtifactId?: string;
   createdAt: number;
 };
@@ -384,7 +385,8 @@ export function stopLiveChat(sessionId: string): void {
 export type SendOverrides = {
   model?: string;
   skillIds?: string[];
-  /** Id of an image artifact the user @-referenced in the composer, if any. */
+  referencedArtifactIds?: string[];
+  /** @deprecated Use referencedArtifactIds */
   referencedArtifactId?: string;
 };
 
@@ -417,6 +419,7 @@ export async function sendLiveChat(
           content: trimmed,
           model: overrides?.model,
           skillIds: overrides?.skillIds,
+          referencedArtifactIds: overrides?.referencedArtifactIds,
           referencedArtifactId: overrides?.referencedArtifactId,
           createdAt: Date.now(),
         },
@@ -441,6 +444,7 @@ async function runLiveTurn(
     const requestModel =
       overrides?.model?.trim() || entry.snapshot.model || FALLBACK_DEFAULT_MODEL;
     const requestSkillIds = overrides?.skillIds;
+    const requestReferencedArtifactIds = overrides?.referencedArtifactIds;
     const requestReferencedArtifactId = overrides?.referencedArtifactId;
 
     const userMsg: UiChatMessage = {
@@ -529,6 +533,9 @@ async function runLiveTurn(
           message: text,
           model: requestModel,
           ...(requestSkillIds?.length ? { skillIds: requestSkillIds } : {}),
+          ...(requestReferencedArtifactIds?.length
+            ? { referencedArtifactIds: requestReferencedArtifactIds }
+            : {}),
           ...(requestReferencedArtifactId
             ? { referencedArtifactId: requestReferencedArtifactId }
             : {}),
@@ -800,6 +807,7 @@ async function drainQueue(sessionId: string): Promise<void> {
   await runLiveTurn(sessionId, next.content, {
     model: next.model,
     skillIds: next.skillIds,
+    referencedArtifactIds: next.referencedArtifactIds,
     referencedArtifactId: next.referencedArtifactId,
   });
 }

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { detectAtMention, filterMentionArtifacts } from "./ArtifactMentionMenu";
-import type { Artifact } from "@/lib/agent/types";
+import { detectAtMention } from "./ArtifactMentionMenu";
+import {
+  filterMentionCandidates,
+  type MentionCandidate,
+} from "@/lib/studio/image-mentions";
 
 describe("detectAtMention", () => {
   it("detects @ at the start of text", () => {
@@ -28,39 +31,35 @@ describe("detectAtMention", () => {
   });
 });
 
-describe("filterMentionArtifacts", () => {
-  const artifacts: Artifact[] = [
+describe("filterMentionCandidates", () => {
+  const candidates: MentionCandidate[] = [
     {
-      id: "1",
-      userId: "u",
-      sessionId: "s",
+      key: "1",
       name: "Red Fox",
-      kind: "image",
-      mimeType: "image/png",
-      storageKey: "",
-      createdAt: "t",
+      thumbSrc: "",
+      source: "artifact",
+      artifactId: "1",
     },
     {
-      id: "2",
-      userId: "u",
-      sessionId: "s",
+      key: "2",
       name: "Blue Sky",
-      kind: "image",
-      mimeType: "image/png",
-      storageKey: "",
-      createdAt: "t",
+      thumbSrc: "",
+      source: "artifact",
+      artifactId: "2",
     },
   ];
 
-  it("returns all artifacts for an empty query", () => {
-    expect(filterMentionArtifacts(artifacts, "")).toHaveLength(2);
+  it("returns all candidates for an empty query", () => {
+    expect(filterMentionCandidates(candidates, "")).toHaveLength(2);
   });
 
   it("filters case-insensitively by name substring", () => {
-    expect(filterMentionArtifacts(artifacts, "fox").map((a) => a.id)).toEqual(["1"]);
+    expect(filterMentionCandidates(candidates, "fox").map((a) => a.key)).toEqual([
+      "1",
+    ]);
   });
 
   it("returns an empty array when nothing matches", () => {
-    expect(filterMentionArtifacts(artifacts, "zzz")).toEqual([]);
+    expect(filterMentionCandidates(candidates, "zzz")).toEqual([]);
   });
 });

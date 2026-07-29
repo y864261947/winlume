@@ -38,7 +38,6 @@ import {
   MAX_FILES,
   MAX_IMAGES,
   MAX_PASTED_BLOCKS,
-  nextUploadImageNames,
   PASTED_COLLAPSED_PX,
   PASTED_EXPANDED_PX,
   resolveComposerPasteIntent,
@@ -53,10 +52,18 @@ import {
   saveComposerDraft,
 } from "@/lib/studio/composer-draft";
 import { uploadImageArtifact } from "@/lib/studio/api";
-import ArtifactMentionMenu, {
-  detectAtMention,
-  filterMentionArtifacts,
-} from "./ArtifactMentionMenu";
+import {
+  buildMentionCandidates,
+  filterMentionCandidates,
+  nameLocalImageBatch,
+  resolvePendingLocalMentions,
+  resolveReferencedArtifactIds,
+  type MentionCandidate,
+} from "@/lib/studio/image-mentions";
+import ArtifactMentionMenu, { detectAtMention } from "./ArtifactMentionMenu";
+import MentionPromptEditor, {
+  type MentionPromptEditorHandle,
+} from "./MentionPromptEditor";
 import SkillChips from "./SkillChips";
 import SkillSlashMenu, {
   activateSlashMenuItem,
@@ -80,7 +87,17 @@ const DRAFT_DEBOUNCE_MS = 400;
 
 export type ComposerSendMeta = {
   skillIds?: string[];
-  referencedArtifactId?: string;
+  /** Server artifact ids resolved from @图片N (and other @names) in the prompt. */
+  referencedArtifactIds?: string[];
+  /**
+   * Local images to persist after the home page creates a session
+   * (pre-session composer has no sessionId yet).
+   */
+  pendingImageUploads?: Array<{
+    localId: string;
+    name: string;
+    dataUrl: string;
+  }>;
 };
 
 export type ComposerProps = {
@@ -283,7 +300,6 @@ export default function Composer({
   const [mentionRange, setMentionRange] = useState<{ start: number; end: number } | null>(
     null,
   );
-  const [referencedArtifact, setReferencedArtifact] = useState<Artifact | null>(null);
 
   const [pastedBlocks, setPastedBlocks] = useState<PastedBlock[]>([]);
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -292,7 +308,7 @@ export default function Composer({
   const [attachError, setAttachError] = useState<string | null>(null);
   const [draftHydrated, setDraftHydrated] = useState(!draftKey);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<MentionPromptEditorHandle>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const mentionMenuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -300,10 +316,6 @@ export default function Composer({
   const dragCounter = useRef(0);
   const imagesRef = useRef<ImageAttachment[]>([]);
   const activeSessionIdRef = useRef(sessionId);
-  const uploadNameReservationsRef = useRef<{
-    sessionId: string;
-    names: Set<string>;
-  } | null>(null);
 
   const isControlled = controlledValue !== undefined;
   const draft = isControlled ? controlledValue : uncontrolled;
@@ -497,7 +509,7 @@ export default function Composer({
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
       if (menuRef.current?.contains(t)) return;
-      if (textareaRef.current?.contains(t)) return;
+      if (editorRef.current?.containsNode(t)) return;
       setMenuOpen(false);
       setSlashRange(null);
       setMenuView({ kind: "root" });
@@ -511,7 +523,7 @@ export default function Composer({
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
       if (mentionMenuRef.current?.contains(t)) return;
-      if (textareaRef.current?.contains(t)) return;
+      if (editorRef.current?.containsNode(t)) return;
       setMentionOpen(false);
       setMentionRange(null);
     };
@@ -532,7 +544,7 @@ export default function Composer({
 
   const focusComposer = useCallback(() => {
     requestAnimationFrame(() => {
-      textareaRef.current?.focus();
+      editorRef.current?.focus();
     });
   }, []);
 
@@ -581,21 +593,24 @@ export default function Composer({
       setSelectedIds((prev) =>
         prev.includes(skill.id) ? prev : [...prev, skill.id],
       );
-      if (textareaRef.current) {
-        const el = textareaRef.current;
-        const before = draft.slice(0, slashRange.start);
-        const after = draft.slice(slashRange.end);
-        const next = `${before}${after}`.replace(/\s{2,}/g, " ");
-        setDraft(next);
-        requestAnimationFrame(() => {
-          const pos = before.length;
-          el.focus();
-          el.setSelectionRange(pos, pos);
-        });
+      const editor = editorRef.current;
+      if (editor) {
+        const { text, cursor } = editor.replaceRange(slashRange, "");
+        // Collapse accidental double spaces from removing /query
+        const cleaned = text.replace(/\s{2,}/g, " ");
+        if (cleaned !== text) {
+          setDraft(cleaned);
+          requestAnimationFrame(() => {
+            editor.setCaretOffset(Math.min(cursor, cleaned.length));
+          });
+        } else {
+          setDraft(text);
+          requestAnimationFrame(() => editor.setCaretOffset(cursor));
+        }
       }
       closeMenu();
     },
-    [closeMenu, draft, setDraft, setSelectedIds, slashRange, toggleSkill],
+    [closeMenu, setDraft, setSelectedIds, slashRange, toggleSkill],
   );
 
   const openSkillMenu = useCallback(
@@ -641,27 +656,56 @@ export default function Composer({
     setMentionOpen(true);
   }, []);
 
-  const pickMentionArtifact = useCallback(
-    (artifact: Artifact) => {
-      setReferencedArtifact(artifact);
-      if (mentionRange && textareaRef.current) {
-        const el = textareaRef.current;
-        const before = draft.slice(0, mentionRange.start);
-        const after = draft.slice(mentionRange.end);
-        const next =
-          before.endsWith(" ") && after.startsWith(" ") ? before + after.slice(1) : before + after;
-        setDraft(next);
-        requestAnimationFrame(() => {
-          const pos = before.length;
-          el.focus();
-          el.setSelectionRange(pos, pos);
-        });
+  const mentionCandidates = useMemo(
+    () => buildMentionCandidates(images, imageArtifacts),
+    [images, imageArtifacts],
+  );
+
+  const resolveMentionMeta = useCallback(
+    (name: string) => {
+      const hit = mentionCandidates.find((c) => c.name === name);
+      if (!hit) return null;
+      return {
+        name: hit.name,
+        thumbSrc: hit.thumbSrc,
+        artifactId: hit.artifactId,
+        localId: hit.localId,
+      };
+    },
+    [mentionCandidates],
+  );
+
+  const pickMentionCandidate = useCallback(
+    (candidate: MentionCandidate) => {
+      const editor = editorRef.current;
+      if (editor) {
+        editor.insertMention(
+          {
+            name: candidate.name,
+            thumbSrc: candidate.thumbSrc,
+            artifactId: candidate.artifactId,
+            localId: candidate.localId,
+          },
+          mentionRange,
+        );
       }
       setMentionOpen(false);
       setMentionRange(null);
       setMentionQuery("");
     },
-    [draft, mentionRange, setDraft],
+    [mentionRange],
+  );
+
+  const onEditorCaretActivity = useCallback(
+    (text: string, caret: number) => {
+      detectSlash(text, caret);
+      if (!menuOpen) detectMention(text, caret);
+      else {
+        setMentionOpen(false);
+        setMentionRange(null);
+      }
+    },
+    [detectSlash, detectMention, menuOpen],
   );
 
   const addImages = useCallback(
@@ -678,41 +722,23 @@ export default function Composer({
       if (!candidates.length) return;
 
       const available = Math.max(0, MAX_IMAGES - imagesRef.current.length);
-      const accepted = candidates.slice(0, available);
-      if (accepted.length < candidates.length) {
+      const sliced = candidates.slice(0, available);
+      if (sliced.length < candidates.length) {
         setAttachError(`最多 ${MAX_IMAGES} 张图片`);
       }
-      if (!accepted.length) return;
+      if (!sliced.length) return;
 
+      // Local 图片N names immediately — @ works before any session/upload.
+      const accepted = nameLocalImageBatch(imagesRef.current, sliced);
       setComposerImages((prev) => [...prev, ...accepted]);
+
       if (!sessionId) return;
 
-      let reservations = uploadNameReservationsRef.current;
-      if (!reservations || reservations.sessionId !== sessionId) {
-        reservations = { sessionId, names: new Set<string>() };
-        uploadNameReservationsRef.current = reservations;
-      }
-      const existingNames = new Set(
-        imageArtifacts
-          .filter((artifact) => artifact.sessionId === sessionId)
-          .map((artifact) => artifact.name),
-      );
-      for (const reservedName of reservations.names) {
-        existingNames.add(reservedName);
-      }
-      const uploadNames = nextUploadImageNames(
-        Array.from(existingNames),
-        accepted.length,
-      );
-      for (const uploadName of uploadNames) {
-        reservations.names.add(uploadName);
-      }
-
-      accepted.forEach((image, index) => {
-        const uploadName = uploadNames[index]!;
+      // Persist under the same 图片N name so the session @ list / works rail match.
+      accepted.forEach((image) => {
         void uploadImageArtifact({
           sessionId,
-          name: uploadName,
+          name: image.name,
           dataUrl: image.dataUrl,
         })
           .then((artifact) => {
@@ -726,11 +752,11 @@ export default function Composer({
           })
           .catch(() => {
             if (sessionId !== activeSessionIdRef.current) return;
-            setAttachError("图片上传失败，仍会随消息发送，但暂时无法通过 @ 引用");
+            setAttachError("图片上传失败，仍会随消息发送；发送前会再试一次以便 @ 引用");
           });
       });
     },
-    [imageArtifacts, onImageUploaded, sessionId, setComposerImages],
+    [onImageUploaded, sessionId, setComposerImages],
   );
 
   const addFiles = useCallback(async (list: File[]) => {
@@ -766,7 +792,7 @@ export default function Composer({
   }, [addImages]);
 
   const handlePaste = useCallback(
-    (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    (e: ClipboardEvent<HTMLDivElement>) => {
       const intent = resolveComposerPasteIntent(e.clipboardData);
       if (intent.kind === "empty" || intent.kind === "short-text") {
         // let browser handle short text
@@ -808,14 +834,12 @@ export default function Composer({
                 : [...prev, createPastedBlock(intent.text!)],
             );
           } else {
-            // insert short text at cursor
-            const el = textareaRef.current;
-            if (el) {
-              const start = el.selectionStart ?? draft.length;
-              const end = el.selectionEnd ?? draft.length;
-              const next = draft.slice(0, start) + intent.text + draft.slice(end);
-              setDraft(next);
-            } else {
+            // insert short text at caret (serialized)
+            const editor = editorRef.current;
+            if (editor && intent.text) {
+              const caret = editor.getCaretOffset();
+              editor.replaceRange({ start: caret, end: caret }, intent.text);
+            } else if (intent.text) {
               setDraft(draft + intent.text);
             }
           }
@@ -881,34 +905,82 @@ export default function Composer({
       return;
     }
     onClearError?.();
-    const outbound = composeOutboundMessage({
-      draft,
-      pasted: pastedBlocks,
-      images,
-      files,
-    });
-    if (!outbound) return;
-    const meta: ComposerSendMeta | undefined =
-      selectedIds.length || referencedArtifact
-        ? {
-            ...(selectedIds.length ? { skillIds: [...selectedIds] } : {}),
-            ...(referencedArtifact
-              ? { referencedArtifactId: referencedArtifact.id }
-              : {}),
+
+    void (async () => {
+      let workingImages = images;
+
+      // Session page: finish any @-mentioned uploads before resolving ids.
+      if (sessionId) {
+        const pending = resolvePendingLocalMentions(draft, workingImages);
+        if (pending.length) {
+          const uploaded: ImageAttachment[] = [...workingImages];
+          for (const image of pending) {
+            try {
+              const artifact = await uploadImageArtifact({
+                sessionId,
+                name: image.name,
+                dataUrl: image.dataUrl,
+              });
+              const idx = uploaded.findIndex((i) => i.id === image.id);
+              if (idx >= 0) {
+                uploaded[idx] = { ...uploaded[idx]!, artifactId: artifact.id };
+              }
+              onImageUploaded?.(artifact);
+            } catch {
+              setAttachError("部分图片上传失败，@ 引用可能不完整");
+            }
           }
-        : undefined;
-    void onSend(outbound, meta);
-    setDraft("");
-    setSelectedIds([]);
-    setReferencedArtifact(null);
-    clearAttachments();
-    closeMenu();
-    if (draftKey) clearComposerDraft(draftKey);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
-    // NewMax: refocus composer after send
-    focusComposer();
+          workingImages = uploaded;
+          setComposerImages(uploaded);
+        }
+      }
+
+      const outbound = composeOutboundMessage({
+        draft,
+        pasted: pastedBlocks,
+        images: workingImages,
+        files,
+      });
+      if (!outbound) return;
+
+      const referencedArtifactIds = resolveReferencedArtifactIds(
+        draft,
+        workingImages,
+        imageArtifacts,
+      );
+
+      const meta: ComposerSendMeta | undefined =
+        selectedIds.length ||
+        referencedArtifactIds.length ||
+        (!sessionId && workingImages.length)
+          ? {
+              ...(selectedIds.length ? { skillIds: [...selectedIds] } : {}),
+              ...(referencedArtifactIds.length
+                ? { referencedArtifactIds }
+                : {}),
+              ...(!sessionId && workingImages.length
+                ? {
+                    pendingImageUploads: workingImages.map((img) => ({
+                      localId: img.id,
+                      name: img.name,
+                      dataUrl: img.dataUrl,
+                    })),
+                  }
+                : {}),
+            }
+          : undefined;
+
+      void onSend(outbound, meta);
+      setDraft("");
+      editorRef.current?.clear();
+      setSelectedIds([]);
+      clearAttachments();
+      closeMenu();
+      setMentionOpen(false);
+      setMentionRange(null);
+      if (draftKey) clearComposerDraft(draftKey);
+      focusComposer();
+    })();
   }, [
     disabled,
     streaming,
@@ -917,9 +989,12 @@ export default function Composer({
     pastedBlocks,
     images,
     files,
+    sessionId,
+    imageArtifacts,
+    onImageUploaded,
+    setComposerImages,
     onClearError,
     selectedIds,
-    referencedArtifact,
     onSend,
     setDraft,
     setSelectedIds,
@@ -948,9 +1023,9 @@ export default function Composer({
     submit();
   };
 
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  const onEditorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (mentionOpen && !event.nativeEvent.isComposing) {
-      const items = filterMentionArtifacts(imageArtifacts, mentionQuery);
+      const items = filterMentionCandidates(mentionCandidates, mentionQuery);
       if (event.key === "ArrowDown") {
         event.preventDefault();
         if (items.length) setMentionIndex((i) => (i + 1) % items.length);
@@ -963,7 +1038,7 @@ export default function Composer({
       }
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
-        if (items[mentionIndex]) pickMentionArtifact(items[mentionIndex]);
+        if (items[mentionIndex]) pickMentionCandidate(items[mentionIndex]);
         return;
       }
       if (event.key === "Escape") {
@@ -1015,14 +1090,6 @@ export default function Composer({
       event.preventDefault();
       submit();
     }
-  };
-
-  const onTextareaInput = () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    const maxH = isHero ? 220 : 160;
-    el.style.height = `${Math.min(el.scrollHeight, maxH)}px`;
   };
 
   const turnCount = selectedIds.length;
@@ -1213,7 +1280,9 @@ export default function Composer({
               ? queueFull
                 ? `队列已满（${MAX_MESSAGE_QUEUE_SIZE}）· 可停止当前生成`
                 : "生成中 · Enter 加入队列 · 可粘贴/拖入附件"
-              : "Enter 发送 · 粘贴长文自动折叠 · 可拖入文件"}
+              : images.length > 0
+                ? "输入 @ 引用图片（如 @图片1）· Enter 发送"
+                : "Enter 发送 · 粘贴长文自动折叠 · 可拖入文件"}
           </span>
         </div>
 
@@ -1227,31 +1296,6 @@ export default function Composer({
           disabled={disabled}
         />
 
-        {referencedArtifact ? (
-          <div className="flex items-center gap-2 px-2">
-            <div className="inline-flex items-center gap-1.5 rounded-[10px] border border-white/70 bg-white/60 px-2 py-1 text-[11px] text-[#241E36]">
-              <span className="h-5 w-5 shrink-0 overflow-hidden rounded-[6px] bg-white/70">
-                {/* eslint-disable-next-line @next/next/no-img-element -- small thumbnail from a user-scoped artifact route */}
-                <img
-                  src={`/api/artifacts/${referencedArtifact.id}/raw`}
-                  alt={referencedArtifact.name}
-                  className="h-full w-full object-cover"
-                />
-              </span>
-              <span className="max-w-[10rem] truncate">{referencedArtifact.name}</span>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => setReferencedArtifact(null)}
-                className="rounded p-0.5 text-[#8A8298] hover:text-[#0F172A]"
-                title="取消引用"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
-        ) : null}
-
         {/* Attachment strip: images + binary file chips */}
         {(images.length > 0 || files.length > 0) && (
           <div className="flex flex-wrap gap-2 px-2">
@@ -1260,12 +1304,37 @@ export default function Composer({
                 key={img.id}
                 className="group relative h-16 w-16 overflow-hidden rounded-[12px] border border-white/80 bg-white/70 shadow-sm"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={img.dataUrl}
-                  alt={img.name}
-                  className="h-full w-full object-cover"
-                />
+                <button
+                  type="button"
+                  className="h-full w-full"
+                  title={`点击插入 @${img.name}`}
+                  disabled={disabled}
+                  onClick={() => {
+                    // Insert at caret as a real chip (ignore any open @query range).
+                    editorRef.current?.insertMention(
+                      {
+                        name: img.name,
+                        thumbSrc: img.dataUrl,
+                        artifactId: img.artifactId,
+                        localId: img.id,
+                      },
+                      null,
+                    );
+                    setMentionOpen(false);
+                    setMentionRange(null);
+                    setMentionQuery("");
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.dataUrl}
+                    alt={img.name}
+                    className="h-full w-full object-cover"
+                  />
+                  <span className="absolute bottom-0 left-0 right-0 bg-black/55 px-0.5 py-0.5 text-center text-[10px] font-medium leading-tight text-white">
+                    {img.name}
+                  </span>
+                </button>
                 <button
                   type="button"
                   disabled={disabled}
@@ -1274,14 +1343,11 @@ export default function Composer({
                       prev.filter((item) => item.id !== img.id),
                     )
                   }
-                  className="absolute right-0.5 top-0.5 rounded-full bg-black/55 p-0.5 text-white opacity-0 transition group-hover:opacity-100"
+                  className="absolute right-0.5 top-0.5 z-[1] rounded-full bg-black/55 p-0.5 text-white opacity-0 transition group-hover:opacity-100"
                   title={`移除 ${img.name}`}
                 >
                   <X className="h-3 w-3" />
                 </button>
-                <span className="absolute inset-x-0 bottom-0 truncate bg-black/45 px-1 py-0.5 text-[9px] text-white">
-                  {img.name}
-                </span>
               </div>
             ))}
             {files.map((f) => (
@@ -1360,48 +1426,32 @@ export default function Composer({
           <label className="sr-only" htmlFor={promptId}>
             输入你的需求
           </label>
-          <textarea
-            ref={textareaRef}
+          <MentionPromptEditor
+            ref={editorRef}
             id={promptId}
-            rows={2}
             value={draft}
-            onChange={(e) => {
-              const next = e.target.value;
-              setDraft(next);
-              onTextareaInput();
-              const cursor = e.target.selectionStart ?? next.length;
-              detectSlash(next, cursor);
-              if (!menuOpen) detectMention(next, cursor);
-              else {
-                setMentionOpen(false);
-                setMentionRange(null);
-              }
-            }}
+            onChange={setDraft}
+            onCaretActivity={onEditorCaretActivity}
             onPaste={handlePaste}
-            onKeyDown={onKeyDown}
-            onClick={(e) => {
-              const el = e.currentTarget;
-              const cursor = el.selectionStart ?? el.value.length;
-              detectSlash(el.value, cursor);
-              if (!menuOpen) detectMention(el.value, cursor);
-            }}
+            onKeyDown={onEditorKeyDown}
+            resolveMention={resolveMentionMeta}
+            disabled={disabled}
             placeholder={
               streaming
                 ? queueFull
                   ? "队列已满，请等待或停止生成…"
                   : "继续输入，将加入发送队列…"
                 : hasAttachments
-                  ? "补充说明（可选）…"
+                  ? "补充说明，或输入 @ 引用图片…"
                   : placeholder
             }
-            disabled={disabled}
-            className={`flex-1 resize-none bg-transparent px-3 text-[#241E36] outline-none ring-0 placeholder:text-[#8A8298] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 disabled:opacity-60 ${
-              isHero
-                ? "max-h-56 min-h-[4.5rem] py-3 text-[15px] leading-7"
-                : "max-h-40 min-h-[2.75rem] py-2 text-sm leading-6"
-            }`}
-            aria-controls={menuOpen ? menuId : undefined}
-            aria-expanded={menuOpen}
+            maxHeight={isHero ? 220 : 160}
+            minHeightClass={
+              isHero ? "min-h-[4.5rem] py-3 text-[15px] leading-7" : "min-h-[2.75rem] py-2 text-sm leading-6"
+            }
+            className="disabled:opacity-60"
+            aria-controls={menuOpen || mentionOpen ? menuId : undefined}
+            aria-expanded={menuOpen || mentionOpen}
             aria-autocomplete="list"
           />
           {streaming ? (
@@ -1457,10 +1507,10 @@ export default function Composer({
           <ArtifactMentionMenu
             open={mentionOpen}
             query={mentionQuery}
-            artifacts={imageArtifacts}
+            candidates={mentionCandidates}
             highlightIndex={mentionIndex}
             onHighlightIndexChange={setMentionIndex}
-            onPick={pickMentionArtifact}
+            onPick={pickMentionCandidate}
             menuRef={mentionMenuRef}
           />
         </div>
