@@ -129,7 +129,8 @@ button:not(:disabled) {
 @media (prefers-reduced-motion: reduce) {
   .image-annotation-stage,
   .image-annotation-toolbar,
-  .image-annotation-composer {
+  .image-annotation-composer,
+  .studio-sidebar-peek {
     transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1), color 160ms ease, background-color 160ms ease !important;
     transform: none !important;
   }
@@ -538,6 +539,25 @@ button:not(:disabled) {
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   border: 1px solid rgba(255, 255, 255, 0.65);
+}
+
+.studio-sidebar-rail {
+  background: rgba(255, 255, 255, 0.56);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+
+.studio-sidebar-peek {
+  opacity: 0;
+  transform: translate3d(-10px, 0, 0);
+  transition:
+    opacity 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.studio-sidebar-peek[data-active="true"] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
 }
 
 /*
