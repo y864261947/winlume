@@ -2,9 +2,13 @@
 
 import type { Ref } from "react";
 import { ImageIcon } from "lucide-react";
-import type { Artifact } from "@/lib/agent/types";
+import {
+  filterMentionCandidates,
+  type MentionCandidate,
+} from "@/lib/studio/image-mentions";
 
-const MENTION_MAX = 20;
+export type { MentionCandidate };
+export { filterMentionCandidates };
 
 /**
  * Detects a trailing `@token` at the cursor, mirroring Composer.tsx's
@@ -17,6 +21,7 @@ export function detectAtMention(
   cursor: number,
 ): { start: number; end: number; query: string } | null {
   const upto = text.slice(0, cursor);
+  // Industry-common: only after start / whitespace (avoids email mid-token triggers).
   const match = upto.match(/(?:^|[\s\n])@([^\s@]*)$/);
   if (!match) return null;
   const token = match[0];
@@ -26,24 +31,13 @@ export function detectAtMention(
   return { start, end: cursor, query };
 }
 
-export function filterMentionArtifacts(
-  artifacts: Artifact[],
-  query: string,
-): Artifact[] {
-  const q = query.trim().toLowerCase();
-  const pool = q
-    ? artifacts.filter((a) => a.name.toLowerCase().includes(q))
-    : artifacts;
-  return pool.slice(0, MENTION_MAX);
-}
-
 export type ArtifactMentionMenuProps = {
   open: boolean;
   query: string;
-  artifacts: Artifact[];
+  candidates: MentionCandidate[];
   highlightIndex: number;
   onHighlightIndexChange: (index: number) => void;
-  onPick: (artifact: Artifact) => void;
+  onPick: (candidate: MentionCandidate) => void;
   menuId?: string;
   menuRef?: Ref<HTMLDivElement>;
 };
@@ -51,7 +45,7 @@ export type ArtifactMentionMenuProps = {
 export default function ArtifactMentionMenu({
   open,
   query,
-  artifacts,
+  candidates,
   highlightIndex,
   onHighlightIndexChange,
   onPick,
@@ -59,7 +53,7 @@ export default function ArtifactMentionMenu({
   menuRef,
 }: ArtifactMentionMenuProps) {
   if (!open) return null;
-  const items = filterMentionArtifacts(artifacts, query);
+  const items = filterMentionCandidates(candidates, query);
 
   return (
     <div
@@ -70,17 +64,19 @@ export default function ArtifactMentionMenu({
     >
       {items.length === 0 ? (
         <p className="px-2.5 py-3 text-center text-xs text-[#8A8298]">
-          {artifacts.length === 0 ? "还没有可引用的图片作品" : "没有匹配的作品"}
+          {candidates.length === 0
+            ? "先添加图片，再输入 @ 引用（如 @图片1）"
+            : "没有匹配的图片"}
         </p>
       ) : (
-        items.map((artifact, index) => (
+        items.map((item, index) => (
           <button
-            key={artifact.id}
+            key={item.key}
             type="button"
             role="option"
             aria-selected={index === highlightIndex}
             onMouseEnter={() => onHighlightIndexChange(index)}
-            onClick={() => onPick(artifact)}
+            onClick={() => onPick(item)}
             className={`flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-xs transition ${
               index === highlightIndex
                 ? "bg-[rgba(15,23,42,0.06)] text-[#0F172A]"
@@ -88,20 +84,25 @@ export default function ArtifactMentionMenu({
             }`}
           >
             <span className="h-8 w-8 shrink-0 overflow-hidden rounded-[8px] border border-white/80 bg-white/70">
-              {artifact.status === "ready" || !artifact.status ? (
-                // eslint-disable-next-line @next/next/no-img-element -- small thumbnail from a user-scoped artifact route
-                <img
-                  src={`/api/artifacts/${artifact.id}/raw`}
-                  alt={artifact.name}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
+              {item.status === "failed" ? (
                 <span className="flex h-full w-full items-center justify-center text-[#8A8298]">
                   <ImageIcon className="h-3.5 w-3.5" />
                 </span>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element -- local data URL or user-scoped raw route
+                <img
+                  src={item.thumbSrc}
+                  alt={item.name}
+                  className="h-full w-full object-cover"
+                />
               )}
             </span>
-            <span className="min-w-0 flex-1 truncate">{artifact.name}</span>
+            <span className="min-w-0 flex-1 truncate">
+              <span className="font-medium">@{item.name}</span>
+              {item.source === "local" && !item.artifactId ? (
+                <span className="ml-1 text-[10px] text-[#8A8298]">本地</span>
+              ) : null}
+            </span>
           </button>
         ))
       )}

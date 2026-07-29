@@ -57,7 +57,53 @@ describe("composeOutboundMessage", () => {
       }),
     ).toBe(true);
   });
+
+  it("does not dump --- 图片 --- blobs into the outbound message", () => {
+    const msg = composeOutboundMessage({
+      draft: "将@图片1 和@图片2 合并起来",
+      pasted: [],
+      images: [
+        {
+          id: "a",
+          name: "图片1",
+          mimeType: "image/png",
+          size: 1000,
+          dataUrl: "data:image/png;base64,aaa",
+        },
+        {
+          id: "b",
+          name: "图片2",
+          mimeType: "image/png",
+          size: 2000,
+          dataUrl: "data:image/png;base64,bbb",
+        },
+      ],
+      files: [],
+    });
+    expect(msg).toBe("将@图片1 和@图片2 合并起来");
+    expect(msg).not.toContain("--- 图片");
+    expect(msg).not.toContain("未内联完整 base64");
+  });
+
+  it("uses @图片N labels when only images are attached", () => {
+    const msg = composeOutboundMessage({
+      draft: "",
+      pasted: [],
+      images: [
+        {
+          id: "a",
+          name: "图片1",
+          mimeType: "image/png",
+          size: 1000,
+          dataUrl: "data:image/png;base64,aaa",
+        },
+      ],
+      files: [],
+    });
+    expect(msg).toBe("@图片1");
+  });
 });
+
 
 describe("nextUploadImageNames", () => {
   it("starts at 图片1 when there are no existing upload names", () => {

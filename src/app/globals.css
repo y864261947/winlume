@@ -674,7 +674,9 @@ button:not(:disabled) {
 .studio-liquid-glass textarea,
 .studio-liquid-glass input,
 .studio-liquid-glass select,
-.studio-liquid-glass button {
+.studio-liquid-glass button,
+.studio-liquid-glass [contenteditable="true"],
+.studio-liquid-glass .mention-prompt-editor {
   outline: none !important;
   -webkit-tap-highlight-color: transparent;
   box-shadow: none;
@@ -686,10 +688,15 @@ button:not(:disabled) {
 .studio-liquid-glass select:focus,
 .studio-liquid-glass select:focus-visible,
 .studio-liquid-glass button:focus,
-.studio-liquid-glass button:focus-visible {
+.studio-liquid-glass button:focus-visible,
+.studio-liquid-glass [contenteditable="true"]:focus,
+.studio-liquid-glass [contenteditable="true"]:focus-visible,
+.studio-liquid-glass .mention-prompt-editor:focus,
+.studio-liquid-glass .mention-prompt-editor:focus-visible {
   outline: none !important;
   box-shadow: none !important;
-  border-color: inherit;
+  border-color: transparent !important;
+  -webkit-box-shadow: none !important;
 }
 
 /* Micro-controls on glass: fill-only, no gray border flash */

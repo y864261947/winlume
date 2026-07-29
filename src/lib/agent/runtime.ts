@@ -130,11 +130,26 @@ function buildSessionReminder(artifactCount: number): string {
   ].join("\n");
 }
 
+/** @deprecated Prefer buildReferencedArtifactsReminder for multi-@ prompts. */
 export function buildReferencedArtifactReminder(artifact: Artifact | null): string {
-  if (!artifact) return "";
+  return buildReferencedArtifactsReminder(artifact ? [artifact] : []);
+}
+
+/** Multi-image @-mention reminder for the agent (ids are authoritative). */
+export function buildReferencedArtifactsReminder(artifacts: Artifact[]): string {
+  if (!artifacts.length) return "";
+  const lines = artifacts.map(
+    (a, i) =>
+      `${i + 1}. @${a.name} → id=${a.id} (kind=${a.kind}${a.status ? `, status=${a.status}` : ""})`,
+  );
+  const primary = artifacts[0]!;
   return [
     "<system-reminder>",
-    `The user referenced artifact "${artifact.name}" (id=${artifact.id}, kind=${artifact.kind}) via @-mention in this message. If — and only if — the user's own words are asking to modify, edit, or regenerate this image, call generate_image with sourceArtifactId="${artifact.id}". Do not guess a different id, and do not treat every message that follows a mention as an edit request.`,
+    "The user @-mentioned image artifact(s) in this message. Use these ids only — do not invent or guess ids from prose.",
+    ...lines,
+    `If the user is asking to edit / restyle a single source image, call generate_image with sourceArtifactId="${primary.id}" (first mention) unless they clearly name another @label above.`,
+    "If the user is asking to merge / combine multiple mentioned images, still call generate_image (or the appropriate tool) and describe every listed id in the prompt; put the primary/base image in sourceArtifactId when one base is needed.",
+    "Do not treat every message that follows a mention as an edit request — only when the user's own words ask for image work.",
     "</system-reminder>",
   ].join("\n");
 }
@@ -144,7 +159,12 @@ export interface RunAgentTurnOpts {
   sessionId: string;
   userText: string;
   skillIds?: string[];
-  /** Id of an image artifact the user @-referenced in the composer, if any. */
+  /**
+   * Image artifact ids the user @-referenced in the composer.
+   * Prefer this over the singular field.
+   */
+  referencedArtifactIds?: string[];
+  /** @deprecated Use referencedArtifactIds */
   referencedArtifactId?: string;
   model?: string;
   sessions: SessionStore;
@@ -231,17 +251,23 @@ export async function* runAgentTurn(
   }
   const reminder = buildSessionReminder(artifactCount);
 
-  let referencedArtifact: Artifact | null = null;
-  if (opts.referencedArtifactId) {
+  const requestedIds = [
+    ...(opts.referencedArtifactIds ?? []),
+    ...(opts.referencedArtifactId ? [opts.referencedArtifactId] : []),
+  ];
+  const uniqueIds = [...new Set(requestedIds.map((id) => id.trim()).filter(Boolean))];
+  const referencedArtifacts: Artifact[] = [];
+  for (const id of uniqueIds) {
     try {
-      const found = await artifacts.get(userId, opts.referencedArtifactId);
-      // Only honor it when it's actually an image the user can reference for editing.
-      if (found && found.kind === "image") referencedArtifact = found;
+      const found = await artifacts.get(userId, id);
+      if (found && found.kind === "image" && found.status !== "failed") {
+        referencedArtifacts.push(found);
+      }
     } catch {
-      /* ignore — falls through as "no reference" */
+      /* ignore invalid id */
     }
   }
-  const artifactReminder = buildReferencedArtifactReminder(referencedArtifact);
+  const artifactReminder = buildReferencedArtifactsReminder(referencedArtifacts);
 
   const combinedReminder = [reminder, artifactReminder].filter(Boolean).join("\n\n");
   const system = buildSystemPrompt(

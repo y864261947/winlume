@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildReferencedArtifactReminder, toGatewayMessages } from "./runtime";
+import {
+  buildReferencedArtifactReminder,
+  buildReferencedArtifactsReminder,
+  toGatewayMessages,
+} from "./runtime";
 import type { Artifact, Message } from "./types";
 
 describe("toGatewayMessages", () => {
@@ -101,6 +105,37 @@ describe("buildReferencedArtifactReminder", () => {
     expect(reminder).toContain("Fox");
     expect(reminder).toContain("art-42");
     expect(reminder).toContain("sourceArtifactId");
-    expect(reminder).toContain("Do not guess");
+    expect(reminder).toContain("do not invent");
+  });
+
+  it("lists multiple @-mentioned artifacts", () => {
+    const artifacts: Artifact[] = [
+      {
+        id: "a1",
+        userId: "u1",
+        sessionId: "s1",
+        name: "图片1",
+        kind: "image",
+        mimeType: "image/png",
+        storageKey: "",
+        createdAt: "t1",
+      },
+      {
+        id: "a2",
+        userId: "u1",
+        sessionId: "s1",
+        name: "图片2",
+        kind: "image",
+        mimeType: "image/png",
+        storageKey: "",
+        createdAt: "t1",
+      },
+    ];
+    const reminder = buildReferencedArtifactsReminder(artifacts);
+    expect(reminder).toContain("@图片1");
+    expect(reminder).toContain("@图片2");
+    expect(reminder).toContain("a1");
+    expect(reminder).toContain("a2");
+    expect(reminder).toContain("merge");
   });
 });

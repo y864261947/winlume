@@ -23,6 +23,7 @@ import type {
   UiChatMessage,
   UiToolCall,
 } from "./useStudioChat";
+import MentionRichText from "./MentionRichText";
 import StudioViewTransition from "./StudioViewTransition";
 
 export type ChatThreadProps = {
@@ -32,6 +33,8 @@ export type ChatThreadProps = {
   highlightMessageId?: string | null;
   onHighlightConsumed?: () => void;
   artifactsByMessageId?: ReadonlyMap<string, Artifact[]>;
+  /** Session image artifacts for @mention chip thumbnails in user bubbles. */
+  imageArtifacts?: Artifact[];
   onOpenArtifact?: (artifactId: string) => void;
 };
 
@@ -466,12 +469,14 @@ function Bubble({
   message,
   highlighted,
   relatedArtifacts,
+  imageArtifacts,
   onOpenArtifact,
   shareTransitionName,
 }: {
   message: UiChatMessage;
   highlighted?: boolean;
   relatedArtifacts?: Artifact[];
+  imageArtifacts?: Artifact[];
   onOpenArtifact?: (artifactId: string) => void;
   /** Shared element name for home → session morph (View Transition). */
   shareTransitionName?: string;
@@ -583,15 +588,23 @@ function Bubble({
         ) : null}
 
         {message.content ? (
-          <div className="whitespace-pre-wrap break-words">
-            {message.content}
-            {message.streaming && message.content ? (
-              <span
-                className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-[#334155] align-middle"
-                aria-hidden
-              />
-            ) : null}
-          </div>
+          isUser ? (
+            <MentionRichText
+              text={message.content}
+              imageArtifacts={imageArtifacts}
+              tone="onDark"
+            />
+          ) : (
+            <div className="whitespace-pre-wrap break-words">
+              {message.content}
+              {message.streaming && message.content ? (
+                <span
+                  className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-[#334155] align-middle"
+                  aria-hidden
+                />
+              ) : null}
+            </div>
+          )
         ) : isAssistant &&
           !message.streaming &&
           !message.thinking &&
@@ -638,6 +651,7 @@ export default function ChatThread({
   highlightMessageId = null,
   onHighlightConsumed,
   artifactsByMessageId,
+  imageArtifacts,
   onOpenArtifact,
 }: ChatThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -722,6 +736,7 @@ export default function ChatThread({
                 message={m}
                 highlighted={activeHighlight === m.id}
                 relatedArtifacts={artifactsByMessageId?.get(m.id)}
+                imageArtifacts={imageArtifacts}
                 onOpenArtifact={onOpenArtifact}
                 shareTransitionName={shareTransitionName}
               />

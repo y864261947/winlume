@@ -132,7 +132,9 @@ export type ChatRequestBody = {
   message: string;
   model?: string;
   skillIds?: string[];
-  /** Id of an image artifact the user @-referenced in the composer, if any. */
+  /** Image artifact ids the user @-referenced in the composer. */
+  referencedArtifactIds?: string[];
+  /** @deprecated Use referencedArtifactIds */
   referencedArtifactId?: string;
 };
 
@@ -333,6 +335,8 @@ export type PendingFirstMessage = {
   model?: string;
   /** Per-message skill ids; injected into system prompt on send. */
   skillIds?: string[];
+  /** Image artifact ids @-mentioned in the first message. */
+  referencedArtifactIds?: string[];
   /**
    * Session snapshot from createSession — lets /studio/c/[id] paint chrome
    * on the first client frame without waiting for getSessionBundle.
@@ -356,6 +360,7 @@ export function readHandoffBootstrap(sessionId: string): {
   message: string;
   model?: string;
   skillIds?: string[];
+  referencedArtifactIds?: string[];
   session: Session | null;
   userMessage: Message;
 } | null {
@@ -366,6 +371,7 @@ export function readHandoffBootstrap(sessionId: string): {
     message: pending.message,
     model: pending.model,
     skillIds: pending.skillIds,
+    referencedArtifactIds: pending.referencedArtifactIds,
     session: pending.session ?? null,
     userMessage: {
       id: `pending-user-${sessionId}`,

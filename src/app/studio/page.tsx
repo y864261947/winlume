@@ -14,15 +14,23 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
-import Composer from "@/components/studio/Composer";
+import Composer, {
+  type ComposerSendMeta,
+} from "@/components/studio/Composer";
 import { useModals } from "@/components/providers";
 import type { SkillMeta } from "@/lib/agent/types";
 import {
   createSession,
   setPendingFirstMessage,
   StudioApiError,
+  uploadImageArtifact,
 } from "@/lib/studio/api";
 import { clearComposerDraft } from "@/lib/studio/composer-draft";
+import {
+  extractAtMentionNames,
+  resolveReferencedArtifactIds,
+} from "@/lib/studio/image-mentions";
+import type { ImageAttachment } from "@/lib/studio/composer-attachments";
 import {
   FALLBACK_DEFAULT_MODEL,
   getDefaultModel,
@@ -328,7 +336,7 @@ function StudioHomeInner() {
   }, []);
 
   const startChat = useCallback(
-    async (text: string, meta?: { skillIds?: string[] }) => {
+    async (text: string, meta?: ComposerSendMeta) => {
       const message = text.trim();
       if (!message || starting) return;
 
@@ -346,7 +354,8 @@ function StudioHomeInner() {
             : undefined;
 
       // 1) Slide composer to bottom (FLIP) while creating session
-      // 2) View Transition navigate — shared studio-composer morph, no cover
+      // 2) Upload local @ images so references resolve server-side
+      // 3) View Transition navigate — shared studio-composer morph
       setStarting(true);
       setError(null);
       try {
@@ -361,12 +370,63 @@ function StudioHomeInner() {
         });
         const dockPromise = flipComposerToDock(setDocking);
         const session = await sessionPromise;
+
+        // Persist home-composer images under 图片N so @图片1 stays meaningful.
+        const uploads = meta?.pendingImageUploads ?? [];
+        const asAttachments: ImageAttachment[] = [];
+        for (const item of uploads) {
+          try {
+            const artifact = await uploadImageArtifact({
+              sessionId: session.id,
+              name: item.name,
+              dataUrl: item.dataUrl,
+            });
+            asAttachments.push({
+              id: item.localId,
+              name: item.name,
+              mimeType: "image/png",
+              size: 0,
+              dataUrl: item.dataUrl,
+              artifactId: artifact.id,
+            });
+          } catch {
+            asAttachments.push({
+              id: item.localId,
+              name: item.name,
+              mimeType: "image/png",
+              size: 0,
+              dataUrl: item.dataUrl,
+            });
+          }
+        }
+
+        let referencedArtifactIds =
+          meta?.referencedArtifactIds?.filter(Boolean) ?? [];
+        if (!referencedArtifactIds.length && extractAtMentionNames(message).length) {
+          referencedArtifactIds = resolveReferencedArtifactIds(
+            message,
+            asAttachments,
+            [],
+          );
+        } else if (asAttachments.length) {
+          // Prefer ids from successful uploads when meta only had local placeholders.
+          const fromUploads = resolveReferencedArtifactIds(
+            message,
+            asAttachments,
+            [],
+          );
+          if (fromUploads.length) referencedArtifactIds = fromUploads;
+        }
+
         await dockPromise;
         setPendingFirstMessage({
           sessionId: session.id,
           message,
           model: requestModel,
           skillIds,
+          referencedArtifactIds: referencedArtifactIds.length
+            ? referencedArtifactIds
+            : undefined,
           session,
         });
         setSelectedSkillIds([]);
