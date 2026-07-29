@@ -68,6 +68,10 @@ export interface Artifact {
   status?: "pending" | "ready" | "failed";
   /** Set when status is "failed". */
   error?: string;
+  /** Hidden artifacts remain addressable by id but are excluded from normal lists. */
+  visibility?: "visible" | "hidden";
+  /** Internal role for an artifact used to target an image refinement. */
+  purpose?: "annotation";
 }
 
 export type AgentSseEvent =

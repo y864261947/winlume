@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import {
   Check,
@@ -22,6 +23,7 @@ import {
   Minimize2,
   Monitor,
   MoreHorizontal,
+  PencilLine,
   RefreshCw,
   Smartphone,
   X,
@@ -34,6 +36,13 @@ import {
   exportArtifactAsPdf,
   exportArtifactAsWord,
 } from "@/lib/studio/artifact-export";
+import ImageAnnotationOverlay, {
+  type ImageAnnotationSubmit,
+} from "@/components/studio/ImageAnnotationOverlay";
+import {
+  buildImageRefinementInstruction,
+} from "@/lib/studio/image-annotations";
+import { uploadImageAnnotation } from "@/lib/studio/api";
 
 const KIND_LABELS: Record<ArtifactKind, string> = {
   markdown: "Markdown",
@@ -56,6 +65,7 @@ type ActionKey =
   | "open"
   | "export"
   | "refresh"
+  | "annotate"
   | "maximize"
   | "jump";
 
@@ -65,6 +75,7 @@ const ACTION_MIN_WIDTH: Record<ActionKey, number> = {
   open: 56,
   export: 64,
   refresh: 36,
+  annotate: 84,
   maximize: 36,
   jump: 72,
 };
@@ -78,6 +89,14 @@ export type ArtifactPreviewProps = {
   onRefresh?: () => void;
   /** Jump to the chat message that produced this artifact. */
   onJumpToMessage?: (messageId: string) => void;
+  /** Uploads a marked reference then sends the canonical image-edit turn. */
+  onImageAnnotationRefine?: (input: {
+    baseArtifactId: string;
+    annotationArtifactId: string;
+    message: string;
+  }) => Promise<"sent" | "queued" | "rejected">;
+  /** Needed to persist the short-lived, hidden marked reference image. */
+  sessionId?: string;
   className?: string;
 };
 
@@ -250,6 +269,7 @@ function renderPreview(
   artifact: Artifact,
   content: string,
   htmlFrame: HtmlFrame,
+  imageRef?: RefObject<HTMLImageElement | null>,
 ): ReactNode {
   switch (artifact.kind) {
     case "markdown":
@@ -276,6 +296,7 @@ function renderPreview(
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-canvas/40 p-4">
           {/* eslint-disable-next-line @next/next/no-img-element -- artifact bytes are user-scoped, not from next/image's static pipeline */}
           <img
+            ref={imageRef}
             src={`/api/artifacts/${artifact.id}/raw`}
             alt={artifact.name}
             className="max-h-full max-w-full rounded-lg object-contain shadow-sm"
@@ -350,6 +371,8 @@ export default function ArtifactPreview({
   onClose,
   onRefresh,
   onJumpToMessage,
+  onImageAnnotationRefine,
+  sessionId,
   className = "",
 }: ArtifactPreviewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("preview");
@@ -360,6 +383,10 @@ export default function ArtifactPreview({
   const [moreOpen, setMoreOpen] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [overflowKeys, setOverflowKeys] = useState<ActionKey[]>([]);
+  const [annotationOpen, setAnnotationOpen] = useState(false);
+  const [annotationImage, setAnnotationImage] = useState<HTMLImageElement | null>(null);
+  const [annotationBusy, setAnnotationBusy] = useState(false);
+  const [annotationError, setAnnotationError] = useState<string | null>(null);
 
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openTabRef = useRef<string | null>(null);
@@ -367,6 +394,7 @@ export default function ArtifactPreview({
   const actionsRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const annotationImageRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     setViewMode("preview");
@@ -375,7 +403,39 @@ export default function ArtifactPreview({
     setExportOpen(false);
     setMoreOpen(false);
     setExportError(null);
+    setAnnotationOpen(false);
+    setAnnotationImage(null);
+    setAnnotationBusy(false);
+    setAnnotationError(null);
   }, [artifact?.id]);
+
+  // Annotation uses the image already rendered in the maximized preview.
+  // Waiting for a painted, decoded element keeps the raw URL stable and avoids
+  // creating a second Image request just to compose the marked PNG.
+  useEffect(() => {
+    if (!annotationOpen || !maximized || artifact?.kind !== "image") {
+      return;
+    }
+    let cancelled = false;
+    let frame: number | null = null;
+    let image: HTMLImageElement | null = null;
+    const ready = () => {
+      if (!cancelled && image?.naturalWidth && image.naturalHeight) {
+        setAnnotationImage(image);
+      }
+    };
+    frame = window.requestAnimationFrame(() => {
+      image = annotationImageRef.current;
+      if (!image) return;
+      if (image.complete) ready();
+      else image.addEventListener("load", ready, { once: true });
+    });
+    return () => {
+      cancelled = true;
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      image?.removeEventListener("load", ready);
+    };
+  }, [annotationOpen, maximized, artifact?.id, artifact?.kind]);
 
   useEffect(() => {
     return () => {
@@ -446,15 +506,22 @@ export default function ArtifactPreview({
     artifact && content != null && canExportAsDocument(artifact.kind),
   );
   const canJump = Boolean(artifact?.messageId && onJumpToMessage);
+  const canAnnotate = Boolean(
+    artifact?.kind === "image" &&
+      artifact.status === "ready" &&
+      sessionId &&
+      onImageAnnotationRefine,
+  );
   const availableKeys = useMemo((): ActionKey[] => {
     const keys: ActionKey[] = ["copy", "download"];
     if (isHtml) keys.push("open");
     if (canExport) keys.push("export");
     if (onRefresh) keys.push("refresh");
+    if (canAnnotate) keys.push("annotate");
     keys.push("maximize");
     if (canJump) keys.push("jump");
     return keys;
-  }, [isHtml, canExport, onRefresh, canJump]);
+  }, [isHtml, canExport, onRefresh, canAnnotate, canJump]);
 
   // NewMax-style overflow: measure action rail, push trailing actions into More
   useEffect(() => {
@@ -578,6 +645,54 @@ export default function ArtifactPreview({
     setMoreOpen(false);
     if (maximized) setMaximized(false);
   }, [artifact?.messageId, onJumpToMessage, maximized]);
+
+  const beginAnnotation = useCallback(() => {
+    setAnnotationError(null);
+    setAnnotationImage(null);
+    setMaximized(true);
+    setAnnotationOpen(true);
+    setMoreOpen(false);
+  }, []);
+
+  const submitAnnotation = useCallback(
+    async (input: ImageAnnotationSubmit) => {
+      if (!artifact || artifact.kind !== "image" || !sessionId || !onImageAnnotationRefine) {
+        throw new Error("当前图片无法创建标注修改");
+      }
+      setAnnotationBusy(true);
+      setAnnotationError(null);
+      try {
+        const annotation = await uploadImageAnnotation({
+          sessionId,
+          name: `${artifact.name} 标注`,
+          dataUrl: input.dataUrl,
+        });
+        const message = buildImageRefinementInstruction({
+          baseArtifactId: artifact.id,
+          annotationArtifactId: annotation.id,
+          request: input.request,
+          marks: input.marks,
+        });
+        const result = await onImageAnnotationRefine({
+          baseArtifactId: artifact.id,
+          annotationArtifactId: annotation.id,
+          message,
+        });
+        if (result === "rejected") {
+          throw new Error("修改请求未能发送，请稍后重试");
+        }
+        setAnnotationOpen(false);
+        setAnnotationImage(null);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : "提交标注失败，请重试";
+        setAnnotationError(message);
+        throw cause;
+      } finally {
+        setAnnotationBusy(false);
+      }
+    },
+    [artifact, onImageAnnotationRefine, sessionId],
+  );
 
   const showModeToggle = canShowSource && hasPreview;
   const busy = loading || content == null || artifact?.status === "pending";
@@ -732,6 +847,27 @@ export default function ArtifactPreview({
           disabled={loading}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+        </ToolbarBtn>
+      );
+    }
+    if (key === "annotate") {
+      if (inMenu) {
+        return (
+          <MenuItem key={key} onClick={beginAnnotation} disabled={busy}>
+            <PencilLine className="h-3.5 w-3.5" />
+            标注修改
+          </MenuItem>
+        );
+      }
+      return (
+        <ToolbarBtn
+          key={key}
+          onClick={beginAnnotation}
+          title="标注图片后发起局部修改"
+          disabled={busy}
+        >
+          <PencilLine className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">标注</span>
         </ToolbarBtn>
       );
     }
@@ -958,7 +1094,7 @@ export default function ArtifactPreview({
           renderPreview(artifact, content, htmlFrame)
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {renderPreview(artifact, content, htmlFrame)}
+            {renderPreview(artifact, content, htmlFrame, annotationImageRef)}
           </div>
         )}
       </div>
@@ -986,6 +1122,21 @@ export default function ArtifactPreview({
           <div className="studio-glass mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-[18px] border border-white/60 bg-[rgba(252,249,244,0.98)] shadow-2xl">
             {body}
           </div>
+          {annotationOpen && annotationImage ? (
+            <ImageAnnotationOverlay
+              image={annotationImage}
+              imageName={artifact?.name ?? "图片"}
+              busy={annotationBusy}
+              error={annotationError}
+              onCancel={() => {
+                if (annotationBusy) return;
+                setAnnotationOpen(false);
+                setAnnotationImage(null);
+                setAnnotationError(null);
+              }}
+              onSubmit={submitAnnotation}
+            />
+          ) : null}
         </div>
       </>
     );

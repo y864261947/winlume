@@ -8,6 +8,8 @@ type UploadImageBody = {
   sessionId?: string;
   name?: string;
   dataUrl?: string;
+  visibility?: "hidden";
+  purpose?: "annotation";
 };
 
 export const runtime = "nodejs";
@@ -32,6 +34,16 @@ export async function POST(request: NextRequest) {
   if (!sessionId || !name || !dataUrl) {
     return NextResponse.json(
       { error: "sessionId, name, and dataUrl are required" },
+      { status: 400 },
+    );
+  }
+
+  const hasMetadata = body.visibility !== undefined || body.purpose !== undefined;
+  const isAnnotation =
+    body.visibility === "hidden" && body.purpose === "annotation";
+  if (hasMetadata && !isAnnotation) {
+    return NextResponse.json(
+      { error: "visibility and purpose must be hidden and annotation together" },
       { status: 400 },
     );
   }
@@ -66,6 +78,7 @@ export async function POST(request: NextRequest) {
       mimeType: parsed.mimeType,
       storageKey: "",
       status: "ready",
+      ...(isAnnotation ? { visibility: "hidden" as const, purpose: "annotation" as const } : {}),
       createdAt: new Date().toISOString(),
     },
     parsed.bytes,

@@ -140,4 +140,40 @@ describe("buildReferencedArtifactReminder", () => {
     expect(reminder).toContain("send every image");
     expect(reminder).not.toContain("describe every listed id in the prompt");
   });
+
+  it("treats a marked annotation image as targeting guidance for its base image", () => {
+    const artifacts: Artifact[] = [
+      {
+        id: "base-image",
+        userId: "u1",
+        sessionId: "s1",
+        name: "原始设计图",
+        kind: "image",
+        mimeType: "image/png",
+        storageKey: "",
+        createdAt: "t1",
+      },
+      {
+        id: "annotation-image",
+        userId: "u1",
+        sessionId: "s1",
+        name: "修改标注图",
+        kind: "image",
+        mimeType: "image/png",
+        storageKey: "",
+        createdAt: "t1",
+        visibility: "hidden",
+        purpose: "annotation",
+      },
+    ];
+
+    const reminder = buildReferencedArtifactsReminder(artifacts);
+
+    expect(reminder).toContain("base-image");
+    expect(reminder).toContain("editable base canvas");
+    expect(reminder).toContain("annotation-image");
+    expect(reminder).toContain("marked targeting reference");
+    expect(reminder).toContain('sourceArtifactIds exactly ["base-image","annotation-image"]');
+    expect(reminder).toContain("Do not reproduce or retain annotation marks");
+  });
 });

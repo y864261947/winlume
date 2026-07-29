@@ -376,6 +376,21 @@ export default function StudioSessionPage() {
     onArtifact,
   });
 
+  const refineImageWithAnnotation = useCallback(
+    (input: {
+      baseArtifactId: string;
+      annotationArtifactId: string;
+      message: string;
+    }) =>
+      chat.send(input.message, {
+        referencedArtifactIds: [
+          input.baseArtifactId,
+          input.annotationArtifactId,
+        ],
+      }),
+    [chat],
+  );
+
   useEffect(() => {
     if (!sessionId) {
       setLoadError("无效的会话");
@@ -798,6 +813,8 @@ export default function StudioSessionPage() {
         onClose={() => setPreviewOpen(false)}
         onRefresh={() => void reloadContent()}
         onJumpToMessage={jumpToMessage}
+        sessionId={session?.id ?? sessionId}
+        onImageAnnotationRefine={refineImageWithAnnotation}
         className="min-h-0 flex-1 border-l-0"
       />
     </div>
@@ -917,6 +934,8 @@ export default function StudioSessionPage() {
                 onClose={() => setPreviewOpen(false)}
                 onRefresh={() => void reloadContent()}
                 onJumpToMessage={jumpToMessage}
+                sessionId={session?.id ?? sessionId}
+                onImageAnnotationRefine={refineImageWithAnnotation}
                 className="h-full w-full min-w-0"
               />
             </div>

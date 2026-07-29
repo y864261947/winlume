@@ -252,6 +252,8 @@ export type UploadImageArtifactBody = {
   sessionId: string;
   name: string;
   dataUrl: string;
+  visibility?: "hidden";
+  purpose?: "annotation";
 };
 
 /** Persist an uploaded image as a ready Artifact. */
@@ -278,6 +280,19 @@ export async function uploadImageArtifact(
 
   const data = await parseJson<{ artifact: Artifact }>(response);
   return data.artifact;
+}
+
+/** Persist a marked image as an internal targeting reference for refinement. */
+export async function uploadImageAnnotation(body: {
+  sessionId: string;
+  name: string;
+  dataUrl: string;
+}): Promise<Artifact> {
+  return uploadImageArtifact({
+    ...body,
+    visibility: "hidden",
+    purpose: "annotation",
+  });
 }
 
 /* ── Artifacts ─────────────────────────────────────────────── */

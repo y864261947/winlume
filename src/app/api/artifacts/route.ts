@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     : await webStore.artifacts.listByUser(userId);
 
   // Newest first
-  const sorted = [...artifacts].sort((a, b) =>
+  const sorted = artifacts.filter((artifact) => artifact.visibility !== "hidden").sort((a, b) =>
     b.createdAt.localeCompare(a.createdAt),
   );
 
