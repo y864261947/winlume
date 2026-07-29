@@ -44,6 +44,7 @@ import {
   StudioApiError,
 } from "@/lib/studio/api";
 import { subscribeArtifactStream } from "@/lib/studio/artifact-stream-client";
+import { hasMentionToken } from "@/lib/studio/mention-editor";
 import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
 
 type MobileTab = "chat" | "works";
@@ -584,6 +585,21 @@ export default function StudioSessionPage() {
     setHighlightMessageId(messageId);
   }, []);
 
+  const retryGeneration = useCallback(
+    (messageId: string) => {
+      const original = chat.messages.find(
+        (message) => message.id === messageId && message.role === "user",
+      );
+      if (!original || hasMentionToken(original.content)) {
+        // Stored text alone cannot safely rebuild referenced artifact ids.
+        jumpToMessage(messageId);
+        return;
+      }
+      return chat.send(original.content);
+    },
+    [chat, jumpToMessage],
+  );
+
   /** No handoff bootstrap and the server bundle hasn't resolved yet. */
   const showThreadSkeleton = !hasHandoff && initialMessages === undefined;
 
@@ -813,6 +829,7 @@ export default function StudioSessionPage() {
         onClose={() => setPreviewOpen(false)}
         onRefresh={() => void reloadContent()}
         onJumpToMessage={jumpToMessage}
+        onRetryGeneration={retryGeneration}
         sessionId={session?.id ?? sessionId}
         onImageAnnotationRefine={refineImageWithAnnotation}
         className="min-h-0 flex-1 border-l-0"
@@ -934,6 +951,7 @@ export default function StudioSessionPage() {
                 onClose={() => setPreviewOpen(false)}
                 onRefresh={() => void reloadContent()}
                 onJumpToMessage={jumpToMessage}
+                onRetryGeneration={retryGeneration}
                 sessionId={session?.id ?? sessionId}
                 onImageAnnotationRefine={refineImageWithAnnotation}
                 className="h-full w-full min-w-0"

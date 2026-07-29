@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import {
+  CheckSquare,
   ChevronLeft,
+  Download,
   FileCode2,
   FileJson,
   FileText,
@@ -10,8 +12,10 @@ import {
   Image as ImageIcon,
   LoaderCircle,
   RefreshCw,
+  Square,
 } from "lucide-react";
 import type { Artifact, ArtifactKind } from "@/lib/agent/types";
+import { downloadImageArtifact } from "@/lib/studio/artifact-download";
 
 const KIND_LABELS: Record<ArtifactKind, string> = {
   markdown: "Markdown",
@@ -78,6 +82,38 @@ export default function ArtifactPanel({
   className = "",
 }: ArtifactPanelProps) {
   const [kindFilter, setKindFilter] = useState<"all" | ArtifactKind>("all");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const imageArtifacts = useMemo(
+    () =>
+      artifacts.filter(
+        (artifact) => artifact.kind === "image" && artifact.status !== "failed",
+      ),
+    [artifacts],
+  );
+
+  const toggleSelectMode = () => {
+    setSelectMode((previous) => !previous);
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const downloadSelected = () => {
+    imageArtifacts
+      .filter((artifact) => selectedIds.has(artifact.id))
+      .forEach((artifact, index) => {
+        window.setTimeout(() => downloadImageArtifact(artifact), index * 150);
+      });
+  };
 
   const kindCounts = useMemo(() => {
     const map = new Map<ArtifactKind, number>();
@@ -120,6 +156,21 @@ export default function ArtifactPanel({
           ) : null}
         </h2>
         <div className="flex shrink-0 items-center gap-0.5">
+          {imageArtifacts.length > 1 ? (
+            <button
+              type="button"
+              onClick={toggleSelectMode}
+              className={`inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium transition ${
+                selectMode
+                  ? "bg-[rgba(15,23,42,0.1)] text-[#0F172A]"
+                  : "text-ink-500 hover:bg-canvas hover:text-ink-800"
+              }`}
+              title="多选图片以批量下载"
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              {selectMode ? "取消多选" : "多选"}
+            </button>
+          ) : null}
           {onRefresh ? (
             <button
               type="button"
@@ -147,6 +198,20 @@ export default function ArtifactPanel({
           ) : null}
         </div>
       </div>
+
+      {selectMode && selectedIds.size > 0 ? (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line/70 bg-[rgba(15,23,42,0.03)] px-3 py-1.5 text-xs text-ink-700">
+          <span>已选 {selectedIds.size} 张</span>
+          <button
+            type="button"
+            onClick={downloadSelected}
+            className="inline-flex items-center gap-1 rounded-md bg-[#0F172A] px-2 py-1 text-[11px] font-medium text-white transition hover:bg-[#1E293B]"
+          >
+            <Download className="h-3 w-3" />
+            批量下载
+          </button>
+        </div>
+      ) : null}
 
       {/* Kind chips — only show when multiple kinds exist */}
       {artifacts.length > 1 && visibleFilters.length > 2 ? (
@@ -210,13 +275,35 @@ export default function ArtifactPanel({
             {list.map((a) => {
               const active = selectedId === a.id;
               const flash = flashId === a.id;
+              const checked = selectedIds.has(a.id);
+              const selectable =
+                selectMode && a.kind === "image" && a.status !== "failed";
               return (
-                <li key={a.id}>
+                <li key={a.id} className="flex items-center gap-1.5">
+                  {selectMode ? (
+                    <button
+                      type="button"
+                      onClick={() => selectable && toggleSelected(a.id)}
+                      disabled={!selectable}
+                      className="shrink-0 p-1 text-ink-400 disabled:opacity-30"
+                      title={selectable ? "选择此作品" : "仅支持选择图片作品"}
+                    >
+                      {checked ? (
+                        <CheckSquare className="h-4 w-4 text-primary-600" />
+                      ) : (
+                        <Square className="h-4 w-4" />
+                      )}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
-                    onClick={() => onSelect(a.id)}
+                    onClick={() =>
+                      selectMode
+                        ? selectable && toggleSelected(a.id)
+                        : onSelect(a.id)
+                    }
                     className={`flex w-full items-start gap-2 rounded-xl px-2.5 py-2.5 text-left transition ${
-                      active
+                      active && !selectMode
                         ? "bg-primary-50 ring-1 ring-primary-200"
                         : "hover:bg-canvas"
                     } ${

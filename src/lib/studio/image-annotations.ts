@@ -96,6 +96,24 @@ export function annotationBounds(
   };
 }
 
+/** Fills a comment onto every mark that does not have one yet. */
+export function applyCommentToUncommentedMarks(
+  marks: readonly ImageAnnotationMark[],
+  comment: string,
+): ImageAnnotationMark[] {
+  return marks.map((mark) =>
+    mark.comment?.trim() ? mark : { ...mark, comment },
+  );
+}
+
+/** Removes exactly one mark by id. */
+export function removeAnnotationMark(
+  marks: readonly ImageAnnotationMark[],
+  markId: string,
+): ImageAnnotationMark[] {
+  return marks.filter((mark) => mark.id !== markId);
+}
+
 /** Returns the decoded byte count of a base64 data URL without allocating it. */
 export function dataUrlByteLength(dataUrl: string): number {
   const comma = dataUrl.indexOf(",");

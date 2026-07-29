@@ -69,6 +69,14 @@ describe("buildMentionCandidates", () => {
     expect(list.map((c) => c.name)).toEqual(["图片1", "Sunset"]);
     expect(list[0]?.source).toBe("local");
   });
+
+  it('maps a failed local upload to status "failed" instead of stuck pending', () => {
+    const candidates = buildMentionCandidates(
+      [img({ id: "l1", name: "图片1", uploadFailed: true })],
+      [],
+    );
+    expect(candidates[0]).toMatchObject({ name: "图片1", status: "failed" });
+  });
 });
 
 describe("extractAtMentionNames", () => {

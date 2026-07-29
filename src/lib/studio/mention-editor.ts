@@ -18,6 +18,11 @@ const MENTION_TOKEN_RE = /@([^\s@]+)/g;
 /** Zero-width space after chips so the caret can sit after them. */
 export const CHIP_ZWSP = "\u200B";
 
+/** True when text contains an @token, used to gate safe message re-send. */
+export function hasMentionToken(text: string): boolean {
+  return new RegExp(MENTION_TOKEN_RE).test(text);
+}
+
 export function segmentsToText(segments: EditorSegment[]): string {
   return segments
     .map((s) => (s.type === "text" ? s.text : `@${s.name}`))

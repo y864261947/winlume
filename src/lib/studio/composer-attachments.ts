@@ -32,6 +32,8 @@ export type ImageAttachment = {
   dataUrl: string;
   /** Set once the image finishes persisting as an Artifact. */
   artifactId?: string;
+  /** True after a persist attempt threw and the attachment can be retried. */
+  uploadFailed?: boolean;
 };
 
 export type FileAttachment = {

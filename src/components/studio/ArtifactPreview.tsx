@@ -39,6 +39,8 @@ import {
 import ImageAnnotationOverlay, {
   type ImageAnnotationSubmit,
 } from "@/components/studio/ImageAnnotationOverlay";
+import RetryableError from "@/components/studio/RetryableError";
+import { downloadImageArtifact } from "@/lib/studio/artifact-download";
 import {
   buildImageRefinementInstruction,
 } from "@/lib/studio/image-annotations";
@@ -89,6 +91,8 @@ export type ArtifactPreviewProps = {
   onRefresh?: () => void;
   /** Jump to the chat message that produced this artifact. */
   onJumpToMessage?: (messageId: string) => void;
+  /** Re-send the original generation request for a failed image artifact. */
+  onRetryGeneration?: (messageId: string) => void | Promise<unknown>;
   /** Uploads a marked reference then sends the canonical image-edit turn. */
   onImageAnnotationRefine?: (input: {
     baseArtifactId: string;
@@ -270,6 +274,7 @@ function renderPreview(
   content: string,
   htmlFrame: HtmlFrame,
   imageRef?: RefObject<HTMLImageElement | null>,
+  retry?: { onRetry?: () => void; retrying?: boolean },
 ): ReactNode {
   switch (artifact.kind) {
     case "markdown":
@@ -287,9 +292,13 @@ function renderPreview(
       }
       if (artifact.status === "failed") {
         return (
-          <p className="px-4 py-6 text-sm text-rose-600">
-            生成失败{artifact.error ? `：${artifact.error}` : ""}
-          </p>
+          <div className="px-4 py-6">
+            <RetryableError
+              message={`生成失败${artifact.error ? `：${artifact.error}` : ""}`}
+              onRetry={retry?.onRetry}
+              retrying={retry?.retrying}
+            />
+          </div>
         );
       }
       return (
@@ -371,6 +380,7 @@ export default function ArtifactPreview({
   onClose,
   onRefresh,
   onJumpToMessage,
+  onRetryGeneration,
   onImageAnnotationRefine,
   sessionId,
   className = "",
@@ -387,6 +397,7 @@ export default function ArtifactPreview({
   const [annotationImage, setAnnotationImage] = useState<HTMLImageElement | null>(null);
   const [annotationBusy, setAnnotationBusy] = useState(false);
   const [annotationError, setAnnotationError] = useState<string | null>(null);
+  const [retryingGeneration, setRetryingGeneration] = useState(false);
 
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openTabRef = useRef<string | null>(null);
@@ -578,11 +589,7 @@ export default function ArtifactPreview({
   const handleDownload = useCallback(() => {
     if (!artifact) return;
     if (artifact.kind === "image") {
-      const ext = extensionFor(artifact.kind, artifact.name, artifact.mimeType);
-      const a = document.createElement("a");
-      a.href = `/api/artifacts/${artifact.id}/raw`;
-      a.download = `${artifact.name}${ext}`;
-      a.click();
+      downloadImageArtifact(artifact);
       return;
     }
     if (content == null) return;
@@ -696,6 +703,16 @@ export default function ArtifactPreview({
 
   const showModeToggle = canShowSource && hasPreview;
   const busy = loading || content == null || artifact?.status === "pending";
+
+  const handleRetryGeneration = useCallback(async () => {
+    if (!artifact?.messageId || !onRetryGeneration) return;
+    setRetryingGeneration(true);
+    try {
+      await onRetryGeneration(artifact.messageId);
+    } finally {
+      setRetryingGeneration(false);
+    }
+  }, [artifact?.messageId, onRetryGeneration]);
 
   const renderAction = (key: ActionKey, opts?: { inMenu?: boolean }) => {
     const inMenu = opts?.inMenu;
@@ -1094,7 +1111,16 @@ export default function ArtifactPreview({
           renderPreview(artifact, content, htmlFrame)
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {renderPreview(artifact, content, htmlFrame, annotationImageRef)}
+            {renderPreview(artifact, content, htmlFrame, annotationImageRef, {
+              onRetry:
+                artifact.kind === "image" &&
+                artifact.status === "failed" &&
+                artifact.messageId &&
+                onRetryGeneration
+                  ? () => void handleRetryGeneration()
+                  : undefined,
+              retrying: retryingGeneration,
+            })}
           </div>
         )}
       </div>

@@ -12,22 +12,27 @@ import { createPortal } from "react-dom";
 import {
   ChevronLeft,
   ChevronRight,
+  CopyCheck,
   LoaderCircle,
   MapPin,
   Pencil,
   Redo2,
   Send,
   Square,
+  Trash2,
   Undo2,
   X,
 } from "lucide-react";
 import {
+  applyCommentToUncommentedMarks,
   compositeImageAnnotation,
   drawImageAnnotationMarks,
   normalizeAnnotationPoint,
+  removeAnnotationMark,
   type AnnotationMarkKind,
   type ImageAnnotationMark,
 } from "@/lib/studio/image-annotations";
+import RetryableError from "@/components/studio/RetryableError";
 
 export type ImageAnnotationSubmit = {
   dataUrl: string;
@@ -357,6 +362,25 @@ export default function ImageAnnotationOverlay(props: {
     );
   };
 
+  const applyCommentToAll = () => {
+    if (!activeCommentMarkId) return;
+    const comment = activeCommentMark?.comment?.trim();
+    if (!comment) return;
+    marksRef.current = applyCommentToUncommentedMarks(marksRef.current, comment);
+    syncMarksForUi();
+  };
+
+  const deleteActiveMark = () => {
+    if (!activeCommentMarkId) return;
+    marksRef.current = removeAnnotationMark(marksRef.current, activeCommentMarkId);
+    // Direct deletion is outside the linear undo stack, so stale redo is invalid.
+    redoRef.current = [];
+    syncMarksForUi();
+    setHistory({ marks: marksRef.current.length, redo: 0 });
+    setRevision((value) => value + 1);
+    setActiveCommentMarkId(marksRef.current.at(-1)?.id ?? null);
+  };
+
   const selectComment = (direction: -1 | 1) => {
     if (!marksForUi.length) return;
     const current = Math.max(0, activeCommentIndex);
@@ -507,7 +531,29 @@ export default function ImageAnnotationOverlay(props: {
               className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-[#241E36] outline-none placeholder:text-[#8A8298] disabled:opacity-60"
             />
           </div>
-          <div className="mt-1.5 flex items-center justify-between gap-2 border-t border-slate-100 px-1 pt-1.5">
+          <div className="mt-1.5 flex items-center gap-1 border-t border-slate-100 px-1 pt-1.5">
+            <button
+              type="button"
+              onClick={applyCommentToAll}
+              disabled={busy || submitting || !activeCommentMark?.comment?.trim() || marksForUi.length < 2}
+              title="把这条说明套用到所有还没填写的标记"
+              className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-[#615A73] transition-colors hover:bg-[#F1F5F9] hover:text-[#0F172A] disabled:pointer-events-none disabled:opacity-40"
+            >
+              <CopyCheck className="h-3 w-3" />
+              应用到全部未填写
+            </button>
+            <button
+              type="button"
+              onClick={deleteActiveMark}
+              disabled={busy || submitting || !activeCommentMarkId}
+              title="删除这个标记"
+              className="ml-auto inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-rose-600 transition-colors hover:bg-rose-50 disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Trash2 className="h-3 w-3" />
+              删除标记
+            </button>
+          </div>
+          <div className="flex items-center justify-between gap-2 px-1 pt-1">
             <p className="min-w-0 text-xs text-[#615A73]" aria-live="polite">
               {submissionStage === "encoding"
                 ? "正在准备批注图..."
@@ -531,13 +577,17 @@ export default function ImageAnnotationOverlay(props: {
         </div>
       ) : null}
       {visibleError ? (
-        <p
-          role="alert"
-          className="pointer-events-auto fixed w-[min(24rem,calc(100vw-2rem))] rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700 shadow-sm"
-          style={anchoredComment ? { left: anchoredComment.left, top: Math.max(8, anchoredComment.top - 42) } : undefined}
+        <div
+          className="pointer-events-auto fixed w-[min(24rem,calc(100vw-2rem))] shadow-sm"
+          style={anchoredComment ? { left: anchoredComment.left, top: Math.max(8, anchoredComment.top - 46) } : undefined}
         >
-          {visibleError}
-        </p>
+          <RetryableError
+            message={visibleError}
+            onRetry={submitError ? () => void send() : undefined}
+            retrying={submitting}
+            className="text-xs"
+          />
+        </div>
       ) : null}
     </div>,
     portalTarget,

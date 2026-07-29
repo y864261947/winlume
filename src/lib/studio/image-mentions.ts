@@ -52,7 +52,7 @@ export function buildMentionCandidates(
       thumbSrc: img.dataUrl,
       artifactId: img.artifactId,
       localId: img.id,
-      status: img.artifactId ? "ready" : "pending",
+      status: img.uploadFailed ? "failed" : img.artifactId ? "ready" : "pending",
       source: "local",
     });
     seenName.add(name);
