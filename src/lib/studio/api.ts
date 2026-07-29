@@ -246,6 +246,38 @@ export async function streamChat(
   }
 }
 
+export type UploadImageArtifactBody = {
+  sessionId: string;
+  name: string;
+  dataUrl: string;
+};
+
+/** Persist an uploaded image as a ready Artifact. */
+export async function uploadImageArtifact(
+  body: UploadImageArtifactBody,
+): Promise<Artifact> {
+  const response = await fetch("/api/artifacts/upload-image", {
+    method: "POST",
+    headers: withUserHeaders(),
+    body: JSON.stringify(body),
+    credentials: "same-origin",
+  });
+
+  if (response.status === 401) {
+    throw new StudioApiError("请先登录", 401);
+  }
+  if (!response.ok) {
+    const errBody = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (errBody as { error?: string }).error || "图片上传失败",
+      response.status,
+    );
+  }
+
+  const data = await parseJson<{ artifact: Artifact }>(response);
+  return data.artifact;
+}
+
 /* ── Artifacts ─────────────────────────────────────────────── */
 
 export async function listArtifacts(sessionId?: string): Promise<Artifact[]> {
