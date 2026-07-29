@@ -21,6 +21,10 @@ describe("mimeTypeForKind", () => {
     expect(mimeTypeForKind("json")).toContain("json");
     expect(mimeTypeForKind("text")).toContain("plain");
   });
+
+  it("maps canvas", () => {
+    expect(mimeTypeForKind("canvas")).toContain("canvas");
+  });
 });
 
 describe("parseToolArgumentsJson", () => {
