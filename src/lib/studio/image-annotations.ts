@@ -19,6 +19,22 @@ export type ImageBounds = {
   height: number;
 };
 
+/** Leave transport headroom below the shared 2 MiB image-upload limit. */
+export const MAX_ANNOTATION_IMAGE_BYTES = Math.floor(1.8 * 1024 * 1024);
+
+const ANNOTATION_ENCODING_STEPS = [
+  { scale: 1, quality: 0.86 },
+  { scale: 1, quality: 0.72 },
+  { scale: 0.85, quality: 0.8 },
+  { scale: 0.85, quality: 0.66 },
+  { scale: 0.7, quality: 0.74 },
+  { scale: 0.7, quality: 0.6 },
+  { scale: 0.55, quality: 0.68 },
+  { scale: 0.45, quality: 0.62 },
+  { scale: 0.35, quality: 0.58 },
+  { scale: 0.28, quality: 0.54 },
+] as const;
+
 type AnnotationBounds = {
   x: number;
   y: number;
@@ -74,6 +90,16 @@ export function annotationBounds(
     width: round(maxX - minX),
     height: round(maxY - minY),
   };
+}
+
+/** Returns the decoded byte count of a base64 data URL without allocating it. */
+export function dataUrlByteLength(dataUrl: string): number {
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) return 0;
+  const base64 = dataUrl.slice(comma + 1);
+  if (!base64) return 0;
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
 }
 
 function markDescription(mark: ImageAnnotationMark): string {
@@ -173,22 +199,64 @@ export function drawImageAnnotationMarks(
   ctx.restore();
 }
 
-/** Composite the clean source image with marks at its natural pixel dimensions. */
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  mimeType: string,
+  quality: number,
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("浏览器无法压缩批注图"));
+    }, mimeType, quality);
+  });
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("读取批注图失败"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Composite the clean source image with marks into an upload-safe JPEG.
+ * The source is deliberately kept separate in the actual edit request, so
+ * this image only needs enough fidelity to communicate targets to the model.
+ */
 export async function compositeImageAnnotation(
   image: HTMLImageElement,
   marks: readonly ImageAnnotationMark[],
 ): Promise<string> {
-  const width = image.naturalWidth;
-  const height = image.naturalHeight;
-  if (!width || !height) {
+  const naturalWidth = image.naturalWidth;
+  const naturalHeight = image.naturalHeight;
+  if (!naturalWidth || !naturalHeight) {
     throw new Error("图片尚未准备好，无法创建标注");
   }
+
+  // Do not allocate an unnecessarily huge canvas for a high-resolution source.
+  const baseScale = Math.min(1, 4096 / Math.max(naturalWidth, naturalHeight));
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("浏览器不支持图片标注画布");
-  ctx.drawImage(image, 0, 0, width, height);
-  drawImageAnnotationMarks(ctx, marks, width, height);
-  return canvas.toDataURL("image/png");
+
+  for (const step of ANNOTATION_ENCODING_STEPS) {
+    const width = Math.max(1, Math.round(naturalWidth * baseScale * step.scale));
+    const height = Math.max(1, Math.round(naturalHeight * baseScale * step.scale));
+    canvas.width = width;
+    canvas.height = height;
+    // JPEG has no alpha channel. A white backing avoids black transparent areas.
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(image, 0, 0, width, height);
+    drawImageAnnotationMarks(ctx, marks, width, height);
+
+    const blob = await canvasToBlob(canvas, "image/jpeg", step.quality);
+    if (blob.size > MAX_ANNOTATION_IMAGE_BYTES) continue;
+    return blobToDataUrl(blob);
+  }
+
+  throw new Error("图片细节过多，无法压缩到可提交的批注大小，请换一张较小的图片后重试");
 }

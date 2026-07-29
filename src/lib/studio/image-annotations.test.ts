@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   annotationBounds,
   buildImageRefinementInstruction,
+  dataUrlByteLength,
   normalizeAnnotationPoint,
 } from "./image-annotations";
 
@@ -64,5 +65,12 @@ describe("image annotations", () => {
         },
       ]),
     ).toEqual({ x: 0.2, y: 0.4, width: 0.7, height: 0.3 });
+  });
+
+  it("counts base64 data URL bytes without decoding image content", () => {
+    expect(dataUrlByteLength("data:image/jpeg;base64,YWJj")).toBe(3);
+    expect(dataUrlByteLength("data:image/jpeg;base64,YWI=")).toBe(2);
+    expect(dataUrlByteLength("data:image/jpeg;base64,YQ==")).toBe(1);
+    expect(dataUrlByteLength("not-a-data-url")).toBe(0);
   });
 });
