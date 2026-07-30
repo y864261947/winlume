@@ -14,8 +14,43 @@ export interface CanvasArtifactContent {
   };
 }
 
+/**
+ * Excalidraw keeps live collaboration state in a Map. JSON turns that Map
+ * into `{}`, which then crashes Excalidraw when it expects `.forEach()`.
+ */
+export function sanitizeCanvasAppState(value: unknown): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+
+  const { collaborators: _collaborators, ...appState } = value as Record<string, unknown>;
+  return appState;
+}
+
+function normalizeCanvasScene(value: unknown): CanvasArtifactContent["scene"] | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const scene = value as { elements?: unknown; appState?: unknown };
+  if (!Array.isArray(scene.elements)) return undefined;
+
+  return {
+    elements: scene.elements as CanvasElement[],
+    appState: sanitizeCanvasAppState(scene.appState),
+  };
+}
+
 export function serializeCanvasContent(content: CanvasArtifactContent): string {
-  return JSON.stringify(content);
+  return JSON.stringify({
+    ...content,
+    scene: content.scene
+      ? {
+          ...content.scene,
+          appState: sanitizeCanvasAppState(content.scene.appState),
+        }
+      : undefined,
+  });
 }
 
 export function parseCanvasContent(raw: string): CanvasArtifactContent | null {
@@ -34,7 +69,11 @@ export function parseCanvasContent(raw: string): CanvasArtifactContent | null {
     return null;
   }
 
-  return parsed as CanvasArtifactContent;
+  const content = parsed as CanvasArtifactContent;
+  return {
+    ...content,
+    scene: normalizeCanvasScene(content.scene),
+  };
 }
 
 export function needsCanvasConversion(content: CanvasArtifactContent): boolean {

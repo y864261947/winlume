@@ -39,6 +39,7 @@ import type { Artifact, ArtifactKind } from "@/lib/agent/types";
 import {
   needsCanvasConversion,
   parseCanvasContent,
+  sanitizeCanvasAppState,
   serializeCanvasContent,
   type CanvasArtifactContent,
   type CanvasElement,
@@ -329,7 +330,7 @@ function CanvasBody({ artifactId, content }: { artifactId: string; content: stri
           convertedFromMermaid: parsed.mermaidSource,
           scene: {
             elements: buildUpdatedScene(parsed.scene?.elements ?? [], freshElements),
-            appState: parsed.scene?.appState ?? {},
+            appState: sanitizeCanvasAppState(parsed.scene?.appState),
           },
         };
       } catch (error) {
@@ -372,7 +373,7 @@ function CanvasBody({ artifactId, content }: { artifactId: string; content: stri
           ...latest,
           scene: {
             elements: [...elements] as unknown as CanvasElement[],
-            appState: appState as unknown as Record<string, unknown>,
+            appState: sanitizeCanvasAppState(appState),
           },
         };
         parsedRef.current = next;
@@ -406,7 +407,9 @@ function CanvasBody({ artifactId, content }: { artifactId: string; content: stri
 
   const initialData: ExcalidrawInitialDataState = {
     elements: parsed.scene.elements as unknown as ExcalidrawInitialDataState["elements"],
-    appState: parsed.scene.appState as ExcalidrawInitialDataState["appState"],
+    appState: sanitizeCanvasAppState(
+      parsed.scene.appState,
+    ) as ExcalidrawInitialDataState["appState"],
   };
 
   return (
