@@ -3,6 +3,7 @@ import {
   mergeCanvasElements,
   needsCanvasConversion,
   parseCanvasContent,
+  sanitizeCanvasAppState,
   serializeCanvasContent,
   tagAsMermaidSourced,
   type CanvasArtifactContent,
@@ -26,6 +27,30 @@ describe("serializeCanvasContent / parseCanvasContent", () => {
 
   it("returns null when mermaidSource is missing", () => {
     expect(parseCanvasContent(JSON.stringify({ scene: { elements: [], appState: {} } }))).toBeNull();
+  });
+
+  it("removes Excalidraw collaboration state while saving and loading", () => {
+    const content: CanvasArtifactContent = {
+      mermaidSource: "flowchart TD\nA-->B",
+      scene: {
+        elements: [],
+        appState: { collaborators: new Map([["user", { id: "user" }]]), zoom: 1 },
+      },
+    };
+
+    const saved = serializeCanvasContent(content);
+    expect(saved).not.toContain("collaborators");
+    expect(parseCanvasContent(saved)?.scene?.appState).toEqual({ zoom: 1 });
+  });
+
+  it("repairs legacy payloads where JSON converted collaborators to an object", () => {
+    const legacy = JSON.stringify({
+      mermaidSource: "flowchart TD\nA-->B",
+      scene: { elements: [], appState: { collaborators: {}, zoom: 1 } },
+    });
+
+    expect(parseCanvasContent(legacy)?.scene?.appState).toEqual({ zoom: 1 });
+    expect(sanitizeCanvasAppState({ collaborators: {}, zoom: 1 })).toEqual({ zoom: 1 });
   });
 });
 
