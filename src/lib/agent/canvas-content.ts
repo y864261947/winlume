@@ -23,7 +23,29 @@ export function sanitizeCanvasAppState(value: unknown): Record<string, unknown> 
     return {};
   }
 
-  const { collaborators: _collaborators, ...appState } = value as Record<string, unknown>;
+  const source = value as Record<string, unknown>;
+  const appState: Record<string, unknown> = {};
+
+  if (typeof source.viewBackgroundColor === "string") {
+    appState.viewBackgroundColor = source.viewBackgroundColor;
+  }
+  if (typeof source.gridSize === "number" && Number.isFinite(source.gridSize)) {
+    appState.gridSize = source.gridSize;
+  }
+  if (typeof source.gridModeEnabled === "boolean") {
+    appState.gridModeEnabled = source.gridModeEnabled;
+  }
+  if (
+    typeof source.zoom === "object" &&
+    source.zoom !== null &&
+    !Array.isArray(source.zoom) &&
+    typeof (source.zoom as { value?: unknown }).value === "number" &&
+    Number.isFinite((source.zoom as { value: number }).value) &&
+    (source.zoom as { value: number }).value > 0
+  ) {
+    appState.zoom = { value: (source.zoom as { value: number }).value };
+  }
+
   return appState;
 }
 

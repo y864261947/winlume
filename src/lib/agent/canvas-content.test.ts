@@ -15,7 +15,7 @@ describe("serializeCanvasContent / parseCanvasContent", () => {
     const content: CanvasArtifactContent = {
       mermaidSource: "flowchart TD\nA-->B",
       convertedFromMermaid: "flowchart TD\nA-->B",
-      scene: { elements: [{ id: "1" }], appState: { zoom: 1 } },
+      scene: { elements: [{ id: "1" }], appState: { zoom: { value: 1 } } },
     };
 
     expect(parseCanvasContent(serializeCanvasContent(content))).toEqual(content);
@@ -34,23 +34,46 @@ describe("serializeCanvasContent / parseCanvasContent", () => {
       mermaidSource: "flowchart TD\nA-->B",
       scene: {
         elements: [],
-        appState: { collaborators: new Map([["user", { id: "user" }]]), zoom: 1 },
+        appState: { collaborators: new Map([["user", { id: "user" }]]), zoom: { value: 1 } },
       },
     };
 
     const saved = serializeCanvasContent(content);
     expect(saved).not.toContain("collaborators");
-    expect(parseCanvasContent(saved)?.scene?.appState).toEqual({ zoom: 1 });
+    expect(parseCanvasContent(saved)?.scene?.appState).toEqual({ zoom: { value: 1 } });
   });
 
   it("repairs legacy payloads where JSON converted collaborators to an object", () => {
     const legacy = JSON.stringify({
       mermaidSource: "flowchart TD\nA-->B",
-      scene: { elements: [], appState: { collaborators: {}, zoom: 1 } },
+      scene: { elements: [], appState: { collaborators: {}, zoom: { value: 1 } } },
     });
 
-    expect(parseCanvasContent(legacy)?.scene?.appState).toEqual({ zoom: 1 });
-    expect(sanitizeCanvasAppState({ collaborators: {}, zoom: 1 })).toEqual({ zoom: 1 });
+    expect(parseCanvasContent(legacy)?.scene?.appState).toEqual({ zoom: { value: 1 } });
+    expect(sanitizeCanvasAppState({ collaborators: {}, zoom: { value: 1 } })).toEqual({
+      zoom: { value: 1 },
+    });
+  });
+
+  it("removes transient viewport and editor state from legacy canvas payloads", () => {
+    const appState = sanitizeCanvasAppState({
+      height: 0,
+      offsetTop: 137,
+      scrollX: 0,
+      scrollY: 0,
+      width: 595,
+      viewBackgroundColor: "#ffffff",
+      gridSize: 20,
+      gridModeEnabled: false,
+      zoom: { value: 1 },
+    });
+
+    expect(appState).toEqual({
+      viewBackgroundColor: "#ffffff",
+      gridSize: 20,
+      gridModeEnabled: false,
+      zoom: { value: 1 },
+    });
   });
 });
 
