@@ -365,19 +365,17 @@ function CanvasBody({ artifactId, content }: { artifactId: string; content: stri
       const current = parsedRef.current;
       if (!current) return;
 
+      const next: CanvasArtifactContent = {
+        ...current,
+        scene: {
+          elements: [...elements] as unknown as CanvasElement[],
+          appState: sanitizeCanvasAppState(appState),
+        },
+      };
+      parsedRef.current = next;
+
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
-        const latest = parsedRef.current;
-        if (!latest) return;
-        const next: CanvasArtifactContent = {
-          ...latest,
-          scene: {
-            elements: [...elements] as unknown as CanvasElement[],
-            appState: sanitizeCanvasAppState(appState),
-          },
-        };
-        parsedRef.current = next;
-        setParsed(next);
         void persistCanvas(artifactId, { content: serializeCanvasContent(next) })
           .then(() => setSaveError(null))
           .catch((error: unknown) => {
@@ -388,6 +386,16 @@ function CanvasBody({ artifactId, content }: { artifactId: string; content: stri
     [artifactId],
   );
 
+  const initialData = useMemo<ExcalidrawInitialDataState | null>(() => {
+    if (!parsed?.scene) return null;
+    return {
+      elements: parsed.scene.elements as unknown as ExcalidrawInitialDataState["elements"],
+      appState: sanitizeCanvasAppState(
+        parsed.scene.appState,
+      ) as ExcalidrawInitialDataState["appState"],
+    };
+  }, [parsed]);
+
   if (conversionError) {
     return (
       <div className="px-4 py-6">
@@ -396,7 +404,7 @@ function CanvasBody({ artifactId, content }: { artifactId: string; content: stri
     );
   }
 
-  if (!parsed?.scene) {
+  if (!parsed?.scene || !initialData) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-10 text-sm text-ink-400">
         <LoaderCircle className="h-5 w-5 animate-spin" />
@@ -404,13 +412,6 @@ function CanvasBody({ artifactId, content }: { artifactId: string; content: stri
       </div>
     );
   }
-
-  const initialData: ExcalidrawInitialDataState = {
-    elements: parsed.scene.elements as unknown as ExcalidrawInitialDataState["elements"],
-    appState: sanitizeCanvasAppState(
-      parsed.scene.appState,
-    ) as ExcalidrawInitialDataState["appState"],
-  };
 
   return (
     <div className="relative flex min-h-[28rem] min-w-0 flex-1 flex-col">
