@@ -506,7 +506,7 @@ function renderPreview(
       }
       return (
         <CanvasBody
-          key={`${artifact.id}:${content}`}
+          key={artifact.id}
           artifactId={artifact.id}
           content={content}
         />
