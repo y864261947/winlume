@@ -1,6 +1,14 @@
-import type { NextAuthOptions } from "next-auth";
+import type { NextAuthOptions, User } from "next-auth";
+import type { AdapterUser } from "next-auth/adapters";
 import CredentialsProvider from "next-auth/providers/credentials";
 import type { OAuthConfig } from "next-auth/providers/oauth";
+import {
+  applySessionClaimsToToken,
+  authenticatePlatformCredentials,
+  getAuthMode,
+  sessionClaimsFromToken,
+  type PlatformAuthUser,
+} from "@/lib/platform/auth";
 
 type GatewayLoginPayload = {
   success?: boolean;
@@ -20,7 +28,39 @@ type V2ApiProfile = {
   email?: string;
 };
 
-const gatewayUrl = (process.env.NEW_API_URL ?? "https://v2api.top").replace(/\/+$/, "");
+function isPlatformAuthUser(user: User | AdapterUser): user is (User | AdapterUser) & PlatformAuthUser {
+  return typeof user.username === "string"
+    && typeof user.displayName === "string"
+    && typeof user.platformRole === "string"
+    && typeof user.status === "string"
+    && typeof user.authVersion === "number";
+}
+
+function createWinlumeCredentialsProvider() {
+  return CredentialsProvider({
+    id: "credentials",
+    name: "WinLume",
+    credentials: {
+      username: { label: "用户名", type: "text" },
+      password: { label: "密码", type: "password" },
+    },
+    async authorize(credentials) {
+      try {
+        return await authenticatePlatformCredentials({
+          username: credentials?.username ?? "",
+          password: credentials?.password ?? "",
+        });
+      } catch {
+        return null;
+      }
+    },
+  });
+}
+
+function legacyGatewayUrl(): string | undefined {
+  const configured = process.env.NEW_API_URL?.trim();
+  return configured ? configured.replace(/\/+$/, "") : undefined;
+}
 
 function gatewayUser(payload: GatewayLoginPayload) {
   const user = payload.data;
@@ -32,70 +72,100 @@ function gatewayUser(payload: GatewayLoginPayload) {
   };
 }
 
-const v2ApiProvider: OAuthConfig<V2ApiProfile> = {
-  id: "v2api",
-  name: "v2api",
-  type: "oauth",
-  clientId: process.env.AUTH_V2API_ID,
-  clientSecret: process.env.AUTH_V2API_SECRET,
-  authorization: {
-    url: `${gatewayUrl}/oauth/authorize`,
-    params: { scope: "profile email" },
-  },
-  token: `${gatewayUrl}/api/oauth/token`,
-  userinfo: `${gatewayUrl}/api/oauth/userinfo`,
-  checks: ["pkce", "state"],
-  profile(profile) {
-    const id = profile.sub?.trim();
-    if (!id) throw new Error("v2api userinfo response did not include sub");
-    const username = profile.preferred_username?.trim() || id;
-    return {
-      id,
-      name: profile.name?.trim() || username,
-      email: profile.email?.trim() || null,
+function createLegacyProviders(): NextAuthOptions["providers"] {
+  const gatewayUrl = legacyGatewayUrl();
+  const providers: NextAuthOptions["providers"] = [
+    CredentialsProvider({
+      id: "credentials",
+      name: "用户名和密码",
+      credentials: {
+        username: { label: "用户名", type: "text" },
+        password: { label: "密码", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!gatewayUrl) return null;
+        const username = credentials?.username?.trim();
+        const password = credentials?.password;
+        if (!username || !password) return null;
+        try {
+          const response = await fetch(`${gatewayUrl}/api/user/login`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ username, password }),
+            cache: "no-store",
+          });
+          if (!response.ok) return null;
+          const payload = (await response.json().catch(() => null)) as GatewayLoginPayload | null;
+          return payload ? gatewayUser(payload) : null;
+        } catch {
+          return null;
+        }
+      },
+    }),
+  ];
+
+  if (gatewayUrl && process.env.AUTH_V2API_ID && process.env.AUTH_V2API_SECRET) {
+    const v2ApiProvider: OAuthConfig<V2ApiProfile> = {
+      id: "v2api",
+      name: "v2api",
+      type: "oauth",
+      clientId: process.env.AUTH_V2API_ID,
+      clientSecret: process.env.AUTH_V2API_SECRET,
+      authorization: {
+        url: `${gatewayUrl}/oauth/authorize`,
+        params: { scope: "profile email" },
+      },
+      token: `${gatewayUrl}/api/oauth/token`,
+      userinfo: `${gatewayUrl}/api/oauth/userinfo`,
+      checks: ["pkce", "state"],
+      profile(profile) {
+        const id = profile.sub?.trim();
+        if (!id) throw new Error("v2api userinfo response did not include sub");
+        const username = profile.preferred_username?.trim() || id;
+        return {
+          id,
+          name: profile.name?.trim() || username,
+          email: profile.email?.trim() || null,
+        };
+      },
     };
-  },
-};
-
-const providers: NextAuthOptions["providers"] = [
-  CredentialsProvider({
-    id: "credentials",
-    name: "用户名和密码",
-    credentials: {
-      username: { label: "用户名", type: "text" },
-      password: { label: "密码", type: "password" },
-    },
-    async authorize(credentials) {
-      const username = credentials?.username?.trim();
-      const password = credentials?.password;
-      if (!username || !password) return null;
-
-      const response = await fetch(`${gatewayUrl}/api/user/login`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ username, password }),
-        cache: "no-store",
-      });
-      if (!response.ok) return null;
-
-      const payload = (await response.json().catch(() => null)) as GatewayLoginPayload | null;
-      return payload ? gatewayUser(payload) : null;
-    },
-  }),
-];
-
-if (process.env.AUTH_V2API_ID && process.env.AUTH_V2API_SECRET) {
-  providers.unshift(v2ApiProvider);
+    providers.unshift(v2ApiProvider);
+  }
+  return providers;
 }
 
-export const authOptions: NextAuthOptions = {
-  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
-  session: { strategy: "jwt" },
-  providers,
-  callbacks: {
-    async session({ session, token }) {
-      if (session.user && token.sub) session.user.id = token.sub;
-      return session;
+export function createAuthOptions(mode = getAuthMode()): NextAuthOptions {
+  const providers = mode === "legacy" ? createLegacyProviders() : [createWinlumeCredentialsProvider()];
+  return {
+    secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+    // Credentials authentication uses Auth.js JWTs even when the identity is
+    // looked up in PostgreSQL. Keep this explicit: Auth.js database sessions
+    // are not a supported replacement for the credentials provider.
+    session: { strategy: "jwt" },
+    providers,
+    callbacks: {
+      async jwt({ token, user }) {
+        if (!user) return token;
+        token.sub = user.id;
+        if (!isPlatformAuthUser(user)) return token;
+        return applySessionClaimsToToken(token, user) as typeof token;
+      },
+      async session({ session, token }) {
+        const claims = sessionClaimsFromToken(token);
+        if (!session.user || !claims) return session;
+        session.user.id = claims.id;
+        session.user.name = claims.displayName;
+        session.user.email = claims.email;
+        session.user.username = claims.username;
+        session.user.displayName = claims.displayName;
+        session.user.platformRole = claims.platformRole;
+        session.user.status = claims.status;
+        session.user.authVersion = claims.authVersion;
+        session.user.legacyNewApiUserId = claims.legacyNewApiUserId;
+        return session;
+      },
     },
-  },
-};
+  };
+}
+
+export const authOptions: NextAuthOptions = createAuthOptions();

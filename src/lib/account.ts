@@ -8,7 +8,7 @@ export interface BalanceConfig {
 }
 
 export interface Account {
-  id: number;
+  id: string;
   username: string;
   display_name?: string;
   email?: string;
@@ -62,7 +62,7 @@ export async function logout() {
 }
 
 export function formatBalance(quota: number | undefined, config: BalanceConfig | null) {
-  if (typeof quota !== "number") return "请在 v2api 查看";
+  if (typeof quota !== "number") return "余额同步中";
   const perUnit = config?.quota_per_unit;
   if (!perUnit || perUnit <= 0) return "余额同步中";
   const multiplier = config?.quota_display_type === "custom"
@@ -72,6 +72,9 @@ export function formatBalance(quota: number | undefined, config: BalanceConfig |
   const symbol = config?.quota_display_type === "custom"
     ? (config.custom_currency_symbol || "¥")
     : "$";
+  if (symbol === "credits") {
+    return `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(amount)} credits`;
+  }
   return `${symbol}${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(amount)}`;
 }
 import { signIn, signOut } from "next-auth/react";

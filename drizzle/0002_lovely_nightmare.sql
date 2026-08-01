@@ -1,0 +1,4 @@
+CREATE UNIQUE INDEX "personality_presets_personal_default_unique" ON "personality_presets" USING btree ("owner_user_id") WHERE "personality_presets"."is_default" = true AND "personality_presets"."scope" = 'personal';--> statement-breakpoint
+CREATE UNIQUE INDEX "personality_presets_organization_default_unique" ON "personality_presets" USING btree ("organization_id") WHERE "personality_presets"."is_default" = true AND "personality_presets"."scope" = 'organization';--> statement-breakpoint
+CREATE UNIQUE INDEX "tool_presets_personal_default_unique" ON "tool_presets" USING btree ("owner_user_id") WHERE "tool_presets"."is_default" = true AND "tool_presets"."scope" = 'personal';--> statement-breakpoint
+CREATE UNIQUE INDEX "tool_presets_organization_default_unique" ON "tool_presets" USING btree ("organization_id") WHERE "tool_presets"."is_default" = true AND "tool_presets"."scope" = 'organization';

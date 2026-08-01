@@ -1,5 +1,5 @@
 /**
- * OpenAI-compatible chat completions client for the NewAPI gateway.
+ * OpenAI-compatible chat completions client for the WinLume gateway.
  * Streams text (and optional tool-call deltas) via SSE. No tool execution here.
  */
 
@@ -28,10 +28,12 @@ export interface GatewayChatMessage {
 export interface StreamGatewayChatParams {
   model: string;
   messages: GatewayChatMessage[];
-  /** Bearer token; defaults to process.env.WINLUME_GATEWAY_TOKEN */
+  /** Legacy Bearer token. Used only in explicit legacy mode or test adapters. */
   token?: string;
-  /** Sent as New-Api-User when set */
+  /** Auth.js/platform user id for the trusted Studio service identity. */
   userId?: string;
+  /** Override the trusted Studio service token. */
+  internalToken?: string;
   tools?: unknown[];
   tool_choice?: unknown;
   signal?: AbortSignal;
@@ -47,12 +49,17 @@ export type GatewayChatStream = (
   params: StreamGatewayChatParams,
 ) => AsyncGenerator<ChatChunk, void, undefined>;
 
-const DEFAULT_BASE = "https://v2api.top";
+const DEFAULT_BASE = "http://127.0.0.1:4010";
 const DEFAULT_CHAT_PATH = "/v1/chat/completions";
 
 export function getGatewayBaseUrl(override?: string): string {
-  const raw = override ?? process.env.NEW_API_URL ?? DEFAULT_BASE;
+  const legacy = process.env.WINLUME_AUTH_MODE?.trim().toLowerCase() === "legacy";
+  const raw = override ?? process.env.WINLUME_GATEWAY_URL ?? (legacy ? process.env.NEW_API_URL : undefined) ?? DEFAULT_BASE;
   return raw.replace(/\/+$/, "");
+}
+
+function legacyTransport(params: { token?: string }): boolean {
+  return Boolean(params.token) || process.env.WINLUME_AUTH_MODE?.trim().toLowerCase() === "legacy";
 }
 
 export function getChatPath(override?: string): string {
@@ -260,7 +267,8 @@ export async function* streamGatewayChat(
   const baseUrl = getGatewayBaseUrl(params.baseUrl);
   const chatPath = getChatPath(params.chatPath);
   const url = `${baseUrl}${chatPath}`;
-  const token = params.token ?? process.env.WINLUME_GATEWAY_TOKEN ?? "";
+  const useLegacyTransport = legacyTransport(params);
+  const token = params.token ?? (useLegacyTransport ? process.env.WINLUME_GATEWAY_TOKEN : "") ?? "";
   const fetchImpl = params.fetchImpl ?? fetch;
 
   const headers: Record<string, string> = {
@@ -271,7 +279,15 @@ export async function* streamGatewayChat(
     headers.Authorization = `Bearer ${token}`;
   }
   if (params.userId) {
-    headers["New-Api-User"] = params.userId;
+    if (useLegacyTransport) {
+      headers["New-Api-User"] = params.userId;
+    } else {
+      const internalToken = params.internalToken ?? process.env.WINLUME_GATEWAY_INTERNAL_TOKEN ?? "";
+      if (internalToken) {
+        headers["x-winlume-internal-token"] = internalToken;
+        headers["x-winlume-internal-user-id"] = params.userId;
+      }
+    }
   }
 
   const body: Record<string, unknown> = {
@@ -421,6 +437,10 @@ export interface GenerateImageParams {
   /** Present → calls the image-edit endpoint with every image in order. */
   sourceImages?: { bytes: Buffer; mimeType: string }[];
   token?: string;
+  /** Auth.js/platform user id for the trusted Studio service identity. */
+  userId?: string;
+  /** Override the trusted Studio service token. */
+  internalToken?: string;
   baseUrl?: string;
   fetchImpl?: typeof fetch;
 }
@@ -480,7 +500,8 @@ export async function generateImage(
   params: GenerateImageParams,
 ): Promise<GeneratedImage[]> {
   const baseUrl = getGatewayBaseUrl(params.baseUrl);
-  const token = params.token ?? process.env.WINLUME_IMAGE_GATEWAY_TOKEN ?? "";
+  const useLegacyTransport = legacyTransport(params);
+  const token = params.token ?? (useLegacyTransport ? process.env.WINLUME_IMAGE_GATEWAY_TOKEN : "") ?? "";
   const model = params.model ?? process.env.WINLUME_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL;
   const fetchImpl = params.fetchImpl ?? fetch;
   const isEdit = Boolean(params.sourceImages?.length);
@@ -489,6 +510,17 @@ export async function generateImage(
 
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (params.userId) {
+    if (useLegacyTransport) {
+      headers["New-Api-User"] = params.userId;
+    } else {
+      const internalToken = params.internalToken ?? process.env.WINLUME_GATEWAY_INTERNAL_TOKEN ?? "";
+      if (internalToken) {
+        headers["x-winlume-internal-token"] = internalToken;
+        headers["x-winlume-internal-user-id"] = params.userId;
+      }
+    }
+  }
 
   let body: BodyInit;
   if (isEdit) {
