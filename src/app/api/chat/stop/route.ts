@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getCurrentUserId } from "@/lib/auth/session";
+import { RunCoordinatorError, getAgentRunService } from "@/lib/agent/infrastructure";
 import { stopTurn } from "@/lib/agent/turn-registry";
 import { repairDanglingInStore } from "@/lib/agent/dangling";
 import { webStore } from "@/lib/host/web/store-singleton";
@@ -35,6 +36,20 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Session not found" }, { status: 404 });
   }
 
+  let durableRunId: string | undefined;
+  let durableStopped = false;
+  try {
+    const run = await getAgentRunService().cancelSession(userId, sessionId);
+    durableRunId = run?.id;
+    durableStopped = Boolean(run);
+  } catch (error) {
+    if (!(error instanceof RunCoordinatorError) || error.code !== "not_found") {
+      return Response.json({ error: "Unable to cancel agent run" }, { status: 500 });
+    }
+  }
+
+  // Kept during the migration so in-flight pre-durable turns can still be
+  // interrupted. Durable cancellation above is the source of truth.
   const result = stopTurn(sessionId, userId);
 
   // Best-effort repair if stop races with tool persistence
@@ -51,7 +66,8 @@ export async function POST(request: NextRequest) {
 
   return Response.json({
     ok: true,
-    stopped: result.stopped,
-    reason: result.reason,
+    stopped: durableStopped || result.stopped,
+    ...(durableRunId ? { runId: durableRunId } : {}),
+    ...(result.reason ? { reason: result.reason } : {}),
   });
 }

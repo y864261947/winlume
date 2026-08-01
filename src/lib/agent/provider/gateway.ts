@@ -43,6 +43,10 @@ export interface StreamGatewayChatParams {
   fetchImpl?: typeof fetch;
 }
 
+export type GatewayChatStream = (
+  params: StreamGatewayChatParams,
+) => AsyncGenerator<ChatChunk, void, undefined>;
+
 const DEFAULT_BASE = "https://v2api.top";
 const DEFAULT_CHAT_PATH = "/v1/chat/completions";
 
@@ -340,7 +344,7 @@ export async function* streamGatewayChat(
     string,
     { id: string; name: string; arguments: string; index: number }
   >();
-  let indexToId = new Map<number, string>();
+  const indexToId = new Map<number, string>();
   let sawToolDelta = false;
   let finishReason: string | null = null;
 

@@ -3,7 +3,13 @@
  * Authentication is supplied by the HttpOnly Auth.js session cookie.
  */
 
-import type { AgentSseEvent, Artifact, Message, Session } from "@/lib/agent/types";
+import type {
+  AgentSseEvent,
+  Artifact,
+  Message,
+  Project,
+  Session,
+} from "@/lib/agent/types";
 
 const PENDING_FIRST_MESSAGE_KEY = "winlume:pending-first-message";
 
@@ -34,8 +40,9 @@ async function parseJson<T>(response: Response): Promise<T> {
   }
 }
 
-export async function listSessions(): Promise<Session[]> {
-  const response = await fetch("/api/sessions", {
+export async function listSessions(projectId?: string): Promise<Session[]> {
+  const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+  const response = await fetch(`/api/sessions${query}`, {
     headers: withUserHeaders(),
     credentials: "same-origin",
   });
@@ -56,6 +63,7 @@ export async function listSessions(): Promise<Session[]> {
 export async function createSession(input?: {
   model?: string;
   title?: string;
+  projectId?: string;
 }): Promise<Session> {
   const response = await fetch("/api/sessions", {
     method: "POST",
@@ -74,6 +82,105 @@ export async function createSession(input?: {
     );
   }
   return parseJson<Session>(response);
+}
+
+/* ── Projects ─────────────────────────────────────────────── */
+
+export async function listProjects(): Promise<Project[]> {
+  const response = await fetch("/api/projects", {
+    headers: withUserHeaders(),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "加载项目列表失败",
+      response.status,
+    );
+  }
+  const data = await parseJson<{ projects?: Project[] }>(response);
+  return Array.isArray(data.projects) ? data.projects : [];
+}
+
+export async function createProject(input: {
+  name: string;
+  description?: string;
+  instructions?: string;
+  pinnedSkillIds?: string[];
+}): Promise<Project> {
+  const response = await fetch("/api/projects", {
+    method: "POST",
+    headers: withUserHeaders(),
+    body: JSON.stringify(input),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "创建项目失败",
+      response.status,
+    );
+  }
+  return parseJson<Project>(response);
+}
+
+export async function getProject(id: string): Promise<Project> {
+  const response = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+    headers: withUserHeaders(),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (response.status === 404) throw new StudioApiError("项目不存在", 404);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "加载项目失败",
+      response.status,
+    );
+  }
+  const data = await parseJson<{ project?: Project } | Project>(response);
+  return "project" in data && data.project ? data.project : (data as Project);
+}
+
+export async function patchProject(
+  id: string,
+  patch: Partial<Pick<Project, "name" | "description" | "instructions" | "pinnedSkillIds">>,
+): Promise<Project> {
+  const response = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: withUserHeaders(),
+    body: JSON.stringify(patch),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (response.status === 404) throw new StudioApiError("项目不存在", 404);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "更新项目失败",
+      response.status,
+    );
+  }
+  return parseJson<Project>(response);
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  const response = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: withUserHeaders(),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (response.status === 404) throw new StudioApiError("项目不存在", 404);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "删除项目失败",
+      response.status,
+    );
+  }
 }
 
 export async function getSessionBundle(sessionId: string): Promise<{
@@ -103,7 +210,12 @@ export async function getSessionBundle(sessionId: string): Promise<{
 /** PATCH /api/sessions/[id] — title, model, and/or pinnedSkillIds (replace entire pin list). */
 export async function patchSession(
   id: string,
-  patch: { title?: string; model?: string; pinnedSkillIds?: string[] },
+  patch: {
+    title?: string;
+    model?: string;
+    projectId?: string | null;
+    pinnedSkillIds?: string[];
+  },
 ): Promise<Session> {
   const response = await fetch(`/api/sessions/${encodeURIComponent(id)}`, {
     method: "PATCH",
@@ -131,6 +243,7 @@ export type ChatRequestBody = {
   sessionId?: string;
   message: string;
   model?: string;
+  executionMode?: "studio" | "ai-sdk" | "codex";
   skillIds?: string[];
   /** Image artifact ids the user @-referenced in the composer. */
   referencedArtifactIds?: string[];

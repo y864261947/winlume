@@ -35,6 +35,58 @@ describe("web file store", () => {
     expect(msgs[0].content).toBe("你好");
   });
 
+  it("persists projects and filters sessions by project", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wl-"));
+    dirs.push(root);
+    const store = createWebFileStore(root);
+    const project = await store.projects.createProject({
+      id: "project-1",
+      userId: "u1",
+      name: "Design system",
+      description: "Shared work",
+      pinnedSkillIds: ["skill-a"],
+    });
+    expect((await store.projects.getProject("u1", "project-1"))?.name).toBe("Design system");
+    await store.sessions.createSession({
+      id: "s1", userId: "u1", title: "In project", model: "gpt-4o-mini", projectId: project.id,
+    });
+    await store.sessions.createSession({
+      id: "s2", userId: "u1", title: "Unscoped", model: "gpt-4o-mini",
+    });
+    expect((await store.sessions.listSessions("u1", project.id)).map((s) => s.id)).toEqual(["s1"]);
+    await store.artifacts.write(
+      {
+        id: "project-artifact",
+        userId: "u1",
+        sessionId: "s1",
+        projectId: project.id,
+        name: "Shared brief",
+        kind: "markdown",
+        mimeType: "text/markdown",
+        storageKey: "",
+        createdAt: new Date().toISOString(),
+      },
+      "# Shared brief",
+    );
+    expect(
+      (await store.artifacts.listByProject("u1", project.id)).map(
+        (artifact) => artifact.id,
+      ),
+    ).toEqual(["project-artifact"]);
+    const updated = await store.projects.updateProject("u1", "project-1", { instructions: "Be concise" });
+    expect(updated.instructions).toBe("Be concise");
+    await store.projects.deleteProject("u1", "project-1");
+    expect(await store.projects.getProject("u1", "project-1")).toBeNull();
+    expect((await store.sessions.getSession("u1", "s1"))?.projectId).toBeUndefined();
+  });
+
+  it("rejects unsafe project ids before touching the filesystem", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wl-"));
+    dirs.push(root);
+    const store = createWebFileStore(root);
+    await expect(store.projects.getProject("u1", "../escape")).rejects.toThrow(/Invalid projectId/);
+  });
+
   it("persists pinnedSkillIds and allows clear with []", async () => {
     const root = mkdtempSync(join(tmpdir(), "wl-"));
     dirs.push(root);
@@ -77,6 +129,30 @@ describe("web file store", () => {
     });
     expect(titled.title).toBe("renamed");
     expect(titled.pinnedSkillIds).toEqual(["keep-me"]);
+  });
+
+  it("persists a Codex thread id for specialist continuity", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wl-"));
+    dirs.push(root);
+    const store = createWebFileStore(root);
+    await store.sessions.createSession({
+      id: "s1",
+      userId: "u1",
+      title: "coding",
+      model: "gpt-5.6-terra",
+    });
+
+    await store.sessions.updateSession("u1", "s1", {
+      codexThreadId: "thread-123",
+    });
+
+    expect((await store.sessions.getSession("u1", "s1"))?.codexThreadId).toBe(
+      "thread-123",
+    );
+    expect(
+      (await store.sessions.listSessions("u1")).find((s) => s.id === "s1")
+        ?.codexThreadId,
+    ).toBe("thread-123");
   });
 
   it("persists hidden annotation metadata without changing visible artifacts", async () => {

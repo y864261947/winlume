@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
       id: randomUUID(),
       userId,
       sessionId,
+      ...(session.projectId ? { projectId: session.projectId } : {}),
       name,
       kind: "image",
       mimeType: parsed.mimeType,

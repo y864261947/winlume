@@ -56,3 +56,4 @@ next-env.d.ts
 /data/users/
 /data/*.db
 /data/blobs/
+/data/runs/

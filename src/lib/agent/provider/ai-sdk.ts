@@ -1,0 +1,184 @@
+/**
+ * Vercel AI SDK transport for the existing OpenAI-compatible gateway.
+ *
+ * This adapter deliberately returns the project's existing ChatChunk shape.
+ * That lets the current runtime keep ownership of persistence, tool policy,
+ * cancellation, and artifact events while the model transport migrates to AI SDK.
+ */
+
+import {
+  jsonSchema,
+  streamText,
+  type ModelMessage,
+  type ToolSet,
+} from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
+import {
+  getChatPath,
+  getGatewayBaseUrl,
+  type ChatChunk,
+  type GatewayChatMessage,
+  type StreamGatewayChatParams,
+} from "./gateway";
+
+type OpenAiToolDefinition = {
+  type?: "function";
+  function?: {
+    name?: string;
+    description?: string;
+    parameters?: unknown;
+  };
+};
+
+/** Convert persisted OpenAI-compatible messages to AI SDK model messages. */
+export function toAiSdkMessages(messages: GatewayChatMessage[]): ModelMessage[] {
+  const toolNames = new Map<string, string>();
+  return messages.map((message) => {
+    if (message.role === "assistant" && message.tool_calls?.length) {
+      for (const call of message.tool_calls) {
+        toolNames.set(call.id, call.function.name);
+      }
+      return {
+        role: "assistant",
+        content: [
+          ...(message.content ? [{ type: "text" as const, text: message.content }] : []),
+          ...message.tool_calls.map((call) => ({
+            type: "tool-call" as const,
+            toolCallId: call.id,
+            toolName: call.function.name,
+            input: parseJson(call.function.arguments),
+          })),
+        ],
+      } as ModelMessage;
+    }
+
+    if (message.role === "tool") {
+      return {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result" as const,
+            toolCallId: message.tool_call_id ?? "unknown",
+            toolName: toolNames.get(message.tool_call_id ?? "") ?? "unknown",
+            output: { type: "text" as const, value: message.content ?? "" },
+          },
+        ],
+      } as ModelMessage;
+    }
+
+    return { role: message.role, content: message.content ?? "" } as ModelMessage;
+  });
+}
+
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
+}
+
+function aiSdkTools(rawTools: unknown[] | undefined): ToolSet {
+  const tools: Record<string, unknown> = {};
+  for (const raw of rawTools ?? []) {
+    const definition = raw as OpenAiToolDefinition;
+    const fn = definition.function;
+    const name = fn?.name?.trim();
+    if (!name || !fn?.parameters || typeof fn.parameters !== "object") continue;
+
+    // No execute function is attached here. The existing WinLume runtime owns
+    // execution so it can persist tool calls and emit its established SSE events.
+    tools[name] = {
+      description: fn.description,
+      inputSchema: jsonSchema(fn.parameters as Record<string, unknown>),
+      outputSchema: jsonSchema({ type: "object" }),
+    };
+  }
+  return tools as ToolSet;
+}
+
+function modelFor(params: StreamGatewayChatParams) {
+  const chatPath = getChatPath(params.chatPath);
+  const suffix = "/chat/completions";
+  if (!chatPath.endsWith(suffix)) {
+    throw new Error(
+      `AI SDK transport requires a chat-completions path ending in ${suffix}`,
+    );
+  }
+  const base = `${getGatewayBaseUrl(params.baseUrl)}${chatPath.slice(0, -suffix.length)}`;
+  const provider = createOpenAI({
+    name: "winlume-gateway",
+    baseURL: base,
+    // The gateway accepts a bearer token. A placeholder keeps AI SDK from
+    // rejecting an intentionally unauthenticated local test gateway.
+    apiKey: params.token ?? process.env.WINLUME_GATEWAY_TOKEN ?? "unused",
+    headers: {
+      ...(params.userId ? { "New-Api-User": params.userId } : {}),
+    },
+    fetch: params.fetchImpl,
+  });
+  return provider.chat(params.model);
+}
+
+/**
+ * Stream one gateway call through AI SDK while preserving ChatChunk semantics.
+ * Tool execution remains in `runAgentTurn`, so this function is a transport
+ * replacement rather than a second tool runtime.
+ */
+export async function* streamAiSdkGatewayChat(
+  params: StreamGatewayChatParams,
+): AsyncGenerator<ChatChunk, void, undefined> {
+  try {
+    const calls: { id: string; name: string; arguments: string }[] = [];
+    let failed = false;
+    const result = streamText({
+      model: modelFor(params),
+      messages: toAiSdkMessages(params.messages),
+      tools: aiSdkTools(params.tools),
+      maxRetries: 0,
+      abortSignal: params.signal,
+    });
+
+    for await (const part of result.fullStream) {
+      const chunk = part as Record<string, unknown>;
+      switch (chunk.type) {
+        case "text-delta":
+          if (typeof chunk.text === "string") {
+            yield { kind: "text", text: chunk.text };
+          } else if (typeof chunk.delta === "string") {
+            yield { kind: "text", text: chunk.delta };
+          }
+          break;
+        case "tool-call":
+          calls.push({
+            id: String(chunk.toolCallId ?? `ai-sdk-tool-call-${calls.length}`),
+            name: String(chunk.toolName ?? "unknown"),
+            arguments: JSON.stringify(chunk.input ?? {}),
+          });
+          break;
+        case "error":
+        case "tool-error":
+          failed = true;
+          yield {
+            kind: "error",
+            message:
+              chunk.error instanceof Error
+                ? chunk.error.message
+                : String(chunk.error ?? "AI SDK stream failed"),
+          };
+          break;
+        default:
+          // Reasoning, source, finish, and raw provider chunks do not map to
+          // the existing Studio transport contract yet.
+          break;
+      }
+    }
+    if (!failed && calls.length) yield { kind: "tool_calls", calls };
+  } catch (error) {
+    if (params.signal?.aborted) throw error;
+    yield {
+      kind: "error",
+      message: error instanceof Error ? error.message : "AI SDK request failed",
+    };
+  }
+}

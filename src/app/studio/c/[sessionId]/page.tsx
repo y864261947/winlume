@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  FolderKanban,
   PanelLeftClose,
   PanelRight,
 } from "lucide-react";
@@ -32,9 +33,10 @@ import {
   type ArtifactEventPayload,
 } from "@/components/studio/useStudioChat";
 import { useModals } from "@/components/providers";
-import type { Artifact, Message, Session } from "@/lib/agent/types";
+import type { Artifact, Message, Project, Session } from "@/lib/agent/types";
 import {
   getArtifact,
+  getProject,
   getSessionBundle,
   listArtifacts,
   patchSession,
@@ -81,6 +83,7 @@ export default function StudioSessionPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const [initialMessages, setInitialMessages] = useState<
     Message[] | undefined
   >(undefined);
@@ -377,6 +380,27 @@ export default function StudioSessionPage() {
     onArtifact,
   });
 
+  // Resolve the shared project context independently from the chat bundle so
+  // older sessions (without projectId) continue to render unchanged.
+  useEffect(() => {
+    const projectId = session?.projectId;
+    if (!projectId || !account) {
+      const timer = window.setTimeout(() => setProject(null), 0);
+      return () => window.clearTimeout(timer);
+    }
+    let cancelled = false;
+    getProject(projectId)
+      .then((nextProject) => {
+        if (!cancelled) setProject(nextProject);
+      })
+      .catch(() => {
+        if (!cancelled) setProject(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [account, session?.projectId]);
+
   const refineImageWithAnnotation = useCallback(
     (input: {
       baseArtifactId: string;
@@ -615,7 +639,19 @@ export default function StudioSessionPage() {
         <span className="sr-only">返回</span>
       </Link>
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-sm font-semibold text-[#241E36]">{title}</h1>
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="min-w-0 truncate text-sm font-semibold text-[#241E36]">{title}</h1>
+          {project ? (
+            <Link
+              href={`/studio/p/${encodeURIComponent(project.id)}`}
+              className="hidden min-w-0 max-w-[180px] shrink-0 items-center gap-1 rounded-[7px] bg-white/55 px-1.5 py-0.5 text-[10px] font-medium text-[#615A73] transition hover:bg-white hover:text-[#241E36] sm:inline-flex"
+              title={`返回项目：${project.name}`}
+            >
+              <FolderKanban className="h-3 w-3 shrink-0 text-[#0F172A]" strokeWidth={1.8} />
+              <span className="truncate">{project.name}</span>
+            </Link>
+          ) : null}
+        </div>
         {session?.model || chat.model ? (
           <p className="truncate font-mono text-[11px] text-[#8A8298]">
             {chat.model || session?.model}

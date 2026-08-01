@@ -8,11 +8,13 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { Artifact, Message, Session } from "@/lib/agent/types";
-import type { ArtifactStore, SessionStore } from "@/lib/host/ports";
+import type { Artifact, Message, Project, Session } from "@/lib/agent/types";
+import type { ArtifactStore, ProjectStore, SessionStore } from "@/lib/host/ports";
 import {
   artifactsIndexPath,
   blobPath,
+  projectFilePath,
+  projectsIndexPath,
   sessionFilePath,
   sessionsIndexPath,
   storageKeyFor,
@@ -80,9 +82,11 @@ function createSessionStore(rootDir: string): SessionStore {
   }
 
   return {
-    async listSessions(userId) {
+    async listSessions(userId, projectId) {
       const sessions = readIndex(userId);
-      return [...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      return [...sessions]
+        .filter((session) => projectId === undefined || session.projectId === projectId)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     },
 
     async getSession(userId, sessionId) {
@@ -100,6 +104,13 @@ function createSessionStore(rootDir: string): SessionStore {
         userId: input.userId,
         title: input.title,
         model: input.model,
+        ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+        ...(input.pinnedSkillIds !== undefined
+          ? { pinnedSkillIds: input.pinnedSkillIds }
+          : {}),
+        ...(input.codexThreadId !== undefined
+          ? { codexThreadId: input.codexThreadId }
+          : {}),
         createdAt,
         updatedAt: createdAt,
       };
@@ -126,8 +137,15 @@ function createSessionStore(rootDir: string): SessionStore {
         ...(patch.pinnedSkillIds !== undefined
           ? { pinnedSkillIds: patch.pinnedSkillIds }
           : {}),
+        ...(patch.codexThreadId !== undefined
+          ? { codexThreadId: patch.codexThreadId }
+          : {}),
         updatedAt: nowIso(),
       };
+      if (patch.projectId !== undefined) {
+        if (patch.projectId === null) delete session.projectId;
+        else session.projectId = patch.projectId;
+      }
       writeSessionFile(userId, { session, messages: file.messages });
 
       const index = readIndex(userId);
@@ -178,6 +196,102 @@ function createSessionStore(rootDir: string): SessionStore {
   };
 }
 
+function createProjectStore(
+  rootDir: string,
+  sessions?: SessionStore,
+): ProjectStore {
+  function readIndex(userId: string): Project[] {
+    return readJsonFile<Project[]>(projectsIndexPath(rootDir, userId), []);
+  }
+
+  function writeIndex(userId: string, projects: Project[]): void {
+    writeJsonFile(projectsIndexPath(rootDir, userId), projects);
+  }
+
+  function readProjectFile(userId: string, projectId: string): Project | null {
+    const path = projectFilePath(rootDir, userId, projectId);
+    if (!existsSync(path)) return null;
+    return readJsonFile<Project | null>(path, null);
+  }
+
+  function writeProjectFile(project: Project, ownerId = project.userId): void {
+    if (!ownerId) throw new Error(`Project owner missing: ${project.id}`);
+    writeJsonFile(projectFilePath(rootDir, ownerId, project.id), project);
+  }
+
+  return {
+    async listProjects(userId) {
+      return [...readIndex(userId)].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    },
+
+    async getProject(userId, projectId) {
+      return readProjectFile(userId, projectId) ?? readIndex(userId).find((p) => p.id === projectId) ?? null;
+    },
+
+    async createProject(input) {
+      ensureDir(userDir(rootDir, input.userId));
+      const createdAt = input.createdAt ?? nowIso();
+      const project: Project = {
+        id: input.id,
+        userId: input.userId,
+        name: input.name,
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.instructions !== undefined ? { instructions: input.instructions } : {}),
+        ...(input.pinnedSkillIds !== undefined ? { pinnedSkillIds: input.pinnedSkillIds } : {}),
+        createdAt,
+        updatedAt: createdAt,
+      };
+      const index = readIndex(input.userId);
+      if (index.some((p) => p.id === project.id)) throw new Error(`Project already exists: ${project.id}`);
+      index.push(project);
+      writeIndex(input.userId, index);
+      writeProjectFile(project);
+      return project;
+    },
+
+    async updateProject(userId, projectId, patch) {
+      const project = await this.getProject(userId, projectId);
+      if (!project) throw new Error(`Project not found: ${projectId}`);
+      const updated: Project = {
+        ...project,
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.pinnedSkillIds !== undefined ? { pinnedSkillIds: patch.pinnedSkillIds } : {}),
+        updatedAt: nowIso(),
+      };
+      if (patch.description !== undefined) {
+        if (patch.description === null) delete updated.description;
+        else updated.description = patch.description;
+      }
+      if (patch.instructions !== undefined) {
+        if (patch.instructions === null) delete updated.instructions;
+        else updated.instructions = patch.instructions;
+      }
+      writeProjectFile(updated, userId);
+      const index = readIndex(userId);
+      const i = index.findIndex((p) => p.id === projectId);
+      if (i >= 0) index[i] = updated;
+      else index.push(updated);
+      writeIndex(userId, index);
+      return updated;
+    },
+
+    async deleteProject(userId, projectId) {
+      // Preserve conversations when a workspace is removed, but detach them so
+      // no session continues to reference a project that no longer exists.
+      if (sessions) {
+        const attached = await sessions.listSessions(userId, projectId);
+        for (const session of attached) {
+          await sessions.updateSession(userId, session.id, { projectId: null });
+        }
+      }
+      const path = projectFilePath(rootDir, userId, projectId);
+      if (existsSync(path)) unlinkSync(path);
+      const index = readIndex(userId);
+      writeIndex(userId, index.filter((p) => p.id !== projectId));
+    },
+  };
+}
+
 function createArtifactStore(rootDir: string): ArtifactStore {
   function readIndex(userId: string): Artifact[] {
     return readJsonFile<Artifact[]>(artifactsIndexPath(rootDir, userId), []);
@@ -194,6 +308,10 @@ function createArtifactStore(rootDir: string): ArtifactStore {
 
     async listBySession(userId, sessionId) {
       return readIndex(userId).filter((a) => a.sessionId === sessionId);
+    },
+
+    async listByProject(userId, projectId) {
+      return readIndex(userId).filter((a) => a.projectId === projectId);
     },
 
     async get(userId, artifactId) {
@@ -225,6 +343,7 @@ function createArtifactStore(rootDir: string): ArtifactStore {
 
 export interface WebFileStore {
   sessions: SessionStore;
+  projects: ProjectStore;
   artifacts: ArtifactStore;
 }
 
@@ -238,8 +357,10 @@ export interface WebFileStore {
  */
 export function createWebFileStore(rootDir: string): WebFileStore {
   ensureDir(rootDir);
+  const sessions = createSessionStore(rootDir);
   return {
-    sessions: createSessionStore(rootDir),
+    sessions,
+    projects: createProjectStore(rootDir, sessions),
     artifacts: createArtifactStore(rootDir),
   };
 }
