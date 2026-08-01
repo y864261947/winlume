@@ -7,9 +7,10 @@ import { randomUUID } from "node:crypto";
 import type { AgentSseEvent, Artifact, Message, ToolCallRecord } from "@/lib/agent/types";
 import { parseCanvasContent } from "@/lib/agent/canvas-content";
 import { summarizeCanvasElements } from "@/lib/agent/canvas-summary";
-import type { ArtifactStore, SessionStore } from "@/lib/host/ports";
+import type { ArtifactStore, ProjectStore, SessionStore } from "@/lib/host/ports";
 import {
   streamGatewayChat,
+  type GatewayChatStream,
   type GatewayChatMessage,
   type GatewayToolCall,
 } from "@/lib/agent/provider/gateway";
@@ -133,6 +134,27 @@ function buildSessionReminder(artifactCount: number): string {
   ].join("\n");
 }
 
+export function buildProjectReminder(
+  project: Awaited<ReturnType<ProjectStore["getProject"]>>,
+  sharedArtifactCount: number,
+): string {
+  if (!project) return "";
+  return [
+    "<project-context>",
+    `Project: ${project.name}`,
+    project.description ? `Description: ${project.description}` : "",
+    project.instructions
+      ? `Project instructions:\n${project.instructions}`
+      : "",
+    sharedArtifactCount > 0
+      ? `This project has ${sharedArtifactCount} shared artifact(s). Prefer list_artifacts with scope=project before creating duplicates.`
+      : "",
+    "</project-context>",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 /** @deprecated Prefer buildReferencedArtifactsReminder for multi-@ prompts. */
 export function buildReferencedArtifactReminder(artifact: Artifact | null): string {
   return buildReferencedArtifactsReminder(artifact ? [artifact] : []);
@@ -221,6 +243,10 @@ export interface RunAgentTurnOpts {
   userId: string;
   sessionId: string;
   userText: string;
+  /** Shared project context for this conversation. */
+  projectId?: string;
+  /** Durable run identity used for event correlation. */
+  runId?: string;
   skillIds?: string[];
   /**
    * Image or canvas artifact ids the user @-referenced in the composer.
@@ -231,10 +257,13 @@ export interface RunAgentTurnOpts {
   referencedArtifactId?: string;
   model?: string;
   sessions: SessionStore;
+  projects?: ProjectStore;
   artifacts: ArtifactStore;
   signal?: AbortSignal;
   /** Forwarded to gateway as New-Api-User when set */
   gatewayUserId?: string;
+  /** Model transport override. The runtime still owns tools and persistence. */
+  streamChat?: GatewayChatStream;
 }
 
 /**
@@ -245,6 +274,7 @@ export async function* runAgentTurn(
   opts: RunAgentTurnOpts,
 ): AsyncGenerator<AgentSseEvent, void, undefined> {
   const { userId, sessionId, sessions, artifacts, signal } = opts;
+  const streamChat = opts.streamChat ?? streamGatewayChat;
   const userText = opts.userText.trim();
   if (!userText) {
     yield { type: "error", message: "消息不能为空", code: "empty_message" };
@@ -272,6 +302,20 @@ export async function* runAgentTurn(
     (typeof opts.model === "string" && opts.model.trim()) || session.model;
   if (model !== session.model) {
     session = await sessions.updateSession(userId, sessionId, { model });
+  }
+
+  const projectId = opts.projectId ?? session.projectId;
+  const project = projectId && opts.projects
+    ? await opts.projects.getProject(userId, projectId)
+    : null;
+  if (projectId && !project) {
+    yield {
+      type: "error",
+      message: "项目不存在或无权访问",
+      code: "project_not_found",
+    };
+    yield { type: "done", reason: "error" };
+    return;
   }
 
   // Repair any dangling tool_calls from a previous aborted turn
@@ -302,13 +346,17 @@ export async function* runAgentTurn(
   yield { type: "session", sessionId };
 
   const effectiveSkillIds = mergeSkillIds(
-    session.pinnedSkillIds,
+    [...(project?.pinnedSkillIds ?? []), ...(session.pinnedSkillIds ?? [])],
     opts.skillIds,
   );
   const skills = await resolveSkills(effectiveSkillIds);
   let artifactCount = 0;
+  let sharedArtifactCount = 0;
   try {
     artifactCount = (await artifacts.listBySession(userId, sessionId)).length;
+    if (projectId) {
+      sharedArtifactCount = (await artifacts.listByProject(userId, projectId)).length;
+    }
   } catch {
     /* ignore */
   }
@@ -343,7 +391,8 @@ export async function* runAgentTurn(
     userId,
   );
 
-  const combinedReminder = [reminder, artifactReminder, canvasReminder]
+  const projectReminder = buildProjectReminder(project, sharedArtifactCount);
+  const combinedReminder = [reminder, projectReminder, artifactReminder, canvasReminder]
     .filter(Boolean)
     .join("\n\n");
   const system = buildSystemPrompt(
@@ -386,7 +435,7 @@ export async function* runAgentTurn(
     let announcedWriteTool = false;
 
     try {
-      for await (const chunk of streamGatewayChat({
+      for await (const chunk of streamChat({
         model,
         messages: gatewayMessages,
         tools,
@@ -587,6 +636,7 @@ export async function* runAgentTurn(
       const result = await executeStudioTool(call.name, call.arguments, {
         userId,
         sessionId,
+        ...(projectId ? { projectId } : {}),
         artifacts,
         messageId: assistantId,
         todoState,
@@ -687,6 +737,7 @@ export async function* runAgentTurn(
             id,
             userId,
             sessionId,
+            ...(projectId ? { projectId } : {}),
             ...(lastAssistantMessageId
               ? { messageId: lastAssistantMessageId }
               : {}),

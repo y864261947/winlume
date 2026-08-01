@@ -5,7 +5,24 @@ export interface Session {
   userId: string;
   title: string;
   model: string;
+  /** Optional project scope shared by multiple conversations. */
+  projectId?: string;
   /** Skills applied to every turn unless overridden; UI may pin/unpin */
+  pinnedSkillIds?: string[];
+  /** Codex SDK thread persisted for coding-specialist continuity. */
+  codexThreadId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A durable workspace shared by a user's conversations and agent context. */
+export interface Project {
+  id: string;
+  /** May be omitted from public API responses; ownership is server-side. */
+  userId?: string;
+  name: string;
+  description?: string;
+  instructions?: string;
   pinnedSkillIds?: string[];
   createdAt: string;
   updatedAt: string;
@@ -65,6 +82,8 @@ export interface Artifact {
   id: string;
   userId: string;
   sessionId: string;
+  /** Shared project scope; sessionId remains the producing conversation. */
+  projectId?: string;
   messageId?: string;
   name: string;
   kind: ArtifactKind;
@@ -82,6 +101,18 @@ export interface Artifact {
 }
 
 export type AgentSseEvent =
+  /** Durable execution identity and lifecycle state for reconnect/replay. */
+  | {
+      type: "run";
+      runId: string;
+      status:
+        | "queued"
+        | "running"
+        | "waiting_approval"
+        | "completed"
+        | "failed"
+        | "cancelled";
+    }
   | { type: "session"; sessionId: string }
   | { type: "text_delta"; text: string }
   | { type: "thinking"; text: string }

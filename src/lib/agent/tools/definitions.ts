@@ -116,15 +116,15 @@ export const STUDIO_TOOLS = [
     function: {
       name: "list_artifacts",
       description:
-        "List artifacts for the current session (id, name, kind, createdAt). Does not return full content.",
+        "List artifacts shared by the current session, project, or user (id, name, kind, createdAt). Does not return full content.",
       parameters: {
         type: "object",
         properties: {
           scope: {
             type: "string",
-            enum: ["session", "user"],
+            enum: ["session", "project", "user"],
             description:
-              "session (default): only this chat session; user: all of the user's artifacts",
+              "session (default): this chat; project: artifacts from all chats in the current project; user: all of the user's artifacts",
           },
         },
         additionalProperties: false,

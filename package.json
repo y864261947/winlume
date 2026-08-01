@@ -2,6 +2,9 @@
   "name": "winlume",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,8 +15,11 @@
     "package:deploy": "node scripts/package-standalone.mjs"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.27",
     "@excalidraw/excalidraw": "^0.18.1",
     "@excalidraw/mermaid-to-excalidraw": "^2.2.2",
+    "@openai/codex-sdk": "^0.146.0",
+    "ai": "^7.0.47",
     "lucide-react": "^1.24.0",
     "next": "16.2.10",
     "next-auth": "^4.24.15",

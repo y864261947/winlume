@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
   Compass,
   FolderKanban,
+  Plus,
   HelpCircle,
   LayoutGrid,
   LoaderCircle,
@@ -21,7 +22,9 @@ import { useModals } from "@/components/providers";
 import { formatBalance } from "@/lib/account";
 import { site } from "@/data/site";
 import { listSessions } from "@/lib/studio/api";
-import type { Session } from "@/lib/agent/types";
+import { listProjects } from "@/lib/studio/api";
+import type { Project, Session } from "@/lib/agent/types";
+import ProjectDialog from "./ProjectDialog";
 
 type NavItem = {
   href: string;
@@ -75,32 +78,75 @@ export default function StudioSidebar({
   onRequestExpand?: () => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { account, accountLoading, balanceConfig, openLogin } = useModals();
   const signOutAction = useSignOutAction();
   const [recent, setRecent] = useState<Session[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (!account) {
-      setRecent([]);
-      return;
-    }
+    if (!account) return;
     let cancelled = false;
-    setRecentLoading(true);
-    listSessions()
-      .then((sessions) => {
-        if (!cancelled) setRecent(sessions.slice(0, 8));
-      })
-      .catch(() => {
-        if (!cancelled) setRecent([]);
-      })
-      .finally(() => {
-        if (!cancelled) setRecentLoading(false);
-      });
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      setRecentLoading(true);
+      listSessions()
+        .then((sessions) => {
+          if (!cancelled) setRecent(sessions.slice(0, 8));
+        })
+        .catch(() => {
+          if (!cancelled) setRecent([]);
+        })
+        .finally(() => {
+          if (!cancelled) setRecentLoading(false);
+        });
+    }, 0);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [account?.id, pathname]);
+  }, [account, pathname]);
+
+  useEffect(() => {
+    if (!account) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      setProjectsLoading(true);
+      // Projects are an additive capability. A server without the project API
+      // should leave the existing recent-chat sidebar usable.
+      listProjects()
+        .then((items) => {
+          if (!cancelled) {
+            setProjects(
+              [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+            );
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setProjects([]);
+        })
+        .finally(() => {
+          if (!cancelled) setProjectsLoading(false);
+        });
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [account, pathname]);
+
+  const sessionCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const session of recent) {
+      if (!session.projectId) continue;
+      counts.set(session.projectId, (counts.get(session.projectId) ?? 0) + 1);
+    }
+    return counts;
+  }, [recent]);
 
   const avatarLetter = (
     account?.display_name ||
@@ -184,6 +230,69 @@ export default function StudioSidebar({
         })}
       </nav>
 
+      <div className="mt-5 min-h-0 max-h-[38%] overflow-y-auto px-1">
+        <div className="mb-2 flex items-center justify-between px-2">
+          <p className="text-[11px] font-semibold tracking-wide text-[#8A8298]">
+            项目
+          </p>
+          {account ? (
+            <button
+              type="button"
+              onClick={() => setProjectDialogOpen(true)}
+              title="新建项目"
+              aria-label="新建项目"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-[7px] text-[#615A73] transition hover:bg-white/75 hover:text-[#241E36]"
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+            </button>
+          ) : null}
+        </div>
+        {!account ? (
+          <p className="px-2 text-xs leading-5 text-[#8A8298]">登录后管理项目</p>
+        ) : projectsLoading ? (
+          <p className="flex items-center gap-1.5 px-2 text-xs text-[#8A8298]">
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            加载中…
+          </p>
+        ) : projects.length === 0 ? (
+          <button
+            type="button"
+            onClick={() => setProjectDialogOpen(true)}
+            className="group w-full rounded-[10px] border border-dashed border-white/80 px-2.5 py-2 text-left text-xs leading-5 text-[#8A8298] transition hover:border-[rgba(15,23,42,0.2)] hover:bg-white/50 hover:text-[#615A73]"
+          >
+            创建一个项目，把相关对话放在一起
+          </button>
+        ) : (
+          <ul className="space-y-0.5">
+            {projects.slice(0, 12).map((project) => {
+              const active = pathname === `/studio/p/${project.id}`;
+              const count = sessionCounts.get(project.id);
+              return (
+                <li key={project.id}>
+                  <Link
+                    href={`/studio/p/${encodeURIComponent(project.id)}`}
+                    className={`studio-nav-item flex min-w-0 items-center gap-2 rounded-[10px] px-2.5 py-2 text-[13px] transition ${
+                      active
+                        ? "studio-nav-active"
+                        : "text-[#615A73] hover:text-[#241E36]"
+                    }`}
+                    title={project.description || project.name}
+                  >
+                    <FolderKanban className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />
+                    <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                    {count ? (
+                      <span className="shrink-0 text-[10px] tabular-nums text-[#AAA2B2]">
+                        {count}
+                      </span>
+                    ) : null}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
       <div className="mt-5 min-h-0 flex-1 overflow-y-auto px-1">
         <p className="mb-2 px-2 text-[11px] font-semibold tracking-wide text-[#8A8298]">
           最近对话
@@ -220,6 +329,15 @@ export default function StudioSidebar({
           </ul>
         )}
       </div>
+
+      <ProjectDialog
+        open={projectDialogOpen}
+        onClose={() => setProjectDialogOpen(false)}
+        onCreated={(project) => {
+          setProjects((current) => [project, ...current.filter((item) => item.id !== project.id)]);
+          router.push(`/studio/p/${encodeURIComponent(project.id)}`);
+        }}
+      />
 
       <div className="mt-3 space-y-1 border-t border-white/50 pt-3">
         <Link

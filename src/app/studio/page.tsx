@@ -1,11 +1,13 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Bell,
   Clapperboard,
   FileText,
+  FolderKanban,
   Globe2,
   LoaderCircle,
   Megaphone,
@@ -18,9 +20,10 @@ import Composer, {
   type ComposerSendMeta,
 } from "@/components/studio/Composer";
 import { useModals } from "@/components/providers";
-import type { SkillMeta } from "@/lib/agent/types";
+import type { Project, SkillMeta } from "@/lib/agent/types";
 import {
   createSession,
+  getProject,
   setPendingFirstMessage,
   StudioApiError,
   uploadImageArtifact,
@@ -256,19 +259,42 @@ function StudioHomeInner() {
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [featuredSkills, setFeaturedSkills] = useState<SkillMeta[] | null>(null);
   const [allSkills, setAllSkills] = useState<SkillMeta[]>([]);
+  const projectId = searchParams.get("projectId")?.trim() || "";
+  const [project, setProject] = useState<Project | null>(null);
 
   useEffect(() => {
-    const prompt = searchParams.get("prompt");
-    const skill = searchParams.get("skill");
-    const modelParam = searchParams.get("model")?.trim();
-    if (prompt) setDraft(prompt);
-    if (skill) setSelectedSkillIds([skill]);
-    if (modelParam) {
-      setModel(modelParam);
-    } else {
-      setModel(getDefaultModel());
-    }
+    const timer = window.setTimeout(() => {
+      const prompt = searchParams.get("prompt");
+      const skill = searchParams.get("skill");
+      const modelParam = searchParams.get("model")?.trim();
+      if (prompt) setDraft(prompt);
+      if (skill) setSelectedSkillIds([skill]);
+      if (modelParam) {
+        setModel(modelParam);
+      } else {
+        setModel(getDefaultModel());
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!account || !projectId) {
+      const timer = window.setTimeout(() => setProject(null), 0);
+      return () => window.clearTimeout(timer);
+    }
+    let cancelled = false;
+    getProject(projectId)
+      .then((nextProject) => {
+        if (!cancelled) setProject(nextProject);
+      })
+      .catch(() => {
+        if (!cancelled) setProject(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [account, projectId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -367,6 +393,7 @@ function StudioHomeInner() {
         const sessionPromise = createSession({
           model: requestModel,
           title: title || "新对话",
+          projectId: project?.id || projectId || undefined,
         });
         const dockPromise = flipComposerToDock(setDocking);
         const session = await sessionPromise;
@@ -446,7 +473,7 @@ function StudioHomeInner() {
         setStarting(false);
       }
     },
-    [account, model, openLogin, router, selectedSkillIds, starting],
+    [account, model, openLogin, project, projectId, router, selectedSkillIds, starting],
   );
 
   const isCardActive = useCallback(
@@ -499,6 +526,23 @@ function StudioHomeInner() {
               docking ? "mx-auto max-w-3xl" : "max-w-[720px]"
             }`}
           >
+            {project ? (
+              <div className="mb-3 flex items-center gap-2 rounded-[12px] border border-white/75 bg-white/55 px-3 py-2 text-xs text-[#615A73] shadow-sm backdrop-blur">
+                <FolderKanban className="h-3.5 w-3.5 shrink-0 text-[#0F172A]" strokeWidth={1.8} />
+                <span className="shrink-0 text-[#8A8298]">当前项目</span>
+                <Link
+                  href={`/studio/p/${encodeURIComponent(project.id)}`}
+                  className="min-w-0 truncate font-medium text-[#241E36] hover:underline"
+                >
+                  {project.name}
+                </Link>
+                {project.description ? (
+                  <span className="hidden min-w-0 truncate text-[#8A8298] sm:inline">
+                    · {project.description}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             <Composer
               variant={docking ? "default" : "hero"}
               value={draft}

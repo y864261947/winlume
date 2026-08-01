@@ -7,6 +7,7 @@ import { createWebFileStore } from "@/lib/host/web/file-store";
 import type { ArtifactStore } from "@/lib/host/ports";
 import {
   buildCanvasReferenceReminder,
+  buildProjectReminder,
   buildReferencedArtifactReminder,
   buildReferencedArtifactsReminder,
   toGatewayMessages,
@@ -182,6 +183,28 @@ describe("buildReferencedArtifactReminder", () => {
     expect(reminder).toContain("marked targeting reference");
     expect(reminder).toContain('sourceArtifactIds exactly ["base-image","annotation-image"]');
     expect(reminder).toContain("Do not reproduce or retain annotation marks");
+  });
+});
+
+describe("buildProjectReminder", () => {
+  it("injects shared project instructions and artifact context", () => {
+    const reminder = buildProjectReminder(
+      {
+        id: "project-1",
+        name: "Launch plan",
+        description: "A shared launch workspace",
+        instructions: "Use the brand voice and save final deliverables.",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      3,
+    );
+
+    expect(reminder).toContain("<project-context>");
+    expect(reminder).toContain("Launch plan");
+    expect(reminder).toContain("brand voice");
+    expect(reminder).toContain("3 shared artifact");
+    expect(reminder).toContain("scope=project");
   });
 });
 

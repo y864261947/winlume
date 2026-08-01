@@ -40,7 +40,7 @@ const readArtifactSchema = z.object({
 
 const listArtifactsSchema = z
   .object({
-    scope: z.enum(["session", "user"]).optional(),
+    scope: z.enum(["session", "project", "user"]).optional(),
   })
   .default({});
 
@@ -141,6 +141,7 @@ export function truncateForModel(text: string, maxChars = READ_CONTENT_MAX_CHARS
 export interface ToolExecuteContext {
   userId: string;
   sessionId: string;
+  projectId?: string;
   artifacts: ArtifactStore;
   /** Optional link to the assistant message that issued the tool call */
   messageId?: string;
@@ -192,6 +193,7 @@ export async function executeWriteArtifact(
         id,
         userId: ctx.userId,
         sessionId: ctx.sessionId,
+        ...(ctx.projectId ? { projectId: ctx.projectId } : {}),
         ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
         name,
         kind,
@@ -319,6 +321,7 @@ export async function executeGenerateImage(
           id,
           userId: ctx.userId,
           sessionId: ctx.sessionId,
+          ...(ctx.projectId ? { projectId: ctx.projectId } : {}),
           ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
           name: count > 1 ? `${name} (${i + 1}/${count})` : name,
           kind: "image",
@@ -430,6 +433,7 @@ export async function executeGenerateCanvas(
         id,
         userId: ctx.userId,
         sessionId: ctx.sessionId,
+        ...(ctx.projectId ? { projectId: ctx.projectId } : {}),
         ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
         name,
         kind: "canvas",
@@ -505,10 +509,15 @@ export async function executeListArtifacts(
   }
   const scope = parsed.data.scope ?? "session";
   try {
+    if (scope === "project" && !ctx.projectId) {
+      return fail("Project artifact scope requires a project context");
+    }
     const list =
       scope === "user"
         ? await ctx.artifacts.listByUser(ctx.userId)
-        : await ctx.artifacts.listBySession(ctx.userId, ctx.sessionId);
+        : scope === "project"
+          ? await ctx.artifacts.listByProject(ctx.userId, ctx.projectId!)
+          : await ctx.artifacts.listBySession(ctx.userId, ctx.sessionId);
     const items = list.map((a) => ({
       id: a.id,
       name: a.name,

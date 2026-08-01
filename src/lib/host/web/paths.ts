@@ -24,6 +24,18 @@ export function sessionFilePath(rootDir: string, userId: string, sessionId: stri
   );
 }
 
+export function projectsIndexPath(rootDir: string, userId: string): string {
+  return join(userDir(rootDir, userId), "projects.json");
+}
+
+export function projectFilePath(rootDir: string, userId: string, projectId: string): string {
+  return join(
+    userDir(rootDir, userId),
+    "projects",
+    `${assertSafeId(projectId, "projectId")}.json`,
+  );
+}
+
 export function artifactsIndexPath(rootDir: string, userId: string): string {
   return join(userDir(rootDir, userId), "artifacts.json");
 }

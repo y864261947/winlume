@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, context: IdContext) {
   return NextResponse.json({ session, messages });
 }
 
-/** PATCH /api/sessions/[id] — { title?, model?, pinnedSkillIds? } */
+/** PATCH /api/sessions/[id] — { title?, model?, projectId?, pinnedSkillIds? } */
 export async function PATCH(request: NextRequest, context: IdContext) {
   const userId = await getCurrentUserId();
   if (!userId) {
@@ -30,13 +30,19 @@ export async function PATCH(request: NextRequest, context: IdContext) {
 
   const { id } = await context.params;
 
-  let body: { title?: string; model?: string; pinnedSkillIds?: string[] } = {};
+  let body: {
+    title?: string;
+    model?: string;
+    projectId?: string | null;
+    pinnedSkillIds?: string[];
+  } = {};
   try {
     const text = await request.text();
     if (text.trim()) {
       body = JSON.parse(text) as {
         title?: string;
         model?: string;
+        projectId?: string | null;
         pinnedSkillIds?: string[];
       };
     }
@@ -48,9 +54,21 @@ export async function PATCH(request: NextRequest, context: IdContext) {
     title?: string;
     model?: string;
     pinnedSkillIds?: string[];
+    projectId?: string | null;
   } = {};
   if (typeof body.title === "string") patch.title = body.title;
   if (typeof body.model === "string") patch.model = body.model;
+  if (body.projectId === null) patch.projectId = null;
+  else if (typeof body.projectId === "string") {
+    const projectId = body.projectId.trim();
+    if (projectId) {
+      const project = await webStore.projects.getProject(userId, projectId);
+      if (!project) {
+        return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      }
+      patch.projectId = projectId;
+    }
+  }
   if (Array.isArray(body.pinnedSkillIds)) {
     const ids = body.pinnedSkillIds
       .filter((x): x is string => typeof x === "string")
