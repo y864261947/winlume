@@ -1,0 +1,151 @@
+"use client";
+
+import { Check, Copy, KeyRound, LoaderCircle, Plus, ShieldAlert, Trash2, X } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { createConsoleKey, listConsoleKeys, revokeConsoleKey } from "@/lib/console/client";
+import type { ConsoleApiKey } from "@/lib/console/types";
+import { ConsoleEmptyState, ConsolePage } from "./ConsolePage";
+
+function date(value: string | null) {
+  if (!value) return "从未使用";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "--" : new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(parsed);
+}
+
+function KeyDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (key: ConsoleApiKey, secret: string) => void }) {
+  const [name, setName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalized = name.trim();
+    if (!normalized) {
+      setError("请输入密钥名称。");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const result = await createConsoleKey({ name: normalized });
+      onCreated(result.key, result.secret);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "创建失败，请重试。");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-ink-950/35 p-4" role="presentation">
+      <form onSubmit={submit} className="w-full max-w-md border border-line bg-surface shadow-xl" role="dialog" aria-modal="true" aria-labelledby="new-key-title">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <h2 id="new-key-title" className="text-base font-semibold text-ink-950">新建 API Key</h2>
+          <button type="button" onClick={onClose} aria-label="关闭" className="grid h-8 w-8 place-items-center text-ink-500 hover:bg-canvas hover:text-ink-950"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="space-y-4 px-5 py-5">
+          <label className="block text-sm font-medium text-ink-800">
+            名称
+            <input autoFocus value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder="例如：生产环境" className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500" />
+          </label>
+          <p className="text-xs leading-5 text-ink-500">完整密钥只会显示一次。请保存到部署平台的受保护环境变量中。</p>
+          {error ? <p role="alert" className="text-sm text-rose-700">{error}</p> : null}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-line px-5 py-4">
+          <button type="button" onClick={onClose} className="border border-line px-3 py-2 text-sm text-ink-700 hover:bg-canvas">取消</button>
+          <button disabled={submitting} className="inline-flex items-center gap-2 bg-ink-950 px-3 py-2 text-sm font-medium text-white hover:bg-ink-800 disabled:opacity-60">
+            {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+            创建密钥
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export default function ConsoleKeysContent() {
+  const [keys, setKeys] = useState<ConsoleApiKey[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showDialog, setShowDialog] = useState(false);
+  const [revealed, setRevealed] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [revoking, setRevoking] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await listConsoleKeys();
+      setKeys(result.keys);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "无法加载 API Keys。");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
+
+  async function revoke(key: ConsoleApiKey) {
+    if (!window.confirm(`撤销 “${key.name}” 后，使用它的应用会立即失去访问权限。是否继续？`)) return;
+    setRevoking(key.id);
+    try {
+      const result = await revokeConsoleKey(key.id);
+      setKeys((current) => current.map((item) => item.id === result.key.id ? result.key : item));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "撤销失败，请重试。");
+    } finally {
+      setRevoking(null);
+    }
+  }
+
+  async function copySecret() {
+    if (!revealed) return;
+    await navigator.clipboard.writeText(revealed);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <ConsolePage
+      title="API Keys"
+      description="为每个部署或集成创建单独密钥；可随时撤销，不会暴露其他密钥。"
+      actions={<button onClick={() => setShowDialog(true)} className="inline-flex items-center gap-2 bg-ink-950 px-3 py-2 text-sm font-medium text-white hover:bg-ink-800"><Plus className="h-4 w-4" /> 新建 Key</button>}
+    >
+      {revealed ? (
+        <section className="mb-6 border border-emerald-200 bg-emerald-50 p-4">
+          <div className="flex gap-3">
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-emerald-800" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-emerald-950">这是此密钥最后一次完整显示</p>
+              <div className="mt-3 flex min-w-0 items-center gap-2 border border-emerald-200 bg-surface px-3 py-2">
+                <code className="min-w-0 flex-1 truncate text-sm text-ink-950">{revealed}</code>
+                <button type="button" onClick={() => void copySecret()} aria-label="复制 API Key" className="grid h-7 w-7 shrink-0 place-items-center text-ink-600 hover:bg-canvas">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+      {error ? <p role="alert" className="mb-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p> : null}
+      {loading ? (
+        <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-ink-500"><LoaderCircle className="h-4 w-4 animate-spin" /> 正在加载 API Keys…</div>
+      ) : keys.length === 0 ? (
+        <ConsoleEmptyState title="还没有 API Key" description="为服务端应用创建第一个 API Key。密钥只会在创建后显示一次。" />
+      ) : (
+        <div className="overflow-x-auto border border-line bg-surface">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="border-b border-line bg-canvas text-xs font-medium text-ink-500"><tr><th className="px-4 py-3">名称</th><th className="px-4 py-3">前缀</th><th className="px-4 py-3">状态</th><th className="px-4 py-3">上次使用</th><th className="px-4 py-3">创建时间</th><th className="w-14 px-4 py-3"><span className="sr-only">操作</span></th></tr></thead>
+            <tbody className="divide-y divide-line">
+              {keys.map((key) => <tr key={key.id} className="text-ink-700"><td className="px-4 py-3 font-medium text-ink-950">{key.name}</td><td className="px-4 py-3 font-mono text-xs">{key.prefix}...</td><td className="px-4 py-3"><span className={key.status === "active" ? "text-emerald-700" : "text-ink-500"}>{key.status === "active" ? "可用" : key.status === "revoked" ? "已撤销" : "已过期"}</span></td><td className="px-4 py-3 text-xs text-ink-500">{date(key.lastUsedAt)}</td><td className="px-4 py-3 text-xs text-ink-500">{date(key.createdAt)}</td><td className="px-4 py-3">{key.status === "active" ? <button type="button" disabled={revoking === key.id} onClick={() => void revoke(key)} aria-label={`撤销 ${key.name}`} title="撤销密钥" className="grid h-8 w-8 place-items-center text-ink-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">{revoking === key.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button> : null}</td></tr>)}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {showDialog ? <KeyDialog onClose={() => setShowDialog(false)} onCreated={(key, secret) => { setKeys((current) => [key, ...current]); setRevealed(secret); setShowDialog(false); }} /> : null}
+    </ConsolePage>
+  );
+}

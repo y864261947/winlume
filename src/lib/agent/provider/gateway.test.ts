@@ -187,6 +187,37 @@ describe("streamGatewayChat", () => {
 
     expect(out).toEqual([{ kind: "text", text: "full reply" }]);
   });
+
+  it("uses the native internal identity without inheriting legacy transport headers", async () => {
+    vi.stubEnv("WINLUME_AUTH_MODE", "winlume");
+    vi.stubEnv("NEW_API_URL", "https://retired-new-api.example");
+    vi.stubEnv("WINLUME_GATEWAY_TOKEN", "retired-token");
+    const fetchImpl = vi.fn(async () => new Response("data: [DONE]\n\n", {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    }));
+
+    const chunks: ChatChunk[] = [];
+    for await (const chunk of streamGatewayChat({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: "x" }],
+      userId: "user-1",
+      internalToken: "studio-secret",
+      baseUrl: "https://gateway.test",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual([]);
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBeUndefined();
+    expect(headers["New-Api-User"]).toBeUndefined();
+    expect(headers["x-winlume-internal-token"]).toBe("studio-secret");
+    expect(headers["x-winlume-internal-user-id"]).toBe("user-1");
+    vi.unstubAllEnvs();
+  });
 });
 
 import { generateImage } from "./gateway";

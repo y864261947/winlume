@@ -1,8 +1,27 @@
 # WinLume Studio
 
-Web-first AI workbench for WinLume: free-agent chat, skill injection, artifacts, and gateway-backed billing.
+Web-first AI workbench for WinLume: free-agent chat, skill injection,
+artifacts, native account management, and gateway-backed billing.
 
 Primary UI lives at **`/studio`**. Marketing pages remain under `/products`, `/pricing`, etc.
+
+## Native platform architecture
+
+WinLume runs as two cooperating services backed by one PostgreSQL database:
+
+- **Next.js web/control plane**: Auth.js credentials sessions, account and
+  console UI, organizations, API keys, wallets, and settings.
+- **Fastify protocol gateway**: OpenAI-compatible API proxying, external
+  API-key verification, streaming, and wallet reservation/settlement.
+- **PostgreSQL**: the source of truth for credentials, keys, organizations,
+  immutable wallet ledger entries, usage, subscriptions, and payment records.
+
+In native mode, the web service reaches the gateway through
+`WINLUME_GATEWAY_URL` (default `http://127.0.0.1:4010`) using a shared internal
+token. The gateway is deliberately a separate process, not a Next Route
+Handler. `NEW_API_URL` is retained only for an explicit legacy compatibility
+window and the one-time migration; native authentication and the standalone
+gateway do not use it.
 
 ## Requirements
 
@@ -15,9 +34,15 @@ Copy `.env.example` to `.env.local` (or export vars in your shell):
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `NEW_API_URL` | No | NewAPI-compatible gateway origin. Default: `https://v2api.top` |
-| `WINLUME_GATEWAY_TOKEN` | Yes for real chat | Server-side Bearer token for `/v1/chat/completions`. Never expose to the browser. |
-| `WINLUME_IMAGE_GATEWAY_TOKEN` | Yes for image generation | Separate server-side Bearer token for `/v1/images/generations` and `/v1/images/edits`. Different channel/token from chat — never expose to the browser. |
+| `DATABASE_URL` | Yes in native production | PostgreSQL connection for Auth.js credentials, console data, API keys, wallets, and gateway verification/accounting. |
+| `AUTH_SECRET` | Yes in production | Auth.js signing secret; use a distinct random value per environment. |
+| `NEXTAUTH_URL` | Yes in production | Canonical public web origin. |
+| `WINLUME_AUTH_MODE` | No | `winlume` by default. Set `legacy` only for a tightly bounded new-api compatibility period. |
+| `WINLUME_GATEWAY_URL` | No | Native gateway origin for server-side Studio calls. Default: `http://127.0.0.1:4010`. |
+| `WINLUME_GATEWAY_INTERNAL_TOKEN` | Yes for native Studio | Shared server-to-server token between the web process and standalone gateway. Never expose it to the browser. |
+| `NEW_API_URL` | Legacy only | Old NewAPI origin. Leave unset after cutover; it is not a native gateway upstream. |
+| `WINLUME_GATEWAY_TOKEN` | Legacy only | Server-side Bearer token for the legacy chat transport. Leave unset in native mode. |
+| `WINLUME_IMAGE_GATEWAY_TOKEN` | Legacy only | Separate server-side Bearer token for the legacy image transport. Native Studio uses the internal gateway token; leave unset after cutover. |
 | `WINLUME_IMAGE_MODEL` | No | Default image model id when a tool call omits `model`. Default: `gpt-image-2` |
 | `WINLUME_DATA_DIR` | No | Override local data root (default: `./data`) |
 | `WINLUME_CHAT_PATH` | No | Override chat path (default: `/v1/chat/completions`) |
@@ -37,10 +62,17 @@ Copy `.env.example` to `.env.local` (or export vars in your shell):
 
 ```bash
 # .env.local example
-NEW_API_URL=https://v2api.top
-WINLUME_GATEWAY_TOKEN=sk-your-token
-WINLUME_IMAGE_GATEWAY_TOKEN=sk-your-image-token
+DATABASE_URL=postgres://winlume:...
+AUTH_SECRET=replace-with-a-random-secret
+WINLUME_AUTH_MODE=winlume
+WINLUME_GATEWAY_URL=http://127.0.0.1:4010
+WINLUME_GATEWAY_INTERNAL_TOKEN=replace-with-a-separate-random-secret
+WINLUME_GATEWAY_OPENAI_UPSTREAM_URL=https://provider.example/v1
+WINLUME_GATEWAY_OPENAI_UPSTREAM_API_KEY=provider-service-key
 ```
+
+Gateway-specific configuration, including database API-key verification and
+wallet accounting, is documented in [services/gateway/README.md](services/gateway/README.md).
 
 ## Agent runtimes
 
@@ -112,7 +144,9 @@ configuration.
 
 ```bash
 npm install
+npm run db:migrate
 npm run dev
+npm run gateway:dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) — the app redirects into Studio (`/studio`).
@@ -122,8 +156,25 @@ Open [http://localhost:3000](http://localhost:3000) — the app redirects into S
 | `npm run dev` | Next.js dev server |
 | `npm run build` | Production build |
 | `npm start` | Serve production build |
+| `npm run gateway:dev` | Watch and run the standalone Fastify gateway |
+| `npm run gateway:start` | Run the standalone Fastify gateway without watch mode |
+| `npm run db:migrate` | Apply WinLume PostgreSQL migrations |
+| `npm run migration:new-api:dry-run` | Validate a new-api migration without writing data |
+| `npm run migration:new-api -- --apply ...` | Apply a reviewed new-api migration explicitly |
 | `npm test` | Vitest unit tests |
+| `npm run test:gateway` | Gateway-specific tests |
 | `npm run lint` | ESLint |
+
+## new-api cutover
+
+Before stopping old new-api, deploy the WinLume schema, import a reviewed
+snapshot, configure the standalone gateway upstreams/channels, and reconcile
+users, keys, balances, usage, subscriptions, and payment records. Old
+sessions, OAuth credentials, MFA, and passkeys are intentionally not imported;
+users enroll those again in WinLume. The migration is dry-run by default and
+requires `--apply` for writes. See [docs/MIGRATE_NEW_API.md](docs/MIGRATE_NEW_API.md)
+for the controlled procedure and [docs/DEPLOY.md](docs/DEPLOY.md) for the
+dual-process deployment and shutdown checklist.
 
 ## Skills import
 
@@ -169,11 +220,13 @@ data/
 ## Stack
 
 - Next.js App Router + React
+- Fastify standalone OpenAI-compatible protocol gateway
+- PostgreSQL + Drizzle platform data layer
 - Vercel AI SDK model transport
 - OpenAI Codex SDK coding executor
 - Vitest
 - Tailwind CSS v4
-- OpenAI-compatible streaming via NewAPI gateway
+- OpenAI-compatible streaming via the WinLume gateway
 
 ## License
 

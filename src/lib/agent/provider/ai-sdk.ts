@@ -106,15 +106,26 @@ function modelFor(params: StreamGatewayChatParams) {
     );
   }
   const base = `${getGatewayBaseUrl(params.baseUrl)}${chatPath.slice(0, -suffix.length)}`;
+  const legacy = Boolean(params.token) || process.env.WINLUME_AUTH_MODE?.trim().toLowerCase() === "legacy";
+  const providerHeaders: Record<string, string> = {};
+  if (params.userId) {
+    if (legacy) {
+      providerHeaders["New-Api-User"] = params.userId;
+    } else {
+      const internalToken = params.internalToken ?? process.env.WINLUME_GATEWAY_INTERNAL_TOKEN ?? "";
+      if (internalToken) {
+        providerHeaders["x-winlume-internal-token"] = internalToken;
+        providerHeaders["x-winlume-internal-user-id"] = params.userId;
+      }
+    }
+  }
   const provider = createOpenAI({
     name: "winlume-gateway",
     baseURL: base,
     // The gateway accepts a bearer token. A placeholder keeps AI SDK from
     // rejecting an intentionally unauthenticated local test gateway.
-    apiKey: params.token ?? process.env.WINLUME_GATEWAY_TOKEN ?? "unused",
-    headers: {
-      ...(params.userId ? { "New-Api-User": params.userId } : {}),
-    },
+    apiKey: params.token ?? (legacy ? process.env.WINLUME_GATEWAY_TOKEN : undefined) ?? "unused",
+    headers: providerHeaders,
     fetch: params.fetchImpl,
   });
   return provider.chat(params.model);

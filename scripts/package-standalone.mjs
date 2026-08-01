@@ -1,8 +1,11 @@
 /**
- * Package Next.js standalone output for /opt/winlume deploy.
+ * Package Next.js standalone output for the web/control-plane deploy.
  * Run after: npm run build
  *
  * Output: winlume-deploy.tar.gz (gitignored)
+ *
+ * The Fastify gateway is intentionally not bundled here. It runs from its
+ * own production checkout and systemd unit; see docs/DEPLOY.md.
  */
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -48,11 +51,18 @@ mkdirSync(join(stage, "data"), { recursive: true });
 writeFileSync(
   join(stage, ".env.production.example"),
   [
+    "# This environment file is for the Next.js web/control-plane process.",
+    "# Deploy the Fastify gateway separately; see docs/DEPLOY.md.",
     "NODE_ENV=production",
     "PORT=3001",
     "HOSTNAME=127.0.0.1",
-    "NEW_API_URL=https://v2api.top",
-    "WINLUME_GATEWAY_TOKEN=",
+    "NEXTAUTH_URL=https://winlume.example",
+    "AUTH_SECRET=",
+    "DATABASE_URL=",
+    "WINLUME_AUTH_MODE=winlume",
+    "WINLUME_GATEWAY_URL=http://127.0.0.1:4010",
+    "WINLUME_GATEWAY_INTERNAL_TOKEN=",
+    "# NEW_API_URL=  # legacy compatibility only; leave unset after cutover",
     "",
   ].join("\n"),
 );
