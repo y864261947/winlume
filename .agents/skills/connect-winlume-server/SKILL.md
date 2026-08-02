@@ -1,6 +1,6 @@
 ---
 name: connect-winlume-server
-description: Connect to, inspect, deploy, and operate the WinLume production server at 104.160.47.89. Use when asked to deploy WinLume, inspect WinLume production logs or service health, update its server-side environment, or operate winlume.v2api.top. Connect as root with the supplied Ed25519 key; do not use the old 38.76.188.156 app-server skill for WinLume.
+description: Connect to, inspect, deploy, and operate the WinLume production server at 176.122.164.148. Use when asked to deploy WinLume, inspect WinLume production logs or service health, update its server-side environment, or operate winlume.v2api.top.
 ---
 
 # Connect WinLume Server
@@ -9,21 +9,20 @@ Use this host only for WinLume paths and service operations. It may contain othe
 
 ## Connection
 
-- Host: `104.160.47.89`
+- Host: `176.122.164.148`
 - User: `root`
-- Authentication: `C:\Users\XXB\.ssh\v2chat-production-automation-ed25519`
-- Runner: `E:\CodeCode\winlume\.agents\skills\connect-newapi-server\scripts\ssh_run.py`
+- Authentication: `C:\Users\XXB\.ssh\winlume-176-deploy`
 
-Never copy, print, commit, or read back the private-key contents. Use a Python 3.8+ interpreter with Paramiko. The bundled desktop Python is suitable:
+Never copy, print, commit, or read back the private-key contents. Use OpenSSH in batch mode:
 
 ```powershell
-& 'C:\Users\XXB\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' `
-  'E:\CodeCode\winlume\.agents\skills\connect-newapi-server\scripts\ssh_run.py' `
-  104.160.47.89 root --key 'C:\Users\XXB\.ssh\v2chat-production-automation-ed25519' `
+ssh -i 'C:\Users\XXB\.ssh\winlume-176-deploy' `
+  -o BatchMode=yes -o ConnectTimeout=20 `
+  root@176.122.164.148 `
   'hostname; systemctl is-active winlume.service'
 ```
 
-Each runner invocation starts a new shell. Put dependent remote commands in one command string.
+Each SSH invocation starts a new shell. Put dependent remote commands in one command string.
 
 ## Production Layout
 
@@ -51,7 +50,7 @@ After a restart or deployment, require the service to remain `active` and both l
 
 ## Deployment
 
-Prefer `.github/workflows/deploy.yml`. It publishes the standalone artifact using `DEPLOY_HOST`, `DEPLOY_USER`, and `DEPLOY_SSH_PRIVATE_KEY`; set the host secret to `104.160.47.89` and keep the key only in GitHub Secrets.
+Prefer `.github/workflows/deploy.yml`. It publishes the standalone artifact using `DEPLOY_HOST`, `DEPLOY_USER`, and `DEPLOY_SSH_PRIVATE_KEY`; set the host secret to `176.122.164.148` and keep the key only in GitHub Secrets.
 
 For a manual release, first build and package locally, upload the artifact, retain `/opt/winlume.previous` for rollback, preserve `.env` and `data`, then restart only `winlume.service`. Do not delete or alter other `/opt` applications.
 
