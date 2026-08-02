@@ -5,12 +5,9 @@ import { getAuthMode, hashPassword, passwordWouldBeTruncatedByBcrypt } from "@/l
 import {
   getPlatformDb,
   getPlatformRepositories,
-  organizationMemberships,
-  organizations,
   usageEvents,
-  users,
-  wallets,
 } from "@/lib/platform";
+import { provisionPlatformUser } from "@/lib/platform/provision";
 
 function legacyGatewayUrl(): string | undefined {
   const configured = process.env.NEW_API_URL?.trim();
@@ -55,28 +52,11 @@ async function register(request: NextRequest) {
         return NextResponse.json({ success: false, message: "平台数据库尚未配置。" }, { status: 503 });
       }
       const passwordHash = await hashPassword(password);
-      const user = await database.transaction(async (tx) => {
-        const [createdUser] = await tx.insert(users).values({
-          username,
-          email,
-          displayName,
-          passwordHash,
-        }).returning();
-        if (!createdUser) throw new Error("账户创建未返回记录。");
-
-        await tx.insert(wallets).values({ userId: createdUser.id });
-        const [organization] = await tx.insert(organizations).values({
-          name: `${createdUser.displayName} 的工作区`,
-          slug: `${username}-${createdUser.id.slice(0, 8)}`,
-          createdByUserId: createdUser.id,
-        }).returning();
-        if (!organization) throw new Error("工作区创建未返回记录。");
-        await tx.insert(organizationMemberships).values({
-          organizationId: organization.id,
-          userId: createdUser.id,
-          role: "owner",
-        });
-        return createdUser;
+      const user = await provisionPlatformUser(database, {
+        username,
+        email,
+        displayName,
+        passwordHash,
       });
       return NextResponse.json({ success: true, data: { id: user.id, username: user.username } }, { status: 201 });
     } catch (error) {

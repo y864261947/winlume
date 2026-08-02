@@ -7,7 +7,17 @@
  * The Fastify gateway is intentionally not bundled here. It runs from its
  * own production checkout and systemd unit; see docs/DEPLOY.md.
  */
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -34,6 +44,44 @@ cpSync(join(standalone, "server.js"), join(stage, "server.js"));
 cpSync(join(standalone, "package.json"), join(stage, "package.json"));
 if (existsSync(join(standalone, "node_modules"))) {
   cpSync(join(standalone, "node_modules"), join(stage, "node_modules"), { recursive: true });
+}
+
+// Turbopack standalone can externalize packages under hashed names such as
+// `pg-<hash>`. Symlink those back to the real package so require() resolves.
+{
+  const stageModules = join(stage, "node_modules");
+  const nextServer = join(stage, ".next", "server");
+  if (existsSync(stageModules) && existsSync(nextServer)) {
+    const hashNames = new Set();
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!entry.isFile() || !entry.name.endsWith(".js")) continue;
+        const text = readFileSync(full, "utf8");
+        for (const match of text.matchAll(/["']((?:pg|bcryptjs|sharp)-[a-f0-9]{8,})["']/g)) {
+          hashNames.add(match[1]);
+        }
+      }
+    };
+    walk(nextServer);
+    for (const hashed of hashNames) {
+      const real = hashed.replace(/-[a-f0-9]{8,}$/, "");
+      const linkPath = join(stageModules, hashed);
+      const targetPath = join(stageModules, real);
+      if (!existsSync(targetPath) || existsSync(linkPath)) continue;
+      try {
+        if (existsSync(linkPath) && lstatSync(linkPath).isSymbolicLink()) continue;
+        symlinkSync(real, linkPath);
+        console.log(`linked external ${hashed} -> ${real}`);
+      } catch (error) {
+        console.warn(`failed to link ${hashed}:`, error);
+      }
+    }
+  }
 }
 if (existsSync(join(standalone, ".next"))) {
   cpSync(join(standalone, ".next"), join(stage, ".next"), { recursive: true });

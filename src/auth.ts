@@ -1,6 +1,7 @@
 import type { NextAuthOptions, User } from "next-auth";
 import type { AdapterUser } from "next-auth/adapters";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import type { OAuthConfig } from "next-auth/providers/oauth";
 import {
   applySessionClaimsToToken,
@@ -9,6 +10,11 @@ import {
   sessionClaimsFromToken,
   type PlatformAuthUser,
 } from "@/lib/platform/auth";
+import {
+  authenticateGoogleOAuth,
+  getGoogleOAuthCredentials,
+  isGoogleOAuthConfigured,
+} from "@/lib/platform/google-oauth";
 
 type GatewayLoginPayload = {
   success?: boolean;
@@ -54,6 +60,17 @@ function createWinlumeCredentialsProvider() {
         return null;
       }
     },
+  });
+}
+
+function createGoogleProvider() {
+  const credentials = getGoogleOAuthCredentials();
+  if (!credentials) return null;
+  return GoogleProvider({
+    clientId: credentials.clientId,
+    clientSecret: credentials.clientSecret,
+    // Account linking is handled in authenticateGoogleOAuth via verified email.
+    allowDangerousEmailAccountLinking: false,
   });
 }
 
@@ -134,8 +151,15 @@ function createLegacyProviders(): NextAuthOptions["providers"] {
   return providers;
 }
 
+function createWinlumeProviders(): NextAuthOptions["providers"] {
+  const providers: NextAuthOptions["providers"] = [createWinlumeCredentialsProvider()];
+  const google = createGoogleProvider();
+  if (google) providers.unshift(google);
+  return providers;
+}
+
 export function createAuthOptions(mode = getAuthMode()): NextAuthOptions {
-  const providers = mode === "legacy" ? createLegacyProviders() : [createWinlumeCredentialsProvider()];
+  const providers = mode === "legacy" ? createLegacyProviders() : createWinlumeProviders();
   return {
     secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
     // Credentials authentication uses Auth.js JWTs even when the identity is
@@ -143,8 +167,65 @@ export function createAuthOptions(mode = getAuthMode()): NextAuthOptions {
     // are not a supported replacement for the credentials provider.
     session: { strategy: "jwt" },
     providers,
+    pages: {
+      // Keep failures in-app; LoginModal remains the primary surface.
+      error: "/",
+      signIn: "/",
+    },
     callbacks: {
-      async jwt({ token, user }) {
+      async signIn({ user, account, profile }) {
+        if (!account || account.provider === "credentials" || account.provider === "v2api") {
+          return true;
+        }
+        if (account.provider !== "google") return false;
+        if (mode === "legacy" || !isGoogleOAuthConfigured()) return false;
+
+        const providerAccountId = account.providerAccountId?.trim();
+        if (!providerAccountId) return false;
+
+        const email = (typeof profile?.email === "string" ? profile.email : user.email) ?? null;
+        const emailVerified = typeof profile === "object" && profile !== null && "email_verified" in profile
+          ? Boolean((profile as { email_verified?: boolean }).email_verified)
+          : true;
+
+        try {
+          const platformUser = await authenticateGoogleOAuth({
+            providerAccountId,
+            email,
+            name: (typeof profile?.name === "string" ? profile.name : user.name) ?? null,
+            image: (typeof user.image === "string" ? user.image : null),
+            emailVerified,
+          });
+          return platformUser !== null;
+        } catch (error) {
+          console.error("Google OAuth sign-in failed", error);
+          return false;
+        }
+      },
+      async jwt({ token, user, account, profile }) {
+        if (account?.provider === "google") {
+          const providerAccountId = account.providerAccountId?.trim();
+          if (!providerAccountId) return token;
+          const email = (typeof profile?.email === "string" ? profile.email : user?.email) ?? null;
+          const emailVerified = typeof profile === "object" && profile !== null && "email_verified" in profile
+            ? Boolean((profile as { email_verified?: boolean }).email_verified)
+            : true;
+          try {
+            const platformUser = await authenticateGoogleOAuth({
+              providerAccountId,
+              email,
+              name: (typeof profile?.name === "string" ? profile.name : user?.name) ?? null,
+              image: (typeof user?.image === "string" ? user.image : null),
+              emailVerified,
+            });
+            if (!platformUser) return token;
+            return applySessionClaimsToToken(token, platformUser) as typeof token;
+          } catch (error) {
+            console.error("Google OAuth JWT mapping failed", error);
+            return token;
+          }
+        }
+
         if (!user) return token;
         token.sub = user.id;
         if (!isPlatformAuthUser(user)) return token;

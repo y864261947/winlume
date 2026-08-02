@@ -1,5 +1,6 @@
 import { getPlatformDb, type PlatformDatabase } from "../db/client";
 import { ApiKeyRepository } from "./api-keys";
+import { AuthIdentityRepository } from "./auth-identities";
 import { BillingRepository } from "./billing";
 import { OrganizationRepository } from "./organizations";
 import { PresetRepository } from "./presets";
@@ -8,6 +9,7 @@ import { WalletRepository } from "./wallet";
 
 export class PlatformRepositories {
   readonly users: UserRepository;
+  readonly identities: AuthIdentityRepository;
   readonly organizations: OrganizationRepository;
   readonly apiKeys: ApiKeyRepository;
   readonly billing: BillingRepository;
@@ -16,6 +18,7 @@ export class PlatformRepositories {
 
   constructor(database: PlatformDatabase) {
     this.users = new UserRepository(database);
+    this.identities = new AuthIdentityRepository(database);
     this.organizations = new OrganizationRepository(database);
     this.apiKeys = new ApiKeyRepository(database);
     this.billing = new BillingRepository(database);
@@ -30,6 +33,7 @@ export function getPlatformRepositories(): PlatformRepositories | null {
 }
 
 export * from "./api-keys";
+export * from "./auth-identities";
 export * from "./billing";
 export * from "./organizations";
 export * from "./presets";

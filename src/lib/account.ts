@@ -5,6 +5,8 @@ export interface BalanceConfig {
   custom_currency_symbol?: string;
   custom_currency_exchange_rate?: number;
   usd_exchange_rate?: number;
+  /** Present in native mode when AUTH_GOOGLE_ID/SECRET are configured. */
+  google_oauth_enabled?: boolean;
 }
 
 export interface Account {
@@ -46,6 +48,15 @@ export async function login(username: string, password: string) {
   const result = await signIn("credentials", { username, password, redirect: false });
   if (!result?.ok) throw new Error("用户名或密码错误，或账户暂时不可用。");
   return getAccount();
+}
+
+/** Starts the Google OAuth redirect (full navigation). */
+export async function loginWithGoogle(callbackUrl?: string) {
+  const target = callbackUrl
+    || (typeof window !== "undefined"
+      ? `${window.location.pathname}${window.location.search}`
+      : "/studio");
+  await signIn("google", { callbackUrl: target || "/studio" });
 }
 export async function register(input: { username: string; password: string; email: string; display_name: string }) {
   const response = await fetch("/api/account/register", {

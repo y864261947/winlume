@@ -67,14 +67,20 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [accountLoading, setAccountLoading] = useState(true);
 
   const refreshAccount = useCallback(async () => {
+    // Load balance/auth feature flags even when the visitor is logged out so
+    // LoginModal can show Google OAuth without a session cookie.
+    const configPromise = getBalanceConfig()
+      .then((config) => setBalanceConfig(config))
+      .catch(() => setBalanceConfig(null));
     try {
-      const [currentAccount, currentBalanceConfig] = await Promise.all([getAccount(), getBalanceConfig()]);
+      const currentAccount = await getAccount();
       setAccount(currentAccount);
-      setBalanceConfig(currentBalanceConfig);
     } catch {
       setAccount(null);
-      setBalanceConfig(null);
-    } finally { setAccountLoading(false); }
+    } finally {
+      await configPromise;
+      setAccountLoading(false);
+    }
   }, []);
 
   const completeLogin = useCallback((nextAccount: Account) => {
@@ -103,7 +109,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     // 请求失败会抛给调用方处理，本地账户状态保持不变
     await logoutRequest();
     setAccount(null);
-    setBalanceConfig(null);
+    // Keep public auth feature flags (e.g. google_oauth_enabled) after logout.
+    void getBalanceConfig().then(setBalanceConfig).catch(() => setBalanceConfig(null));
   }, []);
 
   const selectAudience = useCallback((next: Audience, industries: string[] = []) => {
