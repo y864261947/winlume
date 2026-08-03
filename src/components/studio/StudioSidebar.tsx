@@ -25,6 +25,7 @@ import { site } from "@/data/site";
 import { listSessions } from "@/lib/studio/api";
 import { listProjects } from "@/lib/studio/api";
 import type { Project, Session } from "@/lib/agent/types";
+import LiquidGlassNavIndicator from "./LiquidGlassNavIndicator";
 import ProjectDialog from "./ProjectDialog";
 
 type NavItem = {
@@ -197,7 +198,15 @@ export default function StudioSidebar({
         ) : null}
       </div>
 
-      <nav className="flex flex-col gap-0.5">
+      <LiquidGlassNavIndicator
+        key={pathname}
+        activeItem={
+          primaryNav.find(
+            (item) => !item.soon && navActive(pathname, item.href, item.exact),
+          )?.href ?? "/studio"
+        }
+        onNavigate={(href) => router.push(href)}
+      >
         {primaryNav.map((item) => {
           const Icon = item.icon;
           if (item.soon) {
@@ -217,19 +226,37 @@ export default function StudioSidebar({
           }
           const active = navActive(pathname, item.href, item.exact);
           return (
-            <Link
+            <a
               key={item.label}
               href={item.href}
+              data-studio-nav-id={item.href}
+              onClick={(event) => {
+                if (
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                event.currentTarget.dispatchEvent(
+                  new CustomEvent("studio-nav-intent", {
+                    bubbles: true,
+                    detail: item.href,
+                  }),
+                );
+              }}
               className={`studio-nav-item flex items-center gap-2.5 rounded-[11px] px-3 py-2.5 text-[14px] transition duration-150 ${
                 active ? "studio-nav-active" : "text-[#615A73]"
               }`}
             >
               <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
               {item.label}
-            </Link>
+            </a>
           );
         })}
-      </nav>
+      </LiquidGlassNavIndicator>
 
       <div className="mt-5 min-h-0 max-h-[38%] overflow-y-auto px-1">
         <div className="mb-2 flex items-center justify-between px-2">
