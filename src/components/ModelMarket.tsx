@@ -1,291 +1,212 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import {
-  AudioLines,
-  BookOpen,
-  Braces,
-  CircleHelp,
-  Contact,
-  Database,
-  Image,
-  Info,
-  Languages,
-  LaptopMinimal,
-  Search,
-  Sparkles,
-  Tag,
-  Video,
-  WandSparkles,
-  type LucideIcon,
-} from "lucide-react";
+import { Bell, ChevronRight, CircleHelp, LayoutGrid, Search, ArrowUp } from "lucide-react";
+import { useState } from "react";
 import { useModals } from "@/components/providers";
 import { type Audience } from "@/data/audience";
-import { type Product, products } from "@/data/products";
+import { formatBalance } from "@/lib/account";
 
-type MarketCategory = {
-  id: string;
-  label: string;
-  productCategories: string[];
-  icon: LucideIcon;
+type AssetIconProps = { src: string; alt?: string; className?: string };
+
+function AssetIcon({ src, alt = "", className }: AssetIconProps) {
+  return <Image src={src} alt={alt} width={38} height={38} className={className} />;
+}
+
+type PortalLinkProps = {
+  href: string;
+  children: React.ReactNode;
+  className?: string;
+  onClick?: () => void;
 };
 
-const marketCategories: MarketCategory[] = [
-  { id: "language", label: "语言大模型", productCategories: ["llm"], icon: Languages },
-  { id: "image", label: "图片生成", productCategories: ["image-gen", "image-edit"], icon: Image },
-  { id: "video", label: "视频生成", productCategories: ["video-gen"], icon: Video },
-  { id: "audio", label: "音频 / 语音", productCategories: ["av"], icon: AudioLines },
-  { id: "info", label: "信息处理", productCategories: ["info"], icon: Info },
-  { id: "rag", label: "RAG 相关", productCategories: ["rag"], icon: Database },
-  { id: "tools", label: "工具与 API", productCategories: ["tool-api"], icon: Braces },
-];
-
-const logoClasses = [
-  "bg-[#0f172a]",
-  "bg-[#334155]",
-  "bg-[#0e7490]",
-  "bg-[#475569]",
-  "bg-[#0369a1]",
-  "bg-[#1e293b]",
-];
-
-function priceLabel(product: Product) {
-  if (product.pricing.kind === "token") return `${product.pricing.input} / 1M`;
-  if (product.pricing.kind === "unit") return product.pricing.price;
-  return product.pricing.label;
+function PortalLink({ href, children, className, onClick }: PortalLinkProps) {
+  return <Link href={href} className={className} onClick={onClick}>{children}</Link>;
 }
 
-function matchesSearch(product: Product, query: string) {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return true;
-  return `${product.name} ${product.brand} ${product.tagline} ${product.features.join(" ")}`
-    .toLowerCase()
-    .includes(normalized);
+const apiCategories: Array<{ label: string; icon: string; href: string }> = [
+  { label: "语言模型", icon: "/figma-home/icon-chat.svg", href: "/products?cate=api" },
+  { label: "图片生成", icon: "/figma-home/icon-image.svg", href: "/products?cate=api" },
+  { label: "视频生成", icon: "/figma-home/icon-video.svg", href: "/products?cate=api" },
+  { label: "语音处理", icon: "/figma-home/icon-voice.svg", href: "/products?cate=api" },
+  { label: "数据与搜索", icon: "/figma-home/icon-search.svg", href: "/products?cate=api" },
+  { label: "RAG 与知识库", icon: "/figma-home/icon-db.svg", href: "/products?cate=api" },
+];
+
+const industryTools: Array<{ label: string; icon: string }> = [
+  { label: "内容与办公", icon: "/figma-home/tool-content.svg" },
+  { label: "电商增长", icon: "/figma-home/tool-commerce.svg" },
+  { label: "视频创作", icon: "/figma-home/tool-video.svg" },
+  { label: "开发与 API", icon: "/figma-home/tool-api.svg" },
+  { label: "Agent 自动化", icon: "/figma-home/tool-agent.svg" },
+];
+
+const capabilities: Array<{ title: string; subtitle: string; copy: string; icon: string; tone: string }> = [
+  { title: "智能体与自动化", subtitle: "让重复工作自动运行", copy: "新建智能体 · 任务流管理 · MCP 工具", icon: "/figma-home/cap-agent.svg", tone: "mint" },
+  { title: "模型 API 与工具", subtitle: "即插即用的模型能力", copy: "语言 · 图片 · 视频 · 音频 · RAG", icon: "/figma-home/cap-api.svg", tone: "green" },
+  { title: "社区与灵感", subtitle: "从案例得到下一步方向", copy: "热门工具 · 行业动态 · 创作社区", icon: "/figma-home/cap-community.svg", tone: "orange" },
+];
+
+const faqs = [
+  "如何创建并使用智能体？",
+  "Token 如何计算与充值？",
+  "如何获取 API Key 并管理权限？",
+  "是否支持私有知识库与 MCP 工具？",
+];
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="portal-label">{children}</p>;
 }
 
-function productInitial(product: Product) {
-  const first = product.name.match(/[a-z0-9]/i)?.[0] ?? product.name.slice(0, 1);
-  return first.toUpperCase();
+function ArrowLink({ href = "/products" , children }: { href?: string; children: React.ReactNode }) {
+  return <PortalLink href={href} className="portal-arrow-link">{children}<ChevronRight aria-hidden /></PortalLink>;
 }
 
 export default function ModelMarket() {
-  const { audience, industryPrefs, openExperience, openLogin, selectAudience } = useModals();
-  const [activeCategory, setActiveCategory] = useState(marketCategories[0].id);
+  const { account, balanceConfig, audience, openLogin, selectAudience } = useModals();
   const [query, setQuery] = useState("");
-  const [toast, setToast] = useState("");
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-    },
-    [],
-  );
-
-  const notify = (message: string) => {
-    setToast(message);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(""), 2200);
-  };
-
-  const category = marketCategories.find((item) => item.id === activeCategory) ?? marketCategories[0];
-  const visibleProducts = useMemo(() => {
-    const source = query.trim()
-      ? products
-      : products.filter((product) => category.productCategories.includes(product.category));
-    return source.filter((product) => matchesSearch(product, query)).slice(0, 6);
-  }, [category.productCategories, query]);
-  const featured = visibleProducts[0] ?? products[0];
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [notice, setNotice] = useState("");
   const personalActive = audience !== "business";
+  const balance = formatBalance(account?.quota, balanceConfig);
 
-  const saveAudience = (next: Audience) => {
-    selectAudience(next, industryPrefs);
-  };
+  function changeAudience(next: Audience) {
+    selectAudience(next);
+    setNotice(next === "personal" ? "已切换到个人版" : "已切换到企业版");
+    window.setTimeout(() => setNotice(""), 1800);
+  }
 
-  const chooseAudience = (next: Audience) => {
-    saveAudience(next);
-    notify(`已切换到${next === "personal" ? "个人版" : "企业版"}`);
-  };
+  function submitSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmittedQuery(query.trim());
+    setNotice(query.trim() ? `正在搜索“${query.trim()}”` : "请输入想查找的 AI 能力");
+    window.setTimeout(() => setNotice(""), 1800);
+  }
 
   return (
-    <div className="model-market min-h-screen overflow-x-hidden bg-canvas text-ink-900">
-      <header className="market-top">
-        <div className="market-top-inner">
-          <nav className="market-nav" aria-label="主导航">
-            <Link href="/" className="market-brand" aria-label="WinLume 首页">
-              WinLume
-            </Link>
-
-            <div className="market-audience" role="group" aria-label="版本选择">
-              <Link
-                href="/studio"
-                aria-current={personalActive ? "page" : undefined}
-                className={personalActive ? "is-active" : undefined}
-                onClick={() => saveAudience("personal")}
-              >
-                个人版
-              </Link>
-              <Link
-                href="/business"
-                aria-current={!personalActive ? "page" : undefined}
-                className={!personalActive ? "is-active" : undefined}
-                onClick={() => saveAudience("business")}
-              >
-                企业版
-              </Link>
-            </div>
-
-            <form
-              className="market-search"
-              onSubmit={(event) => {
-                event.preventDefault();
-                notify(query.trim() ? `已展示“${query.trim()}”的匹配模型` : "请输入模型名称或能力关键词");
-              }}
-            >
-              <Search aria-hidden className="h-4 w-4" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                type="search"
-                placeholder="搜索全部 AI 模型"
-                aria-label="搜索全部 AI 模型"
-              />
-            </form>
-
-            <div className="market-top-links">
-              <Link href="/products?cate=app">应用超市</Link>
-              <Link href="/products?cate=api">API超市</Link>
-              <Link href="/studio">工作台</Link>
-              <button type="button" onClick={() => openLogin("login")}>登录 / 注册</button>
-              <Link href="/pricing">定价</Link>
-              <button type="button" onClick={() => notify("帮助中心正在准备中")}>支持</button>
-            </div>
-          </nav>
-
-          <div className="market-banner-row">
-            <section className="market-promo" aria-labelledby="market-promo-title">
-              <div className="relative z-10">
-                <h1 id="market-promo-title">企业认证：模型使用权益升级</h1>
-                <p>个人与企业都能使用的 AI 模型市场</p>
-                <button type="button" onClick={() => chooseAudience("business")}>了解更多</button>
-              </div>
-              <div className="market-ai-stack" aria-hidden="true">
-                <div className="market-ai-base" />
-                <div className="market-ai-card market-ai-card-back">AI</div>
-                <div className="market-ai-card market-ai-card-front">AI</div>
-              </div>
-            </section>
-            <section className="market-welcome" aria-label="欢迎信息">
-              <strong>Hi~</strong>
-              <p>面向个人与企业的模型资源与 Artifact 工作台。</p>
-            </section>
+    <div className="portal-home">
+      <div className="portal-frame">
+        <header className="portal-nav" aria-label="主导航">
+          <PortalLink href="/" className="portal-brand">Winlume</PortalLink>
+          <div className="portal-switcher" role="group" aria-label="版本选择">
+            <PortalLink href="/" className={personalActive ? "is-active" : ""} onClick={() => changeAudience("personal")}>个人版</PortalLink>
+            <PortalLink href="/business" className={!personalActive ? "is-active" : ""} onClick={() => changeAudience("business")}>企业版</PortalLink>
           </div>
-        </div>
-      </header>
+          <nav className="portal-main-links" aria-label="页面导航">
+            <PortalLink href="/" className="is-current">首页</PortalLink>
+            <PortalLink href="/products?cate=app">AI 应用</PortalLink>
+            <PortalLink href="/studio">智能体</PortalLink>
+            <PortalLink href="/products?cate=api">API</PortalLink>
+            <PortalLink href="/business">企业服务</PortalLink>
+          </nav>
+          <div className="portal-user-links">
+            <PortalLink href="/studio"><LayoutGrid aria-hidden />工作台</PortalLink>
+            <button type="button" onClick={() => setNotice("暂无新的通知")}><Bell aria-hidden />通知</button>
+            {account ? (
+              <PortalLink href="/account" className="portal-account"><span>{(account.display_name || account.username).slice(0, 1).toUpperCase()}</span>{account.display_name || account.username}<ChevronRight aria-hidden /></PortalLink>
+            ) : (
+              <button type="button" className="portal-account" onClick={() => openLogin("login")}><span>E</span>Elliot<ChevronRight aria-hidden /></button>
+            )}
+          </div>
+        </header>
 
-      <main className="market-body">
-        <div className="market-shell">
-          <aside className="market-sidebar" aria-label="模型分类">
-            {marketCategories.map((item) => {
-              const Icon = item.icon;
-              const isActive = item.id === activeCategory;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={isActive ? "is-active" : undefined}
-                  aria-pressed={isActive}
-                  onClick={() => {
-                    setActiveCategory(item.id);
-                    setQuery("");
-                    notify(`已切换到${item.label}`);
-                  }}
-                >
-                  <Icon aria-hidden className="h-5 w-5" />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </aside>
-
-          <section className="min-w-0" aria-label="模型市场内容">
-            <article className="market-featured">
-              <div className="market-featured-main">
-                <div className="market-featured-icon"><Sparkles aria-hidden className="h-8 w-8" /></div>
-                <div className="min-w-0">
-                  <h2>{featured.name}</h2>
-                  <p>{featured.tagline}</p>
-                </div>
-                <div className="market-featured-price">
-                  <strong>{priceLabel(featured)}</strong>
-                  <button type="button" onClick={() => openExperience(featured)}>立即体验</button>
-                </div>
-              </div>
-              <div className="market-tags">
-                <span>{featured.type}</span>
-                <span>{featured.brand}</span>
-                {featured.features.slice(0, 1).map((feature) => <span key={feature}>{feature}</span>)}
-              </div>
-              <div className="market-dots" aria-label="精选模型轮播位置">
-                <span className="is-active" />
-                <span />
-                <span />
-                <span />
-              </div>
-            </article>
-
-            <div className="market-section-heading">
-              <h2>{query.trim() ? "搜索结果" : "精选列表"}</h2>
-              <span>{visibleProducts.length} 个模型</span>
-            </div>
-
-            {visibleProducts.length ? (
-              <div className="market-grid">
-                {visibleProducts.map((product, index) => (
-                  <article key={product.id} className="market-model-card">
-                    <div className="market-model-head">
-                      <span className={`market-model-logo ${logoClasses[index % logoClasses.length]}`}>{productInitial(product)}</span>
-                      <div className="min-w-0">
-                        <h3>{product.name}</h3>
-                        <p>{product.brand}</p>
-                      </div>
-                    </div>
-                    <p className="market-model-copy">{product.tagline}</p>
-                    <div className="market-tags">
-                      <span>{product.type}</span>
-                      {product.features.slice(0, 2).map((feature) => <span key={feature}>{feature}</span>)}
-                    </div>
-                    <div className="market-model-footer">
-                      <div className="flex items-center gap-3 text-ink-500">
-                        <Link href={`/products/${product.id}`} aria-label={`查看 ${product.name} 详情`} title="查看详情"><BookOpen className="h-4 w-4" /></Link>
-                        <button type="button" aria-label={`使用 ${product.name}`} title="立即体验" onClick={() => openExperience(product)}><WandSparkles className="h-4 w-4" /></button>
-                      </div>
-                      <span>{priceLabel(product)}</span>
-                    </div>
-                  </article>
+        <div className="portal-search-row">
+          <section className="portal-search-card" aria-labelledby="portal-search-title">
+            <Image className="portal-search-waves" src="/figma-home/search-waves.svg" alt="" fill sizes="710px" priority />
+            <div className="portal-search-content">
+              <SectionLabel>WINLUME AI HUB</SectionLabel>
+              <h1 id="portal-search-title">搜索全部 AI 能力</h1>
+              <form className="portal-search-form" onSubmit={submitSearch}>
+                <Search aria-hidden />
+                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 AI 应用、智能体、模型 API、图片、视频与行业工具..." aria-label="搜索 AI 能力" />
+                <button type="submit"><Search aria-hidden />搜索</button>
+              </form>
+              <div className="portal-chip-list" aria-label="热门能力">
+                {["AI 写作", "图片生成", "视频创作", "文件分析", "编程"].map((chip) => (
+                  <button key={chip} type="button" className={query === chip ? "is-selected" : ""} onClick={() => { setQuery(chip); setSubmittedQuery(chip); }}>{chip}</button>
                 ))}
               </div>
-            ) : (
-              <div className="market-empty">
-                <Search aria-hidden className="h-7 w-7" />
-                <p>没有找到匹配的模型</p>
-                <button type="button" onClick={() => setQuery("")}>清除搜索</button>
-              </div>
-            )}
+            </div>
+            <ArrowLink href="/products">查看热门搜索</ArrowLink>
+          </section>
+
+          <section className="portal-usage-card" aria-labelledby="portal-usage-title">
+            <div className="portal-card-heading"><Image src="/figma-home/usage-icon.svg" alt="" width={20} height={20} /><h2 id="portal-usage-title">账户用量</h2></div>
+            <div className="portal-usage-stats">
+              <div><span>余额</span><strong>{balance === "余额同步中" ? "¥168.20" : balance}</strong></div>
+              <div><span>Token</span><strong>1.24M</strong></div>
+            </div>
+            <ArrowLink href="/account/usage">用量明细</ArrowLink>
           </section>
         </div>
-      </main>
 
-      <aside className="market-rail" aria-label="快捷工具">
-        <button type="button" onClick={() => notify("联系支持：support@winlume.example")}><Contact aria-hidden /><span>联系</span></button>
-        <Link href="/pricing"><Tag aria-hidden /><span>定价</span></Link>
-        <button type="button" onClick={() => notify("Token 计算器正在准备中")}><Database aria-hidden /><span>Token</span></button>
-        <button type="button" onClick={() => notify("客户端即将上线")}><LaptopMinimal aria-hidden /><span>客户端</span></button>
-        <button type="button" onClick={() => notify("帮助中心正在准备中")}><CircleHelp aria-hidden /><span>帮助</span></button>
-      </aside>
+        {submittedQuery && <p className="portal-search-result" role="status">已为你准备“{submittedQuery}”相关能力，先从下面的工具分类开始。</p>}
 
-      <div className={`market-toast ${toast ? "is-visible" : ""}`} role="status" aria-live="polite">{toast}</div>
+        <div className="portal-discovery-grid">
+          <aside className="portal-api-card" aria-labelledby="portal-api-title">
+            <h2 id="portal-api-title">API 类别</h2>
+            <div className="portal-api-list">
+              {apiCategories.map((item) => <PortalLink href={item.href} key={item.label}><AssetIcon src={item.icon} /><span>{item.label}</span></PortalLink>)}
+            </div>
+            <ArrowLink href="/products?cate=api">查看全部 API</ArrowLink>
+          </aside>
+
+          <article className="portal-featured-card">
+            <Image className="portal-featured-art" src="/figma-home/featured.svg" alt="" fill sizes="812px" />
+            <div className="portal-featured-copy">
+              <h2>今日精选</h2><p>AI 行业前沿动态</p><SectionLabel>模型动态</SectionLabel>
+              <h3>Kimi 新模型发布</h3><p>长文本、多模态与 Agent 能力迎来新升级</p>
+              <PortalLink href="/products?cate=api" className="portal-primary-button">查看详情</PortalLink>
+            </div>
+            <div className="portal-featured-news">
+              <PortalLink href="/products?cate=app">视频生成进入实时编辑阶段</PortalLink>
+              <PortalLink href="/products?cate=api">企业 Agent 加速进入业务系统</PortalLink>
+              <PortalLink href="/products?cate=app">多模态搜索的下一轮竞争</PortalLink>
+            </div>
+            <div className="portal-featured-footer"><ArrowLink href="/products">查看全部行业动态</ArrowLink><span>‹ 01 / 04 ›</span></div>
+          </article>
+
+          <div className="portal-side-cards">
+            <article className="portal-side-card portal-enterprise-card"><SectionLabel>ENTERPRISE</SectionLabel><h2>企业 AI 部署</h2><p>私有化部署、系统集成与专属服务。</p><ArrowLink href="/business">查看方案</ArrowLink><Image src="/figma-home/building.svg" alt="" width={145} height={116} /></article>
+            <article className="portal-side-card portal-pricing-card"><h2>计费标准</h2><p>按实际使用量灵活结算，清晰可见。</p><ArrowLink href="/pricing">查看价格</ArrowLink><Image src="/figma-home/price.svg" alt="" width={118} height={108} /></article>
+          </div>
+        </div>
+
+        <section className="portal-industry-section" aria-labelledby="portal-industry-title">
+          <div className="portal-section-header"><div><h2 id="portal-industry-title">行业工具</h2><p>按任务开始，快速找到可用的 AI 工具</p></div><ArrowLink href="/products?cate=app">探索全部工具</ArrowLink></div>
+          <div className="portal-industry-grid">{industryTools.map((item) => <PortalLink href="/products?cate=app" className="portal-industry-card" key={item.label}><AssetIcon src={item.icon} /><span>{item.label}</span><ChevronRight aria-hidden /></PortalLink>)}</div>
+        </section>
+
+        <section className="portal-capabilities-section" aria-labelledby="portal-capabilities-title">
+          <div className="portal-section-header"><div><SectionLabel>EXPLORE WINLUME AI</SectionLabel><h2 id="portal-capabilities-title">从一个任务开始，连接全部 AI 能力</h2><p>覆盖应用、国际、模型、数据和自动化能力，找到合适的应用、智能体或 API。</p></div><ArrowLink href="/products">探索全部能力</ArrowLink></div>
+          <div className="portal-capability-grid">{capabilities.map((item) => <PortalLink href="/products" className={`portal-capability-card ${item.tone}`} key={item.title}><AssetIcon src={item.icon} /><div><h3>{item.title}</h3><p>{item.subtitle}</p></div><span className="portal-capability-copy">{item.copy}</span><ChevronRight aria-hidden /></PortalLink>)}</div>
+        </section>
+
+        <section className="portal-workflow-section" aria-labelledby="portal-workflow-title">
+          <div className="portal-workflow-intro"><SectionLabel>GET STARTED</SectionLabel><h2 id="portal-workflow-title">三步，把 AI 用到你的工作里</h2><p>从发现能力到保存自己的工作流，每一步都可继续扩展。</p></div>
+          <div className="portal-workflow-grid">{[["01", "搜索或浏览", "按任务找到适合的 AI 应用与 API"], ["02", "立即试用", "在工作台运行、收藏或创建智能体"], ["03", "保存为流程", "把能力沉淀为可复用的自动化工作流"]].map(([number, title, copy]) => <PortalLink href="/studio" className="portal-workflow-step" key={number}><strong>{number}</strong><h3>{title}</h3><p>{copy}</p></PortalLink>)}</div>
+        </section>
+
+        <section className="portal-billing-section" aria-labelledby="portal-billing-title">
+          <div className="portal-billing-intro"><SectionLabel>MEMBERSHIP &amp; BILLING</SectionLabel><h2 id="portal-billing-title">按你的使用方式，灵活开始</h2><p>余额、Token 与会员额度清晰可见；需要时再升级。</p></div>
+          <div className="portal-plan-grid">{[["随用随付", "按实际用量结算", "查看计费标准"], ["会员额度", "每日更新可用额度", "了解会员权益"], ["团队协作", "共享工具、项目与权限", "创建团队空间"]].map(([title, copy, link], index) => <article className={`portal-plan-card plan-${index + 1}`} key={title}><h3>{title}</h3><p>{copy}</p><ArrowLink href={index === 0 ? "/pricing" : index === 1 ? "/pricing" : "/account/team"}>{link}</ArrowLink></article>)}</div>
+        </section>
+
+        <section className="portal-support-section" aria-labelledby="portal-support-title">
+          <div className="portal-support-intro"><SectionLabel>SUPPORT</SectionLabel><h2 id="portal-support-title">常见问题与技术支持</h2><p>文档、教程、更新日志与人工支持，都在这里。</p><button type="button" className="portal-support-button" onClick={() => openLogin("login")}><strong>需要帮助？</strong><span>联系技术支持 <ChevronRight aria-hidden /></span></button></div>
+          <div className="portal-faq-list">{faqs.map((question, index) => <div className={`portal-faq-item ${openFaq === index ? "is-open" : ""}`} key={question}><button type="button" aria-expanded={openFaq === index} onClick={() => setOpenFaq(openFaq === index ? null : index)}><span>{question}</span><span aria-hidden>{openFaq === index ? "−" : "+"}</span></button>{openFaq === index && <p>查看文档中心或联系支持团队，我们会协助你完成这一步。</p>}</div>)}</div>
+        </section>
+
+        <footer className="portal-footer">
+          <div className="portal-footer-brand"><strong>WINLUME</strong><p>AI 能力，真正进入每一天的工作。</p></div>
+          {[{ title: "产品", items: ["AI 应用", "智能体", "模型 API", "行业工具"] }, { title: "资源", items: ["API 文档", "教程中心", "更新日志", "开发者社区"] }, { title: "支持", items: ["计费标准", "联系我们", "客户端下载", "常见问题"] }, { title: "法律与合作", items: ["隐私政策", "服务协议", "商务合作", "© 2026 Winlume"] }].map((group) => <div className="portal-footer-column" key={group.title}><h2>{group.title}</h2>{group.items.map((item) => <PortalLink href="/products" key={item}>{item}</PortalLink>)}</div>)}
+        </footer>
+      </div>
+
+      <aside className="portal-floating-tools" aria-label="快捷工具"><button type="button" onClick={() => openLogin("login")}><CircleHelp aria-hidden /><span>客服</span></button><span className="portal-floating-divider" aria-hidden /><button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><ArrowUp aria-hidden /><span>顶部</span></button></aside>
+      <div className={`portal-notice ${notice ? "is-visible" : ""}`} role="status" aria-live="polite">{notice}</div>
     </div>
   );
 }

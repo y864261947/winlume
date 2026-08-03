@@ -51,6 +51,7 @@ next-env.d.ts
 # local ops (secrets)
 /docs/INFRA.md
 .superpowers/
+AGENTS.md
 
 # runtime data
 /data/users/
