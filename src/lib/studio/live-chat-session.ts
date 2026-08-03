@@ -47,6 +47,7 @@ export type QueuedMessage = {
   id: string;
   content: string;
   model?: string;
+  capabilityPresetId?: string;
   skillIds?: string[];
   referencedArtifactIds?: string[];
   /** @deprecated Use referencedArtifactIds */
@@ -384,6 +385,7 @@ export function stopLiveChat(sessionId: string): void {
 
 export type SendOverrides = {
   model?: string;
+  capabilityPresetId?: string;
   skillIds?: string[];
   referencedArtifactIds?: string[];
   /** @deprecated Use referencedArtifactIds */
@@ -418,6 +420,7 @@ export async function sendLiveChat(
           id: clientId("q"),
           content: trimmed,
           model: overrides?.model,
+          capabilityPresetId: overrides?.capabilityPresetId,
           skillIds: overrides?.skillIds,
           referencedArtifactIds: overrides?.referencedArtifactIds,
           referencedArtifactId: overrides?.referencedArtifactId,
@@ -443,6 +446,7 @@ async function runLiveTurn(
   try {
     const requestModel =
       overrides?.model?.trim() || entry.snapshot.model || FALLBACK_DEFAULT_MODEL;
+    const requestCapabilityPresetId = overrides?.capabilityPresetId?.trim();
     const requestSkillIds = overrides?.skillIds;
     const requestReferencedArtifactIds = overrides?.referencedArtifactIds;
     const requestReferencedArtifactId = overrides?.referencedArtifactId;
@@ -532,6 +536,9 @@ async function runLiveTurn(
           sessionId,
           message: text,
           model: requestModel,
+          ...(requestCapabilityPresetId
+            ? { capabilityPresetId: requestCapabilityPresetId }
+            : {}),
           ...(requestSkillIds?.length ? { skillIds: requestSkillIds } : {}),
           ...(requestReferencedArtifactIds?.length
             ? { referencedArtifactIds: requestReferencedArtifactIds }
@@ -806,6 +813,7 @@ async function drainQueue(sessionId: string): Promise<void> {
   patchSnapshot(entry, { queue: entry.snapshot.queue.slice(1) });
   await runLiveTurn(sessionId, next.content, {
     model: next.model,
+    capabilityPresetId: next.capabilityPresetId,
     skillIds: next.skillIds,
     referencedArtifactIds: next.referencedArtifactIds,
     referencedArtifactId: next.referencedArtifactId,

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "id": "production-content-draft",
+  "version": "1.0.0",
+  "stability": "stable",
+  "provenance": {
+    "owner": "winlume",
+    "source": "first-party"
+  },
+  "requiredCapabilities": ["chat"],
+  "allowedTools": ["read_artifact", "write_artifact"],
+  "inputs": [
+    {
+      "id": "research-notes",
+      "kinds": ["markdown"],
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "draft",
+      "kinds": ["markdown"],
+      "required": true
+    }
+  ],
+  "qualityChecks": [
+    "文稿与已核验材料一致，不把假设写成事实",
+    "结构、语气和行动建议符合简报中的读者与目标"
+  ],
+  "approvalPolicy": "required"
+}

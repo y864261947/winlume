@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "id": "production-content-review",
+  "version": "1.0.0",
+  "stability": "stable",
+  "provenance": {
+    "owner": "winlume",
+    "source": "first-party"
+  },
+  "requiredCapabilities": ["chat"],
+  "allowedTools": ["read_artifact", "write_artifact"],
+  "inputs": [
+    {
+      "id": "draft",
+      "kinds": ["markdown"],
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "review-record",
+      "kinds": ["markdown"],
+      "required": true
+    }
+  ],
+  "qualityChecks": [
+    "每个问题都说明评价维度、原文证据和可执行修改要求",
+    "未发现问题时仍说明已检查的范围和依据"
+  ],
+  "approvalPolicy": "on-blocking-review"
+}

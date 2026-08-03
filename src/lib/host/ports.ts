@@ -12,7 +12,11 @@ export interface SessionStore {
     sessionId: string,
     patch: Partial<
       Pick<Session, "title" | "model" | "pinnedSkillIds" | "codexThreadId">
-    > & { projectId?: string | null },
+    > & {
+      projectId?: string | null;
+      /** Omit to preserve; null explicitly clears persisted launch intent. */
+      capabilityPresetId?: string | null;
+    },
   ): Promise<Session>;
   deleteSession(userId: string, sessionId: string): Promise<void>;
   listMessages(userId: string, sessionId: string): Promise<Message[]>;

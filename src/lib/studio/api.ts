@@ -65,6 +65,7 @@ export async function createSession(input?: {
   model?: string;
   title?: string;
   projectId?: string;
+  capabilityPresetId?: string;
 }): Promise<Session> {
   const response = await fetch("/api/sessions", {
     method: "POST",
@@ -216,6 +217,7 @@ export async function patchSession(
     model?: string;
     projectId?: string | null;
     pinnedSkillIds?: string[];
+    capabilityPresetId?: null;
   },
 ): Promise<Session> {
   const response = await fetch(`/api/sessions/${encodeURIComponent(id)}`, {
@@ -244,6 +246,8 @@ export type ChatRequestBody = {
   sessionId?: string;
   message: string;
   model?: string;
+  /** Session-bound, server-validated capability launch intent. */
+  capabilityPresetId?: string;
   executionMode?: "studio" | "ai-sdk" | "codex";
   skillIds?: string[];
   /** Image artifact ids the user @-referenced in the composer. */
@@ -532,6 +536,7 @@ export type PendingFirstMessage = {
   sessionId: string;
   message: string;
   model?: string;
+  capabilityPresetId?: string;
   /** Per-message skill ids; injected into system prompt on send. */
   skillIds?: string[];
   /** Image artifact ids @-mentioned in the first message. */
@@ -558,6 +563,7 @@ export function setPendingFirstMessage(payload: PendingFirstMessage): void {
 export function readHandoffBootstrap(sessionId: string): {
   message: string;
   model?: string;
+  capabilityPresetId?: string;
   skillIds?: string[];
   referencedArtifactIds?: string[];
   session: Session | null;
@@ -569,6 +575,7 @@ export function readHandoffBootstrap(sessionId: string): {
   return {
     message: pending.message,
     model: pending.model,
+    capabilityPresetId: pending.capabilityPresetId,
     skillIds: pending.skillIds,
     referencedArtifactIds: pending.referencedArtifactIds,
     session: pending.session ?? null,

@@ -71,6 +71,7 @@ export type UseStudioChatResult = {
     text: string,
     overrides?: {
       model?: string;
+      capabilityPresetId?: string;
       skillIds?: string[];
       referencedArtifactIds?: string[];
       referencedArtifactId?: string;
@@ -159,6 +160,7 @@ export function useStudioChat(
       text: string,
       overrides?: {
         model?: string;
+        capabilityPresetId?: string;
         skillIds?: string[];
         referencedArtifactIds?: string[];
         referencedArtifactId?: string;

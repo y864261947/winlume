@@ -1,6 +1,8 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Skill, SkillMeta } from "@/lib/agent/types";
+import { getWorkScene, skillsForScene } from "@/lib/studio/work-scenes";
+import { parseSkillContract, toSkillContractMeta } from "./contracts";
 import { departmentLabel, sortDepartmentIds } from "./departments";
 import { parseSkillMarkdown, toSkillMeta } from "./parse";
 
@@ -18,6 +20,15 @@ export function skillsRootDir(): string {
 /** Invalidate in-process cache (tests / hot reload). */
 export function clearSkillsCache(): void {
   cache = null;
+}
+
+async function readOptionalUtf8(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
 }
 
 async function loadAllSkills(force = false): Promise<Skill[]> {
@@ -52,6 +63,7 @@ async function loadAllSkills(force = false): Promise<Skill[]> {
     if (!isDir) continue;
 
     const skillFile = join(dir, "SKILL.md");
+    const contractFile = join(dir, "skill.json");
     let raw: string;
     try {
       raw = await readFile(skillFile, "utf8");
@@ -63,10 +75,20 @@ async function loadAllSkills(force = false): Promise<Skill[]> {
       const skill = parseSkillMarkdown(raw, { fallbackId: name });
       // Directory name is canonical id for filesystem layout
       skill.id = name;
+      const rawContract = await readOptionalUtf8(contractFile);
+      if (rawContract !== null) {
+        skill.contract = toSkillContractMeta(
+          parseSkillContract(rawContract, name),
+        );
+      }
       if (skill.enabled !== false) {
         skills.push(skill);
       }
     } catch (err) {
+      if ((err as Error).message?.startsWith("Skill contract")) {
+        console.warn("[skills] invalid v2 Skill package skipped:", dir);
+        continue;
+      }
       console.warn(`[skills] failed to parse ${skillFile}:`, err);
     }
   }
@@ -108,8 +130,14 @@ export async function listSkillsFiltered(opts: {
   q?: string;
   category?: string;
   featured?: boolean;
+  scene?: string;
 }): Promise<SkillMeta[]> {
   let skills = await listSkillMetas();
+  const scene = getWorkScene(opts.scene);
+  if (scene) {
+    const allowedSkillIds = new Set(skillsForScene(scene.id));
+    skills = skills.filter((skill) => allowedSkillIds.has(skill.id));
+  }
   const category = opts.category?.trim();
   if (category && category !== "all") {
     skills = skills.filter((s) => s.category === category);

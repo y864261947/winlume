@@ -35,6 +35,7 @@ export async function PATCH(request: NextRequest, context: IdContext) {
     model?: string;
     projectId?: string | null;
     pinnedSkillIds?: string[];
+    capabilityPresetId?: unknown;
   } = {};
   try {
     const text = await request.text();
@@ -44,6 +45,7 @@ export async function PATCH(request: NextRequest, context: IdContext) {
         model?: string;
         projectId?: string | null;
         pinnedSkillIds?: string[];
+        capabilityPresetId?: unknown;
       };
     }
   } catch {
@@ -55,6 +57,7 @@ export async function PATCH(request: NextRequest, context: IdContext) {
     model?: string;
     pinnedSkillIds?: string[];
     projectId?: string | null;
+    capabilityPresetId?: string | null;
   } = {};
   if (typeof body.title === "string") patch.title = body.title;
   if (typeof body.model === "string") patch.model = body.model;
@@ -76,6 +79,15 @@ export async function PATCH(request: NextRequest, context: IdContext) {
       .filter(Boolean)
       .slice(0, 8);
     patch.pinnedSkillIds = ids;
+  }
+  if (Object.hasOwn(body, "capabilityPresetId")) {
+    if (body.capabilityPresetId !== null) {
+      return NextResponse.json(
+        { error: "Capability preset can only be cleared" },
+        { status: 400 },
+      );
+    }
+    patch.capabilityPresetId = null;
   }
 
   if (Object.keys(patch).length === 0) {

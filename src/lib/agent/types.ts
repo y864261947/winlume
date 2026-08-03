@@ -9,6 +9,8 @@ export interface Session {
   projectId?: string;
   /** Skills applied to every turn unless overridden; UI may pin/unpin */
   pinnedSkillIds?: string[];
+  /** Validated launch intent for a capability-specific Studio workflow. */
+  capabilityPresetId?: string;
   /** Codex SDK thread persisted for coding-specialist continuity. */
   codexThreadId?: string;
   createdAt: string;
@@ -50,6 +52,16 @@ export interface Message {
 
 export type DefaultArtifactKind = "markdown" | "html" | "image-prompt" | "none";
 
+/** Safe v2 contract metadata exposed with a Skill; prompt bodies remain separate. */
+export interface SkillContractMeta {
+  schemaVersion: 2;
+  version: string;
+  stability: "experimental" | "stable";
+  requiredCapabilities: string[];
+  allowedTools: string[];
+  approvalPolicy: "none" | "on-blocking-review" | "required";
+}
+
 export interface SkillMeta {
   id: string;
   name: string;
@@ -63,6 +75,7 @@ export interface SkillMeta {
   enabled: boolean;
   featured?: boolean;
   defaultArtifact?: DefaultArtifactKind;
+  contract?: SkillContractMeta;
 }
 
 export interface Skill extends SkillMeta {

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   LoaderCircle,
   Search,
@@ -10,6 +11,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { SkillMeta } from "@/lib/agent/types";
+import type { WorkScene } from "@/lib/studio/work-scenes";
 
 type Department = {
   id: string;
@@ -17,7 +19,9 @@ type Department = {
   count: number;
 };
 
-export default function StudioSkillsPage() {
+function StudioSkillsPageContent() {
+  const searchParams = useSearchParams();
+  const scene = searchParams.get("scene")?.trim() || "";
   const [skills, setSkills] = useState<SkillMeta[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [total, setTotal] = useState(0);
@@ -28,6 +32,7 @@ export default function StudioSkillsPage() {
   /** `all` or department id */
   const [department, setDepartment] = useState("all");
   const [selected, setSelected] = useState<SkillMeta | null>(null);
+  const [activeScene, setActiveScene] = useState<WorkScene | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim()), 200);
@@ -43,6 +48,7 @@ export default function StudioSkillsPage() {
       if (department && department !== "all") {
         params.set("category", department);
       }
+      if (scene) params.set("scene", scene);
       const res = await fetch(`/api/skills?${params.toString()}`, {
         credentials: "same-origin",
       });
@@ -53,10 +59,12 @@ export default function StudioSkillsPage() {
         skills: SkillMeta[];
         departments?: Department[];
         total?: number;
+        activeScene?: WorkScene | null;
       };
       const list = data.skills ?? [];
       setSkills(list);
       setTotal(typeof data.total === "number" ? data.total : list.length);
+      setActiveScene(data.activeScene ?? null);
       if (data.departments?.length) {
         setDepartments(data.departments);
       }
@@ -68,13 +76,17 @@ export default function StudioSkillsPage() {
       setError(err instanceof Error ? err.message : "加载失败");
       setSkills([]);
       setTotal(0);
+      setActiveScene(null);
     } finally {
       setLoading(false);
     }
-  }, [debouncedQ, department]);
+  }, [debouncedQ, department, scene]);
 
   useEffect(() => {
-    void load();
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   const labelById = useMemo(() => {
@@ -92,6 +104,8 @@ export default function StudioSkillsPage() {
     () => departments.reduce((sum, d) => sum + d.count, 0),
     [departments],
   );
+
+  const displayedCount = activeScene ? total : allCount;
 
   const useExampleHref = useMemo(() => {
     if (!selected) return "/studio";
@@ -113,10 +127,12 @@ export default function StudioSkillsPage() {
               Skills
             </h1>
             <p className="mt-1 text-sm text-ink-500">
-              按部门浏览内置角色技能，选用示例提示词开始对话。
-              {!loading && allCount > 0 ? (
+              {activeScene
+                ? `${activeScene.label} · ${activeScene.summary}`
+                : "按部门浏览内置角色技能，选用示例提示词开始对话。"}
+              {!loading && displayedCount > 0 ? (
                 <span className="ml-1 tabular-nums text-ink-400">
-                  （共 {allCount} 个）
+                  （共 {displayedCount} 个）
                 </span>
               ) : null}
             </p>
@@ -240,6 +256,7 @@ export default function StudioSkillsPage() {
             <>
               <p className="mb-3 text-xs text-ink-400">
                 当前列表 {total} 个
+                {activeScene ? ` · ${activeScene.label}` : ""}
                 {department !== "all" ? ` · ${deptLabel(department)}` : ""}
                 {debouncedQ ? ` · 「${debouncedQ}」` : ""}
               </p>
@@ -369,5 +386,22 @@ export default function StudioSkillsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function StudioSkillsFallback() {
+  return (
+    <div className="flex min-h-0 flex-1 items-center gap-2 px-6 text-sm text-ink-500">
+      <LoaderCircle className="h-4 w-4 animate-spin" />
+      正在加载 Skills…
+    </div>
+  );
+}
+
+export default function StudioSkillsPage() {
+  return (
+    <Suspense fallback={<StudioSkillsFallback />}>
+      <StudioSkillsPageContent />
+    </Suspense>
   );
 }

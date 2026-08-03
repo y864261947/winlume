@@ -144,9 +144,18 @@ prompt body`);
 
   it("toSkillMeta omits systemPrompt", () => {
     const skill = parseSkillMarkdown(SAMPLE);
+    skill.contract = {
+      schemaVersion: 2,
+      version: "1.0.0",
+      stability: "stable",
+      requiredCapabilities: ["chat"],
+      allowedTools: ["write_artifact"],
+      approvalPolicy: "none",
+    };
     const meta = toSkillMeta(skill);
     expect(meta.id).toBe(skill.id);
     expect(meta.name).toBe(skill.name);
+    expect(meta.contract).toEqual(skill.contract);
     expect("systemPrompt" in meta).toBe(false);
   });
 

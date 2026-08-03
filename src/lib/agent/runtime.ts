@@ -301,7 +301,10 @@ export async function* runAgentTurn(
   const model =
     (typeof opts.model === "string" && opts.model.trim()) || session.model;
   if (model !== session.model) {
-    session = await sessions.updateSession(userId, sessionId, { model });
+    session = await sessions.updateSession(userId, sessionId, {
+      model,
+      capabilityPresetId: null,
+    });
   }
 
   const projectId = opts.projectId ?? session.projectId;
