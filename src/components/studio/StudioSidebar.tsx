@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
+  ChevronRight,
   Compass,
   FolderKanban,
   Plus,
@@ -366,7 +367,11 @@ export default function StudioSidebar({
       <div className="mt-3 border-t border-white/50 pt-3">
         {account ? (
           <div className="space-y-2">
-            <div className="flex items-center gap-2.5 px-1">
+            <Link
+              href="/account"
+              aria-label="进入账户中心"
+              className="group flex items-center gap-2.5 rounded-[10px] px-1 py-1 transition-[background-color,color] duration-150 hover:bg-white/60 focus-visible:bg-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#615A73]/40"
+            >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#334155] to-[#0F172A] text-sm font-bold text-white shadow-[0_6px_14px_-6px_rgba(15, 23, 42,0.5)]">
                 {avatarLetter}
               </span>
@@ -381,7 +386,12 @@ export default function StudioSidebar({
                   </span>
                 </p>
               </div>
-            </div>
+              <ChevronRight
+                aria-hidden
+                className="h-4 w-4 shrink-0 text-[#8A8298] transition-transform duration-150 group-hover:translate-x-0.5 group-focus-visible:translate-x-0.5"
+                strokeWidth={1.8}
+              />
+            </Link>
             {signOutAction.failed ? (
               <p role="alert" className="px-1 text-xs text-[#EF4770]">
                 退出失败，请重试
