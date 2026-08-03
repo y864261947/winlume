@@ -25,7 +25,8 @@ export async function GET(request: NextRequest, context: IdContext) {
     return NextResponse.json({ error: "Artifact not found" }, { status: 404 });
   }
 
-  const isBinaryKind = artifact.kind === "image" || artifact.kind === "binary";
+  const isBinaryKind =
+    artifact.kind === "image" || artifact.kind === "video" || artifact.kind === "binary";
   const buf = isBinaryKind ? null : await webStore.artifacts.readContent(userId, id);
   const content = isBinaryKind ? null : buf ? buf.toString("utf8") : "";
 
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest, context: IdContext) {
 }
 
 /**
- * PUT /api/artifacts/[id] — auto-save endpoint for canvas artifacts only.
+ * PUT /api/artifacts/[id] — auto-save endpoint for editable artifact types.
  * Accepts serialized canvas content after a conversion/edit, or records a
  * client-side conversion failure so opened views can render a stable error.
  */
@@ -52,11 +53,74 @@ export async function PUT(request: NextRequest, context: IdContext) {
   if (!existing) {
     return NextResponse.json({ error: "Artifact not found" }, { status: 404 });
   }
-  if (existing.kind !== "canvas") {
+  if (existing.kind !== "canvas" && existing.kind !== "video-analysis") {
     return NextResponse.json(
-      { error: "Only canvas artifacts can be updated via this endpoint" },
+      { error: "Only canvas and video-analysis artifacts can be updated via this endpoint" },
       { status: 400 },
     );
+  }
+
+  if (existing.kind === "video-analysis") {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "JSON body must be an object" }, { status: 400 });
+    }
+    const content = (body as { content?: unknown }).content;
+    if (typeof content !== "string") {
+      return NextResponse.json({ error: "Invalid video analysis content" }, { status: 400 });
+    }
+    const { parseVideoAnalysisContent, serializeVideoAnalysisContent } = await import(
+      "@/lib/studio/video-analysis"
+    );
+    const parsed = parseVideoAnalysisContent(content);
+    if (!parsed) {
+      return NextResponse.json({ error: "Invalid video analysis content" }, { status: 400 });
+    }
+    const currentBuffer = await webStore.artifacts.readContent(userId, id);
+    const current = currentBuffer
+      ? parseVideoAnalysisContent(currentBuffer.toString("utf8"))
+      : null;
+    if (!current) {
+      return NextResponse.json(
+        { error: "当前视频拆解内容无效，请刷新后再保存" },
+        { status: 409 },
+      );
+    }
+    if (current.stage !== "ready") {
+      return NextResponse.json(
+        { error: "视频拆解仍在进行中，请完成后再编辑" },
+        { status: 409 },
+      );
+    }
+    if (
+      parsed.sourceArtifactId !== current.sourceArtifactId ||
+      parsed.jobId !== current.jobId ||
+      parsed.goal !== current.goal
+    ) {
+      return NextResponse.json(
+        { error: "不能修改视频拆解的源视频、任务或目标" },
+        { status: 409 },
+      );
+    }
+    const updated = await webStore.artifacts.write(
+      { ...existing, status: "ready", error: undefined },
+      serializeVideoAnalysisContent({
+        ...parsed,
+        stage: "ready",
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+    publishArtifactEvent(userId, {
+      type: "artifact_updated",
+      artifactId: id,
+      status: "ready",
+    });
+    return NextResponse.json({ artifact: updated });
   }
 
   let body: unknown;

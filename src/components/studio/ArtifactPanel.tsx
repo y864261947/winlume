@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   CheckSquare,
+  Clapperboard,
   ChevronLeft,
   Download,
   FileCode2,
@@ -24,6 +25,8 @@ const KIND_LABELS: Record<ArtifactKind, string> = {
   text: "文本",
   json: "JSON",
   image: "图片",
+  video: "参考视频",
+  "video-analysis": "视频拆解",
   binary: "二进制",
   canvas: "画布",
 };
@@ -35,6 +38,8 @@ const FILTERS: { key: "all" | ArtifactKind; label: string }[] = [
   { key: "json", label: "JSON" },
   { key: "text", label: "文本" },
   { key: "image", label: "图" },
+  { key: "video", label: "视频" },
+  { key: "video-analysis", label: "拆解" },
   { key: "canvas", label: "画布" },
 ];
 
@@ -43,6 +48,9 @@ function KindIcon({ kind }: { kind: ArtifactKind }) {
   if (kind === "json") return <FileJson className={cls} />;
   if (kind === "html") return <FileCode2 className={cls} />;
   if (kind === "image") return <ImageIcon className={cls} />;
+  if (kind === "video" || kind === "video-analysis") {
+    return <Clapperboard className={cls} />;
+  }
   if (kind === "canvas") return <PanelsTopLeft className={cls} />;
   return <FileText className={cls} />;
 }

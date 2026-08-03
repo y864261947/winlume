@@ -18,10 +18,12 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Clapperboard,
   Copy,
   FileText,
   Image as ImageIcon,
   ListOrdered,
+  LoaderCircle,
   Paperclip,
   RotateCw,
   Square,
@@ -34,12 +36,15 @@ import {
   createPastedBlock,
   fileToAttachment,
   fileToImageAttachment,
+  fileToVideoAttachment,
   formatFileSize,
   hasComposerPayload,
   isImageFile,
+  isVideoFile,
   MAX_FILES,
   MAX_IMAGES,
   MAX_PASTED_BLOCKS,
+  MAX_VIDEOS,
   PASTED_COLLAPSED_PX,
   PASTED_EXPANDED_PX,
   resolveComposerPasteIntent,
@@ -47,13 +52,19 @@ import {
   type FileAttachment,
   type ImageAttachment,
   type PastedBlock,
+  type VideoAttachment,
 } from "@/lib/studio/composer-attachments";
 import {
   clearComposerDraft,
   loadComposerDraft,
   saveComposerDraft,
 } from "@/lib/studio/composer-draft";
-import { uploadImageArtifact } from "@/lib/studio/api";
+import {
+  startVideoAnalysis,
+  uploadImageArtifact,
+  uploadVideoArtifact,
+} from "@/lib/studio/api";
+import { REFERENCE_VIDEO_ACCEPT } from "@/lib/studio/video-upload";
 import {
   buildMentionCandidates,
   filterMentionCandidates,
@@ -99,6 +110,12 @@ export type ComposerSendMeta = {
     localId: string;
     name: string;
     dataUrl: string;
+  }>;
+  /** Files must stay in memory; they are uploaded after the home page creates a session. */
+  pendingVideoUploads?: Array<{
+    localId: string;
+    file: File;
+    authorized: true;
   }>;
 };
 
@@ -148,6 +165,10 @@ export type ComposerProps = {
   sessionId?: string;
   /** Called when an uploaded image finishes persisting as an Artifact. */
   onImageUploaded?: (artifact: Artifact) => void;
+  /** Called after an authorized reference video becomes a source artifact. */
+  onVideoUploaded?: (artifact: Artifact) => void;
+  /** Called after a pending video-analysis artifact is created. */
+  onVideoAnalysisStarted?: (artifact: Artifact) => void;
 };
 
 function PastedBlockCard({
@@ -273,6 +294,8 @@ export default function Composer({
   imageArtifacts = [],
   sessionId,
   onImageUploaded,
+  onVideoUploaded,
+  onVideoAnalysisStarted,
 }: ComposerProps) {
   const isHero = variant === "hero";
   const promptId = useId();
@@ -306,8 +329,10 @@ export default function Composer({
   const [pastedBlocks, setPastedBlocks] = useState<PastedBlock[]>([]);
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [files, setFiles] = useState<FileAttachment[]>([]);
+  const [videos, setVideos] = useState<VideoAttachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
+  const [submittingAttachments, setSubmittingAttachments] = useState(false);
   const [draftHydrated, setDraftHydrated] = useState(!draftKey);
 
   const editorRef = useRef<MentionPromptEditorHandle>(null);
@@ -540,8 +565,11 @@ export default function Composer({
       pasted: pastedBlocks,
       images,
       files,
+      videos,
     }) &&
     !disabled &&
+    !submittingAttachments &&
+    videos.every((video) => video.authorized) &&
     !(streaming && queueFull);
 
   const focusComposer = useCallback(() => {
@@ -782,6 +810,17 @@ export default function Composer({
           await addImages([file]);
           continue;
         }
+        if (isVideoFile(file)) {
+          const video = fileToVideoAttachment(file);
+          setVideos((prev) => {
+            if (prev.length >= MAX_VIDEOS) {
+              setAttachError(`一次最多添加 ${MAX_VIDEOS} 个参考视频`);
+              return prev;
+            }
+            return [...prev, video];
+          });
+          continue;
+        }
         const result = await fileToAttachment(file);
         if (result.pasted) {
           setPastedBlocks((prev) => {
@@ -894,7 +933,7 @@ export default function Composer({
     e.stopPropagation();
     dragCounter.current = 0;
     setDragOver(false);
-    if (disabled) return;
+    if (disabled || submittingAttachments) return;
     const list = Array.from(e.dataTransfer?.files ?? []);
     if (list.length) void addFiles(list);
   };
@@ -903,11 +942,12 @@ export default function Composer({
     setPastedBlocks([]);
     setComposerImages([]);
     setFiles([]);
+    setVideos([]);
     setAttachError(null);
   }, [setComposerImages]);
 
   const submit = useCallback(() => {
-    if (disabled) return;
+    if (disabled || submittingAttachments) return;
     if (streaming && queueFull) return;
     if (
       !hasComposerPayload({
@@ -915,106 +955,155 @@ export default function Composer({
         pasted: pastedBlocks,
         images,
         files,
+        videos,
       })
     ) {
+      return;
+    }
+    if (videos.some((video) => !video.authorized)) {
+      setAttachError("请先确认你拥有该参考视频的使用授权");
       return;
     }
     onClearError?.();
 
     void (async () => {
-      let workingImages = images;
+      setSubmittingAttachments(true);
+      try {
+        let workingImages = images;
 
-      // Session page: finish any @-mentioned uploads before resolving ids.
-      if (sessionId) {
-        const pending = resolvePendingLocalMentions(draft, workingImages);
-        if (pending.length) {
-          const uploaded: ImageAttachment[] = [...workingImages];
-          for (const image of pending) {
+        // Session page: finish any @-mentioned uploads before resolving ids.
+        if (sessionId) {
+          const pending = resolvePendingLocalMentions(draft, workingImages);
+          if (pending.length) {
+            const uploaded: ImageAttachment[] = [...workingImages];
+            for (const image of pending) {
+              try {
+                const artifact = await uploadImageArtifact({
+                  sessionId,
+                  name: image.name,
+                  dataUrl: image.dataUrl,
+                });
+                const idx = uploaded.findIndex((i) => i.id === image.id);
+                if (idx >= 0) {
+                  uploaded[idx] = {
+                    ...uploaded[idx]!,
+                    artifactId: artifact.id,
+                    uploadFailed: false,
+                  };
+                }
+                onImageUploaded?.(artifact);
+              } catch {
+                const idx = uploaded.findIndex((i) => i.id === image.id);
+                if (idx >= 0) {
+                  uploaded[idx] = { ...uploaded[idx]!, uploadFailed: true };
+                }
+                setAttachError("部分图片上传失败，@ 引用可能不完整");
+              }
+            }
+            workingImages = uploaded;
+            setComposerImages(uploaded);
+          }
+
+          // Video work starts outside the chat process. Do this before the chat
+          // turn so the Works panel has durable source + pending analysis rows.
+          for (const video of videos) {
             try {
-              const artifact = await uploadImageArtifact({
+              const source = await uploadVideoArtifact({
                 sessionId,
-                name: image.name,
-                dataUrl: image.dataUrl,
+                file: video.file,
+                authorized: video.authorized,
               });
-              const idx = uploaded.findIndex((i) => i.id === image.id);
-              if (idx >= 0) {
-                uploaded[idx] = {
-                  ...uploaded[idx]!,
-                  artifactId: artifact.id,
-                  uploadFailed: false,
-                };
-              }
-              onImageUploaded?.(artifact);
-            } catch {
-              const idx = uploaded.findIndex((i) => i.id === image.id);
-              if (idx >= 0) {
-                uploaded[idx] = { ...uploaded[idx]!, uploadFailed: true };
-              }
-              setAttachError("部分图片上传失败，@ 引用可能不完整");
+              onVideoUploaded?.(source);
+              const analysis = await startVideoAnalysis({
+                sourceArtifactId: source.id,
+                goal: "both",
+              });
+              onVideoAnalysisStarted?.(analysis.artifact);
+            } catch (error) {
+              setAttachError(
+                error instanceof Error
+                  ? error.message
+                  : "参考视频上传或拆解任务创建失败",
+              );
+              return;
             }
           }
-          workingImages = uploaded;
-          setComposerImages(uploaded);
         }
+
+        const outbound = composeOutboundMessage({
+          draft,
+          pasted: pastedBlocks,
+          images: workingImages,
+          files,
+          videos,
+        });
+        if (!outbound) return;
+
+        const referencedArtifactIds = resolveReferencedArtifactIds(
+          draft,
+          workingImages,
+          imageArtifacts,
+        );
+
+        const meta: ComposerSendMeta | undefined =
+          selectedIds.length ||
+          referencedArtifactIds.length ||
+          (!sessionId && (workingImages.length || videos.length))
+            ? {
+                ...(selectedIds.length ? { skillIds: [...selectedIds] } : {}),
+                ...(referencedArtifactIds.length
+                  ? { referencedArtifactIds }
+                  : {}),
+                ...(!sessionId && workingImages.length
+                  ? {
+                      pendingImageUploads: workingImages.map((img) => ({
+                        localId: img.id,
+                        name: img.name,
+                        dataUrl: img.dataUrl,
+                      })),
+                    }
+                  : {}),
+                ...(!sessionId && videos.length
+                  ? {
+                      pendingVideoUploads: videos.map((video) => ({
+                        localId: video.id,
+                        file: video.file,
+                        authorized: true as const,
+                      })),
+                    }
+                  : {}),
+              }
+            : undefined;
+
+        void onSend(outbound, meta);
+        setDraft("");
+        editorRef.current?.clear();
+        setSelectedIds([]);
+        clearAttachments();
+        closeMenu();
+        setMentionOpen(false);
+        setMentionRange(null);
+        if (draftKey) clearComposerDraft(draftKey);
+        focusComposer();
+      } finally {
+        setSubmittingAttachments(false);
       }
-
-      const outbound = composeOutboundMessage({
-        draft,
-        pasted: pastedBlocks,
-        images: workingImages,
-        files,
-      });
-      if (!outbound) return;
-
-      const referencedArtifactIds = resolveReferencedArtifactIds(
-        draft,
-        workingImages,
-        imageArtifacts,
-      );
-
-      const meta: ComposerSendMeta | undefined =
-        selectedIds.length ||
-        referencedArtifactIds.length ||
-        (!sessionId && workingImages.length)
-          ? {
-              ...(selectedIds.length ? { skillIds: [...selectedIds] } : {}),
-              ...(referencedArtifactIds.length
-                ? { referencedArtifactIds }
-                : {}),
-              ...(!sessionId && workingImages.length
-                ? {
-                    pendingImageUploads: workingImages.map((img) => ({
-                      localId: img.id,
-                      name: img.name,
-                      dataUrl: img.dataUrl,
-                    })),
-                  }
-                : {}),
-            }
-          : undefined;
-
-      void onSend(outbound, meta);
-      setDraft("");
-      editorRef.current?.clear();
-      setSelectedIds([]);
-      clearAttachments();
-      closeMenu();
-      setMentionOpen(false);
-      setMentionRange(null);
-      if (draftKey) clearComposerDraft(draftKey);
-      focusComposer();
     })();
   }, [
     disabled,
+    submittingAttachments,
     streaming,
     queueFull,
     draft,
     pastedBlocks,
     images,
     files,
+    videos,
     sessionId,
     imageArtifacts,
     onImageUploaded,
+    onVideoUploaded,
+    onVideoAnalysisStarted,
     setComposerImages,
     onClearError,
     selectedIds,
@@ -1118,7 +1207,10 @@ export default function Composer({
   const turnCount = selectedIds.length;
   const pinCount = pinnedIds.length;
   const hasAttachments =
-    pastedBlocks.length > 0 || images.length > 0 || files.length > 0;
+    pastedBlocks.length > 0 ||
+    images.length > 0 ||
+    files.length > 0 ||
+    videos.length > 0;
 
   return (
     <div
@@ -1214,7 +1306,7 @@ export default function Composer({
       >
         {dragOver ? (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-[rgba(15,23,42,0.06)] text-sm font-medium text-[#0F172A] backdrop-blur-[2px]">
-            松开以添加文件或图片
+            松开以添加文件、图片或参考视频
           </div>
         ) : null}
 
@@ -1277,8 +1369,8 @@ export default function Composer({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
-            title="添加附件或图片"
+            disabled={disabled || submittingAttachments}
+            title="添加附件、图片或参考视频"
             className="studio-liquid-chip inline-flex items-center gap-1 rounded-[10px] px-2 py-1 text-xs text-[#615A73] disabled:opacity-50"
           >
             <Paperclip className="h-3.5 w-3.5" />
@@ -1290,7 +1382,7 @@ export default function Composer({
             type="file"
             multiple
             className="hidden"
-            accept="image/*,.txt,.md,.json,.csv,.log,.html,.css,.js,.ts,.tsx,.py,.yml,.yaml"
+            accept={`image/*,${REFERENCE_VIDEO_ACCEPT},.txt,.md,.json,.csv,.log,.html,.css,.js,.ts,.tsx,.py,.yml,.yaml`}
             onChange={(e) => {
               const list = Array.from(e.target.files ?? []);
               e.target.value = "";
@@ -1299,13 +1391,17 @@ export default function Composer({
           />
 
           <span className="text-[11px] text-[#8A8298]">
-            {streaming
-              ? queueFull
-                ? `队列已满（${MAX_MESSAGE_QUEUE_SIZE}）· 可停止当前生成`
-                : "生成中 · Enter 加入队列 · 可粘贴/拖入附件"
-              : images.length > 0
-                ? "输入 @ 引用图片（如 @图片1）· Enter 发送"
-                : "Enter 发送 · 粘贴长文自动折叠 · 可拖入文件"}
+            {submittingAttachments
+              ? "正在上传附件并创建拆解任务…"
+              : streaming
+                ? queueFull
+                  ? `队列已满（${MAX_MESSAGE_QUEUE_SIZE}）· 可停止当前生成`
+                  : "生成中 · Enter 加入队列 · 可粘贴/拖入附件"
+                : videos.length > 0
+                  ? "确认授权后发送 · 将在作品区生成可编辑拆解"
+                  : images.length > 0
+                    ? "输入 @ 引用图片（如 @图片1）· Enter 发送"
+                    : "Enter 发送 · 粘贴长文自动折叠 · 可拖入文件"}
           </span>
         </div>
 
@@ -1319,8 +1415,8 @@ export default function Composer({
           disabled={disabled}
         />
 
-        {/* Attachment strip: images + binary file chips */}
-        {(images.length > 0 || files.length > 0) && (
+        {/* Attachment strip: images, reference videos, and binary file chips. */}
+        {(images.length > 0 || videos.length > 0 || files.length > 0) && (
           <div className="flex flex-wrap gap-2 px-2">
             {images.map((img) => (
               <div
@@ -1386,6 +1482,51 @@ export default function Composer({
                 </button>
               </div>
             ))}
+            {videos.map((video) => (
+              <div
+                key={video.id}
+                className="relative flex min-w-[15rem] max-w-full flex-col gap-1.5 rounded-[8px] border border-white/80 bg-white/65 px-2.5 py-2 text-[11px] text-[#241E36] shadow-sm"
+              >
+                <div className="flex min-w-0 items-center gap-1.5 pr-5">
+                  <Clapperboard className="h-3.5 w-3.5 shrink-0 text-[#0F172A]" />
+                  <span className="min-w-0 flex-1 truncate font-medium" title={video.name}>
+                    {video.name}
+                  </span>
+                  <span className="shrink-0 text-[#8A8298]">
+                    {formatFileSize(video.size)}
+                  </span>
+                </div>
+                <label className="flex cursor-pointer items-start gap-1.5 leading-4 text-[#615A73]">
+                  <input
+                    type="checkbox"
+                    checked={video.authorized}
+                    disabled={disabled || submittingAttachments}
+                    onChange={(event) => {
+                      const authorized = event.target.checked;
+                      setVideos((prev) =>
+                        prev.map((item) =>
+                          item.id === video.id ? { ...item, authorized } : item,
+                        ),
+                      );
+                      if (authorized) setAttachError(null);
+                    }}
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[#0F172A]"
+                  />
+                  <span>我确认拥有该视频的使用授权</span>
+                </label>
+                <button
+                  type="button"
+                  disabled={disabled || submittingAttachments}
+                  onClick={() =>
+                    setVideos((prev) => prev.filter((item) => item.id !== video.id))
+                  }
+                  className="absolute right-1.5 top-1.5 rounded p-0.5 text-[#8A8298] hover:bg-white hover:text-[#0F172A] disabled:opacity-40"
+                  title={`移除 ${video.name}`}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
             {files.map((f) => (
               <div
                 key={f.id}
@@ -1436,7 +1577,11 @@ export default function Composer({
         {hasAttachments ? (
           <div className="flex items-center gap-2 px-2">
             <span className="inline-flex items-center gap-1 text-[10px] text-[#8A8298]">
-              <ImageIcon className="h-3 w-3" />
+              {videos.length > 0 ? (
+                <Clapperboard className="h-3 w-3" />
+              ) : (
+                <ImageIcon className="h-3 w-3" />
+              )}
               {pastedBlocks.length > 0
                 ? `${pastedBlocks.length} 粘贴块`
                 : null}
@@ -1446,7 +1591,22 @@ export default function Composer({
                   {images.length}/{MAX_IMAGES} 图
                 </span>
               ) : null}
-              {(pastedBlocks.length > 0 || images.length > 0) && files.length
+              {(pastedBlocks.length > 0 || images.length > 0) && videos.length
+                ? " · "
+                : null}
+              {videos.length > 0 ? (
+                <span
+                  className={
+                    videos.some((video) => !video.authorized)
+                      ? "font-medium text-amber-600"
+                      : undefined
+                  }
+                >
+                  {videos.length}/{MAX_VIDEOS} 视频
+                </span>
+              ) : null}
+              {(pastedBlocks.length > 0 || images.length > 0 || videos.length > 0) &&
+              files.length
                 ? " · "
                 : null}
               {files.length > 0 ? `${files.length} 文件` : null}
@@ -1481,9 +1641,11 @@ export default function Composer({
                 ? queueFull
                   ? "队列已满，请等待或停止生成…"
                   : "继续输入，将加入发送队列…"
-                : hasAttachments
-                  ? "补充说明，或输入 @ 引用图片…"
-                  : placeholder
+                : videos.length > 0
+                  ? "补充拆解目标，例如目标平台、时长或想保留的结构…"
+                  : hasAttachments
+                    ? "补充说明，或输入 @ 引用图片…"
+                    : placeholder
             }
             maxHeight={isHero ? 220 : 160}
             minHeightClass={
@@ -1499,10 +1661,20 @@ export default function Composer({
               <button
                 type="submit"
                 disabled={!canSend}
-                title={queueFull ? "队列已满" : "加入队列"}
+                title={
+                  submittingAttachments
+                    ? "正在上传附件"
+                    : queueFull
+                      ? "队列已满"
+                      : "加入队列"
+                }
                 className="studio-send-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-white transition disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <ListOrdered className="h-4 w-4" />
+                {submittingAttachments ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ListOrdered className="h-4 w-4" />
+                )}
                 <span className="sr-only">加入队列</span>
               </button>
               <button
@@ -1519,10 +1691,14 @@ export default function Composer({
             <button
               type="submit"
               disabled={!canSend}
-              title="发送"
+              title={submittingAttachments ? "正在上传附件" : "发送"}
               className="studio-send-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-white transition disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <ArrowUp className="h-4 w-4" />
+              {submittingAttachments ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <ArrowUp className="h-4 w-4" />
+              )}
               <span className="sr-only">发送</span>
             </button>
           )}

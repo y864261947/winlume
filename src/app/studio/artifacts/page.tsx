@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  Clapperboard,
   FileCode2,
   FileJson,
   FileText,
@@ -22,6 +23,8 @@ const KIND_LABELS: Record<ArtifactKind, string> = {
   text: "文本",
   json: "JSON",
   image: "图片",
+  video: "参考视频",
+  "video-analysis": "视频拆解",
   binary: "二进制",
   canvas: "画布",
 };
@@ -31,6 +34,9 @@ function KindIcon({ kind }: { kind: ArtifactKind }) {
   if (kind === "json") return <FileJson className={cls} />;
   if (kind === "html") return <FileCode2 className={cls} />;
   if (kind === "canvas") return <PanelsTopLeft className={cls} />;
+  if (kind === "video" || kind === "video-analysis") {
+    return <Clapperboard className={cls} />;
+  }
   return <FileText className={cls} />;
 }
 
@@ -139,7 +145,7 @@ export default function StudioArtifactsPage() {
               作品
             </h1>
             <p className="mt-1 text-sm text-ink-500">
-              对话中通过 write_artifact 保存的文档与结构化产出。
+              对话、画布与参考视频拆解产生的所有作品。
             </p>
           </div>
           <button

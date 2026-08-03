@@ -27,6 +27,8 @@ import {
   setPendingFirstMessage,
   StudioApiError,
   uploadImageArtifact,
+  uploadVideoArtifact,
+  startVideoAnalysis,
 } from "@/lib/studio/api";
 import { clearComposerDraft } from "@/lib/studio/composer-draft";
 import {
@@ -380,7 +382,7 @@ function StudioHomeInner() {
             : undefined;
 
       // 1) Slide composer to bottom (FLIP) while creating session
-      // 2) Upload local @ images so references resolve server-side
+      // 2) Upload local images and reference video after the session exists
       // 3) View Transition navigate — shared studio-composer morph
       setStarting(true);
       setError(null);
@@ -425,6 +427,17 @@ function StudioHomeInner() {
               dataUrl: item.dataUrl,
             });
           }
+        }
+
+        // Files cannot cross the sessionStorage handoff. Persist the authorized
+        // source and create its analysis job before navigating to the session.
+        for (const item of meta?.pendingVideoUploads ?? []) {
+          const source = await uploadVideoArtifact({
+            sessionId: session.id,
+            file: item.file,
+            authorized: item.authorized,
+          });
+          await startVideoAnalysis({ sourceArtifactId: source.id, goal: "both" });
         }
 
         let referencedArtifactIds =

@@ -304,6 +304,24 @@ export default function StudioSessionPage() {
     flashTimerRef.current = setTimeout(() => setFlashId(null), 2800);
   }, []);
 
+  const upsertArtifact = useCallback((artifact: Artifact) => {
+    setArtifacts((previous) => [
+      artifact,
+      ...previous.filter((item) => item.id !== artifact.id),
+    ]);
+  }, []);
+
+  const openPendingVideoAnalysis = useCallback(
+    (artifact: Artifact) => {
+      upsertArtifact(artifact);
+      setSelectedId(artifact.id);
+      flashArtifact(artifact.id);
+      setMobileTab("works");
+      openWorksRail({ preview: true, list: false, animated: true, manual: true });
+    },
+    [flashArtifact, openWorksRail, upsertArtifact],
+  );
+
   useEffect(() => {
     return () => {
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
@@ -835,12 +853,9 @@ export default function StudioSessionPage() {
           (a) => (a.kind === "image" || a.kind === "canvas") && a.status !== "failed",
         )}
         sessionId={session?.id ?? sessionId}
-        onImageUploaded={(artifact) =>
-          setArtifacts((prev) => [
-            artifact,
-            ...prev.filter((item) => item.id !== artifact.id),
-          ])
-        }
+        onImageUploaded={upsertArtifact}
+        onVideoUploaded={upsertArtifact}
+        onVideoAnalysisStarted={openPendingVideoAnalysis}
       />
     </div>
   );

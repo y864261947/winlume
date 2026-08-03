@@ -1,3 +1,9 @@
+import {
+  isReferenceVideoFile,
+  MAX_REFERENCE_VIDEO_BYTES,
+  referenceVideoMimeType,
+} from "./video-upload";
+
 /**
  * NewMax-style composer attachment helpers (web port).
  * Long paste → collapsed blocks; images/files as chips; expand into final message text.
@@ -8,9 +14,12 @@ export const PASTE_CHAR_THRESHOLD = 400;
 export const PASTED_COLLAPSED_PX = 160;
 export const PASTED_EXPANDED_PX = 480;
 export const MAX_PASTED_BLOCKS = 8;
+
 export const MAX_IMAGES = 4;
 export const MAX_FILES = 6;
+export const MAX_VIDEOS = 1;
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = MAX_REFERENCE_VIDEO_BYTES;
 export const MAX_TEXT_FILE_BYTES = 512 * 1024;
 export const PREVIEW_LINE_COUNT = 12;
 
@@ -44,6 +53,17 @@ export type FileAttachment = {
   kind: "text" | "binary";
   /** Present when kind === "text" */
   textContent?: string;
+};
+
+/** A source video stays as a File until the user submits the composer. */
+export type VideoAttachment = {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  file: File;
+  /** Explicit user assertion required before upload can start. */
+  authorized: boolean;
 };
 
 export type PasteIntent =
@@ -132,6 +152,10 @@ export function isImageFile(file: File): boolean {
   return file.type.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(file.name);
 }
 
+export function isVideoFile(file: File): boolean {
+  return isReferenceVideoFile(file);
+}
+
 /** Classify clipboard / drop payload (NewMax resolveComposerPasteIntent). */
 export function resolveComposerPasteIntent(
   clipboardData: DataTransfer | null,
@@ -215,6 +239,28 @@ export async function fileToImageAttachment(
   };
 }
 
+export function fileToVideoAttachment(file: File): VideoAttachment {
+  if (!isVideoFile(file)) {
+    throw new Error("仅支持 MP4、MOV 或 WebM 视频");
+  }
+  if (file.size <= 0) {
+    throw new Error("视频文件为空");
+  }
+  if (file.size > MAX_VIDEO_BYTES) {
+    throw new Error(
+      `视频过大（${formatFileSize(file.size)}），上限 ${formatFileSize(MAX_VIDEO_BYTES)}`,
+    );
+  }
+  return {
+    id: uid("video"),
+    name: file.name || "参考视频.mp4",
+    mimeType: referenceVideoMimeType(file),
+    size: file.size,
+    file,
+    authorized: false,
+  };
+}
+
 export async function fileToAttachment(file: File): Promise<{
   pasted?: PastedBlock;
   file?: FileAttachment;
@@ -252,6 +298,7 @@ export function composeOutboundMessage(opts: {
   pasted: PastedBlock[];
   images: ImageAttachment[];
   files: FileAttachment[];
+  videos: VideoAttachment[];
 }): string {
   const parts: string[] = [];
   const draft = opts.draft.trim();
@@ -284,6 +331,10 @@ export function composeOutboundMessage(opts: {
     );
   }
 
+  if (!draft && opts.videos.length) {
+    parts.push("请拆解已上传的参考视频，输出脚本、分镜和可复用结构。");
+  }
+
   return parts.join("\n\n").trim();
 }
 
@@ -292,12 +343,14 @@ export function hasComposerPayload(opts: {
   pasted: PastedBlock[];
   images: ImageAttachment[];
   files: FileAttachment[];
+  videos: VideoAttachment[];
 }): boolean {
   return (
     Boolean(opts.draft.trim()) ||
     opts.pasted.length > 0 ||
     opts.images.length > 0 ||
-    opts.files.length > 0
+    opts.files.length > 0 ||
+    opts.videos.length > 0
   );
 }
 

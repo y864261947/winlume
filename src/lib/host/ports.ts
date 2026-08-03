@@ -1,3 +1,4 @@
+import type { Readable } from "node:stream";
 import type { Artifact, Message, Project, Session } from "@/lib/agent/types";
 
 export interface SessionStore {
@@ -44,5 +45,18 @@ export interface ArtifactStore {
   listByProject(userId: string, projectId: string): Promise<Artifact[]>;
   get(userId: string, artifactId: string): Promise<Artifact | null>;
   write(meta: Artifact, content: Buffer | string): Promise<Artifact>;
+  /** Write large binary artifacts without buffering their whole body in memory. */
+  writeStream(
+    meta: Artifact,
+    content: Readable,
+    options?: { maxBytes?: number },
+  ): Promise<Artifact>;
   readContent(userId: string, artifactId: string): Promise<Buffer | null>;
+  /** Stream a blob for media playback or a worker hand-off. */
+  createReadStream(
+    userId: string,
+    artifactId: string,
+    options?: { start?: number; end?: number },
+  ): Promise<Readable | null>;
+  contentSize(userId: string, artifactId: string): Promise<number | null>;
 }

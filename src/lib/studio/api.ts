@@ -10,6 +10,7 @@ import type {
   Project,
   Session,
 } from "@/lib/agent/types";
+import { referenceVideoMimeType } from "@/lib/studio/video-upload";
 
 const PENDING_FIRST_MESSAGE_KEY = "winlume:pending-first-message";
 
@@ -406,6 +407,76 @@ export async function uploadImageAnnotation(body: {
     visibility: "hidden",
     purpose: "annotation",
   });
+}
+
+export async function uploadVideoArtifact(input: {
+  sessionId: string;
+  file: File;
+  authorized: boolean;
+}): Promise<Artifact> {
+  const response = await fetch("/api/artifacts/upload-video", {
+    method: "POST",
+    headers: {
+      "content-type": referenceVideoMimeType(input.file),
+      "x-winlume-session-id": input.sessionId,
+      "x-winlume-artifact-name": encodeURIComponent(input.file.name || "参考视频.mp4"),
+      "x-winlume-video-authorized": String(input.authorized),
+    },
+    body: input.file,
+    credentials: "same-origin",
+  });
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "视频上传失败",
+      response.status,
+    );
+  }
+  return (await parseJson<{ artifact: Artifact }>(response)).artifact;
+}
+
+export async function startVideoAnalysis(input: {
+  sourceArtifactId: string;
+  goal?: "script" | "storyboard" | "both";
+}): Promise<{ artifact: Artifact }> {
+  const response = await fetch("/api/video/analyses", {
+    method: "POST",
+    headers: withUserHeaders(),
+    body: JSON.stringify(input),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "视频拆解任务创建失败",
+      response.status,
+    );
+  }
+  return parseJson<{ artifact: Artifact }>(response);
+}
+
+export async function retryQueuedVideoAnalysis(
+  analysisArtifactId: string,
+): Promise<{ artifact: Artifact }> {
+  const response = await fetch(
+    `/api/video/analyses/${encodeURIComponent(analysisArtifactId)}/retry`,
+    {
+      method: "POST",
+      headers: withUserHeaders(),
+      credentials: "same-origin",
+    },
+  );
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "重新派发视频拆解失败",
+      response.status,
+    );
+  }
+  return parseJson<{ artifact: Artifact }>(response);
 }
 
 /* ── Artifacts ─────────────────────────────────────────────── */

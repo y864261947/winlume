@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 import { describe, it, expect, afterEach } from "vitest";
 import { createWebFileStore } from "./file-store";
 
@@ -197,5 +198,53 @@ describe("web file store", () => {
     const annotation = await store.artifacts.get("u1", "annotation-image");
     expect(annotation?.visibility).toBe("hidden");
     expect(annotation?.purpose).toBe("annotation");
+  });
+
+  it("streams video bytes to disk and supports a byte range reader", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wl-"));
+    dirs.push(root);
+    const store = createWebFileStore(root);
+    const createdAt = new Date().toISOString();
+    await store.artifacts.writeStream(
+      {
+        id: "video-1",
+        userId: "u1",
+        sessionId: "s1",
+        name: "reference.mp4",
+        kind: "video",
+        mimeType: "video/mp4",
+        storageKey: "",
+        createdAt,
+      },
+      Readable.from([Buffer.from("abcdef")]),
+      { maxBytes: 16 },
+    );
+
+    expect(await store.artifacts.contentSize("u1", "video-1")).toBe(6);
+    const range = await store.artifacts.createReadStream("u1", "video-1", {
+      start: 2,
+      end: 4,
+    });
+    const chunks: Buffer[] = [];
+    for await (const chunk of range!) chunks.push(Buffer.from(chunk));
+    expect(Buffer.concat(chunks).toString("utf8")).toBe("cde");
+
+    await expect(
+      store.artifacts.writeStream(
+        {
+          id: "too-large",
+          userId: "u1",
+          sessionId: "s1",
+          name: "too-large.mp4",
+          kind: "video",
+          mimeType: "video/mp4",
+          storageKey: "",
+          createdAt,
+        },
+        Readable.from([Buffer.from("abcdef")]),
+        { maxBytes: 3 },
+      ),
+    ).rejects.toThrow(/exceeds/);
+    expect(await store.artifacts.get("u1", "too-large")).toBeNull();
   });
 });

@@ -41,6 +41,7 @@ describe("composeOutboundMessage", () => {
       pasted: [block],
       images: [],
       files: [],
+      videos: [],
     });
     expect(msg).toContain("请分析");
     expect(msg).toContain("log.txt");
@@ -54,6 +55,7 @@ describe("composeOutboundMessage", () => {
         pasted: [createPastedBlock("hello world enough text here")],
         images: [],
         files: [],
+        videos: [],
       }),
     ).toBe(true);
   });
@@ -79,6 +81,7 @@ describe("composeOutboundMessage", () => {
         },
       ],
       files: [],
+      videos: [],
     });
     expect(msg).toBe("将@图片1 和@图片2 合并起来");
     expect(msg).not.toContain("--- 图片");
@@ -99,8 +102,29 @@ describe("composeOutboundMessage", () => {
         },
       ],
       files: [],
+      videos: [],
     });
     expect(msg).toBe("@图片1");
+  });
+
+  it("uses the reference-video task prompt when no text is provided", () => {
+    const msg = composeOutboundMessage({
+      draft: "",
+      pasted: [],
+      images: [],
+      files: [],
+      videos: [
+        {
+          id: "video-1",
+          name: "reference.mp4",
+          mimeType: "video/mp4",
+          size: 10,
+          file: new File(["video"], "reference.mp4", { type: "video/mp4" }),
+          authorized: true,
+        },
+      ],
+    });
+    expect(msg).toContain("拆解已上传的参考视频");
   });
 });
 

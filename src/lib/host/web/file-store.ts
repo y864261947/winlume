@@ -1,13 +1,18 @@
 import {
+  createReadStream,
+  createWriteStream,
   mkdirSync,
   readFileSync,
   renameSync,
+  statSync,
   unlinkSync,
   writeFileSync,
   existsSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { pipeline } from "node:stream/promises";
+import { Transform, type Readable } from "node:stream";
 import type { Artifact, Message, Project, Session } from "@/lib/agent/types";
 import type { ArtifactStore, ProjectStore, SessionStore } from "@/lib/host/ports";
 import {
@@ -333,10 +338,60 @@ function createArtifactStore(rootDir: string): ArtifactStore {
       return artifact;
     },
 
+    async writeStream(meta, content, options) {
+      const artifact: Artifact = {
+        ...meta,
+        storageKey: meta.storageKey || storageKeyFor(meta.userId, meta.id),
+      };
+      const path = blobPath(rootDir, artifact.userId, artifact.id);
+      ensureDir(dirname(path));
+      const temporary = join(dirname(path), `.${randomUUID()}.tmp`);
+      let written = 0;
+      const maxBytes = options?.maxBytes;
+      const limiter = new Transform({
+        transform(chunk: Buffer, _encoding, callback) {
+          written += chunk.length;
+          if (maxBytes !== undefined && written > maxBytes) {
+            callback(new Error(`Artifact exceeds ${maxBytes} bytes`));
+            return;
+          }
+          callback(null, chunk);
+        },
+      });
+      try {
+        await pipeline(content, limiter, createWriteStream(temporary, { flags: "w" }));
+        renameSync(temporary, path);
+      } catch (error) {
+        try {
+          if (existsSync(temporary)) unlinkSync(temporary);
+        } catch {
+          // Preserve the original stream failure.
+        }
+        throw error;
+      }
+
+      const index = readIndex(artifact.userId).filter((a) => a.id !== artifact.id);
+      index.push(artifact);
+      writeIndex(artifact.userId, index);
+      return artifact;
+    },
+
     async readContent(userId, artifactId) {
       const path = blobPath(rootDir, userId, artifactId);
       if (!existsSync(path)) return null;
       return readFileSync(path);
+    },
+
+    async createReadStream(userId, artifactId, options) {
+      const path = blobPath(rootDir, userId, artifactId);
+      if (!existsSync(path)) return null;
+      return createReadStream(path, options);
+    },
+
+    async contentSize(userId, artifactId) {
+      const path = blobPath(rootDir, userId, artifactId);
+      if (!existsSync(path)) return null;
+      return statSync(path).size;
     },
   };
 }

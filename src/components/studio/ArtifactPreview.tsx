@@ -53,6 +53,7 @@ import ImageAnnotationOverlay, {
   type ImageAnnotationSubmit,
 } from "@/components/studio/ImageAnnotationOverlay";
 import RetryableError from "@/components/studio/RetryableError";
+import VideoAnalysisPreview from "@/components/studio/VideoAnalysisPreview";
 import { downloadImageArtifact } from "@/lib/studio/artifact-download";
 import {
   buildImageRefinementInstruction,
@@ -69,6 +70,8 @@ const KIND_LABELS: Record<ArtifactKind, string> = {
   text: "文本",
   json: "JSON",
   image: "图片",
+  video: "参考视频",
+  "video-analysis": "视频拆解",
   binary: "二进制",
   canvas: "画布",
 };
@@ -136,6 +139,12 @@ function extensionFor(kind: ArtifactKind, name: string, mimeType?: string): stri
       if (mimeType === "image/jpeg") return ".jpg";
       if (mimeType === "image/webp") return ".webp";
       return ".png";
+    case "video":
+      if (mimeType === "video/quicktime") return ".mov";
+      if (mimeType === "video/webm") return ".webm";
+      return ".mp4";
+    case "video-analysis":
+      return ".json";
     default:
       return ".txt";
   }
@@ -148,6 +157,8 @@ function mimeFor(kind: ArtifactKind): string {
     case "html":
       return "text/html;charset=utf-8";
     case "json":
+      return "application/json;charset=utf-8";
+    case "video-analysis":
       return "application/json;charset=utf-8";
     default:
       return "text/plain;charset=utf-8";
@@ -453,7 +464,11 @@ function renderPreview(
   content: string,
   htmlFrame: HtmlFrame,
   imageRef?: RefObject<HTMLImageElement | null>,
-  retry?: { onRetry?: () => void; retrying?: boolean },
+  options?: {
+    onRetry?: () => void;
+    retrying?: boolean;
+    onVideoAnalysisPersisted?: () => void;
+  },
 ): ReactNode {
   switch (artifact.kind) {
     case "markdown":
@@ -474,8 +489,8 @@ function renderPreview(
           <div className="px-4 py-6">
             <RetryableError
               message={`生成失败${artifact.error ? `：${artifact.error}` : ""}`}
-              onRetry={retry?.onRetry}
-              retrying={retry?.retrying}
+              onRetry={options?.onRetry}
+              retrying={options?.retrying}
             />
           </div>
         );
@@ -498,8 +513,8 @@ function renderPreview(
           <div className="px-4 py-6">
             <RetryableError
               message={`生成失败${artifact.error ? `：${artifact.error}` : ""}`}
-              onRetry={retry?.onRetry}
-              retrying={retry?.retrying}
+              onRetry={options?.onRetry}
+              retrying={options?.retrying}
             />
           </div>
         );
@@ -509,6 +524,27 @@ function renderPreview(
           key={artifact.id}
           artifactId={artifact.id}
           content={content}
+        />
+      );
+    case "video":
+      return (
+        <div className="flex min-h-0 flex-1 items-center justify-center bg-black p-3">
+          <video
+            controls
+            preload="metadata"
+            src={`/api/artifacts/${encodeURIComponent(artifact.id)}/raw`}
+            className="max-h-full w-full object-contain"
+          >
+            当前浏览器无法播放该视频。
+          </video>
+        </div>
+      );
+    case "video-analysis":
+      return (
+        <VideoAnalysisPreview
+          artifact={artifact}
+          content={content}
+          onPersisted={options?.onVideoAnalysisPersisted}
         />
       );
     case "binary":
@@ -687,6 +723,7 @@ export default function ArtifactPreview({
       content != null &&
       artifact.kind !== "binary" &&
       artifact.kind !== "image" &&
+      artifact.kind !== "video" &&
       artifact.kind !== "canvas",
   );
 
@@ -696,12 +733,13 @@ export default function ArtifactPreview({
       (artifact.kind === "markdown" ||
         artifact.kind === "html" ||
         artifact.kind === "json" ||
-        artifact.kind === "text"),
+        artifact.kind === "text" ||
+        artifact.kind === "video-analysis"),
   );
 
   const sourceText = useMemo(() => {
     if (content == null) return "";
-    if (artifact?.kind === "json") {
+    if (artifact?.kind === "json" || artifact?.kind === "video-analysis") {
       try {
         return JSON.stringify(JSON.parse(content), null, 2);
       } catch {
@@ -789,6 +827,14 @@ export default function ArtifactPreview({
     if (!artifact) return;
     if (artifact.kind === "image") {
       downloadImageArtifact(artifact);
+      return;
+    }
+    if (artifact.kind === "video") {
+      const extension = extensionFor(artifact.kind, artifact.name, artifact.mimeType);
+      const anchor = document.createElement("a");
+      anchor.href = `/api/artifacts/${encodeURIComponent(artifact.id)}/raw`;
+      anchor.download = `${artifact.name}${extension}`;
+      anchor.click();
       return;
     }
     if (artifact.kind === "canvas") {
@@ -1330,6 +1376,7 @@ export default function ArtifactPreview({
                   ? () => void handleRetryGeneration()
                   : undefined,
               retrying: retryingGeneration,
+              onVideoAnalysisPersisted: onRefresh,
             })}
           </div>
         )}
