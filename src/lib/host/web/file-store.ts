@@ -113,6 +113,9 @@ function createSessionStore(rootDir: string): SessionStore {
         ...(input.pinnedSkillIds !== undefined
           ? { pinnedSkillIds: input.pinnedSkillIds }
           : {}),
+        ...(input.capabilityPresetId !== undefined
+          ? { capabilityPresetId: input.capabilityPresetId }
+          : {}),
         ...(input.codexThreadId !== undefined
           ? { codexThreadId: input.codexThreadId }
           : {}),
@@ -147,6 +150,13 @@ function createSessionStore(rootDir: string): SessionStore {
           : {}),
         updatedAt: nowIso(),
       };
+      if (patch.capabilityPresetId !== undefined) {
+        if (patch.capabilityPresetId === null) {
+          delete session.capabilityPresetId;
+        } else {
+          session.capabilityPresetId = patch.capabilityPresetId;
+        }
+      }
       if (patch.projectId !== undefined) {
         if (patch.projectId === null) delete session.projectId;
         else session.projectId = patch.projectId;

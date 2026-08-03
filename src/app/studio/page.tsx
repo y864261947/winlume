@@ -36,6 +36,8 @@ import {
   resolveReferencedArtifactIds,
 } from "@/lib/studio/image-mentions";
 import type { ImageAttachment } from "@/lib/studio/composer-attachments";
+import { resolveCapabilityPreset } from "@/lib/studio/capability-presets";
+import type { CapabilityCatalog } from "@/lib/studio/capabilities";
 import {
   FALLBACK_DEFAULT_MODEL,
   getDefaultModel,
@@ -259,25 +261,52 @@ function StudioHomeInner() {
   const [docking, setDocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+  const [capabilityPresetId, setCapabilityPresetId] = useState<string | null>(null);
   const [featuredSkills, setFeaturedSkills] = useState<SkillMeta[] | null>(null);
   const [allSkills, setAllSkills] = useState<SkillMeta[]>([]);
   const projectId = searchParams.get("projectId")?.trim() || "";
   const [project, setProject] = useState<Project | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const timer = window.setTimeout(() => {
       const prompt = searchParams.get("prompt");
       const skill = searchParams.get("skill");
       const modelParam = searchParams.get("model")?.trim();
+      const presetParam = searchParams.get("preset");
       if (prompt) setDraft(prompt);
       if (skill) setSelectedSkillIds([skill]);
-      if (modelParam) {
-        setModel(modelParam);
-      } else {
-        setModel(getDefaultModel());
-      }
+      setModel(getDefaultModel());
+      setCapabilityPresetId(null);
+
+      if (!modelParam && !presetParam) return;
+      void fetch("/api/capabilities", { credentials: "same-origin" })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("capabilities");
+          return response.json() as Promise<CapabilityCatalog>;
+        })
+        .then((catalog) => {
+          if (cancelled) return;
+          const preset = resolveCapabilityPreset(presetParam, catalog);
+          const requestedModel =
+            modelParam && catalog.models.includes(modelParam)
+              ? modelParam
+              : undefined;
+          const resolvedModel = requestedModel ?? preset?.model;
+          if (resolvedModel) setModel(resolvedModel);
+          if (preset) {
+            setCapabilityPresetId(preset.id);
+            if (!skill) setSelectedSkillIds([]);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setCapabilityPresetId(null);
+        });
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [searchParams]);
 
   useEffect(() => {
@@ -396,6 +425,7 @@ function StudioHomeInner() {
           model: requestModel,
           title: title || "新对话",
           projectId: project?.id || projectId || undefined,
+          capabilityPresetId: capabilityPresetId ?? undefined,
         });
         const dockPromise = flipComposerToDock(setDocking);
         const session = await sessionPromise;
@@ -463,6 +493,7 @@ function StudioHomeInner() {
           sessionId: session.id,
           message,
           model: requestModel,
+          capabilityPresetId: session.capabilityPresetId,
           skillIds,
           referencedArtifactIds: referencedArtifactIds.length
             ? referencedArtifactIds
@@ -486,7 +517,17 @@ function StudioHomeInner() {
         setStarting(false);
       }
     },
-    [account, model, openLogin, project, projectId, router, selectedSkillIds, starting],
+    [
+      account,
+      capabilityPresetId,
+      model,
+      openLogin,
+      project,
+      projectId,
+      router,
+      selectedSkillIds,
+      starting,
+    ],
   );
 
   const isCardActive = useCallback(

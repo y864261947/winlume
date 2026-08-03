@@ -9,6 +9,8 @@ export interface Session {
   projectId?: string;
   /** Skills applied to every turn unless overridden; UI may pin/unpin */
   pinnedSkillIds?: string[];
+  /** Validated launch intent for a capability-specific Studio workflow. */
+  capabilityPresetId?: string;
   /** Codex SDK thread persisted for coding-specialist continuity. */
   codexThreadId?: string;
   createdAt: string;

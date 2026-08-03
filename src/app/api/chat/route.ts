@@ -64,6 +64,7 @@ type ChatBody = {
   projectId?: string;
   message?: string;
   model?: string;
+  capabilityPresetId?: string;
   executionMode?: AgentExecutionMode;
   skillIds?: string[];
   /** Multi @-mention image artifact ids (preferred). */
@@ -103,6 +104,10 @@ export async function POST(request: NextRequest) {
     typeof body.projectId === "string" && body.projectId.trim()
       ? body.projectId.trim()
       : undefined;
+  const requestedCapabilityPresetId =
+    typeof body.capabilityPresetId === "string" && body.capabilityPresetId.trim()
+      ? body.capabilityPresetId.trim()
+      : undefined;
   const executionMode = normalizeExecutionMode(
     body.executionMode ?? process.env.WINLUME_AGENT_EXECUTION_MODE,
   );
@@ -131,6 +136,12 @@ export async function POST(request: NextRequest) {
   let model = requestedModel ?? "gpt-4o-mini";
 
   if (!sessionId) {
+    if (requestedCapabilityPresetId) {
+      return Response.json(
+        { error: "Capability preset requires a validated session" },
+        { status: 400 },
+      );
+    }
     if (projectId) {
       const project = await webStore.projects.getProject(userId, projectId);
       if (!project) {
@@ -149,6 +160,15 @@ export async function POST(request: NextRequest) {
     const existing = await webStore.sessions.getSession(userId, sessionId);
     if (!existing) {
       return Response.json({ error: "Session not found" }, { status: 404 });
+    }
+    if (
+      requestedCapabilityPresetId &&
+      requestedCapabilityPresetId !== existing.capabilityPresetId
+    ) {
+      return Response.json(
+        { error: "Capability preset does not match this session" },
+        { status: 400 },
+      );
     }
     if (projectId && existing.projectId !== projectId) {
       return Response.json(

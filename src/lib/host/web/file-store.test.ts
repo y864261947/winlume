@@ -132,6 +132,39 @@ describe("web file store", () => {
     expect(titled.pinnedSkillIds).toEqual(["keep-me"]);
   });
 
+  it("persists a capability preset and clears it only with a null patch", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wl-"));
+    dirs.push(root);
+    const store = createWebFileStore(root);
+
+    const created = await store.sessions.createSession({
+      id: "s1",
+      userId: "u1",
+      title: "preset",
+      model: "gpt-test",
+      capabilityPresetId: "chat-default",
+    });
+    expect(created.capabilityPresetId).toBe("chat-default");
+    expect((await store.sessions.getSession("u1", "s1"))?.capabilityPresetId).toBe(
+      "chat-default",
+    );
+    expect((await store.sessions.listSessions("u1"))[0]?.capabilityPresetId).toBe(
+      "chat-default",
+    );
+
+    const preserved = await store.sessions.updateSession("u1", "s1", {
+      title: "renamed",
+    });
+    expect(preserved.capabilityPresetId).toBe("chat-default");
+
+    const cleared = await store.sessions.updateSession("u1", "s1", {
+      capabilityPresetId: null,
+    });
+    expect(cleared.capabilityPresetId).toBeUndefined();
+    expect((await store.sessions.getSession("u1", "s1"))?.capabilityPresetId).toBeUndefined();
+    expect((await store.sessions.listSessions("u1"))[0]?.capabilityPresetId).toBeUndefined();
+  });
+
   it("persists a Codex thread id for specialist continuity", async () => {
     const root = mkdtempSync(join(tmpdir(), "wl-"));
     dirs.push(root);

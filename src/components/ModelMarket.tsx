@@ -3,10 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Bell, ChevronRight, CircleHelp, LayoutGrid, Search, ArrowUp } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useModals } from "@/components/providers";
 import { type Audience } from "@/data/audience";
 import { formatBalance } from "@/lib/account";
+import type { CapabilityCatalog, CapabilityId } from "@/lib/studio/capabilities";
+import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
 
 type AssetIconProps = { src: string; alt?: string; className?: string };
 
@@ -25,22 +27,70 @@ function PortalLink({ href, children, className, onClick }: PortalLinkProps) {
   return <Link href={href} className={className} onClick={onClick}>{children}</Link>;
 }
 
-const apiCategories: Array<{ label: string; icon: string; href: string }> = [
-  { label: "语言模型", icon: "/figma-home/icon-chat.svg", href: "/products?cate=api" },
-  { label: "图片生成", icon: "/figma-home/icon-image.svg", href: "/products?cate=api" },
-  { label: "视频生成", icon: "/figma-home/icon-video.svg", href: "/products?cate=api" },
-  { label: "语音处理", icon: "/figma-home/icon-voice.svg", href: "/products?cate=api" },
-  { label: "数据与搜索", icon: "/figma-home/icon-search.svg", href: "/products?cate=api" },
-  { label: "RAG 与知识库", icon: "/figma-home/icon-db.svg", href: "/products?cate=api" },
+type ApiCategory = {
+  id: string;
+  label: string;
+  icon: string;
+  capability?: CapabilityId;
+  presetId?: string;
+  launchLabel?: string;
+};
+
+type ApiMenuOption = {
+  id: string;
+  label: string;
+  href: string;
+};
+
+const apiCategories: readonly ApiCategory[] = [
+  {
+    id: "chat",
+    label: "语言模型",
+    icon: "/figma-home/icon-chat.svg",
+    capability: "chat",
+    presetId: "chat-default",
+  },
+  {
+    id: "image",
+    label: "图片生成",
+    icon: "/figma-home/icon-image.svg",
+    capability: "image.generate",
+    presetId: "image-default",
+    launchLabel: "打开图像创作",
+  },
+  {
+    id: "video",
+    label: "视频生成",
+    icon: "/figma-home/icon-video.svg",
+    capability: "video.generate",
+    presetId: "video-default",
+    launchLabel: "打开视频创作",
+  },
+  {
+    id: "canvas",
+    label: "画布与图解",
+    icon: "/figma-home/icon-db.svg",
+    capability: "canvas.generate",
+    presetId: "canvas-default",
+    launchLabel: "打开画布创作",
+  },
+  { id: "voice", label: "语音处理", icon: "/figma-home/icon-voice.svg" },
+  { id: "data", label: "数据与搜索", icon: "/figma-home/icon-search.svg" },
 ];
 
-const industryTools: Array<{ label: string; icon: string }> = [
-  { label: "内容与办公", icon: "/figma-home/tool-content.svg" },
-  { label: "电商增长", icon: "/figma-home/tool-commerce.svg" },
-  { label: "视频创作", icon: "/figma-home/tool-video.svg" },
-  { label: "开发与 API", icon: "/figma-home/tool-api.svg" },
-  { label: "Agent 自动化", icon: "/figma-home/tool-agent.svg" },
-];
+const workSceneIcons: Record<WorkSceneId, string> = {
+  "content-office": "/figma-home/tool-content.svg",
+  "growth-commerce": "/figma-home/tool-commerce.svg",
+  "video-creation": "/figma-home/tool-video.svg",
+  "developer-api": "/figma-home/tool-api.svg",
+  "agent-automation": "/figma-home/tool-agent.svg",
+};
+
+const workScenes = WORK_SCENES.map((scene) => ({
+  ...scene,
+  icon: workSceneIcons[scene.id],
+  href: `/studio/skills?scene=${encodeURIComponent(scene.id)}`,
+}));
 
 const capabilities: Array<{ title: string; subtitle: string; copy: string; icon: string; tone: string }> = [
   { title: "智能体与自动化", subtitle: "让重复工作自动运行", copy: "新建智能体 · 任务流管理 · MCP 工具", icon: "/figma-home/cap-agent.svg", tone: "mint" },
@@ -63,14 +113,81 @@ function ArrowLink({ href = "/products" , children }: { href?: string; children:
   return <PortalLink href={href} className="portal-arrow-link">{children}<ChevronRight aria-hidden /></PortalLink>;
 }
 
+export function getApiMenuOptions(
+  item: ApiCategory,
+  catalog: CapabilityCatalog | null,
+): ApiMenuOption[] {
+  const capability = item.capability
+    ? catalog?.capabilities.find((entry) => entry.id === item.capability)
+    : null;
+  if (!catalog || !capability || capability.availability !== "available") {
+    return [];
+  }
+
+  if (item.capability === "chat") {
+    return catalog.models.map((model) => ({
+      id: model,
+      label: model,
+      href: `/studio?preset=chat-default&model=${encodeURIComponent(model)}`,
+    }));
+  }
+
+  if (!item.presetId || !item.launchLabel) return [];
+  return [
+    {
+      id: item.presetId,
+      label: item.launchLabel,
+      href: `/studio?preset=${encodeURIComponent(item.presetId)}`,
+    },
+  ];
+}
+
+function getApiStatus(
+  item: ApiCategory,
+  catalog: CapabilityCatalog | null,
+  catalogState: "loading" | "ready" | "failed",
+): string {
+  if (catalogState === "loading") return "正在检查";
+  if (!item.capability) return "暂未接入";
+  if (catalogState === "failed") return "暂不可用";
+  return catalog?.capabilities.find((entry) => entry.id === item.capability)?.reason ?? "暂不可用";
+}
+
 export default function ModelMarket() {
   const { account, balanceConfig, audience, openLogin, selectAudience } = useModals();
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
+  const [capabilityCatalog, setCapabilityCatalog] = useState<CapabilityCatalog | null>(null);
+  const [capabilityCatalogState, setCapabilityCatalogState] = useState<
+    "loading" | "ready" | "failed"
+  >("loading");
+  const [openApi, setOpenApi] = useState<string | null>(null);
   const personalActive = audience !== "business";
   const balance = formatBalance(account?.quota, balanceConfig);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/capabilities", { credentials: "same-origin" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("capabilities");
+        return response.json() as Promise<CapabilityCatalog>;
+      })
+      .then((catalog) => {
+        if (cancelled) return;
+        setCapabilityCatalog(catalog);
+        setCapabilityCatalogState("ready");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCapabilityCatalog(null);
+        setCapabilityCatalogState("failed");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function changeAudience(next: Audience) {
     selectAudience(next);
@@ -148,9 +265,76 @@ export default function ModelMarket() {
           <aside className="portal-api-card" aria-labelledby="portal-api-title">
             <h2 id="portal-api-title">API 类别</h2>
             <div className="portal-api-list">
-              {apiCategories.map((item) => <PortalLink href={item.href} key={item.label}><AssetIcon src={item.icon} /><span>{item.label}</span></PortalLink>)}
+              {apiCategories.map((item) => {
+                const options = getApiMenuOptions(item, capabilityCatalog);
+                const isOpen = openApi === item.id && options.length > 0;
+                const status = getApiStatus(item, capabilityCatalog, capabilityCatalogState);
+                return (
+                  <div
+                    key={item.id}
+                    className="portal-api-item"
+                    data-open={isOpen}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType !== "touch" && options.length) {
+                        setOpenApi(item.id);
+                      }
+                    }}
+                    onPointerLeave={() => setOpenApi((current) => current === item.id ? null : current)}
+                    onFocusCapture={() => {
+                      if (options.length) setOpenApi(item.id);
+                    }}
+                    onBlurCapture={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget)) {
+                        setOpenApi((current) => current === item.id ? null : current);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Escape") return;
+                      event.preventDefault();
+                      setOpenApi(null);
+                      event.currentTarget.querySelector<HTMLButtonElement>("button")?.focus();
+                    }}
+                  >
+                    {options.length ? (
+                      <button
+                        type="button"
+                        className="portal-api-trigger"
+                        aria-expanded={isOpen}
+                        aria-controls={`${item.id}-models`}
+                        aria-haspopup="menu"
+                        onClick={() => setOpenApi((current) => current === item.id ? null : item.id)}
+                      >
+                        <AssetIcon src={item.icon} />
+                        <span>{item.label}</span>
+                        <ChevronRight aria-hidden />
+                      </button>
+                    ) : (
+                      <div className="portal-api-unavailable" aria-disabled="true">
+                        <AssetIcon src={item.icon} />
+                        <span>{item.label}</span>
+                        <small>{status}</small>
+                      </div>
+                    )}
+                    {options.length ? (
+                      <div
+                        id={`${item.id}-models`}
+                        className="portal-api-menu"
+                        role="menu"
+                        aria-label={`${item.label}可用选项`}
+                        hidden={!isOpen}
+                      >
+                        {options.map((option) => (
+                          <Link key={option.id} href={option.href} role="menuitem">
+                            {option.label}
+                          </Link>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
-            <ArrowLink href="/products?cate=api">查看全部 API</ArrowLink>
+            <ArrowLink href="/studio">进入工作台</ArrowLink>
           </aside>
 
           <article className="portal-featured-card">
@@ -175,8 +359,8 @@ export default function ModelMarket() {
         </div>
 
         <section className="portal-industry-section" aria-labelledby="portal-industry-title">
-          <div className="portal-section-header"><div><h2 id="portal-industry-title">行业工具</h2><p>按任务开始，快速找到可用的 AI 工具</p></div><ArrowLink href="/products?cate=app">探索全部工具</ArrowLink></div>
-          <div className="portal-industry-grid">{industryTools.map((item) => <PortalLink href="/products?cate=app" className="portal-industry-card" key={item.label}><AssetIcon src={item.icon} /><span>{item.label}</span><ChevronRight aria-hidden /></PortalLink>)}</div>
+          <div className="portal-section-header"><div><h2 id="portal-industry-title">工作场景</h2><p>按任务开始，快速找到匹配的生产级 Skill</p></div><ArrowLink href="/studio/skills">探索全部工具</ArrowLink></div>
+          <div className="portal-industry-grid">{workScenes.map((item) => <PortalLink href={item.href} className="portal-industry-card" key={item.id}><AssetIcon src={item.icon} /><span>{item.label}</span><ChevronRight aria-hidden /></PortalLink>)}</div>
         </section>
 
         <section className="portal-capabilities-section" aria-labelledby="portal-capabilities-title">
