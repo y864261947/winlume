@@ -50,6 +50,16 @@ export interface Message {
 
 export type DefaultArtifactKind = "markdown" | "html" | "image-prompt" | "none";
 
+/** Safe v2 contract metadata exposed with a Skill; prompt bodies remain separate. */
+export interface SkillContractMeta {
+  schemaVersion: 2;
+  version: string;
+  stability: "experimental" | "stable";
+  requiredCapabilities: string[];
+  allowedTools: string[];
+  approvalPolicy: "none" | "on-blocking-review" | "required";
+}
+
 export interface SkillMeta {
   id: string;
   name: string;
@@ -63,6 +73,7 @@ export interface SkillMeta {
   enabled: boolean;
   featured?: boolean;
   defaultArtifact?: DefaultArtifactKind;
+  contract?: SkillContractMeta;
 }
 
 export interface Skill extends SkillMeta {
