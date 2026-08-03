@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Skill, SkillMeta } from "@/lib/agent/types";
+import { getWorkScene, skillsForScene } from "@/lib/studio/work-scenes";
 import { parseSkillContract, toSkillContractMeta } from "./contracts";
 import { departmentLabel, sortDepartmentIds } from "./departments";
 import { parseSkillMarkdown, toSkillMeta } from "./parse";
@@ -129,8 +130,14 @@ export async function listSkillsFiltered(opts: {
   q?: string;
   category?: string;
   featured?: boolean;
+  scene?: string;
 }): Promise<SkillMeta[]> {
   let skills = await listSkillMetas();
+  const scene = getWorkScene(opts.scene);
+  if (scene) {
+    const allowedSkillIds = new Set(skillsForScene(scene.id));
+    skills = skills.filter((skill) => allowedSkillIds.has(skill.id));
+  }
   const category = opts.category?.trim();
   if (category && category !== "all") {
     skills = skills.filter((s) => s.category === category);

@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearSkillsCache, listSkills } from "./registry";
+import { clearSkillsCache, listSkills, listSkillsFiltered } from "./registry";
 
 const originalSkillsDir = process.env.WINLUME_SKILLS_DIR;
 let fixtureRoot = "";
@@ -89,6 +89,31 @@ describe("Skill registry v2 compatibility", () => {
     expect(warn).toHaveBeenCalledWith(
       "[skills] invalid v2 Skill package skipped:",
       invalidDir,
+    );
+  });
+});
+
+describe("Skill registry scene filtering", () => {
+  it("intersects scene membership, department, and free-text filters", async () => {
+    const skills = await listSkillsFiltered({
+      scene: "content-office",
+      category: "marketing",
+      q: "内容",
+    });
+
+    expect(skills.map((skill) => skill.id)).toEqual([
+      "production-content-draft",
+    ]);
+  });
+
+  it("treats an unknown scene as no scene filter", async () => {
+    const [allSkills, unknownSceneSkills] = await Promise.all([
+      listSkillsFiltered({}),
+      listSkillsFiltered({ scene: "does-not-exist" }),
+    ]);
+
+    expect(unknownSceneSkills.map((skill) => skill.id)).toEqual(
+      allSkills.map((skill) => skill.id),
     );
   });
 });

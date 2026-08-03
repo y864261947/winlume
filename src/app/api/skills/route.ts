@@ -4,6 +4,11 @@ import {
   listDepartments,
   listSkillsFiltered,
 } from "@/lib/agent/skills/registry";
+import {
+  listProductionPacksForScene,
+  toProductionPackMeta,
+} from "@/lib/agent/production-packs/registry";
+import { getWorkScene, WORK_SCENES } from "@/lib/studio/work-scenes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +40,8 @@ export async function GET(request: NextRequest) {
 
   const q = searchParams.get("q") ?? undefined;
   const category = searchParams.get("category") ?? undefined;
+  const scene = searchParams.get("scene") ?? undefined;
+  const activeScene = getWorkScene(scene);
   const featured =
     searchParams.get("featured") === "1" ||
     searchParams.get("featured") === "true";
@@ -42,6 +49,7 @@ export async function GET(request: NextRequest) {
     q,
     category,
     featured: featured || undefined,
+    scene,
   });
   const categories = [...new Set(skills.map((s) => s.category))].sort((a, b) =>
     a.localeCompare(b, "zh"),
@@ -49,7 +57,7 @@ export async function GET(request: NextRequest) {
 
   // Also expose full category list from unfiltered set when filtering
   let allCategories = categories;
-  if (q || featured || (category && category !== "all")) {
+  if (q || featured || (category && category !== "all") || activeScene) {
     const all = await listSkillsFiltered({});
     allCategories = [...new Set(all.map((s) => s.category))].sort((a, b) =>
       a.localeCompare(b, "zh"),
@@ -57,11 +65,17 @@ export async function GET(request: NextRequest) {
   }
 
   const departments = await listDepartments();
+  const packs = activeScene
+    ? await listProductionPacksForScene(activeScene.id)
+    : [];
 
   return NextResponse.json({
     skills,
     categories: allCategories,
     departments,
+    scenes: WORK_SCENES,
+    activeScene,
+    packs: packs.map(toProductionPackMeta),
     total: skills.length,
   });
 }
