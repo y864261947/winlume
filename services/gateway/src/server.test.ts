@@ -53,6 +53,18 @@ async function readBody(body: unknown): Promise<string> {
 }
 
 describe("gateway server", () => {
+  it("publishes configured protocol family ids without upstream configuration", async () => {
+    const app = buildOpenAiApp(vi.fn(async () => new Response("ok")) as FetchLike);
+
+    const capabilities = await app.inject({ method: "GET", url: "/capabilities" });
+
+    expect(capabilities.statusCode).toBe(200);
+    expect(capabilities.json().configured).toContainEqual(
+      expect.objectContaining({ family: "openai" }),
+    );
+    expect(capabilities.payload).not.toMatch(/authorization|upstream-service-token/i);
+  });
+
   it("reports health and returns an explicit 501 for an unconfigured protocol family", async () => {
     const app = buildGatewayServer({ config: baseConfig });
     apps.push(app);
