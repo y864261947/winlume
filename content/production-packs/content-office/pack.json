@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "id": "content-office",
+  "version": "1.0.0",
+  "sceneIds": ["content-office"],
+  "title": "内容与办公工作流",
+  "summary": "从需求澄清到经过审阅的工作文档。",
+  "requiredCapabilities": ["chat"],
+  "stages": [
+    {
+      "id": "intake",
+      "title": "需求澄清",
+      "objective": "把用户任务和已提供材料整理成可执行、可验收的工作简报。",
+      "skillIds": ["production-content-intake"],
+      "requiredInputs": [],
+      "outputs": [
+        {
+          "id": "brief",
+          "kinds": ["markdown"],
+          "required": true
+        }
+      ],
+      "allowedTools": ["write_artifact"],
+      "qualityChecks": [
+        "明确目标读者、目标结果和交付范围",
+        "区分已知事实、约束条件与待确认问题"
+      ],
+      "approvalPolicy": "none",
+      "maxAutomaticRevisions": 0
+    },
+    {
+      "id": "research",
+      "title": "材料核验",
+      "objective": "基于简报和用户提供的材料形成可追溯的研究笔记，标出证据不足之处。",
+      "skillIds": ["production-content-research"],
+      "requiredInputs": [
+        {
+          "id": "brief",
+          "kinds": ["markdown"],
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "id": "research-notes",
+          "kinds": ["markdown"],
+          "required": true
+        }
+      ],
+      "allowedTools": ["read_artifact", "write_artifact"],
+      "qualityChecks": [
+        "每个关键结论都有来源、依据或明确的未证实标记",
+        "研究笔记回答简报中会影响成稿的核心问题"
+      ],
+      "approvalPolicy": "none",
+      "maxAutomaticRevisions": 1
+    },
+    {
+      "id": "draft",
+      "title": "内容成稿",
+      "objective": "将经核验的研究笔记转成面向既定读者、可继续编辑的完整文稿。",
+      "skillIds": ["production-content-draft"],
+      "requiredInputs": [
+        {
+          "id": "research-notes",
+          "kinds": ["markdown"],
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "id": "draft",
+          "kinds": ["markdown"],
+          "required": true
+        }
+      ],
+      "allowedTools": ["read_artifact", "write_artifact"],
+      "qualityChecks": [
+        "文稿与已核验材料一致，不把假设写成事实",
+        "结构、语气和行动建议符合简报中的读者与目标"
+      ],
+      "approvalPolicy": "required",
+      "maxAutomaticRevisions": 2
+    },
+    {
+      "id": "review",
+      "title": "编辑审查",
+      "objective": "以可定位的证据审查文稿，并记录通过、修改或阻断的结论。",
+      "skillIds": ["production-content-review"],
+      "requiredInputs": [
+        {
+          "id": "draft",
+          "kinds": ["markdown"],
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "id": "review-record",
+          "kinds": ["markdown"],
+          "required": true
+        }
+      ],
+      "allowedTools": ["read_artifact", "write_artifact"],
+      "qualityChecks": [
+        "每个问题都说明评价维度、原文证据和可执行修改要求",
+        "未发现问题时仍说明已检查的范围和依据"
+      ],
+      "approvalPolicy": "on-blocking-review",
+      "maxAutomaticRevisions": 0
+    }
+  ]
+}

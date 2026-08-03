@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "id": "production-content-research",
+  "version": "1.0.0",
+  "stability": "stable",
+  "provenance": {
+    "owner": "winlume",
+    "source": "first-party"
+  },
+  "requiredCapabilities": ["chat"],
+  "allowedTools": ["read_artifact", "write_artifact"],
+  "inputs": [
+    {
+      "id": "brief",
+      "kinds": ["markdown"],
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "research-notes",
+      "kinds": ["markdown"],
+      "required": true
+    }
+  ],
+  "qualityChecks": [
+    "每个关键结论都有来源、依据或明确的未证实标记",
+    "研究笔记回答简报中会影响成稿的核心问题"
+  ],
+  "approvalPolicy": "none"
+}
