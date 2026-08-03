@@ -25,6 +25,7 @@ import ArtifactPreview from "@/components/studio/ArtifactPreview";
 import ChatThread from "@/components/studio/ChatThread";
 import ChatThreadSkeleton from "@/components/studio/ChatThreadSkeleton";
 import Composer from "@/components/studio/Composer";
+import LiquidGlassSurface from "@/components/studio/LiquidGlassSurface";
 import StudioViewTransition from "@/components/studio/StudioViewTransition";
 import { useStudioHeaderSlot } from "@/components/studio/StudioShell";
 import { useResizablePanel } from "@/components/studio/useResizablePanel";
@@ -629,7 +630,8 @@ export default function StudioSessionPage() {
 
   /** Published into StudioShell's persistent header slot — never unmounts on navigation. */
   const headerContent = (
-    <header className="studio-session-header studio-glass-soft flex shrink-0 items-center gap-3 border-b border-white/50 px-4 py-3 sm:px-6">
+    <LiquidGlassSurface>
+      <header className="studio-session-header studio-glass-soft flex shrink-0 items-center gap-3 border-b border-white/50 px-4 py-3 sm:px-6">
       <Link
         href="/studio"
         className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[#615A73] transition hover:bg-white/60 hover:text-[#241E36]"
@@ -753,7 +755,8 @@ export default function StudioSessionPage() {
           ) : null}
         </button>
       </div>
-    </header>
+      </header>
+    </LiquidGlassSurface>
   );
 
   useStudioHeaderSlot(headerContent);
