@@ -11,7 +11,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export const MAX_VIDEO_BYTES = MAX_REFERENCE_VIDEO_BYTES;
+const MAX_VIDEO_BYTES = MAX_REFERENCE_VIDEO_BYTES;
 
 function parseName(value: string | null): string | null {
   if (!value) return null;
