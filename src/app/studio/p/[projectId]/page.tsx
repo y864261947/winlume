@@ -13,6 +13,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { useModals } from "@/components/providers";
+import LiquidGlassSurface from "@/components/studio/LiquidGlassSurface";
 import { useStudioHeaderSlot } from "@/components/studio/StudioShell";
 import type { Project, Session } from "@/lib/agent/types";
 import {
@@ -77,7 +78,8 @@ export default function StudioProjectPage() {
   }, [account, load]);
 
   const headerContent = project ? (
-    <header className="studio-session-header studio-glass-soft flex shrink-0 items-center gap-3 border-b border-white/50 px-4 py-3 sm:px-6">
+    <LiquidGlassSurface>
+      <header className="studio-session-header studio-glass-soft flex shrink-0 items-center gap-3 border-b border-white/50 px-4 py-3 sm:px-6">
       <Link
         href="/studio"
         className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[#615A73] transition hover:bg-white/60 hover:text-[#241E36]"
@@ -98,7 +100,8 @@ export default function StudioProjectPage() {
         <Plus className="h-3.5 w-3.5" />
         新对话
       </Link>
-    </header>
+      </header>
+    </LiquidGlassSurface>
   ) : null;
 
   useStudioHeaderSlot(headerContent);
