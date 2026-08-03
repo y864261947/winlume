@@ -1,0 +1,25 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="812" height="290" viewBox="0 0 812 290" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Featured illustration" clip-path="url(#clip0_0_27)">
+<path id="Vector" opacity="0.78" d="M304 277C401 220 461 173 528 212C600 253 679 244 812 126V287H304V277Z" fill="url(#paint0_linear_0_27)"/>
+<path id="Vector_2" d="M395 258C487 190 552 221 617 252C681 283 749 223 812 173" stroke="#67BBD7" stroke-opacity="0.55" stroke-width="2"/>
+<path id="Vector_3" d="M452 271C518 198 596 270 678 219C725 189 768 154 812 139" stroke="#B5E2D5" stroke-opacity="0.75" stroke-width="2"/>
+<path id="Vector_4" d="M611 265C668.99 265 716 214.856 716 153C716 91.1441 668.99 41 611 41C553.01 41 506 91.1441 506 153C506 214.856 553.01 265 611 265Z" fill="url(#paint1_radial_0_27)"/>
+<path id="Vector_5" d="M611 240C655.735 240 692 201.049 692 153C692 104.951 655.735 66 611 66C566.265 66 530 104.951 530 153C530 201.049 566.265 240 611 240Z" stroke="#F7FFFF" stroke-opacity="0.9" stroke-width="2"/>
+<path id="Vector_6" d="M626 42C676 52 711 99 716 154" stroke="#C7F2E9" stroke-opacity="0.65" stroke-width="2" stroke-dasharray="2 6"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_27" x1="393" y1="222" x2="806" y2="115" gradientUnits="userSpaceOnUse">
+<stop stop-color="#FEE9DC"/>
+<stop offset="0.52" stop-color="#B7DFE8"/>
+<stop offset="1" stop-color="#96D4C1"/>
+</linearGradient>
+<radialGradient id="paint1_radial_0_27" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(611 153) rotate(112) scale(142 142)">
+<stop stop-color="#F8FFFF"/>
+<stop offset="0.53" stop-color="#AADAE7"/>
+<stop offset="1" stop-color="#5DB7D5" stop-opacity="0.22"/>
+</radialGradient>
+<clipPath id="clip0_0_27">
+<rect width="812" height="290" fill="white"/>
+</clipPath>
+</defs>
+</svg>
