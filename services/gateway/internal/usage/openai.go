@@ -1067,11 +1067,11 @@ func nonNegativeInt64(document map[string]any, name string) (int64, bool, error)
 	}
 	number, ok := value.(json.Number)
 	if !ok {
-		return 0, true, fmt.Errorf("OpenAI usage field %s must be an integer", name)
+		return 0, true, fmt.Errorf("usage field %s must be an integer", name)
 	}
 	parsed, err := number.Int64()
 	if err != nil || parsed < 0 {
-		return 0, true, fmt.Errorf("OpenAI usage field %s must be a non-negative integer", name)
+		return 0, true, fmt.Errorf("usage field %s must be a non-negative integer", name)
 	}
 	return parsed, true, nil
 }

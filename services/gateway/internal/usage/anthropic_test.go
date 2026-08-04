@@ -104,10 +104,11 @@ func TestAnthropicSSECountsThinkingAndToolJSONWhenOutputUsageIsMissing(t *testin
 	observer, err := NewRegistry().New("anthropic", "text/event-stream", Estimate{Model: "claude-sonnet-4-20250514", Protocol: "claude"})
 	require.NoError(t, err)
 	require.NoError(t, observer.Observe(payload))
+	require.Equal(t, `reasonlookup{"city":"Paris"}`, observer.(*anthropicObserver).anthropicStreamFallbackText())
 
 	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
 	require.NoError(t, err)
-	require.Equal(t, countText(`reason{"city":"Paris"}`, "claude-sonnet-4-20250514"), actual.TextOutputTokens)
+	require.Equal(t, countText(`reasonlookup{"city":"Paris"}`, "claude-sonnet-4-20250514"), actual.TextOutputTokens)
 	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
 	require.True(t, actual.Complete)
 	require.Equal(t, "message_stop", actual.TerminalEvent)
@@ -128,6 +129,78 @@ func TestAnthropicJSONCountsContentWhenOutputUsageIsMissing(t *testing.T) {
 	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
 	require.True(t, actual.Complete)
 	require.Equal(t, "json.eof", actual.TerminalEvent)
+}
+
+func TestAnthropicJSONCountsTextThinkingAndToolUseWhenOutputUsageIsMissing(t *testing.T) {
+	payload, err := os.ReadFile(filepath.Join("..", "..", "testdata", "usage", "anthropic", "mixed-fallback.json"))
+	require.NoError(t, err)
+
+	observer, err := NewRegistry().New("claude", "application/json", Estimate{Model: "claude-sonnet-4-20250514", Protocol: "claude"})
+	require.NoError(t, err)
+	require.NoError(t, observer.Observe(payload))
+
+	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.NoError(t, err)
+	require.Equal(t, countText(`answer reason lookup{"a":1,"b":2}`, "claude-sonnet-4-20250514"), actual.TextOutputTokens)
+	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
+	require.True(t, actual.Complete)
+}
+
+func TestAnthropicJSONRejectsNonObjectTopLevelUsage(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		payload []byte
+	}{
+		{name: "scalar", payload: []byte(`{"content":[{"type":"text","text":"fallback"}],"usage":1}`)},
+		{name: "array", payload: []byte(`{"content":[{"type":"text","text":"fallback"}],"usage":[]}`)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			observer, err := NewRegistry().New("anthropic", "application/json", Estimate{Model: "claude-sonnet-4-20250514", Protocol: "claude"})
+			require.NoError(t, err)
+			require.NoError(t, observer.Observe(test.payload))
+
+			actual, completeErr := observer.Complete(Completion{StatusCode: 200, EOF: true})
+			require.EqualError(t, completeErr, "Anthropic usage usage must be an object")
+			require.False(t, actual.Complete)
+		})
+	}
+}
+
+func TestAnthropicJSONAllowsMissingOrNullTopLevelUsageFallback(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		payload []byte
+	}{
+		{name: "missing", payload: []byte(`{"content":[{"type":"text","text":"fallback"}]}`)},
+		{name: "null", payload: []byte(`{"content":[{"type":"text","text":"fallback"}],"usage":null}`)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			observer, err := NewRegistry().New("anthropic", "application/json", Estimate{Model: "claude-sonnet-4-20250514", Protocol: "claude"})
+			require.NoError(t, err)
+			require.NoError(t, observer.Observe(test.payload))
+
+			actual, completeErr := observer.Complete(Completion{StatusCode: 200, EOF: true})
+			require.NoError(t, completeErr)
+			require.Equal(t, countText("fallback", "claude-sonnet-4-20250514"), actual.TextOutputTokens)
+			require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
+			require.True(t, actual.Complete)
+		})
+	}
+}
+
+func TestAnthropicSSECountsToolStartInputWhenNoPartialJSONArrives(t *testing.T) {
+	payload, err := os.ReadFile(filepath.Join("..", "..", "testdata", "usage", "anthropic", "tool-start-input.sse"))
+	require.NoError(t, err)
+
+	observer, err := NewRegistry().New("anthropic", "text/event-stream", Estimate{Model: "claude-sonnet-4-20250514", Protocol: "claude"})
+	require.NoError(t, err)
+	require.NoError(t, observer.Observe(payload))
+
+	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.NoError(t, err)
+	require.Equal(t, countText(`lookup{"city":"Paris"}`, "claude-sonnet-4-20250514"), actual.TextOutputTokens)
+	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
+	require.True(t, actual.Complete)
 }
 
 func TestAnthropicSSEWithoutMessageStopReturnsPartialUsage(t *testing.T) {
@@ -223,13 +296,37 @@ func TestAnthropicSSEEnforcesLifecycleTransitions(t *testing.T) {
 
 	observer, err := NewRegistry().New("anthropic", "text/event-stream", Estimate{Model: "claude-sonnet-4-20250514", Protocol: "claude"})
 	require.NoError(t, err)
-	require.NoError(t, observer.Observe(append(append([]byte(nil), start...), stop...)))
-	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
-	require.NoError(t, err)
-	require.True(t, actual.Complete)
-	require.ErrorIs(t, observer.Observe(delta), ErrObserverFinalized)
-	_, err = observer.Complete(Completion{StatusCode: 200, EOF: true})
-	require.ErrorIs(t, err, ErrObserverFinalized)
+	require.ErrorIs(t, observer.Observe(append(append([]byte(nil), start...), stop...)), ErrAnthropicEventOrder)
+	actual, completeErr := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.ErrorIs(t, completeErr, ErrAnthropicEventOrder)
+	require.False(t, actual.Complete)
+}
+
+func TestAnthropicSSEEnforcesContentBlockTransitions(t *testing.T) {
+	start := []byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":3}}}\n\n")
+	blockStart := []byte("event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\"}}\n\n")
+	blockDelta := []byte("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"x\"}}\n\n")
+	blockStop := []byte("event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
+	messageDelta := []byte("event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":2}}\n\n")
+	messageStop := []byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
+
+	for _, test := range []struct {
+		name    string
+		payload []byte
+	}{
+		{name: "repeated block start", payload: append(append(append(append([]byte(nil), start...), blockStart...), blockStop...), blockStart...)},
+		{name: "block delta without start", payload: append(append([]byte(nil), start...), blockDelta...)},
+		{name: "block stop without start", payload: append(append([]byte(nil), start...), blockStop...)},
+		{name: "block delta after stop", payload: append(append(append(append([]byte(nil), start...), blockStart...), blockStop...), blockDelta...)},
+		{name: "message delta with open block", payload: append(append(append([]byte(nil), start...), blockStart...), messageDelta...)},
+		{name: "message stop with open block", payload: append(append(append([]byte(nil), start...), blockStart...), messageStop...)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			observer, err := NewRegistry().New("anthropic", "text/event-stream", Estimate{Model: "claude-sonnet-4-20250514", Protocol: "claude"})
+			require.NoError(t, err)
+			require.ErrorIs(t, observer.Observe(test.payload), ErrAnthropicEventOrder)
+		})
+	}
 }
 
 func TestAnthropicSSEZeroUsageCompletesWithoutFallback(t *testing.T) {
@@ -283,12 +380,13 @@ func TestAnthropicSSERejectsEventsLargerThanBound(t *testing.T) {
 }
 
 func TestAnthropicSSEStopsRetainingFallbackAfterCumulativeLimit(t *testing.T) {
-	registry := NewRegistryWithLimits(Limits{MaxFallbackBytes: 10})
+	registry := NewRegistryWithLimits(Limits{MaxFallbackBytes: 150})
 	observer, err := registry.New("anthropic", "text/event-stream", Estimate{Model: "claude-sonnet-4-20250514", Protocol: "claude"})
 	require.NoError(t, err)
 	require.NoError(t, observer.Observe([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{}}\n\n")))
-	require.NoError(t, observer.Observe([]byte("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"first\"}}\n\n")))
-	require.ErrorIs(t, observer.Observe([]byte("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"second\"}}\n\n")), ErrObservationLimitExceeded)
+	require.NoError(t, observer.Observe([]byte("event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\"}}\n\n")))
+	require.NoError(t, observer.Observe([]byte("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"first\"}}\n\n")))
+	require.ErrorIs(t, observer.Observe([]byte("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"second\"}}\n\n")), ErrObservationLimitExceeded)
 
 	actual, completeErr := observer.Complete(Completion{StatusCode: 200, EOF: true})
 	require.ErrorIs(t, completeErr, ErrObservationLimitExceeded)

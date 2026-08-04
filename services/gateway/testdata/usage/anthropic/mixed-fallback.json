@@ -1,0 +1,14 @@
+{
+  "id": "msg_mixed_fallback",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-20250514",
+  "content": [
+    {"type": "text", "text": "answer "},
+    {"type": "thinking", "thinking": "reason "},
+    {"type": "tool_use", "name": "lookup", "input": {"b": 2, "a": 1}}
+  ],
+  "usage": {
+    "input_tokens": 10
+  }
+}

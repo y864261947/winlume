@@ -2,6 +2,7 @@ package usage
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -12,19 +13,35 @@ import (
 var ErrAnthropicEventOrder = errors.New("invalid Anthropic SSE event order")
 
 type anthropicObserver struct {
-	estimate      Estimate
-	limits        Limits
-	stream        bool
-	body          *responseStore
-	sse           sseDecoder
-	usage         anthropicUsageSnapshot
-	sawStart      bool
-	sawStop       bool
-	observeErr    error
-	localText     strings.Builder
-	fallbackBytes int64
-	finalized     bool
-	mu            sync.Mutex
+	estimate        Estimate
+	limits          Limits
+	stream          bool
+	body            *responseStore
+	sse             sseDecoder
+	usage           anthropicUsageSnapshot
+	sawStart        bool
+	sawMessageDelta bool
+	sawStop         bool
+	blocks          map[int64]*anthropicContentBlock
+	blockOrder      []*anthropicContentBlock
+	openBlocks      int
+	observeErr      error
+	localText       strings.Builder
+	fallbackBytes   int64
+	finalized       bool
+	mu              sync.Mutex
+}
+
+type anthropicContentBlock struct {
+	kind            string
+	name            string
+	initialInput    string
+	hasInitialInput bool
+	text            strings.Builder
+	thinking        strings.Builder
+	partialJSON     strings.Builder
+	hasPartialJSON  bool
+	active          bool
 }
 
 type anthropicUsageValue struct {
@@ -103,7 +120,10 @@ func (observer *anthropicObserver) Complete(completion Completion) (Canonical, e
 	if err != nil {
 		return Canonical{Fields: make(map[string]Provenance)}, fmt.Errorf("decode Anthropic response: %w", err)
 	}
-	usage, _ := objectValue(response["usage"])
+	usage, _, err := anthropicUsageObject(response, "usage")
+	if err != nil {
+		return Canonical{Fields: make(map[string]Provenance)}, err
+	}
 	snapshot, err := parseAnthropicUsage(usage)
 	if err != nil {
 		return Canonical{Fields: make(map[string]Provenance)}, err
@@ -117,8 +137,8 @@ func (observer *anthropicObserver) Complete(completion Completion) (Canonical, e
 			result.TerminalEvent = "observation_limit_exceeded"
 			return result, err
 		}
-		observer.applyAnthropicOutputFallback(&result)
 	}
+	observer.applyAnthropicOutputFallback(&result, snapshot.output.present, observer.localText.String())
 	result.Complete = true
 	result.TerminalEvent = "json.eof"
 	return result, nil
@@ -300,10 +320,14 @@ func (observer *anthropicObserver) observeSSEEvent(eventName string, data []byte
 		}
 		observer.usage = snapshot
 		observer.sawStart = true
+		observer.blocks = make(map[int64]*anthropicContentBlock)
+		observer.blockOrder = nil
+		observer.openBlocks = 0
 	case "message_delta":
-		if !observer.anthropicMessageActive() {
+		if !observer.anthropicMessageActive() || observer.openBlocks > 0 {
 			return malformedAnthropicEventOrder()
 		}
+		observer.sawMessageDelta = true
 		usage, present, err := anthropicUsageObject(event, "usage")
 		if err != nil {
 			return err
@@ -317,39 +341,68 @@ func (observer *anthropicObserver) observeSSEEvent(eventName string, data []byte
 		}
 		mergeAnthropicUsageDelta(&observer.usage, delta)
 	case "message_stop":
-		if !observer.anthropicMessageActive() {
+		if !observer.anthropicMessageActive() || !observer.sawMessageDelta || observer.openBlocks > 0 {
 			return malformedAnthropicEventOrder()
 		}
 		observer.sawStop = true
 	case "content_block_start":
-		if !observer.anthropicMessageActive() {
+		if !observer.anthropicMessageActive() || observer.sawMessageDelta {
+			return malformedAnthropicEventOrder()
+		}
+		index, err := anthropicContentBlockIndex(event)
+		if err != nil {
+			return err
+		}
+		if _, exists := observer.blocks[index]; exists {
 			return malformedAnthropicEventOrder()
 		}
 		contentBlock, ok := objectValue(event["content_block"])
 		if !ok {
 			return ErrMalformedSSE
 		}
-		if text, ok := contentBlock["text"].(string); ok {
-			return observer.appendAnthropicFallback(text)
+		block, reservation, err := anthropicContentBlockFromStart(contentBlock)
+		if err != nil {
+			return err
 		}
+		if err := observer.reserveAnthropicFallbackBytes(reservation); err != nil {
+			return err
+		}
+		observer.blocks[index] = block
+		observer.blockOrder = append(observer.blockOrder, block)
+		observer.openBlocks++
 	case "content_block_delta":
-		if !observer.anthropicMessageActive() {
+		if !observer.anthropicMessageActive() || observer.sawMessageDelta {
+			return malformedAnthropicEventOrder()
+		}
+		index, err := anthropicContentBlockIndex(event)
+		if err != nil {
+			return err
+		}
+		block, exists := observer.blocks[index]
+		if !exists || !block.active {
 			return malformedAnthropicEventOrder()
 		}
 		delta, ok := objectValue(event["delta"])
 		if !ok {
 			return ErrMalformedSSE
 		}
-		for _, field := range []string{"text", "thinking", "partial_json"} {
-			value, _ := delta[field].(string)
-			if err := observer.appendAnthropicFallback(value); err != nil {
-				return err
-			}
+		if err := observer.appendAnthropicBlockDelta(block, delta); err != nil {
+			return err
 		}
 	case "content_block_stop":
-		if !observer.anthropicMessageActive() {
+		if !observer.anthropicMessageActive() || observer.sawMessageDelta {
 			return malformedAnthropicEventOrder()
 		}
+		index, err := anthropicContentBlockIndex(event)
+		if err != nil {
+			return err
+		}
+		block, exists := observer.blocks[index]
+		if !exists || !block.active || observer.openBlocks <= 0 {
+			return malformedAnthropicEventOrder()
+		}
+		block.active = false
+		observer.openBlocks--
 	}
 	return nil
 }
@@ -360,6 +413,14 @@ func (observer *anthropicObserver) anthropicMessageActive() bool {
 
 func malformedAnthropicEventOrder() error {
 	return fmt.Errorf("%w: %w", ErrMalformedSSE, ErrAnthropicEventOrder)
+}
+
+func anthropicContentBlockIndex(event map[string]any) (int64, error) {
+	index, present, err := nonNegativeInt64(event, "index")
+	if err != nil || !present {
+		return 0, ErrMalformedSSE
+	}
+	return index, nil
 }
 
 func mergeAnthropicUsageDelta(current *anthropicUsageSnapshot, delta anthropicUsageSnapshot) {
@@ -382,7 +443,7 @@ func (observer *anthropicObserver) completeSSE(completion Completion) (Canonical
 	if err != nil {
 		return result, err
 	}
-	observer.applyAnthropicOutputFallback(&result)
+	observer.applyAnthropicOutputFallback(&result, observer.usage.output.present, observer.anthropicStreamFallbackText())
 	if terminal := incompleteCompletionTerminal(completion); terminal != "" {
 		result.TerminalEvent = terminal
 		return result, nil
@@ -408,12 +469,82 @@ func (observer *anthropicObserver) appendAnthropicFallback(value string) error {
 	if value == "" {
 		return nil
 	}
-	size := int64(len(value))
+	if err := observer.reserveAnthropicFallbackBytes(int64(len(value))); err != nil {
+		return err
+	}
+	observer.localText.WriteString(value)
+	return nil
+}
+
+const (
+	anthropicBlockEntryBytes      int64 = 64
+	anthropicBlockMapEntryBytes   int64 = 64
+	anthropicBlockOrderEntryBytes int64 = 8
+)
+
+func anthropicContentBlockFromStart(contentBlock map[string]any) (*anthropicContentBlock, int64, error) {
+	block := &anthropicContentBlock{active: true}
+	block.kind, _ = contentBlock["type"].(string)
+	block.name, _ = contentBlock["name"].(string)
+	if input, present := contentBlock["input"]; present {
+		serialized, err := json.Marshal(input)
+		if err != nil {
+			return nil, 0, fmt.Errorf("encode Anthropic tool input: %w", err)
+		}
+		block.initialInput = string(serialized)
+		block.hasInitialInput = true
+	}
+	text, _ := contentBlock["text"].(string)
+	thinking, _ := contentBlock["thinking"].(string)
+	reservation, err := checkedFallbackBytes(
+		anthropicBlockEntryBytes,
+		anthropicBlockMapEntryBytes,
+		anthropicBlockOrderEntryBytes,
+		int64(len(block.kind)),
+		int64(len(block.name)),
+		int64(len(block.initialInput)),
+		int64(len(text)),
+		int64(len(thinking)),
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	block.text.WriteString(text)
+	block.thinking.WriteString(thinking)
+	return block, reservation, nil
+}
+
+func (observer *anthropicObserver) appendAnthropicBlockDelta(block *anthropicContentBlock, delta map[string]any) error {
+	text, _ := delta["text"].(string)
+	thinking, _ := delta["thinking"].(string)
+	partialJSON, hasPartialJSON := delta["partial_json"].(string)
+	reservation, err := checkedFallbackBytes(int64(len(text)), int64(len(thinking)), int64(len(partialJSON)))
+	if err != nil {
+		return err
+	}
+	if err := observer.reserveAnthropicFallbackBytes(reservation); err != nil {
+		return err
+	}
+	block.text.WriteString(text)
+	block.thinking.WriteString(thinking)
+	if hasPartialJSON {
+		block.partialJSON.WriteString(partialJSON)
+		block.hasPartialJSON = true
+	}
+	return nil
+}
+
+func (observer *anthropicObserver) reserveAnthropicFallbackBytes(size int64) error {
+	if size == 0 {
+		return nil
+	}
+	if size < 0 || observer.fallbackBytes < 0 || observer.fallbackBytes > observer.limits.MaxFallbackBytes {
+		return ErrObservationLimitExceeded
+	}
 	if size > observer.limits.MaxFallbackBytes-observer.fallbackBytes {
 		return ErrObservationLimitExceeded
 	}
 	observer.fallbackBytes += size
-	observer.localText.WriteString(value)
 	return nil
 }
 
@@ -423,20 +554,59 @@ func (observer *anthropicObserver) collectAnthropicJSONText(response map[string]
 		if !ok {
 			continue
 		}
-		if text, ok := content["text"].(string); ok {
+		switch content["type"] {
+		case "text":
+			text, _ := content["text"].(string)
 			if err := observer.appendAnthropicFallback(text); err != nil {
 				return err
+			}
+		case "thinking":
+			thinking, _ := content["thinking"].(string)
+			if err := observer.appendAnthropicFallback(thinking); err != nil {
+				return err
+			}
+		case "tool_use":
+			name, _ := content["name"].(string)
+			if err := observer.appendAnthropicFallback(name); err != nil {
+				return err
+			}
+			if input, present := content["input"]; present {
+				serialized, err := json.Marshal(input)
+				if err != nil {
+					return fmt.Errorf("encode Anthropic tool input: %w", err)
+				}
+				if err := observer.appendAnthropicFallback(string(serialized)); err != nil {
+					return err
+				}
 			}
 		}
 	}
 	return nil
 }
 
-func (observer *anthropicObserver) applyAnthropicOutputFallback(result *Canonical) {
-	if observer.usage.output.present {
+func (observer *anthropicObserver) anthropicStreamFallbackText() string {
+	var text strings.Builder
+	for _, block := range observer.blockOrder {
+		if block.kind == "tool_use" {
+			text.WriteString(block.name)
+			if block.hasPartialJSON {
+				text.WriteString(block.partialJSON.String())
+			} else if block.hasInitialInput {
+				text.WriteString(block.initialInput)
+			}
+			continue
+		}
+		text.WriteString(block.text.String())
+		text.WriteString(block.thinking.String())
+	}
+	return text.String()
+}
+
+func (observer *anthropicObserver) applyAnthropicOutputFallback(result *Canonical, outputPresent bool, text string) {
+	if outputPresent {
 		return
 	}
-	locallyCounted := countText(observer.localText.String(), observer.estimate.Model)
+	locallyCounted := countText(text, observer.estimate.Model)
 	if locallyCounted <= 0 {
 		return
 	}
