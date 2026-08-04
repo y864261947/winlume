@@ -46,8 +46,14 @@ if (existsSync(join(standalone, "node_modules"))) {
   cpSync(join(standalone, "node_modules"), join(stage, "node_modules"), { recursive: true });
 }
 
+if (existsSync(join(standalone, ".next"))) {
+  cpSync(join(standalone, ".next"), join(stage, ".next"), { recursive: true });
+}
+
 // Turbopack standalone can externalize packages under hashed names such as
 // `pg-<hash>`. Symlink those back to the real package so require() resolves.
+// The server output must be copied before scanning it; otherwise this block
+// silently sees no `.next/server` directory and production misses the links.
 {
   const stageModules = join(stage, "node_modules");
   const nextServer = join(stage, ".next", "server");
@@ -82,9 +88,6 @@ if (existsSync(join(standalone, "node_modules"))) {
       }
     }
   }
-}
-if (existsSync(join(standalone, ".next"))) {
-  cpSync(join(standalone, ".next"), join(stage, ".next"), { recursive: true });
 }
 mkdirSync(join(stage, ".next", "static"), { recursive: true });
 cpSync(join(root, ".next", "static"), join(stage, ".next", "static"), { recursive: true });
