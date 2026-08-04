@@ -1,8 +1,10 @@
+ALTER TYPE "public"."usage_event_status" ADD VALUE IF NOT EXISTS 'settlement_pending' BEFORE 'settled';--> statement-breakpoint
+COMMIT;--> statement-breakpoint
+BEGIN;--> statement-breakpoint
 CREATE TYPE "public"."funding_preference" AS ENUM('subscription_first', 'wallet_first', 'subscription_only', 'wallet_only');--> statement-breakpoint
 CREATE TYPE "public"."pricing_catalog_state" AS ENUM('draft', 'active', 'retired');--> statement-breakpoint
 CREATE TYPE "public"."pricing_mode" AS ENUM('ratio', 'fixed', 'tiered_expr');--> statement-breakpoint
 CREATE TYPE "public"."subscription_quota_ledger_entry_type" AS ENUM('hold', 'release', 'debit', 'refund', 'reset', 'adjustment');--> statement-breakpoint
-ALTER TYPE "public"."usage_event_status" ADD VALUE 'settlement_pending' BEFORE 'settled';--> statement-breakpoint
 CREATE TABLE "api_key_billing_policies" (
 	"api_key_id" uuid PRIMARY KEY NOT NULL,
 	"user_group" varchar(120) DEFAULT 'default' NOT NULL,
@@ -246,10 +248,116 @@ ALTER TABLE "usage_events" ADD CONSTRAINT "usage_events_catalog_version_id_prici
 CREATE UNIQUE INDEX "usage_events_operation_id_unique" ON "usage_events" USING btree ("operation_id");--> statement-breakpoint
 CREATE INDEX "usage_events_organization_index" ON "usage_events" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "usage_events_catalog_version_index" ON "usage_events" USING btree ("catalog_version_id");--> statement-breakpoint
+CREATE INDEX "usage_events_pending_recovery_index" ON "usage_events" USING btree ("completion_snapshot_at","id") WHERE "usage_events"."status" = 'settlement_pending';--> statement-breakpoint
+CREATE INDEX "usage_events_reserved_recovery_index" ON "usage_events" USING btree ("created_at","id") WHERE "usage_events"."status" = 'reserved';--> statement-breakpoint
 ALTER TABLE "usage_events" ADD CONSTRAINT "usage_events_reserved_quota_nonnegative" CHECK ("usage_events"."reserved_quota" >= 0);--> statement-breakpoint
 ALTER TABLE "usage_events" ADD CONSTRAINT "usage_events_actual_quota_nonnegative" CHECK ("usage_events"."actual_quota" IS NULL OR "usage_events"."actual_quota" >= 0);--> statement-breakpoint
 ALTER TABLE "usage_events" ADD CONSTRAINT "usage_events_settlement_attempt_count_nonnegative" CHECK ("usage_events"."settlement_attempt_count" >= 0);--> statement-breakpoint
-ALTER TABLE "usage_events" ADD CONSTRAINT "usage_events_channel_cost_quota_nonnegative" CHECK ("usage_events"."channel_cost_quota" IS NULL OR "usage_events"."channel_cost_quota" >= 0);
+ALTER TABLE "usage_events" ADD CONSTRAINT "usage_events_channel_cost_quota_nonnegative" CHECK ("usage_events"."channel_cost_quota" IS NULL OR "usage_events"."channel_cost_quota" >= 0);--> statement-breakpoint
+ALTER TABLE "usage_events" ADD CONSTRAINT "usage_events_pending_recovery_fields_check" CHECK ("usage_events"."status" <> 'settlement_pending' OR ("usage_events"."operation_id" IS NOT NULL AND "usage_events"."catalog_version_id" IS NOT NULL AND "usage_events"."canonical_usage" IS NOT NULL AND "usage_events"."usage_provenance" IS NOT NULL AND "usage_events"."completion_state" IS NOT NULL AND "usage_events"."funding_kind" IS NOT NULL AND "usage_events"."funding_reference" IS NOT NULL AND "usage_events"."actual_quota" IS NOT NULL AND "usage_events"."completion_snapshot_at" IS NOT NULL));
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION "enforce_pricing_catalog_version_lifecycle"() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.state <> 'draft' THEN
+      RAISE EXCEPTION 'pricing catalogs must be inserted as draft';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.state <> 'draft' THEN
+      RAISE EXCEPTION 'active or retired pricing catalogs cannot be deleted';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  IF NOT (
+    (OLD.state = 'draft' AND NEW.state IN ('draft', 'active')) OR
+    (OLD.state = 'active' AND NEW.state IN ('active', 'retired')) OR
+    (OLD.state = 'retired' AND NEW.state IN ('retired', 'active'))
+  ) THEN
+    RAISE EXCEPTION 'invalid pricing catalog state transition from % to %', OLD.state, NEW.state;
+  END IF;
+
+  IF OLD.state IN ('active', 'retired') AND
+    (to_jsonb(NEW) - ARRAY['state', 'activated_at', 'updated_at']) IS DISTINCT FROM
+    (to_jsonb(OLD) - ARRAY['state', 'activated_at', 'updated_at']) THEN
+    RAISE EXCEPTION 'active or retired pricing catalog content is immutable';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+--> statement-breakpoint
+CREATE TRIGGER "pricing_catalog_versions_lifecycle"
+BEFORE INSERT OR UPDATE OR DELETE ON "pricing_catalog_versions"
+FOR EACH ROW EXECUTE FUNCTION "enforce_pricing_catalog_version_lifecycle"();
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION "enforce_pricing_catalog_child_draft_only"() RETURNS trigger AS $$
+DECLARE
+  catalog_state "public"."pricing_catalog_state";
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    SELECT "state" INTO catalog_state
+    FROM "pricing_catalog_versions"
+    WHERE "id" = NEW.catalog_version_id
+    FOR SHARE;
+
+    IF catalog_state IS DISTINCT FROM 'draft' THEN
+      RAISE EXCEPTION 'pricing catalog child rows may only be inserted into a draft catalog';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    SELECT "state" INTO catalog_state
+    FROM "pricing_catalog_versions"
+    WHERE "id" = OLD.catalog_version_id
+    FOR SHARE;
+
+    IF catalog_state IS DISTINCT FROM 'draft' THEN
+      RAISE EXCEPTION 'pricing catalog child rows may only be updated while their original catalog is draft';
+    END IF;
+
+    SELECT "state" INTO catalog_state
+    FROM "pricing_catalog_versions"
+    WHERE "id" = NEW.catalog_version_id
+    FOR SHARE;
+
+    IF catalog_state IS DISTINCT FROM 'draft' THEN
+      RAISE EXCEPTION 'pricing catalog child rows may only be moved into a draft catalog';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  SELECT "state" INTO catalog_state
+  FROM "pricing_catalog_versions"
+  WHERE "id" = OLD.catalog_version_id
+  FOR SHARE;
+
+  IF NOT FOUND THEN
+    RETURN OLD;
+  END IF;
+
+  IF catalog_state IS DISTINCT FROM 'draft' THEN
+    RAISE EXCEPTION 'pricing catalog child rows may only be deleted while their catalog is draft';
+  END IF;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+--> statement-breakpoint
+CREATE TRIGGER "pricing_model_rules_draft_only"
+BEFORE INSERT OR UPDATE OR DELETE ON "pricing_model_rules"
+FOR EACH ROW EXECUTE FUNCTION "enforce_pricing_catalog_child_draft_only"();
+--> statement-breakpoint
+CREATE TRIGGER "pricing_group_rules_draft_only"
+BEFORE INSERT OR UPDATE OR DELETE ON "pricing_group_rules"
+FOR EACH ROW EXECUTE FUNCTION "enforce_pricing_catalog_child_draft_only"();
+--> statement-breakpoint
+CREATE TRIGGER "model_availability_draft_only"
+BEFORE INSERT OR UPDATE OR DELETE ON "model_availability"
+FOR EACH ROW EXECUTE FUNCTION "enforce_pricing_catalog_child_draft_only"();
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION "prevent_gateway_quota_ledger_mutation"() RETURNS trigger AS $$
 BEGIN

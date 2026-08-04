@@ -385,6 +385,12 @@ export const usageEvents = pgTable(
     index("usage_events_organization_index").on(table.organizationId),
     index("usage_events_api_key_index").on(table.apiKeyId),
     index("usage_events_catalog_version_index").on(table.catalogVersionId),
+    index("usage_events_pending_recovery_index")
+      .on(table.completionSnapshotAt, table.id)
+      .where(sql`${table.status} = 'settlement_pending'`),
+    index("usage_events_reserved_recovery_index")
+      .on(table.createdAt, table.id)
+      .where(sql`${table.status} = 'reserved'`),
     check("usage_events_reserved_quota_nonnegative", sql`${table.reservedQuota} >= 0`),
     check(
       "usage_events_actual_quota_nonnegative",
@@ -397,6 +403,10 @@ export const usageEvents = pgTable(
     check(
       "usage_events_channel_cost_quota_nonnegative",
       sql`${table.channelCostQuota} IS NULL OR ${table.channelCostQuota} >= 0`,
+    ),
+    check(
+      "usage_events_pending_recovery_fields_check",
+      sql`${table.status} <> 'settlement_pending' OR (${table.operationId} IS NOT NULL AND ${table.catalogVersionId} IS NOT NULL AND ${table.canonicalUsage} IS NOT NULL AND ${table.usageProvenance} IS NOT NULL AND ${table.completionState} IS NOT NULL AND ${table.fundingKind} IS NOT NULL AND ${table.fundingReference} IS NOT NULL AND ${table.actualQuota} IS NOT NULL AND ${table.completionSnapshotAt} IS NOT NULL)`,
     ),
   ],
 );
