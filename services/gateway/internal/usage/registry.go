@@ -117,10 +117,17 @@ func (registry *Registry) New(protocol string, contentType string, estimate Esti
 		return newMediaObserverWithLimits(mediaSpeech, contentType, estimate, limits), nil
 	}
 	resolved, ok := normalizeProtocol(protocol)
-	if !ok || (resolved != "openai" && resolved != "responses") {
+	if !ok {
 		return nil, ErrUnsupportedUsageProtocol
 	}
-	return newOpenAIObserverWithLimits(resolved, contentType, estimate, limits), nil
+	switch resolved {
+	case "openai", "responses":
+		return newOpenAIObserverWithLimits(resolved, contentType, estimate, limits), nil
+	case "claude":
+		return newAnthropicObserverWithLimits(contentType, estimate, limits), nil
+	default:
+		return nil, ErrUnsupportedUsageProtocol
+	}
 }
 
 func isSuccessStatus(statusCode int) bool {
