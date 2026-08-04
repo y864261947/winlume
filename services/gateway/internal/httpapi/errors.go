@@ -30,6 +30,19 @@ func writeError(
 	writeJSON(response, status, body)
 }
 
+// WriteError lets process assembly and later billing orchestration return the
+// same stable envelope without duplicating HTTP error semantics.
+func WriteError(
+	response http.ResponseWriter,
+	status int,
+	errorType string,
+	code string,
+	message string,
+	requestID string,
+) {
+	writeError(response, status, errorType, code, message, requestID)
+}
+
 func writeJSON(response http.ResponseWriter, status int, body any) {
 	response.Header().Set("Content-Type", "application/json")
 	response.WriteHeader(status)

@@ -90,10 +90,6 @@ func AuthenticateAPIKey(ctx context.Context, request *http.Request, lookup APIKe
 	if err != nil {
 		return Identity{}, fmt.Errorf("lookup API key: %w", err)
 	}
-	if identity.UserID == uuid.Nil {
-		return Identity{}, ErrUnauthorized
-	}
-
 	identity.Source = SourceAPIKey
 	identity.APIKeyDisplay = FormatAPIKey(credential.raw)
 	return identity, nil
