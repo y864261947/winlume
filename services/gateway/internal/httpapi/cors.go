@@ -14,10 +14,8 @@ var corsAllowedHeaders = []string{
 
 func withCORS(next http.Handler, allowedOrigins []string) http.Handler {
 	origins := make(map[string]struct{}, len(allowedOrigins))
-	allowAny := false
 	for _, origin := range allowedOrigins {
 		if origin == "*" {
-			allowAny = true
 			continue
 		}
 		origins[origin] = struct{}{}
@@ -27,7 +25,7 @@ func withCORS(next http.Handler, allowedOrigins []string) http.Handler {
 		appendVary(response.Header(), "Origin")
 		origin := request.Header.Get("Origin")
 		_, explicitlyAllowed := origins[origin]
-		originAllowed := origin != "" && (allowAny || explicitlyAllowed)
+		originAllowed := origin != "" && explicitlyAllowed
 		requestedMethod := request.Header.Get("Access-Control-Request-Method")
 		isPreflight := request.Method == http.MethodOptions && requestedMethod != ""
 

@@ -3,8 +3,10 @@ package relay
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -124,6 +126,55 @@ func TestProxyReturnsClassifiedErrorWhenUpstreamTransportFails(t *testing.T) {
 	require.NotContains(t, err.Error(), "Authorization")
 }
 
+func TestProxyDecodesCompressedUpstreamResponseBeforeFilteringEncodingHeader(t *testing.T) {
+	payload := []byte(`{"result":"plain response body"}`)
+	upstreamAcceptEncoding := make(chan string, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		upstreamAcceptEncoding <- request.Header.Get("Accept-Encoding")
+		response.Header().Set("Content-Type", "application/json")
+		response.Header().Set("Content-Encoding", "gzip")
+		writer := gzip.NewWriter(response)
+		_, err := writer.Write(payload)
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
+	}))
+	defer upstream.Close()
+
+	baseURL, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
+	client := NewClient(&fixedSelector{channel: Channel{ID: "compressed", Family: "openai", BaseURL: baseURL}}, ClientOptions{HTTPClient: upstream.Client()})
+	gateway := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		upstreamResponse, doErr := client.Do(request.Context(), Request{
+			Method:  http.MethodGet,
+			Family:  "openai",
+			URL:     &url.URL{Path: "/v1/models"},
+			Headers: request.Header,
+		}, nil)
+		require.NoError(t, doErr)
+		StreamResponse(request.Context(), response, upstreamResponse, nil)
+	}))
+	defer gateway.Close()
+
+	request, err := http.NewRequest(http.MethodGet, gateway.URL, nil)
+	require.NoError(t, err)
+	request.Header.Set("Accept-Encoding", "br")
+	response, err := gateway.Client().Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+
+	actual, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	require.Equal(t, payload, actual)
+	require.Empty(t, response.Header.Get("Content-Encoding"))
+
+	select {
+	case actual := <-upstreamAcceptEncoding:
+		require.Equal(t, "gzip", actual)
+	case <-time.After(time.Second):
+		t.Fatal("upstream did not receive a transport-managed compression negotiation")
+	}
+}
+
 func TestStreamFlushesSSEImmediatelyAndCompletesObserverOnce(t *testing.T) {
 	firstFrameWritten := make(chan struct{})
 	releaseUpstream := make(chan struct{})
@@ -184,6 +235,73 @@ func TestStreamFlushesSSEImmediatelyAndCompletesObserverOnce(t *testing.T) {
 	require.Equal(t, int64(len("data: first\n\ndata: second\n\n")), completion.BytesWritten)
 	require.False(t, completion.ClientDisconnected)
 	require.Equal(t, 4, observer.observeCount())
+}
+
+func TestStreamReportsRealDownstreamClientDisconnectExactlyOnce(t *testing.T) {
+	firstFrameWritten := make(chan struct{})
+	upstreamCanceled := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "text/event-stream")
+		_, err := response.Write([]byte("data: first\n\n"))
+		require.NoError(t, err)
+		response.(http.Flusher).Flush()
+		close(firstFrameWritten)
+		<-request.Context().Done()
+		close(upstreamCanceled)
+	}))
+	defer upstream.Close()
+
+	baseURL, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
+	observer := &recordingObserver{}
+	relayFinished := make(chan struct{})
+	client := NewClient(&fixedSelector{channel: Channel{ID: "disconnect", Family: "openai", BaseURL: baseURL}}, ClientOptions{})
+	gateway := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		defer close(relayFinished)
+		upstreamResponse, doErr := client.Do(request.Context(), Request{
+			Method: http.MethodGet,
+			Family: "openai",
+			URL:    &url.URL{Path: "/v1/chat/completions", RawQuery: "stream=true"},
+		}, nil)
+		require.NoError(t, doErr)
+		StreamResponse(request.Context(), response, upstreamResponse, observer)
+	}))
+	defer gateway.Close()
+
+	gatewayURL, err := url.Parse(gateway.URL)
+	require.NoError(t, err)
+	connection, err := net.DialTimeout("tcp", gatewayURL.Host, time.Second)
+	require.NoError(t, err)
+
+	_, err = io.WriteString(connection, "GET /v1/chat/completions?stream=true HTTP/1.1\r\nHost: "+gatewayURL.Host+"\r\nConnection: close\r\n\r\n")
+	require.NoError(t, err)
+	request, err := http.NewRequest(http.MethodGet, gateway.URL, nil)
+	require.NoError(t, err)
+	response, err := http.ReadResponse(bufio.NewReader(connection), request)
+	require.NoError(t, err)
+	reader := bufio.NewReader(response.Body)
+	<-firstFrameWritten
+	line, err := reader.ReadString('\n')
+	require.NoError(t, err)
+	require.Equal(t, "data: first\n", line)
+	line, err = reader.ReadString('\n')
+	require.NoError(t, err)
+	require.Equal(t, "\n", line)
+	require.NoError(t, connection.Close())
+
+	select {
+	case <-upstreamCanceled:
+	case <-time.After(time.Second):
+		t.Fatal("closing the real downstream connection did not cancel the upstream stream")
+	}
+	select {
+	case <-relayFinished:
+	case <-time.After(time.Second):
+		t.Fatal("relay did not finish after the downstream connection closed")
+	}
+	require.Equal(t, 1, observer.completeCount())
+	completion := observer.completion()
+	require.True(t, completion.ClientDisconnected)
 }
 
 func TestStreamObservesBytesBeforeWritingDownstream(t *testing.T) {

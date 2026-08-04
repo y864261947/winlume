@@ -185,6 +185,27 @@ func TestCORSUsesAllowlistAndPreflightNeedsNoAuthentication(t *testing.T) {
 	require.Contains(t, denied.Header().Values("Vary"), "Origin")
 }
 
+func TestCORSWildcardConfigurationDoesNotAllowArbitraryOrigins(t *testing.T) {
+	cfg := testConfig(config.BillingOff)
+	cfg.CORSOrigins = []string{"*"}
+	server := NewServer(Dependencies{Config: cfg})
+
+	simple := serveWithHeaders(server, http.MethodGet, "/health", nil, map[string]string{
+		"Origin": "https://untrusted.example",
+	})
+	require.Empty(t, simple.Header().Get("Access-Control-Allow-Origin"))
+	require.Empty(t, simple.Header().Get("Access-Control-Allow-Credentials"))
+
+	preflight := serveWithHeaders(server, http.MethodOptions, "/v1/chat/completions", nil, map[string]string{
+		"Origin":                        "https://untrusted.example",
+		"Access-Control-Request-Method": http.MethodPost,
+	})
+	require.Equal(t, http.StatusNoContent, preflight.Code)
+	require.Empty(t, preflight.Header().Get("Access-Control-Allow-Origin"))
+	require.Empty(t, preflight.Header().Get("Access-Control-Allow-Credentials"))
+	require.Empty(t, preflight.Header().Get("Access-Control-Allow-Methods"))
+}
+
 func TestUnconfiguredFamilyReturns501(t *testing.T) {
 	server := NewServer(Dependencies{Config: testConfig(config.BillingOff)})
 	requestID := "request-12345678"

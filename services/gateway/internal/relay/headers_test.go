@@ -16,6 +16,7 @@ func TestHeadersFilterCallerControlledSensitiveRequestValues(t *testing.T) {
 		"Set-Cookie":                        {"must-not-forward=true"},
 		"Host":                              {"caller.example"},
 		"Content-Length":                    {"123"},
+		"Accept-Encoding":                   {"br"},
 		"X-Api-Key":                         {"caller-key"},
 		"Api-Key":                           {"caller-legacy-key"},
 		"New-Api-User":                      {"browser-spoof"},
@@ -51,7 +52,7 @@ func TestHeadersFilterCallerControlledSensitiveRequestValues(t *testing.T) {
 	require.Equal(t, []string{"safe"}, filtered.Values("X-Unsafe-Newline"))
 
 	for _, name := range []string{
-		"Authorization", "Cookie", "Set-Cookie", "Host", "Content-Length",
+		"Authorization", "Cookie", "Set-Cookie", "Host", "Content-Length", "Accept-Encoding",
 		"X-Api-Key", "Api-Key", "New-Api-User", "X-Winlume-User",
 		"X-Winlume-User-Id", "X-Winlume-Internal-Token", "X-Winlume-Internal-Custom",
 		"X-Forwarded-For", "Forwarded", "Via", "Origin", "Referer", "Connection",

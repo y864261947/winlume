@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -45,11 +44,7 @@ func TestBodyStoreSpillsLargeBodiesToOwnerOnlyFileAndDeletesIt(t *testing.T) {
 	require.False(t, store.InMemory())
 	require.NotEmpty(t, store.path)
 
-	info, err := os.Stat(store.path)
-	require.NoError(t, err)
-	if runtime.GOOS != "windows" {
-		require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
-	}
+	assertOwnerOnlySpillFile(t, store.path)
 
 	for range 2 {
 		reader, openErr := store.Open()

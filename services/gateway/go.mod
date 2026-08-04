@@ -10,6 +10,7 @@ require (
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.11.1
 	github.com/tiktoken-go/tokenizer v0.6.2
+	golang.org/x/sys v0.45.0
 )
 
 require (

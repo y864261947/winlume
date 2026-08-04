@@ -75,7 +75,7 @@ func NewBodyStore(source io.Reader, options BodyStoreOptions) (*BodyStore, error
 				if err != nil {
 					return nil, fmt.Errorf("create request body spill file: %w", err)
 				}
-				if err = spill.Chmod(0o600); err != nil {
+				if err = secureSpillFile(spill); err != nil {
 					cleanup()
 					return nil, fmt.Errorf("secure request body spill file: %w", err)
 				}
