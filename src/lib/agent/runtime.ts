@@ -4,7 +4,13 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { AgentSseEvent, Artifact, Message, ToolCallRecord } from "@/lib/agent/types";
+import type {
+  AgentSseEvent,
+  Artifact,
+  Message,
+  ToolCallRecord,
+  WorkflowExecutionContext,
+} from "@/lib/agent/types";
 import { parseCanvasContent } from "@/lib/agent/canvas-content";
 import { summarizeCanvasElements } from "@/lib/agent/canvas-summary";
 import type { ArtifactStore, ProjectStore, SessionStore } from "@/lib/host/ports";
@@ -20,6 +26,7 @@ import {
   resolveSkills,
 } from "@/lib/agent/skills/inject";
 import { STUDIO_TOOLS } from "@/lib/agent/tools/definitions";
+import type { SkillSelectionMode } from "@/lib/agent/executor/types";
 import {
   executeStudioTool,
   mimeTypeForKind,
@@ -247,7 +254,11 @@ export interface RunAgentTurnOpts {
   projectId?: string;
   /** Durable run identity used for event correlation. */
   runId?: string;
+  /** Server-resolved output contract for one professional Workflow Stage. */
+  workflow?: WorkflowExecutionContext;
   skillIds?: string[];
+  skillSelectionMode?: SkillSelectionMode;
+  allowedToolNames?: string[];
   /**
    * Image or canvas artifact ids the user @-referenced in the composer.
    * Prefer this over the singular field.
@@ -264,6 +275,38 @@ export interface RunAgentTurnOpts {
   gatewayUserId?: string;
   /** Model transport override. The runtime still owns tools and persistence. */
   streamChat?: GatewayChatStream;
+}
+
+export function buildWorkflowOutputReminder(
+  workflow: WorkflowExecutionContext | undefined,
+): string {
+  if (!workflow) return "";
+  const outputs = workflow.outputs.map(
+    (output) =>
+      `- outputId=${output.id}; kinds=${output.kinds.join("|")}; ${
+        output.required ? "required" : "optional"
+      }`,
+  );
+  return [
+    `<system-reminder>Workflow Stage ${workflow.stageId} has a server-owned Artifact output contract.`,
+    "Every artifact-producing tool call must set outputId to exactly one declared id below; do not infer ids from Artifact names or prose.",
+    ...outputs,
+    "Produce every required output before finishing the Stage.</system-reminder>",
+  ].join("\n");
+}
+
+export function selectRuntimeSkillIds(
+  pinnedSkillIds: string[] | undefined,
+  turnSkillIds: string[] | undefined,
+  mode: SkillSelectionMode = "merge",
+): string[] {
+  return mergeSkillIds(mode === "replace" ? [] : pinnedSkillIds, turnSkillIds);
+}
+
+export function selectStudioTools(allowedToolNames?: readonly string[]) {
+  if (allowedToolNames === undefined) return [...STUDIO_TOOLS];
+  const allowed = new Set(allowedToolNames);
+  return STUDIO_TOOLS.filter((tool) => allowed.has(tool.function.name));
 }
 
 /**
@@ -348,9 +391,10 @@ export async function* runAgentTurn(
 
   yield { type: "session", sessionId };
 
-  const effectiveSkillIds = mergeSkillIds(
+  const effectiveSkillIds = selectRuntimeSkillIds(
     [...(project?.pinnedSkillIds ?? []), ...(session.pinnedSkillIds ?? [])],
     opts.skillIds,
+    opts.skillSelectionMode,
   );
   const skills = await resolveSkills(effectiveSkillIds);
   let artifactCount = 0;
@@ -395,15 +439,23 @@ export async function* runAgentTurn(
   );
 
   const projectReminder = buildProjectReminder(project, sharedArtifactCount);
-  const combinedReminder = [reminder, projectReminder, artifactReminder, canvasReminder]
+  const workflowReminder = buildWorkflowOutputReminder(opts.workflow);
+  const combinedReminder = [
+    reminder,
+    projectReminder,
+    artifactReminder,
+    canvasReminder,
+    workflowReminder,
+  ]
     .filter(Boolean)
     .join("\n\n");
   const system = buildSystemPrompt(
     combinedReminder ? `${BASE_POLICY}\n\n${combinedReminder}` : BASE_POLICY,
     skills,
   );
-  // todo_write is always available; the model chooses when to use it.
-  const tools = [...STUDIO_TOOLS];
+  const tools = selectStudioTools(opts.allowedToolNames);
+  const allowedToolNames =
+    opts.allowedToolNames === undefined ? null : new Set(opts.allowedToolNames);
   /** Turn-scoped checklist shared across tool rounds (merge semantics). */
   const todoState = new TodoState();
 
@@ -636,10 +688,20 @@ export async function* runAgentTurn(
       } catch {
         parsedInput = { _raw: call.arguments };
       }
+      if (allowedToolNames && !allowedToolNames.has(call.name)) {
+        const message = `Tool is not allowed for this Run: ${call.name}`;
+        return {
+          call,
+          parsedInput,
+          result: { ok: false, summary: message, content: message },
+        };
+      }
       const result = await executeStudioTool(call.name, call.arguments, {
         userId,
         sessionId,
         ...(projectId ? { projectId } : {}),
+        ...(opts.runId ? { runId: opts.runId } : {}),
+        ...(opts.workflow ? { workflow: opts.workflow } : {}),
         artifacts,
         messageId: assistantId,
         todoState,
@@ -728,7 +790,13 @@ export async function* runAgentTurn(
 
   // Workbench guarantee: long / structured deliverables become artifacts even if
   // the model only replied in chat (common with gpt-* when tool use is ignored).
-  if (!cancelled && !sawError && !wroteArtifact && lastAssistantText) {
+  if (
+    !opts.workflow &&
+    !cancelled &&
+    !sawError &&
+    !wroteArtifact &&
+    lastAssistantText
+  ) {
     if (shouldAutoPersistArtifact(userText, lastAssistantText)) {
       try {
         const name = artifactNameFromTurn(userText, lastAssistantText);

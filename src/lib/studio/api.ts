@@ -10,6 +10,8 @@ import type {
   Project,
   Session,
 } from "@/lib/agent/types";
+import type { ProductionPackMeta } from "@/lib/agent/production-packs/contracts";
+import type { ProductionPackAvailability } from "@/lib/agent/production-packs/availability";
 import { referenceVideoMimeType } from "@/lib/studio/video-upload";
 
 const PENDING_FIRST_MESSAGE_KEY = "winlume:pending-first-message";
@@ -84,6 +86,90 @@ export async function createSession(input?: {
     );
   }
   return parseJson<Session>(response);
+}
+
+export type WorkflowPackCatalogEntry = ProductionPackMeta & {
+  availability: ProductionPackAvailability;
+};
+
+export type WorkflowPackLaunchResult = {
+  pack: WorkflowPackCatalogEntry;
+  session: Session;
+  initialStage: {
+    id: string;
+    title: string;
+    index: number;
+    status: "ready";
+  };
+};
+
+export async function listWorkflowPacks(
+  scene?: string,
+): Promise<WorkflowPackCatalogEntry[]> {
+  const query = scene ? `?scene=${encodeURIComponent(scene)}` : "";
+  const response = await fetch(`/api/packs${query}`, {
+    headers: withUserHeaders(),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "加载工作流失败",
+      response.status,
+    );
+  }
+  const body = await parseJson<{ packs?: WorkflowPackCatalogEntry[] }>(response);
+  return Array.isArray(body.packs) ? body.packs : [];
+}
+
+export async function getWorkflowPack(
+  id: string,
+): Promise<WorkflowPackCatalogEntry> {
+  const response = await fetch(`/api/packs/${encodeURIComponent(id)}`, {
+    headers: withUserHeaders(),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (response.status === 404) throw new StudioApiError("工作流不存在", 404);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "加载工作流失败",
+      response.status,
+    );
+  }
+  const body = await parseJson<{ pack: WorkflowPackCatalogEntry }>(response);
+  return body.pack;
+}
+
+export async function launchWorkflowPack(
+  id: string,
+  input: {
+    version: string;
+    intake: Record<string, unknown>;
+    projectId?: string;
+    sessionId?: string;
+  },
+): Promise<WorkflowPackLaunchResult> {
+  const response = await fetch(
+    `/api/packs/${encodeURIComponent(id)}/launch`,
+    {
+      method: "POST",
+      headers: withUserHeaders(),
+      credentials: "same-origin",
+      body: JSON.stringify(input),
+    },
+  );
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "启动工作流失败",
+      response.status,
+    );
+  }
+  return parseJson<WorkflowPackLaunchResult>(response);
 }
 
 /* ── Projects ─────────────────────────────────────────────── */
@@ -245,6 +331,8 @@ export async function patchSession(
 export type ChatRequestBody = {
   sessionId?: string;
   message: string;
+  /** Server-owned Workflow Session action; Stage details are derived server-side. */
+  workflowAction?: "start";
   model?: string;
   /** Session-bound, server-validated capability launch intent. */
   capabilityPresetId?: string;

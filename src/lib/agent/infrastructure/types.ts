@@ -1,4 +1,7 @@
-import type { AgentExecutionMode } from "@/lib/agent/executor/types";
+import type {
+  AgentExecutionMode,
+  SkillSelectionMode,
+} from "@/lib/agent/executor/types";
 import type { AgentSseEvent } from "@/lib/agent/types";
 
 /**
@@ -35,6 +38,8 @@ export interface RunInput {
   executionMode: AgentExecutionMode;
   model?: string;
   skillIds?: string[];
+  skillSelectionMode?: SkillSelectionMode;
+  allowedToolNames?: string[];
   referencedArtifactIds?: string[];
   /** Reserved for project-level context and future account/team metadata. */
   metadata?: JsonObject;
@@ -121,6 +126,8 @@ export interface RunPatch {
 export interface RunTransitionOptions {
   reason?: string;
   error?: RunError;
+  /** Applied atomically with the status transition and status event. */
+  metadata?: JsonObject;
   now?: Date;
   expectedRevision?: number;
 }

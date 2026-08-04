@@ -77,6 +77,11 @@ export const STUDIO_TOOLS = [
             type: "string",
             description: "Short human-readable title for the artifact",
           },
+          outputId: {
+            type: "string",
+            description:
+              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
+          },
           kind: {
             type: "string",
             enum: ["markdown", "html", "text", "json"],
@@ -144,6 +149,11 @@ export const STUDIO_TOOLS = [
             type: "string",
             description: "Short human-readable title for the artifact",
           },
+          outputId: {
+            type: "string",
+            description:
+              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
+          },
           prompt: {
             type: "string",
             description: "Full description of the desired image or edit. Preserve the user's requested operation and constraints; image ids in this text do not replace sourceArtifactIds.",
@@ -197,6 +207,11 @@ export const STUDIO_TOOLS = [
           name: {
             type: "string",
             description: "Short human-readable title for the artifact",
+          },
+          outputId: {
+            type: "string",
+            description:
+              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
           },
           mermaid: {
             type: "string",

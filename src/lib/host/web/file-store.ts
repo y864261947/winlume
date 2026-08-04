@@ -12,7 +12,7 @@ import {
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { pipeline } from "node:stream/promises";
-import { Transform, type Readable } from "node:stream";
+import { Transform } from "node:stream";
 import type { Artifact, Message, Project, Session } from "@/lib/agent/types";
 import type { ArtifactStore, ProjectStore, SessionStore } from "@/lib/host/ports";
 import {
@@ -116,6 +116,7 @@ function createSessionStore(rootDir: string): SessionStore {
         ...(input.capabilityPresetId !== undefined
           ? { capabilityPresetId: input.capabilityPresetId }
           : {}),
+        ...(input.workflow !== undefined ? { workflow: input.workflow } : {}),
         ...(input.codexThreadId !== undefined
           ? { codexThreadId: input.codexThreadId }
           : {}),

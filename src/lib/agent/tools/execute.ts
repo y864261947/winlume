@@ -5,12 +5,19 @@
 
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import type { AgentSseEvent, Artifact, ArtifactKind } from "@/lib/agent/types";
+import type {
+  AgentSseEvent,
+  Artifact,
+  ArtifactKind,
+  ArtifactProvenance,
+  WorkflowExecutionContext,
+} from "@/lib/agent/types";
 import {
   parseCanvasContent,
   serializeCanvasContent,
   type CanvasArtifactContent,
 } from "@/lib/agent/canvas-content";
+import { artifactOutputIdSchema } from "@/lib/agent/skills/contracts";
 import type { ArtifactStore } from "@/lib/host/ports";
 import { generateImage } from "@/lib/agent/provider/gateway";
 import { publishArtifactEvent } from "@/lib/agent/artifact-events";
@@ -32,6 +39,7 @@ const writeArtifactSchema = z.object({
   name: z.string().trim().min(1).max(200),
   kind: z.enum(["markdown", "html", "text", "json"]),
   content: z.string().min(1).max(2_000_000),
+  outputId: artifactOutputIdSchema.optional(),
 });
 
 const readArtifactSchema = z.object({
@@ -68,6 +76,7 @@ const todoWriteSchema = z.object({
 
 const generateImageSchema = z.object({
   name: z.string().trim().min(1).max(200),
+  outputId: artifactOutputIdSchema.optional(),
   prompt: z.string().trim().min(1).max(4_000),
   model: z.string().trim().min(1).max(100).optional(),
   size: z.enum(["1024x1024", "1024x1536", "1536x1024"]),
@@ -85,6 +94,7 @@ export type GenerateImageArgs = z.infer<typeof generateImageSchema>;
 
 const generateCanvasSchema = z.object({
   name: z.string().trim().min(1).max(200),
+  outputId: artifactOutputIdSchema.optional(),
   mermaid: z.string().trim().min(1).max(20_000),
   sourceArtifactId: z.string().trim().min(1).max(128).optional(),
 });
@@ -142,6 +152,8 @@ export interface ToolExecuteContext {
   userId: string;
   sessionId: string;
   projectId?: string;
+  runId?: string;
+  workflow?: WorkflowExecutionContext;
   artifacts: ArtifactStore;
   /** Optional link to the assistant message that issued the tool call */
   messageId?: string;
@@ -176,6 +188,51 @@ function formatZodError(err: z.ZodError): string {
     .join("; ");
 }
 
+function resolveArtifactProvenance(
+  kind: ArtifactKind,
+  outputId: string | undefined,
+  ctx: ToolExecuteContext,
+): { provenance?: ArtifactProvenance; error?: string } {
+  if (!ctx.workflow) {
+    return outputId
+      ? { error: "outputId is only available during a Workflow Run" }
+      : {};
+  }
+  if (!ctx.runId || ctx.runId !== ctx.workflow.runId) {
+    return { error: "Workflow Run context is invalid" };
+  }
+
+  const compatible = ctx.workflow.outputs.filter((output) => output.kinds.includes(kind));
+  const selected = outputId
+    ? ctx.workflow.outputs.find((output) => output.id === outputId)
+    : compatible.length === 1
+      ? compatible[0]
+      : undefined;
+  if (!selected) {
+    return {
+      error: outputId
+        ? `Unknown Workflow output: ${outputId}`
+        : "outputId is required when a Stage has multiple compatible outputs",
+    };
+  }
+  if (!selected.kinds.includes(kind)) {
+    return {
+      error: `Workflow output ${selected.id} does not accept Artifact kind ${kind}`,
+    };
+  }
+
+  return {
+    provenance: {
+      workflow: {
+        workflowId: ctx.workflow.workflowId,
+        runId: ctx.workflow.runId,
+        stageId: ctx.workflow.stageId,
+        outputId: selected.id,
+      },
+    },
+  };
+}
+
 export async function executeWriteArtifact(
   rawArgs: unknown,
   ctx: ToolExecuteContext,
@@ -184,7 +241,9 @@ export async function executeWriteArtifact(
   if (!parsed.success) {
     return fail(`write_artifact validation failed: ${formatZodError(parsed.error)}`);
   }
-  const { name, kind, content } = parsed.data;
+  const { name, kind, content, outputId } = parsed.data;
+  const provenance = resolveArtifactProvenance(kind, outputId, ctx);
+  if (provenance.error) return fail(provenance.error);
   const id = randomUUID();
   const createdAt = new Date().toISOString();
   try {
@@ -200,6 +259,7 @@ export async function executeWriteArtifact(
         mimeType: mimeTypeForKind(kind),
         storageKey: "",
         createdAt,
+        ...(provenance.provenance ? { provenance: provenance.provenance } : {}),
       },
       content,
     );
@@ -284,6 +344,7 @@ export async function executeGenerateImage(
   }
   const {
     name,
+    outputId,
     prompt,
     model,
     size,
@@ -292,6 +353,8 @@ export async function executeGenerateImage(
     sourceArtifactId,
     sourceArtifactIds,
   } = parsed.data;
+  const provenance = resolveArtifactProvenance("image", outputId, ctx);
+  if (provenance.error) return fail(provenance.error);
 
   const requestedSourceIds = sourceArtifactIds ??
     (sourceArtifactId ? [sourceArtifactId] : []);
@@ -313,6 +376,7 @@ export async function executeGenerateImage(
     ? `Original user request (follow exactly):\n${userIntent}\n\nExecution details:\n${styledPrompt}`
     : styledPrompt;
   const pending: Artifact[] = [];
+  const workflowJobs: Promise<void>[] = [];
   try {
     for (let i = 0; i < count; i++) {
       const id = randomUUID();
@@ -329,6 +393,7 @@ export async function executeGenerateImage(
           storageKey: "",
           status: "pending",
           createdAt,
+          ...(provenance.provenance ? { provenance: provenance.provenance } : {}),
         },
         Buffer.alloc(0),
       );
@@ -336,7 +401,7 @@ export async function executeGenerateImage(
       // Dispatch the job immediately after this artifact's write succeeds, so a
       // later write failure in this loop (e.g. artifact 2 of 3) can never orphan
       // an artifact whose write already succeeded — its job is already running.
-      void runImageGenerationJob({
+      const job = runImageGenerationJob({
         artifact,
         ctx,
         prompt: fullPrompt,
@@ -344,23 +409,33 @@ export async function executeGenerateImage(
         size,
         sourceImages: sourceImages.length ? sourceImages : undefined,
       });
+      if (ctx.workflow) workflowJobs.push(job);
+      else void job;
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "generate_image failed";
     return fail(msg);
   }
 
-  const summary = `Started generating ${pending.length} image(s): ${pending
+  if (ctx.workflow) await Promise.all(workflowJobs);
+  const artifacts = ctx.workflow
+    ? await Promise.all(
+        pending.map(async (artifact) =>
+          (await ctx.artifacts.get(ctx.userId, artifact.id)) ?? artifact,
+        ),
+      )
+    : pending;
+  const summary = `${ctx.workflow ? "Finished" : "Started"} generating ${artifacts.length} image(s): ${artifacts
     .map((a) => a.id)
     .join(", ")}`;
   return {
     ok: true,
     summary,
     content: JSON.stringify({
-      artifacts: pending.map((a) => ({ id: a.id, name: a.name, status: a.status })),
+      artifacts: artifacts.map((a) => ({ id: a.id, name: a.name, status: a.status })),
     }),
-    artifact: pending[0],
-    events: pending.map((a) => ({
+    artifact: artifacts[0],
+    events: artifacts.map((a) => ({
       type: "artifact" as const,
       artifactId: a.id,
       name: a.name,
@@ -383,9 +458,14 @@ export async function executeGenerateCanvas(
     return fail(`generate_canvas validation failed: ${formatZodError(parsed.error)}`);
   }
 
-  const { name, mermaid, sourceArtifactId } = parsed.data;
+  const { name, outputId, mermaid, sourceArtifactId } = parsed.data;
+  const provenance = resolveArtifactProvenance("canvas", outputId, ctx);
+  if (provenance.error) return fail(provenance.error);
 
   if (sourceArtifactId) {
+    if (ctx.workflow) {
+      return fail("Workflow canvas outputs must create a new Artifact");
+    }
     const existing = await ctx.artifacts.get(ctx.userId, sourceArtifactId);
     if (!existing) return fail(`Source artifact not found: ${sourceArtifactId}`);
     if (existing.kind !== "canvas") {
@@ -439,14 +519,18 @@ export async function executeGenerateCanvas(
         kind: "canvas",
         mimeType: mimeTypeForKind("canvas"),
         storageKey: "",
-        status: "pending",
+        // Mermaid source is the durable Workflow deliverable. The Studio may
+        // hydrate an Excalidraw scene later, but Stage completion must not wait
+        // on a browser-side projection.
+        status: ctx.workflow ? "ready" : "pending",
         createdAt,
+        ...(provenance.provenance ? { provenance: provenance.provenance } : {}),
       },
       serializeCanvasContent(content),
     );
     return {
       ok: true,
-      summary: `Started canvas "${artifact.name}" (id=${artifact.id})`,
+      summary: `${ctx.workflow ? "Created" : "Started"} canvas "${artifact.name}" (id=${artifact.id})`,
       content: JSON.stringify({ id: artifact.id, name: artifact.name, status: artifact.status }),
       artifact,
       events: [

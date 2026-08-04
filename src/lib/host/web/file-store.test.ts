@@ -165,6 +165,41 @@ describe("web file store", () => {
     expect((await store.sessions.listSessions("u1"))[0]?.capabilityPresetId).toBeUndefined();
   });
 
+  it("persists a Workflow Pack binding without affecting legacy Sessions", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wl-"));
+    dirs.push(root);
+    const store = createWebFileStore(root);
+    const workflow = {
+      schemaVersion: 1 as const,
+      workflowId: "workflow-1",
+      packId: "content-office",
+      packVersion: "1.1.0",
+      intakeValues: { topic: "夏季新品", channel: "wechat" },
+      inputArtifactIds: [],
+      boundAt: "2026-08-04T06:00:00.000Z",
+    };
+    const bound = await store.sessions.createSession({
+      id: "s1",
+      userId: "u1",
+      title: "workflow",
+      model: "gpt-test",
+      workflow,
+    });
+
+    expect(bound.workflow).toEqual(workflow);
+    expect((await store.sessions.getSession("u1", "s1"))?.workflow).toEqual(
+      workflow,
+    );
+    expect((await store.sessions.listSessions("u1"))[0]?.workflow).toEqual(
+      workflow,
+    );
+
+    const renamed = await store.sessions.updateSession("u1", "s1", {
+      title: "renamed",
+    });
+    expect(renamed.workflow).toEqual(workflow);
+  });
+
   it("persists a Codex thread id for specialist continuity", async () => {
     const root = mkdtempSync(join(tmpdir(), "wl-"));
     dirs.push(root);

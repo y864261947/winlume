@@ -12,11 +12,22 @@ const validContentOfficePack = {
   title: "内容与办公工作流",
   summary: "从需求澄清到经过审阅的工作文档。",
   requiredCapabilities: ["chat"],
+  intake: [
+    {
+      id: "topic",
+      label: "主题",
+      type: "text",
+      required: true,
+      description: "需要完成的内容主题。",
+    },
+  ],
+  expectedArtifacts: [{ id: "brief", kinds: ["markdown"], required: true }],
   stages: [
     {
       id: "intake",
       title: "需求澄清",
       objective: "将任务转成可执行 brief。",
+      handoffSummary: "提供后续阶段可直接使用的工作简报。",
       skillIds: ["production-content-intake"],
       requiredInputs: [],
       outputs: [{ id: "brief", kinds: ["markdown"], required: true }],

@@ -1,7 +1,8 @@
-import type { AgentSseEvent } from "@/lib/agent/types";
+import type { AgentSseEvent, WorkflowExecutionContext } from "@/lib/agent/types";
 import type { ArtifactStore, ProjectStore, SessionStore } from "@/lib/host/ports";
 
 export type AgentExecutionMode = "studio" | "ai-sdk" | "codex";
+export type SkillSelectionMode = "merge" | "replace";
 
 /** Known side-effecting item classes exposed by the Codex SDK stream. */
 export const CODEX_EXECUTION_TOOL_NAMES = [
@@ -27,8 +28,12 @@ export interface AgentExecutionInput {
   projectId?: string;
   /** Durable run identity used for correlation and event persistence. */
   runId?: string;
+  /** Server-resolved output contract for one professional Workflow Stage. */
+  workflow?: WorkflowExecutionContext;
   model?: string;
   skillIds?: string[];
+  skillSelectionMode?: SkillSelectionMode;
+  allowedToolNames?: string[];
   referencedArtifactIds?: string[];
   referencedArtifactId?: string;
   sessions: SessionStore;
