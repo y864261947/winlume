@@ -278,7 +278,7 @@ export async function executeSessionWorkflowCommand(
 
 export async function getRunEvents(
   runId: string,
-  options: { after?: number; limit?: number } = {},
+  options: { after?: number; limit?: number; signal?: AbortSignal } = {},
 ): Promise<WorkflowRunEventsResult> {
   const query = new URLSearchParams();
   if (options.after !== undefined) query.set("after", String(options.after));
@@ -289,6 +289,7 @@ export async function getRunEvents(
     {
       headers: withUserHeaders(),
       credentials: "same-origin",
+      signal: options.signal,
     },
   );
   if (!response.ok) {
@@ -455,7 +456,7 @@ export async function patchSession(
 
 export type ChatRequestBody = {
   sessionId?: string;
-  message: string;
+  message?: string;
   /** Server-owned Workflow Session action; Stage details are derived server-side. */
   workflowAction?: "start";
   model?: string;

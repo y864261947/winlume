@@ -10,6 +10,7 @@
 import type {
   AgentSseEvent,
   Message,
+  WorkflowRunIntent,
 } from "@/lib/agent/types";
 import { createExecutionMap } from "@/lib/studio/execution-map";
 import {
@@ -19,7 +20,14 @@ import {
   type LiveAgentStreamState,
   type UiChatMessage,
 } from "@/lib/studio/live-agent-events";
-import { streamChat, stopChatTurn, StudioApiError } from "@/lib/studio/api";
+import {
+  getRunEvents,
+  streamChat,
+  stopChatTurn,
+  StudioApiError,
+  type WorkflowRunEvent,
+  type WorkflowRunEventsResult,
+} from "@/lib/studio/api";
 import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
 
 export type {
@@ -374,6 +382,375 @@ export type SendOverrides = {
   /** @deprecated Use referencedArtifactIds */
   referencedArtifactId?: string;
 };
+
+export type WorkflowLiveStage = {
+  workflowId: string;
+  id: string;
+  title: string;
+  iteration: number;
+  intent: WorkflowRunIntent;
+};
+
+export type WorkflowRunAttachment = {
+  detach: () => void;
+  terminal: Promise<"settled" | "detached">;
+};
+
+type ActiveWorkflowAttachment = {
+  handle: WorkflowRunAttachment;
+  controller: AbortController;
+};
+
+type WorkflowStreamMessages = {
+  noticeId: string;
+  assistantId: string;
+  state: LiveAgentStreamState;
+};
+
+type WorkflowReplayState = {
+  stream: WorkflowStreamMessages;
+  state: LiveAgentStreamState;
+  cursor: number;
+};
+
+const workflowAttachments = new Map<string, ActiveWorkflowAttachment>();
+const workflowReplayStates = new Map<string, WorkflowReplayState>();
+
+function createWorkflowAssistant(id = clientId("assistant")): UiChatMessage {
+  return {
+    id,
+    role: "assistant",
+    content: "",
+    streaming: true,
+    toolCalls: [],
+    streamPhase: "thinking",
+    streamStartedAt: Date.now(),
+    executionSteps: createExecutionMap(),
+  };
+}
+
+function appendWorkflowStreamMessages(
+  entry: Entry,
+  stage: WorkflowLiveStage,
+  runId: string,
+): WorkflowStreamMessages {
+  const noticeId = clientId("workflow-run");
+  const notice: UiChatMessage = {
+    id: noticeId,
+    role: "user",
+    content: "",
+    presentation: {
+      kind: "workflow_run",
+      workflowId: stage.workflowId,
+      runId,
+      stageId: stage.id,
+      stageTitle: stage.title,
+      iteration: stage.iteration,
+      intent: stage.intent,
+    },
+  };
+  const assistant = createWorkflowAssistant();
+  patchSnapshot(entry, {
+    error: null,
+    streaming: true,
+    messages: [...entry.snapshot.messages, notice, assistant],
+  });
+  return {
+    noticeId,
+    assistantId: assistant.id,
+    state: { assistant, preTextMs: null },
+  };
+}
+
+function resetWorkflowStreamMessages(
+  entry: Entry,
+  runId: string,
+): WorkflowStreamMessages | null {
+  const noticeIndex = entry.snapshot.messages.findIndex(
+    (message) =>
+      message.presentation?.kind === "workflow_run" &&
+      message.presentation.runId === runId,
+  );
+  if (noticeIndex < 0) return null;
+  const previousAssistant = entry.snapshot.messages[noticeIndex + 1];
+  if (
+    !previousAssistant ||
+    previousAssistant.role !== "assistant"
+  ) {
+    return null;
+  }
+
+  const assistant = createWorkflowAssistant(previousAssistant.id);
+  patchSnapshot(entry, {
+    error: null,
+    streaming: true,
+    messages: entry.snapshot.messages.map((message) =>
+      message.id === assistant.id ? assistant : message,
+    ),
+  });
+  return {
+    noticeId: entry.snapshot.messages[noticeIndex].id,
+    assistantId: assistant.id,
+    state: { assistant, preTextMs: null },
+  };
+}
+
+function workflowAttachmentKey(sessionId: string, runId: string): string {
+  return `${sessionId}\u0000${runId}`;
+}
+
+function runAgentEvent(event: WorkflowRunEvent): AgentSseEvent | null {
+  if (event.type !== "agent.event") return null;
+  if (!event.payload || typeof event.payload !== "object" || !("event" in event.payload)) {
+    return null;
+  }
+  const agentEvent = event.payload.event;
+  if (!agentEvent || typeof agentEvent !== "object" || !("type" in agentEvent)) {
+    return null;
+  }
+  return agentEvent as AgentSseEvent;
+}
+
+function runIsSettled(status: WorkflowRunEventsResult["run"]["status"]): boolean {
+  return status !== "queued" && status !== "running";
+}
+
+function abortableReplayDelay(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      globalThis.clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    const timer = globalThis.setTimeout(finish, 1_000);
+    signal.addEventListener("abort", finish, { once: true });
+  });
+}
+
+/** Replays one durable Run into the live store; detach never cancels the Run. */
+export function attachWorkflowRun(
+  sessionId: string,
+  runId: string,
+  stage: WorkflowLiveStage,
+): WorkflowRunAttachment {
+  const key = workflowAttachmentKey(sessionId, runId);
+  const existing = workflowAttachments.get(key);
+  if (existing) return existing.handle;
+
+  const entry = ensureEntry(sessionId);
+  let replayState = workflowReplayStates.get(key);
+  if (!replayState) {
+    const stream =
+      resetWorkflowStreamMessages(entry, runId) ??
+      appendWorkflowStreamMessages(entry, stage, runId);
+    replayState = { stream, state: stream.state, cursor: 0 };
+    workflowReplayStates.set(key, replayState);
+  } else {
+    patchSnapshot(entry, { error: null, streaming: true });
+  }
+  const stream = replayState.stream;
+  const controller = new AbortController();
+  let streamState = replayState.state;
+  let cursor = replayState.cursor;
+  let completed = false;
+  let resolveTerminal!: (outcome: "settled" | "detached") => void;
+
+  const terminal = new Promise<"settled" | "detached">((resolve) => {
+    resolveTerminal = resolve;
+  });
+  const complete = (outcome: "settled" | "detached"): void => {
+    if (completed) return;
+    completed = true;
+    if (workflowAttachments.get(key)?.handle === handle) {
+      workflowAttachments.delete(key);
+    }
+    if (outcome === "settled") workflowReplayStates.delete(key);
+    resolveTerminal(outcome);
+  };
+  const handle: WorkflowRunAttachment = {
+    detach: () => {
+      controller.abort();
+      complete("detached");
+    },
+    terminal,
+  };
+  workflowAttachments.set(key, { handle, controller });
+
+  const applyStreamState = (next: LiveAgentStreamState): void => {
+    if (next === streamState) return;
+    streamState = next;
+    replayState.state = next;
+    patchSnapshot(entry, {
+      messages: entry.snapshot.messages.map((message) =>
+        message.id === stream.assistantId ? next.assistant : message,
+      ),
+    });
+  };
+  const finalizeAttachment = (): void => {
+    applyStreamState(finalizeLiveAgentState(streamState, Date.now()));
+    patchSnapshot(entry, { streaming: false });
+  };
+
+  void (async () => {
+    while (!controller.signal.aborted && !completed) {
+      let replay: WorkflowRunEventsResult;
+      try {
+        replay = await getRunEvents(runId, {
+          after: cursor,
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (controller.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+          return;
+        }
+        if (error instanceof StudioApiError && error.status === 401) {
+          patchSnapshot(entry, { error: error.message });
+          entry.hooks.onUnauthorized?.();
+          finalizeAttachment();
+          complete("settled");
+          return;
+        }
+        if (error instanceof StudioApiError && error.status === 404) {
+          patchSnapshot(entry, { error: error.message });
+          finalizeAttachment();
+          complete("settled");
+          return;
+        }
+        patchSnapshot(entry, {
+          error: error instanceof Error ? error.message : "恢复工作流运行失败",
+        });
+        await abortableReplayDelay(controller.signal);
+        continue;
+      }
+
+      if (entry.snapshot.error) patchSnapshot(entry, { error: null });
+      let advanced = false;
+      for (const event of replay.events) {
+        if (controller.signal.aborted || completed) return;
+        if (event.sequence <= cursor) continue;
+        cursor = event.sequence;
+        replayState.cursor = cursor;
+        advanced = true;
+        const agentEvent = runAgentEvent(event);
+        if (!agentEvent) continue;
+        const reduced = reduceLiveAgentEvent(streamState, agentEvent, Date.now());
+        applyStreamState(reduced.state);
+        if (reduced.effects.artifact) {
+          entry.hooks.onArtifact?.(reduced.effects.artifact);
+        }
+        if (reduced.effects.error) {
+          patchSnapshot(entry, { error: reduced.effects.error.message });
+        }
+      }
+      cursor = Math.max(cursor, replay.nextSequence);
+      replayState.cursor = cursor;
+
+      if (runIsSettled(replay.run.status)) {
+        finalizeAttachment();
+        complete("settled");
+        return;
+      }
+      if (!advanced) await abortableReplayDelay(controller.signal);
+    }
+  })();
+
+  return handle;
+}
+
+/** Starts the first Workflow Stage directly; it never enters the text queue. */
+export async function startWorkflowLiveChat(
+  sessionId: string,
+  stage: WorkflowLiveStage,
+): Promise<"sent" | "rejected"> {
+  if (!sessionId) return "rejected";
+  const entry = ensureEntry(sessionId);
+  if (entry.controller || entry.snapshot.streaming || entry.starting) {
+    return "rejected";
+  }
+
+  entry.starting = true;
+  const controller = new AbortController();
+  entry.controller = controller;
+  const temporaryRunId = clientId("pending-run");
+  const stream = appendWorkflowStreamMessages(entry, stage, temporaryRunId);
+  let streamState = stream.state;
+
+  const applyStreamState = (next: LiveAgentStreamState): void => {
+    if (next === streamState) return;
+    streamState = next;
+    patchSnapshot(entry, {
+      messages: entry.snapshot.messages.map((message) =>
+        message.id === stream.assistantId ? next.assistant : message,
+      ),
+    });
+  };
+  const finalizeAssistant = (): void => {
+    applyStreamState(finalizeLiveAgentState(streamState, Date.now()));
+  };
+
+  try {
+    try {
+      await streamChat(
+        { sessionId, workflowAction: "start" },
+        {
+          signal: controller.signal,
+          onEvent: (event: AgentSseEvent) => {
+            const reduced = reduceLiveAgentEvent(streamState, event, Date.now());
+            applyStreamState(reduced.state);
+            const run = reduced.effects.run;
+            if (run) {
+              patchSnapshot(entry, {
+                messages: entry.snapshot.messages.map((message) =>
+                  message.id === stream.noticeId && message.presentation
+                    ? {
+                        ...message,
+                        presentation: {
+                          ...message.presentation,
+                          runId: run.runId,
+                        },
+                      }
+                    : message,
+                ),
+              });
+            }
+            if (reduced.effects.sessionId) {
+              entry.hooks.onSession?.(reduced.effects.sessionId);
+            }
+            if (reduced.effects.artifact) {
+              entry.hooks.onArtifact?.(reduced.effects.artifact);
+            }
+            if (reduced.effects.error) {
+              patchSnapshot(entry, { error: reduced.effects.error.message });
+            }
+          },
+        },
+      );
+    } catch (error) {
+      if (controller.signal.aborted) {
+        // Explicit stop already updates the shared snapshot.
+      } else if (error instanceof StudioApiError && error.status === 401) {
+        patchSnapshot(entry, { error: error.message });
+        entry.hooks.onUnauthorized?.();
+      } else if (!(error instanceof Error && error.name === "AbortError")) {
+        patchSnapshot(entry, {
+          error: error instanceof Error ? error.message : "启动工作流失败",
+        });
+      }
+      finalizeAssistant();
+    } finally {
+      if (entry.controller === controller) entry.controller = null;
+      finalizeAssistant();
+      patchSnapshot(entry, { streaming: false });
+    }
+    return "sent";
+  } finally {
+    entry.starting = false;
+  }
+}
 
 /**
  * Send a user turn, or enqueue if this session is already streaming.
