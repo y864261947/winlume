@@ -129,4 +129,41 @@ describe("/api/sessions/[id]/workflow", () => {
     expect(JSON.stringify(payload)).not.toContain("metadata");
     expect(JSON.stringify(payload)).not.toContain("allowedToolNames");
   });
+
+  it("accepts retry_stage without accepting client-owned execution settings", async () => {
+    const response = await POST(
+      new NextRequest("http://localhost/api/sessions/session-1/workflow", {
+        method: "POST",
+        headers: { "idempotency-key": "retry-stage-1" },
+        body: JSON.stringify({
+          action: "retry_stage",
+          runId: "run-1",
+        }),
+      }),
+      context,
+    );
+    const rejected = await POST(
+      new NextRequest("http://localhost/api/sessions/session-1/workflow", {
+        method: "POST",
+        headers: { "idempotency-key": "retry-stage-2" },
+        body: JSON.stringify({
+          action: "retry_stage",
+          runId: "run-1",
+          model: "client-model",
+        }),
+      }),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.executeWorkflowCommand).toHaveBeenCalledWith({
+      action: "retry_stage",
+      userId: "user-1",
+      sessionId: "session-1",
+      runId: "run-1",
+      idempotencyKey: "retry-stage-1",
+      occurredAt: expect.any(String),
+    });
+    expect(rejected.status).toBe(400);
+  });
 });

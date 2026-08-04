@@ -410,6 +410,58 @@ export function prepareProductionRevision(
   };
 }
 
+export function prepareProductionRetry(
+  pack: ProductionPack,
+  rawState: ProductionRunMetadata,
+  input: { predecessorRunId: string },
+): StartProductionStageTransition {
+  const state = parseProductionRunMetadata(rawState);
+  const stage = currentStage(pack, state);
+  if (state.phase !== "failed" && state.phase !== "executing") {
+    throw new Error("Workflow Stage is not retryable");
+  }
+  const iteration = state.execution.iteration + 1;
+  if (iteration > 20) throw new Error("Workflow Stage retry limit exceeded");
+
+  const currentOutputIds = new Set(stage.outputs.map((output) => output.id));
+  const preservedOutputs = Object.fromEntries(
+    Object.entries(state.artifacts.outputs).filter(
+      ([outputId]) => !currentOutputIds.has(outputId),
+    ),
+  );
+  const nextState = productionRunMetadataSchema.parse({
+    ...state,
+    execution: {
+      ...state.execution,
+      iteration,
+      predecessorRunId: input.predecessorRunId,
+      skillIds: stage.skillIds,
+      allowedTools: stage.allowedTools,
+    },
+    artifacts: {
+      inputs: state.artifacts.inputs,
+      outputs: preservedOutputs,
+    },
+    phase: "executing",
+    review: undefined,
+  });
+  const referencedArtifactIds = [
+    ...new Set(Object.values(state.artifacts.inputs).flat()),
+  ];
+
+  return {
+    state: nextState,
+    effect: {
+      type: "start_stage",
+      idempotencyScope: `workflow:${state.workflowId}`,
+      idempotencyKey: `stage:${stage.id}:iteration:${iteration}`,
+      stageId: stage.id,
+      skillIds: [...stage.skillIds],
+      referencedArtifactIds,
+    },
+  };
+}
+
 export function prepareNextProductionStage(
   pack: ProductionPack,
   rawState: ProductionRunMetadata,

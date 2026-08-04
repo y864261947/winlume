@@ -191,6 +191,218 @@ describe("ProductionWorkflowExecution", () => {
     expect(failed.metadata?.production).toMatchObject({ phase: "failed" });
   });
 
+  it("projects stop for active heads and retry_stage for failed heads", async () => {
+    const root = mkdtempSync(join(tmpdir(), "winlume-workflow-execution-"));
+    directories.push(root);
+    const host = createWebFileStore(root);
+    const runs = createMemoryRunStore();
+    const binding = createWorkflowSessionBinding(
+      pack,
+      { topic: "夏季新品" },
+      { workflowId: "workflow-actions" },
+    );
+    await host.sessions.createSession({
+      id: "session-actions",
+      userId: "user-1",
+      title: "Workflow",
+      model: "gpt-4o-mini",
+      workflow: binding,
+    });
+    const first = prepareFirstProductionStage(pack, binding);
+    const created = await runs.createRun({
+      id: "run-actions",
+      userId: "user-1",
+      sessionId: "session-actions",
+      input: { message: "生成工作简报", executionMode: "studio" },
+      metadata: { production: serializeProductionRunMetadata(first.state) },
+    });
+    const workflow = new ProductionWorkflowExecution({
+      runs,
+      sessions: host.sessions,
+      artifacts: host.artifacts,
+      getPack: async () => null,
+    });
+
+    await expect(
+      workflow.getProjection("user-1", "session-actions"),
+    ).resolves.toMatchObject({ actions: ["stop"] });
+
+    await runs.transitionRun(created.run.id, "running");
+    await expect(
+      workflow.getProjection("user-1", "session-actions"),
+    ).resolves.toMatchObject({ actions: ["stop"] });
+
+    const running = await runs.getRun(created.run.id);
+    await runs.transitionRun(created.run.id, "failed", {
+      reason: "worker interrupted",
+      error: {
+        code: "worker_interrupted",
+        message: "Worker process stopped before the run completed",
+        retryable: false,
+      },
+      metadata: {
+        ...(running?.metadata ?? {}),
+        production: serializeProductionRunMetadata({
+          ...first.state,
+          phase: "failed",
+        }),
+      },
+      expectedRevision: running?.revision,
+    });
+
+    await expect(
+      workflow.getProjection("user-1", "session-actions"),
+    ).resolves.toMatchObject({
+      run: {
+        id: "run-actions",
+        status: "failed",
+        phase: "failed",
+        error: {
+          code: "worker_interrupted",
+          message: "Worker process stopped before the run completed",
+        },
+      },
+      actions: ["retry_stage"],
+    });
+
+    const cancelledBinding = createWorkflowSessionBinding(
+      pack,
+      { topic: "秋季新品" },
+      { workflowId: "workflow-cancelled" },
+    );
+    await host.sessions.createSession({
+      id: "session-cancelled",
+      userId: "user-1",
+      title: "Workflow",
+      model: "gpt-4o-mini",
+      workflow: cancelledBinding,
+    });
+    const cancelledFirst = prepareFirstProductionStage(pack, cancelledBinding);
+    const cancelled = await runs.createRun({
+      id: "run-cancelled",
+      userId: "user-1",
+      sessionId: "session-cancelled",
+      input: { message: "生成工作简报", executionMode: "studio" },
+      metadata: {
+        production: serializeProductionRunMetadata(cancelledFirst.state),
+      },
+    });
+    await runs.transitionRun(cancelled.run.id, "running");
+    await runs.transitionRun(cancelled.run.id, "cancelled", {
+      reason: "cancelled by user",
+    });
+
+    await expect(
+      workflow.getProjection("user-1", "session-cancelled"),
+    ).resolves.toMatchObject({
+      run: { id: "run-cancelled", status: "cancelled" },
+      actions: ["retry_stage"],
+    });
+  });
+
+  it("creates one idempotent retry successor for a failed current head", async () => {
+    const root = mkdtempSync(join(tmpdir(), "winlume-workflow-execution-"));
+    directories.push(root);
+    const host = createWebFileStore(root);
+    const runs = createMemoryRunStore();
+    const binding = createWorkflowSessionBinding(
+      pack,
+      { topic: "夏季新品" },
+      { workflowId: "workflow-retry" },
+    );
+    await host.sessions.createSession({
+      id: "session-retry",
+      userId: "user-1",
+      title: "Workflow",
+      model: "gpt-4o-mini",
+      workflow: binding,
+    });
+    const first = prepareFirstProductionStage(pack, binding);
+    const failedState = {
+      ...first.state,
+      artifacts: {
+        inputs: { source: ["artifact-approved-input"] },
+        outputs: { brief: ["artifact-partial-output"] },
+      },
+      phase: "failed" as const,
+    };
+    const created = await runs.createRun({
+      id: "run-failed",
+      userId: "user-1",
+      sessionId: "session-retry",
+      input: {
+        message: "生成工作简报",
+        executionMode: "studio",
+        model: "old-model",
+      },
+      metadata: { production: serializeProductionRunMetadata(failedState) },
+    });
+    await runs.transitionRun(created.run.id, "running");
+    await runs.transitionRun(created.run.id, "failed", {
+      reason: "executor failed",
+      error: { code: "executor_failed", message: "executor failed", retryable: false },
+    });
+    const workflow = new ProductionWorkflowExecution({
+      runs,
+      sessions: host.sessions,
+      artifacts: host.artifacts,
+      getPack: async () => null,
+      resolveStageExecution: async () => ({
+        model: "server-selected-model",
+        allowedTools: ["write_artifact"],
+      }),
+      submitRun: (input) => runs.createRun(input),
+    });
+    const command = {
+      action: "retry_stage" as const,
+      userId: "user-1",
+      sessionId: "session-retry",
+      runId: "run-failed",
+      idempotencyKey: "retry-click-1",
+      occurredAt: "2026-08-04T10:00:00.000Z",
+    };
+
+    const [retry, duplicate] = await Promise.all([
+      workflow.executeCommand(command),
+      workflow.executeCommand(command),
+    ]);
+
+    expect(retry.created).toBe(true);
+    expect(duplicate.created).toBe(false);
+    expect(duplicate.startedRun?.id).toBe(retry.startedRun?.id);
+    const sequentialReplay = await workflow.executeCommand(command);
+    expect(sequentialReplay.created).toBe(false);
+    expect(sequentialReplay.startedRun?.id).toBe(retry.startedRun?.id);
+    expect(retry.sourceRun).toMatchObject({
+      id: "run-failed",
+      status: "failed",
+    });
+    expect(retry.startedRun).toMatchObject({
+      idempotencyScope: "user:user-1:workflow:workflow-retry",
+      idempotencyKey: "stage:intake:iteration:1",
+      input: {
+        model: "server-selected-model",
+        skillIds: ["production-content-intake"],
+        allowedToolNames: ["write_artifact"],
+        referencedArtifactIds: ["artifact-approved-input"],
+      },
+      metadata: {
+        production: {
+          phase: "executing",
+          execution: {
+            stageId: "intake",
+            iteration: 1,
+            predecessorRunId: "run-failed",
+          },
+          artifacts: {
+            inputs: { source: ["artifact-approved-input"] },
+            outputs: {},
+          },
+        },
+      },
+    });
+  });
+
   it("creates one idempotent revision Run for repeated request_changes commands", async () => {
     const root = mkdtempSync(join(tmpdir(), "winlume-workflow-execution-"));
     directories.push(root);
@@ -466,7 +678,7 @@ describe("ProductionWorkflowExecution", () => {
           },
         ],
       },
-      actions: [],
+      actions: ["stop"],
     });
     expect(projection).not.toHaveProperty("metadata");
     expect(projection.run).not.toHaveProperty("input");

@@ -10,7 +10,7 @@ import {
 } from "@/lib/agent/production-packs/execution-policy";
 import {
   ProductionWorkflowExecution,
-  type ProductionWorkflowCommand,
+  type AuthenticatedProductionWorkflowCommand,
   type ProductionWorkflowCommandResult,
   type ProductionWorkflowProjection,
 } from "@/lib/agent/production-packs/workflow-execution";
@@ -34,7 +34,7 @@ export interface AgentRunService {
     sessionId: string,
   ): Promise<ProductionWorkflowProjection>;
   executeWorkflowCommand(
-    command: ProductionWorkflowCommand,
+    command: AuthenticatedProductionWorkflowCommand,
   ): Promise<ProductionWorkflowCommandResult>;
 }
 
@@ -126,7 +126,7 @@ class LocalAgentRunService implements AgentRunService {
   }
 
   async executeWorkflowCommand(
-    command: ProductionWorkflowCommand,
+    command: AuthenticatedProductionWorkflowCommand,
   ): Promise<ProductionWorkflowCommandResult> {
     const result = await this.productionWorkflow.executeCommand(command);
     if (result.created) this.start();

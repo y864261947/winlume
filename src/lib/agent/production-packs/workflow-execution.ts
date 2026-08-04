@@ -6,20 +6,25 @@ import type {
   RunCreateResult,
   RunStore,
 } from "@/lib/agent/infrastructure/types";
-import type { ArtifactKind, WorkflowExecutionContext } from "@/lib/agent/types";
+import type { WorkflowExecutionContext } from "@/lib/agent/types";
 import type { ArtifactStore, SessionStore } from "@/lib/host/ports";
 import {
   toProductionPackMeta,
   type ProductionPack,
-  type ProductionPackMeta,
   type ProductionStage,
 } from "./contracts";
+import type {
+  ProductionWorkflowAction,
+  ProductionWorkflowCommand as PublicProductionWorkflowCommand,
+  ProductionWorkflowProjection,
+} from "./workflow-contract";
 import { parseWorkflowSessionBinding } from "./session-binding";
 import {
   approveProductionStage,
   failProductionStage,
   parseProductionRunMetadata,
   prepareNextProductionStage,
+  prepareProductionRetry,
   prepareProductionRevision,
   recordProductionStageResult,
   recordProductionStageStartDecision,
@@ -48,18 +53,8 @@ interface ProductionWorkflowCommandBase {
   occurredAt: string;
 }
 
-export type ProductionWorkflowCommand =
-  | (ProductionWorkflowCommandBase & {
-      action: "approve";
-      note?: string;
-    })
-  | (ProductionWorkflowCommandBase & {
-      action: "request_changes";
-      note: string;
-    })
-  | (ProductionWorkflowCommandBase & {
-      action: "start_next";
-    });
+export type AuthenticatedProductionWorkflowCommand =
+  ProductionWorkflowCommandBase & PublicProductionWorkflowCommand;
 
 export interface ProductionWorkflowCommandResult {
   sourceRun: AgentRun;
@@ -67,40 +62,10 @@ export interface ProductionWorkflowCommandResult {
   created: boolean;
 }
 
-export type ProductionWorkflowAction =
-  | "start"
-  | "approve"
-  | "request_changes"
-  | "start_next";
-
-export interface ProductionWorkflowProjection {
-  workflowId: string;
-  pack: ProductionPackMeta;
-  currentStage: {
-    id: string;
-    title: string;
-    index: number;
-    total: number;
-  };
-  run?: {
-    id: string;
-    status: AgentRun["status"];
-    phase: ReturnType<typeof parseProductionRunMetadata>["phase"];
-    iteration: number;
-    predecessorRunId?: string;
-  };
-  outputs: Record<
-    string,
-    Array<{
-      id: string;
-      name: string;
-      kind: ArtifactKind;
-      status?: "pending" | "ready" | "failed";
-    }>
-  >;
-  review?: ReturnType<typeof parseProductionRunMetadata>["review"];
-  actions: ProductionWorkflowAction[];
-}
+export type {
+  ProductionWorkflowAction,
+  ProductionWorkflowProjection,
+} from "./workflow-contract";
 
 /**
  * Owns the durable Workflow lifecycle. Callers provide Run identity only; Pack,
@@ -217,7 +182,7 @@ export class ProductionWorkflowExecution {
   }
 
   async executeCommand(
-    command: ProductionWorkflowCommand,
+    command: AuthenticatedProductionWorkflowCommand,
   ): Promise<ProductionWorkflowCommandResult> {
     const run = await this.runs.getRun(command.runId);
     if (
@@ -227,13 +192,71 @@ export class ProductionWorkflowExecution {
     ) {
       throw new Error("Workflow Run not found");
     }
+    const state = parseProductionRunMetadata(run.metadata?.production);
+    const { pack, stage } = await this.resolvePackAndStage(state);
+    if (command.action === "retry_stage") {
+      if (run.status !== "failed" && run.status !== "cancelled") {
+        throw new Error("Workflow retry requires a failed or cancelled Run");
+      }
+      if (!this.submitRun) {
+        throw new Error("Workflow Run submission is unavailable");
+      }
+      const retry = prepareProductionRetry(pack, state, {
+        predecessorRunId: run.id,
+      });
+      const existingSuccessor = await this.findDirectSuccessor(
+        run,
+        state.workflowId,
+        retry.effect.idempotencyKey,
+      );
+      if (existingSuccessor) {
+        return {
+          sourceRun: run,
+          startedRun: existingSuccessor,
+          created: false,
+        };
+      }
+      const execution = await this.stageExecution(pack, stage, run);
+      const retryState = parseProductionRunMetadata({
+        ...retry.state,
+        execution: {
+          ...retry.state.execution,
+          allowedTools: execution.allowedTools,
+        },
+      });
+      const submitted = await this.submitRun({
+        userId: run.userId,
+        sessionId: run.sessionId,
+        ...(run.projectId ? { projectId: run.projectId } : {}),
+        ...(run.organizationId ? { organizationId: run.organizationId } : {}),
+        idempotencyScope: `user:${run.userId}:${retry.effect.idempotencyScope}`,
+        idempotencyKey: retry.effect.idempotencyKey,
+        input: {
+          message: [
+            pack.title,
+            `重试「${stage.title}」阶段。`,
+            `阶段目标：${stage.objective}`,
+          ].join("\n\n"),
+          executionMode: run.input.executionMode,
+          model: execution.model,
+          skillIds: retry.effect.skillIds,
+          skillSelectionMode: "replace",
+          allowedToolNames: execution.allowedTools,
+          ...(retry.effect.referencedArtifactIds.length
+            ? { referencedArtifactIds: retry.effect.referencedArtifactIds }
+            : {}),
+        },
+        metadata: { production: serializeProductionRunMetadata(retryState) },
+      });
+      return {
+        sourceRun: run,
+        startedRun: submitted.run,
+        created: submitted.created,
+      };
+    }
     if (run.status !== "completed") {
       throw new Error("Workflow command requires a completed Run");
     }
-    if (!this.submitRun) throw new Error("Workflow Run submission is unavailable");
-
-    const state = parseProductionRunMetadata(run.metadata?.production);
-    const { pack, stage } = await this.resolvePackAndStage(state);
     if (command.action === "approve") {
       const sourceRun = await this.updateProductionState(run, (current) =>
         approveProductionStage(pack, current, {
@@ -244,6 +267,9 @@ export class ProductionWorkflowExecution {
         }).state,
       );
       return { sourceRun, created: false };
+    }
+    if (!this.submitRun) {
+      throw new Error("Workflow Run submission is unavailable");
     }
 
     if (command.action === "start_next") {
@@ -453,7 +479,11 @@ export class ProductionWorkflowExecution {
     }
 
     const actions: ProductionWorkflowAction[] = [];
-    if (run.status === "completed") {
+    if (run.status === "queued" || run.status === "running") {
+      actions.push("stop");
+    } else if (run.status === "failed" || run.status === "cancelled") {
+      actions.push("retry_stage");
+    } else if (run.status === "completed") {
       if (state.phase === "awaiting_approval") {
         actions.push("approve", "request_changes");
       } else if (state.phase === "ready_for_next") {
@@ -479,6 +509,9 @@ export class ProductionWorkflowExecution {
         iteration: state.execution.iteration,
         ...(state.execution.predecessorRunId
           ? { predecessorRunId: state.execution.predecessorRunId }
+          : {}),
+        ...(run.error
+          ? { error: { code: run.error.code, message: run.error.message } }
           : {}),
       },
       outputs,
@@ -531,6 +564,36 @@ export class ProductionWorkflowExecution {
       model: sourceRun.input.model ?? "gpt-4o-mini",
       allowedTools: [...stage.allowedTools],
     };
+  }
+
+  private async findDirectSuccessor(
+    run: AgentRun,
+    workflowId: string,
+    expectedIdempotencyKey: string,
+  ): Promise<AgentRun | null> {
+    const sessionRuns = await this.runs.listRuns({
+      userId: run.userId,
+      sessionId: run.sessionId,
+    });
+    const successors = sessionRuns.filter((candidate) => {
+      if (!candidate.metadata?.production) return false;
+      const candidateState = parseProductionRunMetadata(
+        candidate.metadata.production,
+      );
+      return (
+        candidateState.workflowId === workflowId &&
+        candidateState.execution.predecessorRunId === run.id
+      );
+    });
+    if (successors.length > 1) {
+      throw new Error("Workflow retry has multiple successor Runs");
+    }
+    const successor = successors[0];
+    if (!successor) return null;
+    if (successor.idempotencyKey !== expectedIdempotencyKey) {
+      throw new Error("Workflow Run already has a different successor");
+    }
+    return successor;
   }
 
   private async updateProductionState(

@@ -69,7 +69,7 @@
 - Stage the existing Phase 1/2 server implementation, `CONTEXT.md`, the transformation plan, the approved Phase 3 spec, and this implementation plan.
 - Exclude every file outside the current isolated worktree and every `scheduleRun`/cron path.
 
-- [ ] **Step 1: Re-run the focused server baseline**
+- [x] **Step 1: Re-run the focused server baseline**
 
 Run:
 
@@ -80,7 +80,7 @@ git diff --check
 
 Expected: the previously verified Phase 1/2 suite passes and diff check reports no whitespace errors.
 
-- [ ] **Step 2: Create the baseline commit before overlapping Phase 3 edits**
+- [x] **Step 2: Create the baseline commit before overlapping Phase 3 edits**
 
 Stage the exact current Phase 1/2 and planning paths shown by `git status --short`, inspect `git diff --cached --stat`, confirm no cron path is present, and commit:
 
@@ -99,7 +99,7 @@ Expected: the worktree is clean immediately after the commit and Phase 3 can mak
 - Modify: `src/app/api/sessions/[id]/workflow/route.ts`
 - Modify: `src/app/api/sessions/[id]/workflow/route.test.ts`
 
-- [ ] **Step 1: Write failing projection and retry tests**
+- [x] **Step 1: Write failing projection and retry tests**
 
 Add tests that assert queued/running heads expose only `stop`, failed/cancelled heads expose only `retry_stage`, and retry creates or reuses a successor Run with the same Stage, `iteration + 1`, the failed Run as `predecessorRunId`, earlier completed inputs, no partial outputs from the failed Run, and server-resolved execution policy.
 
@@ -123,7 +123,7 @@ expect(retry.startedRun).toMatchObject({
 });
 ```
 
-- [ ] **Step 2: Run the focused tests and confirm the missing behavior**
+- [x] **Step 2: Run the focused tests and confirm the missing behavior**
 
 Run:
 
@@ -133,7 +133,7 @@ npx vitest run src/lib/agent/production-packs/workflow-execution.test.ts src/app
 
 Expected: failures show `stop`/`retry_stage` are absent and the retry command is rejected.
 
-- [ ] **Step 3: Add the browser-safe contract**
+- [x] **Step 3: Add the browser-safe contract**
 
 Define the full public union in `workflow-contract.ts`; do not import Run stores or server services from this file.
 
@@ -193,11 +193,11 @@ export interface ProductionWorkflowProjection {
 }
 ```
 
-- [ ] **Step 4: Implement retry and strict projection actions**
+- [x] **Step 4: Implement retry and strict projection actions**
 
 Import the shared types into `workflow-execution.ts`. Validate `retry_stage` against the current head and terminal status, prepare the same Stage with incremented iteration and stable idempotency keys, resolve policy again, submit a successor, and leave the predecessor untouched. Include public Run errors only from the sanitized Run error fields.
 
-- [ ] **Step 5: Extend the strict command route**
+- [x] **Step 5: Extend the strict command route**
 
 Add exactly this Zod branch; `.strict()` must continue rejecting model, Stage, Skill, tool, and capability fields.
 
@@ -208,7 +208,7 @@ z.object({
 }).strict()
 ```
 
-- [ ] **Step 6: Run focused tests and commit the slice**
+- [x] **Step 6: Run focused tests and commit the slice**
 
 Run:
 

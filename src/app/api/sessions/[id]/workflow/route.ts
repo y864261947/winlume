@@ -33,6 +33,12 @@ const commandSchema = z.discriminatedUnion("action", [
       runId: idSchema,
     })
     .strict(),
+  z
+    .object({
+      action: z.literal("retry_stage"),
+      runId: idSchema,
+    })
+    .strict(),
 ]);
 
 function workflowError(error: unknown): NextResponse {

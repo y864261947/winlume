@@ -6,6 +6,7 @@ import {
   parseProductionRunMetadata,
   prepareFirstProductionStage,
   prepareNextProductionStage,
+  prepareProductionRetry,
   prepareProductionRevision,
   recordProductionStageResult,
   requestProductionChanges,
@@ -182,6 +183,52 @@ describe("Production Run metadata", () => {
         predecessorRunId: "run-1",
       },
       artifacts: { inputs: { brief: ["artifact-brief"] } },
+    });
+  });
+
+  it("prepares a retry successor without inheriting partial Stage outputs", () => {
+    const binding = createWorkflowSessionBinding(
+      pack,
+      { topic: "夏季新品" },
+      { workflowId: "workflow-retry" },
+    );
+    const first = prepareFirstProductionStage(pack, binding);
+    const failed = parseProductionRunMetadata({
+      ...first.state,
+      execution: {
+        ...first.state.execution,
+        iteration: 2,
+      },
+      artifacts: {
+        inputs: { "source-artifact": ["artifact-approved-input"] },
+        outputs: { brief: ["artifact-partial-output"] },
+      },
+      phase: "failed",
+    });
+
+    const retry = prepareProductionRetry(pack, failed, {
+      predecessorRunId: "run-failed",
+    });
+
+    expect(retry.state).toMatchObject({
+      phase: "executing",
+      execution: {
+        stageId: "intake",
+        iteration: 3,
+        predecessorRunId: "run-failed",
+      },
+      artifacts: {
+        inputs: { "source-artifact": ["artifact-approved-input"] },
+        outputs: {},
+      },
+    });
+    expect(retry.effect).toEqual({
+      type: "start_stage",
+      idempotencyScope: "workflow:workflow-retry",
+      idempotencyKey: "stage:intake:iteration:3",
+      stageId: "intake",
+      skillIds: ["production-content-intake"],
+      referencedArtifactIds: ["artifact-approved-input"],
     });
   });
 
