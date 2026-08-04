@@ -118,7 +118,23 @@ func normalizeTranscriptionResponse(reader io.Reader, estimate Estimate) (Canoni
 		return Canonical{Fields: make(map[string]Provenance)}, err
 	}
 	usage, _ := objectValue(response["usage"])
-	return normalizeMediaUsage(usage, estimate)
+	if !hasCompleteTranscriptionUsage(usage) {
+		return normalizeOpenAIUsage(nil, "responses", estimate)
+	}
+	result, err := normalizeOpenAIUsage(usage, "responses", Estimate{})
+	if err != nil {
+		return normalizeOpenAIUsage(nil, "responses", estimate)
+	}
+	return result, nil
+}
+
+func hasCompleteTranscriptionUsage(usage map[string]any) bool {
+	if usage == nil {
+		return false
+	}
+	_, hasInput, inputErr := nonNegativeInt64(usage, "input_tokens")
+	_, hasOutput, outputErr := nonNegativeInt64(usage, "output_tokens")
+	return inputErr == nil && outputErr == nil && hasInput && hasOutput
 }
 
 func normalizeMediaUsage(usage map[string]any, estimate Estimate) (Canonical, error) {

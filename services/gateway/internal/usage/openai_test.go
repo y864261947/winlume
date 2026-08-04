@@ -138,6 +138,32 @@ func TestResponsesJSONUsesResponsesAliasesWithoutDoubleCounting(t *testing.T) {
 	require.True(t, actual.Complete)
 }
 
+func TestResponsesJSONWithoutUsageCountsOutputTextAndFunctionArgumentsLocally(t *testing.T) {
+	observer, err := NewRegistry().New("responses", "application/json", Estimate{PromptTokens: 19, Model: "gpt-4o-mini", Protocol: "responses"})
+	require.NoError(t, err)
+	require.NoError(t, observer.Observe([]byte(`{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"A response "}]},{"type":"function_call","name":"lookup","arguments":"{\"city\":\"Paris\"}"}]}`)))
+
+	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.NoError(t, err)
+	require.Equal(t, int64(19), actual.TextInputTokens)
+	require.Equal(t, countText(`A response {"city":"Paris"}`, "gpt-4o-mini"), actual.TextOutputTokens)
+	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
+	require.True(t, actual.Complete)
+}
+
+func TestResponsesJSONIncompleteStatusRemainsIncomplete(t *testing.T) {
+	observer, err := NewRegistry().New("responses", "application/json", Estimate{Model: "gpt-4o-mini", Protocol: "responses"})
+	require.NoError(t, err)
+	require.NoError(t, observer.Observe([]byte(`{"status":"incomplete","usage":{"input_tokens":7,"output_tokens":2,"total_tokens":9}}`)))
+
+	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.NoError(t, err)
+	require.Equal(t, int64(7), actual.TextInputTokens)
+	require.Equal(t, int64(2), actual.TextOutputTokens)
+	require.False(t, actual.Complete)
+	require.Equal(t, "response.incomplete", actual.TerminalEvent)
+}
+
 func TestResponsesSSEReadsCompletedUsageAndTerminalEvent(t *testing.T) {
 	payload, err := os.ReadFile(filepath.Join("..", "..", "testdata", "usage", "openai", "responses-terminal.sse"))
 	require.NoError(t, err)
@@ -159,6 +185,32 @@ func TestResponsesSSEReadsCompletedUsageAndTerminalEvent(t *testing.T) {
 	require.Equal(t, "response.completed", actual.TerminalEvent)
 }
 
+func TestResponsesSSEDoneWithoutCompletedRemainsIncomplete(t *testing.T) {
+	observer, err := NewRegistry().New("responses", "text/event-stream", Estimate{PromptTokens: 13, Model: "gpt-4o-mini", Protocol: "responses"})
+	require.NoError(t, err)
+	require.NoError(t, observer.Observe([]byte("data: [DONE]\n\n")))
+
+	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.NoError(t, err)
+	require.Equal(t, int64(13), actual.TextInputTokens)
+	require.False(t, actual.Complete)
+	require.Equal(t, "[DONE]", actual.TerminalEvent)
+}
+
+func TestResponsesSSECompletedBeforeDoneRemainsComplete(t *testing.T) {
+	observer, err := NewRegistry().New("responses", "text/event-stream", Estimate{Model: "gpt-4o-mini", Protocol: "responses"})
+	require.NoError(t, err)
+	payload := []byte("event: response.completed\n" +
+		"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_done\",\"status\":\"completed\",\"usage\":{\"input_tokens\":3,\"output_tokens\":1,\"total_tokens\":4}}}\n\n" +
+		"data: [DONE]\n\n")
+	require.NoError(t, observer.Observe(payload))
+
+	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.NoError(t, err)
+	require.True(t, actual.Complete)
+	require.Equal(t, "response.completed", actual.TerminalEvent)
+}
+
 func TestResponsesSSEWithoutUsageCountsTextAndToolArgumentsLocally(t *testing.T) {
 	payload, err := os.ReadFile(filepath.Join("..", "..", "testdata", "usage", "openai", "responses-without-usage.sse"))
 	require.NoError(t, err)
@@ -175,6 +227,24 @@ func TestResponsesSSEWithoutUsageCountsTextAndToolArgumentsLocally(t *testing.T)
 	require.Equal(t, int64(23), actual.TextInputTokens)
 	require.Equal(t, countText(`A response {"city":"Paris"}`, "gpt-4o-mini"), actual.TextOutputTokens)
 	require.Equal(t, RequestEstimate, actual.Fields["text_input_tokens"])
+	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
+	require.True(t, actual.Complete)
+}
+
+func TestResponsesSSEFunctionArgumentDoneReplacesPriorDeltas(t *testing.T) {
+	observer, err := NewRegistry().New("responses", "text/event-stream", Estimate{PromptTokens: 23, Model: "gpt-4o-mini", Protocol: "responses"})
+	require.NoError(t, err)
+	payload := []byte("event: response.function_call_arguments.delta\n" +
+		"data: {\"type\":\"response.function_call_arguments.delta\",\"item_id\":\"fc_1\",\"output_index\":0,\"delta\":\"{\\\"city\\\":\"}\n\n" +
+		"event: response.function_call_arguments.done\n" +
+		"data: {\"type\":\"response.function_call_arguments.done\",\"item_id\":\"fc_1\",\"output_index\":0,\"arguments\":\"{\\\"city\\\":\\\"Paris\\\"}\"}\n\n" +
+		"event: response.completed\n" +
+		"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_args\",\"status\":\"completed\"}}\n\n")
+	require.NoError(t, observer.Observe(payload))
+
+	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.NoError(t, err)
+	require.Equal(t, countText(`{"city":"Paris"}`, "gpt-4o-mini"), actual.TextOutputTokens)
 	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
 	require.True(t, actual.Complete)
 }
@@ -273,6 +343,13 @@ func TestOpenAIRejectsSSEEventsLargerThanBound(t *testing.T) {
 	require.ErrorIs(t, completeErr, ErrSSEEventTooLarge)
 	require.False(t, actual.Complete)
 	require.Equal(t, "malformed_sse", actual.TerminalEvent)
+}
+
+func TestOpenAIRejectsSSEEventsWithLargeEventField(t *testing.T) {
+	observer, err := NewRegistry().New("openai", "text/event-stream", Estimate{Model: "gpt-4o-mini", Protocol: "openai"})
+	require.NoError(t, err)
+	payload := []byte("event: " + strings.Repeat("x", maxSSEEventBytes) + "\n\n")
+	require.ErrorIs(t, observer.Observe(payload), ErrSSEEventTooLarge)
 }
 
 func TestOpenAIJSONSpillsLargeResponseBeforeNormalization(t *testing.T) {

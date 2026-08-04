@@ -129,6 +129,30 @@ func TestAudioTranscriptionWithoutUsageFallsBackToRequestEstimate(t *testing.T) 
 	require.True(t, actual.Complete)
 }
 
+func TestAudioTranscriptionPartialOrInvalidUsageFallsBackToRequestEstimate(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		payload string
+	}{
+		{name: "missing output", payload: `{"text":"A sanitized transcript.","usage":{"input_tokens":44}}`},
+		{name: "empty input", payload: `{"text":"A sanitized transcript.","usage":{"input_tokens":"","output_tokens":7}}`},
+		{name: "negative output", payload: `{"text":"A sanitized transcript.","usage":{"input_tokens":44,"output_tokens":-1}}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			observer, err := NewRegistry().New("audio_transcription", "application/json", Estimate{PromptTokens: 14, Model: "gpt-4o-transcribe", Protocol: "audio"})
+			require.NoError(t, err)
+			require.NoError(t, observer.Observe([]byte(test.payload)))
+
+			actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+			require.NoError(t, err)
+			require.Equal(t, int64(14), actual.TextInputTokens)
+			require.Zero(t, actual.TextOutputTokens)
+			require.Equal(t, RequestEstimate, actual.Fields["text_input_tokens"])
+			require.True(t, actual.Complete)
+		})
+	}
+}
+
 func TestAudioSpeechDerivesDurationAndAudioOutputTokensFromWAV(t *testing.T) {
 	encoded, err := os.ReadFile(filepath.Join("..", "..", "testdata", "usage", "openai", "speech-wav.base64"))
 	require.NoError(t, err)

@@ -11,18 +11,25 @@ import (
 )
 
 type openAIObserver struct {
-	protocol   string
-	estimate   Estimate
-	stream     bool
-	body       *responseStore
-	sse        sseDecoder
-	usage      map[string]any
-	response   map[string]any
-	terminal   string
-	observeErr error
-	localText  strings.Builder
-	toolCount  int64
-	mu         sync.Mutex
+	protocol         string
+	estimate         Estimate
+	stream           bool
+	body             *responseStore
+	sse              sseDecoder
+	usage            map[string]any
+	response         map[string]any
+	terminal         string
+	observeErr       error
+	localText        strings.Builder
+	responseParts    []responseStreamPart
+	responseArgParts map[string]int
+	toolCount        int64
+	mu               sync.Mutex
+}
+
+type responseStreamPart struct {
+	text string
+	done bool
 }
 
 func newOpenAIObserver(protocol string, contentType string, estimate Estimate) *openAIObserver {
@@ -86,12 +93,36 @@ func (observer *openAIObserver) Complete(completion Completion) (Canonical, erro
 			result.TextOutputTokens = locallyCounted
 			result.Fields["text_output_tokens"] = LocallyCounted
 		}
+	} else if result.TextOutputTokens == 0 && observer.protocol == "responses" {
+		locallyCounted := countText(collectResponsesJSONOutput(response), observer.estimate.Model)
+		if locallyCounted > 0 {
+			result.TextOutputTokens = locallyCounted
+			result.Fields["text_output_tokens"] = LocallyCounted
+		}
 	}
 	if completion.EOF && completion.Err == nil && !completion.ClientDisconnected && isSuccessStatus(completion.StatusCode) {
-		result.Complete = true
-		result.TerminalEvent = "json.eof"
+		if observer.protocol == "responses" {
+			status, _ := response["status"].(string)
+			if status == "completed" {
+				result.Complete = true
+				result.TerminalEvent = "response.completed"
+			} else {
+				result.TerminalEvent = responseJSONTerminal(status)
+			}
+		} else {
+			result.Complete = true
+			result.TerminalEvent = "json.eof"
+		}
 	}
 	return result, nil
+}
+
+func responseJSONTerminal(status string) string {
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return "response.incomplete"
+	}
+	return "response." + status
 }
 
 func collectChatResponseOutput(response map[string]any) (string, int64) {
@@ -156,10 +187,41 @@ func appendResponseContent(target *strings.Builder, value any) {
 	}
 }
 
+func collectResponsesJSONOutput(response map[string]any) string {
+	var text strings.Builder
+	for _, outputValue := range arrayValue(response["output"]) {
+		output, ok := objectValue(outputValue)
+		if !ok {
+			continue
+		}
+		switch outputType, _ := output["type"].(string); outputType {
+		case "message":
+			for _, contentValue := range arrayValue(output["content"]) {
+				content, ok := objectValue(contentValue)
+				if !ok {
+					continue
+				}
+				if contentType, _ := content["type"].(string); contentType == "output_text" {
+					if value, ok := content["text"].(string); ok {
+						text.WriteString(value)
+					}
+				}
+			}
+		case "function_call":
+			if arguments, ok := output["arguments"].(string); ok {
+				text.WriteString(arguments)
+			}
+		}
+	}
+	return text.String()
+}
+
 func (observer *openAIObserver) observeSSEEvent(eventName string, data []byte) error {
 	payload := bytes.TrimSpace(data)
 	if bytes.Equal(payload, []byte("[DONE]")) {
-		observer.terminal = "[DONE]"
+		if observer.protocol != "responses" || observer.terminal != "response.completed" {
+			observer.terminal = "[DONE]"
+		}
 		return nil
 	}
 
@@ -181,9 +243,9 @@ func (observer *openAIObserver) observeSSEEvent(eventName string, data []byte) e
 		case "response.output_text.delta":
 			observer.collectResponseString(event, "delta")
 		case "response.function_call_arguments.delta":
-			observer.collectResponseString(event, "delta")
+			observer.collectResponseArguments(event, "delta", false)
 		case "response.function_call_arguments.done":
-			observer.collectResponseString(event, "arguments")
+			observer.collectResponseArguments(event, "arguments", true)
 		case "response.completed":
 			if response, ok := objectValue(event["response"]); ok {
 				observer.response = response
@@ -201,8 +263,53 @@ func (observer *openAIObserver) observeSSEEvent(eventName string, data []byte) e
 
 func (observer *openAIObserver) collectResponseString(event map[string]any, field string) {
 	if value, ok := event[field].(string); ok {
-		observer.localText.WriteString(value)
+		observer.responseParts = append(observer.responseParts, responseStreamPart{text: value})
 	}
+}
+
+func (observer *openAIObserver) collectResponseArguments(event map[string]any, field string, done bool) {
+	value, ok := event[field].(string)
+	if !ok {
+		return
+	}
+	key := responseArgumentKey(event)
+	if key == "" {
+		observer.responseParts = append(observer.responseParts, responseStreamPart{text: value, done: done})
+		return
+	}
+	if observer.responseArgParts == nil {
+		observer.responseArgParts = make(map[string]int)
+	}
+	if index, exists := observer.responseArgParts[key]; exists {
+		part := &observer.responseParts[index]
+		if done {
+			part.text = value
+			part.done = true
+		} else if !part.done {
+			part.text += value
+		}
+		return
+	}
+	observer.responseArgParts[key] = len(observer.responseParts)
+	observer.responseParts = append(observer.responseParts, responseStreamPart{text: value, done: done})
+}
+
+func responseArgumentKey(event map[string]any) string {
+	if itemID, ok := event["item_id"].(string); ok && itemID != "" {
+		return "item_id:" + itemID
+	}
+	if outputIndex, present, err := nonNegativeInt64(event, "output_index"); err == nil && present {
+		return fmt.Sprintf("output_index:%d", outputIndex)
+	}
+	return ""
+}
+
+func (observer *openAIObserver) responseStreamText() string {
+	var text strings.Builder
+	for _, part := range observer.responseParts {
+		text.WriteString(part.text)
+	}
+	return text.String()
 }
 
 func (observer *openAIObserver) completeSSE(completion Completion) (Canonical, error) {
@@ -214,7 +321,11 @@ func (observer *openAIObserver) completeSSE(completion Completion) (Canonical, e
 		applyResponseImageCalls(&result, observer.response)
 	}
 	if result.TextOutputTokens == 0 {
-		locallyCounted := countText(observer.localText.String(), observer.estimate.Model)
+		localText := observer.localText.String()
+		if observer.protocol == "responses" {
+			localText = observer.responseStreamText()
+		}
+		locallyCounted := countText(localText, observer.estimate.Model)
 		if observer.protocol == "openai" {
 			locallyCounted += observer.toolCount * 7
 		}
@@ -239,6 +350,10 @@ func (observer *openAIObserver) completeSSE(completion Completion) (Canonical, e
 		if completion.EOF {
 			result.TerminalEvent = "eof_without_terminal"
 		}
+		return result, nil
+	}
+	if observer.protocol == "responses" && observer.terminal != "response.completed" {
+		result.TerminalEvent = observer.terminal
 		return result, nil
 	}
 	if observer.terminal != "" && completion.Err == nil && !completion.ClientDisconnected && isSuccessStatus(completion.StatusCode) {
@@ -292,25 +407,32 @@ const maxSSEEventBytes = 1024 * 1024
 // SSE events. Its explicit event bound avoids bufio.Scanner's silent 64 KiB
 // limit while keeping pathological upstream frames bounded.
 type sseDecoder struct {
-	pending []byte
-	event   string
-	data    bytes.Buffer
+	pending    []byte
+	event      string
+	data       bytes.Buffer
+	eventBytes int
 }
 
 func (decoder *sseDecoder) Observe(chunk []byte, handle func(event string, data []byte) error) error {
 	decoder.pending = append(decoder.pending, chunk...)
-	if len(decoder.pending) > maxSSEEventBytes && bytes.IndexByte(decoder.pending, '\n') < 0 {
-		decoder.reset()
-		return ErrSSEEventTooLarge
-	}
 
 	for {
 		lineEnd := bytes.IndexByte(decoder.pending, '\n')
 		if lineEnd < 0 {
+			if decoder.eventBytes+len(decoder.pending) > maxSSEEventBytes {
+				decoder.reset()
+				return ErrSSEEventTooLarge
+			}
 			return nil
+		}
+		rawLineBytes := lineEnd + 1
+		if decoder.eventBytes+rawLineBytes > maxSSEEventBytes {
+			decoder.reset()
+			return ErrSSEEventTooLarge
 		}
 		line := decoder.pending[:lineEnd]
 		decoder.pending = decoder.pending[lineEnd+1:]
+		decoder.eventBytes += rawLineBytes
 		if len(line) > 0 && line[len(line)-1] == '\r' {
 			line = line[:len(line)-1]
 		}
@@ -324,6 +446,7 @@ func (decoder *sseDecoder) line(line []byte, handle func(event string, data []by
 	if len(line) == 0 {
 		if decoder.data.Len() == 0 {
 			decoder.event = ""
+			decoder.eventBytes = 0
 			return nil
 		}
 		data := append([]byte(nil), decoder.data.Bytes()...)
@@ -331,6 +454,7 @@ func (decoder *sseDecoder) line(line []byte, handle func(event string, data []by
 		event := decoder.event
 		decoder.event = ""
 		decoder.data.Reset()
+		decoder.eventBytes = 0
 		return handle(event, data)
 	}
 	if line[0] == ':' {
@@ -362,6 +486,7 @@ func (decoder *sseDecoder) reset() {
 	decoder.pending = nil
 	decoder.event = ""
 	decoder.data.Reset()
+	decoder.eventBytes = 0
 }
 
 func normalizeOpenAIUsage(document map[string]any, protocol string, estimate Estimate) (Canonical, error) {
