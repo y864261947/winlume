@@ -6,6 +6,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -28,12 +29,34 @@ export const ledgerEntryTypeEnum = pgEnum("ledger_entry_type", [
   "hold",
   "release",
 ]);
-export const usageEventStatusEnum = pgEnum("usage_event_status", ["reserved", "settled", "reversed", "failed"]);
+export const usageEventStatusEnum = pgEnum("usage_event_status", [
+  "reserved",
+  "settlement_pending",
+  "settled",
+  "reversed",
+  "failed",
+]);
 export const presetScopeEnum = pgEnum("preset_scope", ["personal", "organization"]);
 export const paymentProviderStatusEnum = pgEnum("payment_provider_status", ["active", "disabled"]);
 export const paymentOrderStatusEnum = pgEnum("payment_order_status", ["pending", "paid", "failed", "refunded", "cancelled"]);
 export const subscriptionStatusEnum = pgEnum("subscription_status", ["trialing", "active", "past_due", "cancelled", "expired"]);
 export const subscriptionIntervalEnum = pgEnum("subscription_interval", ["month", "year", "one_time"]);
+export const pricingCatalogStateEnum = pgEnum("pricing_catalog_state", ["draft", "active", "retired"]);
+export const pricingModeEnum = pgEnum("pricing_mode", ["ratio", "fixed", "tiered_expr"]);
+export const fundingPreferenceEnum = pgEnum("funding_preference", [
+  "subscription_first",
+  "wallet_first",
+  "subscription_only",
+  "wallet_only",
+]);
+export const subscriptionQuotaLedgerEntryTypeEnum = pgEnum("subscription_quota_ledger_entry_type", [
+  "hold",
+  "release",
+  "debit",
+  "refund",
+  "reset",
+  "adjustment",
+]);
 
 const createdAt = timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
 const updatedAt = timestamp("updated_at", { withTimezone: true }).defaultNow().notNull();
@@ -143,6 +166,171 @@ export const apiKeys = pgTable(
   ],
 );
 
+export const pricingCatalogVersions = pgTable(
+  "pricing_catalog_versions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sourceKind: varchar("source_kind", { length: 64 }).notNull(),
+    sourceInstanceLabel: varchar("source_instance_label", { length: 120 }).notNull(),
+    sourceHash: varchar("source_hash", { length: 64 }).notNull(),
+    algorithmVersion: varchar("algorithm_version", { length: 64 }).notNull(),
+    quotaPerUnit: numeric("quota_per_unit").notNull(),
+    preConsumedTokens: bigint("pre_consumed_tokens", { mode: "bigint" }).notNull(),
+    state: pricingCatalogStateEnum("state").default("draft").notNull(),
+    sourceSnapshot: jsonb("source_snapshot").$type<Record<string, unknown>>().notNull(),
+    importedAt: timestamp("imported_at", { withTimezone: true }).defaultNow().notNull(),
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    uniqueIndex("pricing_catalog_versions_source_hash_unique").on(table.sourceHash),
+    uniqueIndex("pricing_catalog_versions_single_active_unique")
+      .on(table.state)
+      .where(sql`${table.state} = 'active'`),
+    check("pricing_catalog_versions_quota_positive", sql`${table.quotaPerUnit} > 0`),
+    check("pricing_catalog_versions_preconsume_nonnegative", sql`${table.preConsumedTokens} >= 0`),
+  ],
+);
+
+export const pricingModelRules = pgTable(
+  "pricing_model_rules",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    catalogVersionId: uuid("catalog_version_id")
+      .notNull()
+      .references(() => pricingCatalogVersions.id, { onDelete: "cascade" }),
+    modelKey: varchar("model_key", { length: 255 }).notNull(),
+    mode: pricingModeEnum("mode").notNull(),
+    modelRatio: numeric("model_ratio"),
+    fixedPriceUsd: numeric("fixed_price_usd"),
+    completionRatio: numeric("completion_ratio"),
+    cacheReadRatio: numeric("cache_read_ratio"),
+    cacheWriteRatio: numeric("cache_write_ratio"),
+    cacheWriteOneHourRatio: numeric("cache_write_one_hour_ratio"),
+    imageRatio: numeric("image_ratio"),
+    audioInputRatio: numeric("audio_input_ratio"),
+    audioCompletionRatio: numeric("audio_completion_ratio"),
+    tieredExpression: text("tiered_expression"),
+    tieredExpressionHash: varchar("tiered_expression_hash", { length: 64 }),
+    tieredExpressionVersion: varchar("tiered_expression_version", { length: 64 }),
+    toolPrices: jsonb("tool_prices").$type<Record<string, string>>().notNull().default({}),
+    enabledGroups: text("enabled_groups").array().notNull().default(sql`ARRAY[]::text[]`),
+    protocolFamilies: text("protocol_families").array().notNull().default(sql`ARRAY[]::text[]`),
+    ruleHash: varchar("rule_hash", { length: 64 }).notNull(),
+    sourceMetadata: jsonb("source_metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    uniqueIndex("pricing_model_rules_catalog_model_unique").on(table.catalogVersionId, table.modelKey),
+    index("pricing_model_rules_catalog_index").on(table.catalogVersionId),
+    check(
+      "pricing_model_rules_mode_value_check",
+      sql`(${table.mode} = 'ratio' AND ${table.modelRatio} IS NOT NULL) OR (${table.mode} = 'fixed' AND ${table.fixedPriceUsd} IS NOT NULL) OR (${table.mode} = 'tiered_expr' AND ${table.tieredExpression} IS NOT NULL AND ${table.tieredExpressionHash} IS NOT NULL AND ${table.tieredExpressionVersion} IS NOT NULL)`,
+    ),
+    check(
+      "pricing_model_rules_nonnegative_check",
+      sql`COALESCE(${table.modelRatio}, 0) >= 0 AND COALESCE(${table.fixedPriceUsd}, 0) >= 0 AND COALESCE(${table.completionRatio}, 0) >= 0 AND COALESCE(${table.cacheReadRatio}, 0) >= 0 AND COALESCE(${table.cacheWriteRatio}, 0) >= 0 AND COALESCE(${table.cacheWriteOneHourRatio}, 0) >= 0 AND COALESCE(${table.imageRatio}, 0) >= 0 AND COALESCE(${table.audioInputRatio}, 0) >= 0 AND COALESCE(${table.audioCompletionRatio}, 0) >= 0`,
+    ),
+  ],
+);
+
+export const pricingGroupRules = pgTable(
+  "pricing_group_rules",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    catalogVersionId: uuid("catalog_version_id")
+      .notNull()
+      .references(() => pricingCatalogVersions.id, { onDelete: "cascade" }),
+    userGroup: varchar("user_group", { length: 120 }).notNull(),
+    billingGroup: varchar("billing_group", { length: 120 }).notNull(),
+    groupRatio: numeric("group_ratio").notNull(),
+    sourceMetadata: jsonb("source_metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    uniqueIndex("pricing_group_rules_catalog_groups_unique").on(
+      table.catalogVersionId,
+      table.userGroup,
+      table.billingGroup,
+    ),
+    index("pricing_group_rules_catalog_index").on(table.catalogVersionId),
+    check("pricing_group_rules_ratio_nonnegative", sql`${table.groupRatio} >= 0`),
+  ],
+);
+
+export const modelAvailability = pgTable(
+  "model_availability",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    catalogVersionId: uuid("catalog_version_id")
+      .notNull()
+      .references(() => pricingCatalogVersions.id, { onDelete: "cascade" }),
+    model: varchar("model", { length: 255 }).notNull(),
+    billingGroup: varchar("billing_group", { length: 120 }).notNull(),
+    providerType: integer("provider_type").notNull(),
+    protocolFamily: varchar("protocol_family", { length: 64 }).notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
+    priority: integer("priority").default(0).notNull(),
+    weight: integer("weight").default(0).notNull(),
+    priorityMetadata: jsonb("priority_metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    uniqueIndex("model_availability_catalog_model_group_provider_unique").on(
+      table.catalogVersionId,
+      table.model,
+      table.billingGroup,
+      table.providerType,
+    ),
+    index("model_availability_catalog_index").on(table.catalogVersionId),
+    index("model_availability_enabled_model_group_index").on(table.enabled, table.model, table.billingGroup),
+    check(
+      "model_availability_selection_nonnegative_check",
+      sql`${table.providerType} >= 0 AND ${table.priority} >= 0 AND ${table.weight} >= 0`,
+    ),
+  ],
+);
+
+export const billingProfiles = pgTable(
+  "billing_profiles",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    defaultGroup: varchar("default_group", { length: 120 }).default("default").notNull(),
+    fundingPreference: fundingPreferenceEnum("funding_preference").default("subscription_first").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+);
+
+export const apiKeyBillingPolicies = pgTable(
+  "api_key_billing_policies",
+  {
+    apiKeyId: uuid("api_key_id")
+      .primaryKey()
+      .references(() => apiKeys.id, { onDelete: "cascade" }),
+    userGroup: varchar("user_group", { length: 120 }).default("default").notNull(),
+    billingGroup: varchar("billing_group", { length: 120 }).default("default").notNull(),
+    unlimited: boolean("unlimited").default(false).notNull(),
+    quotaLimit: bigint("quota_limit", { mode: "bigint" }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    check(
+      "api_key_billing_policies_limit_check",
+      sql`(${table.unlimited} = true AND ${table.quotaLimit} IS NULL) OR (${table.unlimited} = false AND ${table.quotaLimit} IS NOT NULL AND ${table.quotaLimit} >= 0)`,
+    ),
+  ],
+);
+
 export const wallets = pgTable(
   "wallets",
   {
@@ -162,6 +350,7 @@ export const usageEvents = pgTable(
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
     organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "set null" }),
     apiKeyId: uuid("api_key_id").references(() => apiKeys.id, { onDelete: "set null" }),
+    catalogVersionId: uuid("catalog_version_id").references(() => pricingCatalogVersions.id, { onDelete: "restrict" }),
     idempotencyKey: varchar("idempotency_key", { length: 255 }),
     requestId: varchar("request_id", { length: 255 }),
     provider: varchar("provider", { length: 80 }).notNull(),
@@ -171,6 +360,19 @@ export const usageEvents = pgTable(
     totalTokens: bigint("total_tokens", { mode: "bigint" }).default(sql`0`).notNull(),
     costMicrocredits: bigint("cost_microcredits", { mode: "bigint" }).default(sql`0`).notNull(),
     status: usageEventStatusEnum("status").default("reserved").notNull(),
+    canonicalUsage: jsonb("canonical_usage").$type<Record<string, unknown>>(),
+    usageProvenance: jsonb("usage_provenance").$type<Record<string, unknown>>(),
+    completionState: varchar("completion_state", { length: 64 }),
+    streamEndReason: varchar("stream_end_reason", { length: 128 }),
+    fundingKind: varchar("funding_kind", { length: 32 }),
+    fundingReference: varchar("funding_reference", { length: 255 }),
+    reservedQuota: bigint("reserved_quota", { mode: "bigint" }).default(sql`0`).notNull(),
+    actualQuota: bigint("actual_quota", { mode: "bigint" }),
+    settlementAttemptCount: integer("settlement_attempt_count").default(0).notNull(),
+    channelCostQuota: bigint("channel_cost_quota", { mode: "bigint" }),
+    profitQuota: bigint("profit_quota", { mode: "bigint" }),
+    operationId: varchar("operation_id", { length: 255 }),
+    completionSnapshotAt: timestamp("completion_snapshot_at", { withTimezone: true }),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
     createdAt,
@@ -178,8 +380,129 @@ export const usageEvents = pgTable(
   },
   (table) => [
     uniqueIndex("usage_events_user_idempotency_unique").on(table.userId, table.idempotencyKey),
+    uniqueIndex("usage_events_operation_id_unique").on(table.operationId),
     index("usage_events_user_occurred_index").on(table.userId, table.occurredAt),
+    index("usage_events_organization_index").on(table.organizationId),
     index("usage_events_api_key_index").on(table.apiKeyId),
+    index("usage_events_catalog_version_index").on(table.catalogVersionId),
+    check("usage_events_reserved_quota_nonnegative", sql`${table.reservedQuota} >= 0`),
+    check(
+      "usage_events_actual_quota_nonnegative",
+      sql`${table.actualQuota} IS NULL OR ${table.actualQuota} >= 0`,
+    ),
+    check(
+      "usage_events_settlement_attempt_count_nonnegative",
+      sql`${table.settlementAttemptCount} >= 0`,
+    ),
+    check(
+      "usage_events_channel_cost_quota_nonnegative",
+      sql`${table.channelCostQuota} IS NULL OR ${table.channelCostQuota} >= 0`,
+    ),
+  ],
+);
+
+export const apiKeyQuotaLedgerEntries = pgTable(
+  "api_key_quota_ledger_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    apiKeyId: uuid("api_key_id")
+      .notNull()
+      .references(() => apiKeys.id, { onDelete: "restrict" }),
+    usageEventId: uuid("usage_event_id").references(() => usageEvents.id, { onDelete: "set null" }),
+    entryType: ledgerEntryTypeEnum("entry_type").notNull(),
+    quotaDelta: bigint("quota_delta", { mode: "bigint" }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 255 }).notNull(),
+    reference: varchar("reference", { length: 255 }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+  },
+  (table) => [
+    uniqueIndex("api_key_quota_ledger_entries_key_idempotency_unique").on(table.apiKeyId, table.idempotencyKey),
+    index("api_key_quota_ledger_entries_key_created_index").on(table.apiKeyId, table.createdAt),
+    index("api_key_quota_ledger_entries_usage_event_index").on(table.usageEventId),
+    check("api_key_quota_ledger_entries_nonzero_delta", sql`${table.quotaDelta} <> 0`),
+  ],
+);
+
+export const billingShadowEvents = pgTable(
+  "billing_shadow_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    requestId: varchar("request_id", { length: 255 }).notNull(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+    apiKeyId: uuid("api_key_id").references(() => apiKeys.id, { onDelete: "set null" }),
+    usageEventId: uuid("usage_event_id").references(() => usageEvents.id, { onDelete: "set null" }),
+    catalogVersionId: uuid("catalog_version_id")
+      .notNull()
+      .references(() => pricingCatalogVersions.id, { onDelete: "restrict" }),
+    model: varchar("model", { length: 255 }).notNull(),
+    canonicalUsage: jsonb("canonical_usage").$type<Record<string, unknown>>().notNull(),
+    usageProvenance: jsonb("usage_provenance").$type<Record<string, unknown>>().notNull(),
+    pricingQuote: jsonb("pricing_quote").$type<Record<string, unknown>>().notNull(),
+    calculatedReservationQuota: bigint("calculated_reservation_quota", { mode: "bigint" }).notNull(),
+    calculatedActualQuota: bigint("calculated_actual_quota", { mode: "bigint" }),
+    referenceQuota: bigint("reference_quota", { mode: "bigint" }),
+    quotaDelta: bigint("quota_delta", { mode: "bigint" }),
+    outcome: varchar("outcome", { length: 64 }).notNull(),
+    mismatchClass: varchar("mismatch_class", { length: 128 }),
+    completionState: varchar("completion_state", { length: 64 }),
+    sanitizedErrorClass: varchar("sanitized_error_class", { length: 128 }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt,
+  },
+  (table) => [
+    index("billing_shadow_events_request_id_index").on(table.requestId),
+    index("billing_shadow_events_model_index").on(table.model),
+    index("billing_shadow_events_outcome_index").on(table.outcome),
+    index("billing_shadow_events_mismatch_class_index").on(table.mismatchClass),
+    index("billing_shadow_events_created_id_index").on(table.createdAt, table.id),
+    index("billing_shadow_events_user_index").on(table.userId),
+    index("billing_shadow_events_organization_index").on(table.organizationId),
+    index("billing_shadow_events_api_key_index").on(table.apiKeyId),
+    index("billing_shadow_events_usage_event_index").on(table.usageEventId),
+    index("billing_shadow_events_catalog_version_index").on(table.catalogVersionId),
+    check(
+      "billing_shadow_events_reservation_nonnegative",
+      sql`${table.calculatedReservationQuota} >= 0`,
+    ),
+    check(
+      "billing_shadow_events_actual_nonnegative",
+      sql`${table.calculatedActualQuota} IS NULL OR ${table.calculatedActualQuota} >= 0`,
+    ),
+    check(
+      "billing_shadow_events_reference_nonnegative",
+      sql`${table.referenceQuota} IS NULL OR ${table.referenceQuota} >= 0`,
+    ),
+  ],
+);
+
+export const gatewayRelayAttempts = pgTable(
+  "gateway_relay_attempts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    usageEventId: uuid("usage_event_id")
+      .notNull()
+      .references(() => usageEvents.id, { onDelete: "restrict" }),
+    attemptNumber: integer("attempt_number").notNull(),
+    channelId: varchar("channel_id", { length: 255 }).notNull(),
+    providerType: integer("provider_type").notNull(),
+    status: varchar("status", { length: 64 }).notNull(),
+    retryReason: varchar("retry_reason", { length: 128 }),
+    sanitizedErrorClass: varchar("sanitized_error_class", { length: 128 }),
+    startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt,
+  },
+  (table) => [
+    uniqueIndex("gateway_relay_attempts_usage_attempt_unique").on(table.usageEventId, table.attemptNumber),
+    index("gateway_relay_attempts_usage_created_index").on(table.usageEventId, table.createdAt),
+    check("gateway_relay_attempts_number_positive", sql`${table.attemptNumber} > 0`),
+    check("gateway_relay_attempts_provider_type_nonnegative", sql`${table.providerType} >= 0`),
+    check(
+      "gateway_relay_attempts_completion_after_start",
+      sql`${table.completedAt} IS NULL OR ${table.completedAt} >= ${table.startedAt}`,
+    ),
   ],
 );
 
@@ -324,6 +647,68 @@ export const subscriptions = pgTable(
     uniqueIndex("subscriptions_provider_external_unique").on(table.paymentProviderId, table.externalSubscriptionId),
     index("subscriptions_user_status_index").on(table.userId, table.status),
     index("subscriptions_period_end_index").on(table.currentPeriodEnd),
+  ],
+);
+
+export const subscriptionQuotaStates = pgTable(
+  "subscription_quota_states",
+  {
+    subscriptionId: uuid("subscription_id")
+      .primaryKey()
+      .references(() => subscriptions.id, { onDelete: "restrict" }),
+    resetWindowStartedAt: timestamp("reset_window_started_at", { withTimezone: true }).notNull(),
+    resetWindowEndsAt: timestamp("reset_window_ends_at", { withTimezone: true }).notNull(),
+    nextResetAt: timestamp("next_reset_at", { withTimezone: true }).notNull(),
+    windowQuotaLimit: bigint("window_quota_limit", { mode: "bigint" }),
+    windowQuotaConsumed: bigint("window_quota_consumed", { mode: "bigint" }).default(sql`0`).notNull(),
+    cumulativeQuotaLimit: bigint("cumulative_quota_limit", { mode: "bigint" }),
+    cumulativeQuotaConsumed: bigint("cumulative_quota_consumed", { mode: "bigint" }).default(sql`0`).notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    check(
+      "subscription_quota_states_reset_window_order",
+      sql`${table.resetWindowEndsAt} > ${table.resetWindowStartedAt} AND ${table.nextResetAt} >= ${table.resetWindowEndsAt}`,
+    ),
+    check(
+      "subscription_quota_states_limits_nonnegative",
+      sql`(${table.windowQuotaLimit} IS NULL OR ${table.windowQuotaLimit} >= 0) AND (${table.cumulativeQuotaLimit} IS NULL OR ${table.cumulativeQuotaLimit} >= 0)`,
+    ),
+    check(
+      "subscription_quota_states_consumed_nonnegative",
+      sql`${table.windowQuotaConsumed} >= 0 AND ${table.cumulativeQuotaConsumed} >= 0`,
+    ),
+    check(
+      "subscription_quota_states_consumed_within_limits",
+      sql`(${table.windowQuotaLimit} IS NULL OR ${table.windowQuotaConsumed} <= ${table.windowQuotaLimit}) AND (${table.cumulativeQuotaLimit} IS NULL OR ${table.cumulativeQuotaConsumed} <= ${table.cumulativeQuotaLimit})`,
+    ),
+  ],
+);
+
+export const subscriptionQuotaLedgerEntries = pgTable(
+  "subscription_quota_ledger_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    subscriptionId: uuid("subscription_id")
+      .notNull()
+      .references(() => subscriptions.id, { onDelete: "restrict" }),
+    usageEventId: uuid("usage_event_id").references(() => usageEvents.id, { onDelete: "set null" }),
+    entryType: subscriptionQuotaLedgerEntryTypeEnum("entry_type").notNull(),
+    quotaDelta: bigint("quota_delta", { mode: "bigint" }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 255 }).notNull(),
+    reference: varchar("reference", { length: 255 }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+  },
+  (table) => [
+    uniqueIndex("subscription_quota_ledger_entries_subscription_idempotency_unique").on(
+      table.subscriptionId,
+      table.idempotencyKey,
+    ),
+    index("subscription_quota_ledger_entries_subscription_created_index").on(table.subscriptionId, table.createdAt),
+    index("subscription_quota_ledger_entries_usage_event_index").on(table.usageEventId),
+    check("subscription_quota_ledger_entries_nonzero_delta", sql`${table.quotaDelta} <> 0`),
   ],
 );
 
