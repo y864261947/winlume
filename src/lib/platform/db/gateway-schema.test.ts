@@ -229,6 +229,69 @@ describe("Go Gateway billing schema", () => {
     expect(firstPendingObjectOffset).toBeGreaterThan(enumRestartOffset);
   });
 
+  it("freezes settlement-pending snapshots through terminal recovery", () => {
+    const normalizedSql = migrationSql.replace(/\s+/g, " ");
+    const pendingSnapshotFunction = normalizedSql.match(
+      /CREATE OR REPLACE FUNCTION "enforce_usage_event_pending_snapshot"\(\) RETURNS trigger AS \$\$ (.*?) \$\$ LANGUAGE plpgsql;/,
+    )?.[1];
+
+    expect(pendingSnapshotFunction).toBeDefined();
+    expect(pendingSnapshotFunction).toContain("IF OLD.status = 'settlement_pending' THEN");
+    expect(pendingSnapshotFunction).toContain(
+      "IF NEW.status NOT IN ('settlement_pending', 'settled', 'reversed', 'failed') THEN",
+    );
+
+    const frozenFields = [
+      "id",
+      "user_id",
+      "organization_id",
+      "api_key_id",
+      "catalog_version_id",
+      "idempotency_key",
+      "request_id",
+      "provider",
+      "model",
+      "input_tokens",
+      "output_tokens",
+      "total_tokens",
+      "cost_microcredits",
+      "canonical_usage",
+      "usage_provenance",
+      "completion_state",
+      "stream_end_reason",
+      "funding_kind",
+      "funding_reference",
+      "reserved_quota",
+      "actual_quota",
+      "operation_id",
+      "completion_snapshot_at",
+      "occurred_at",
+      "created_at",
+    ];
+    for (const field of frozenFields) {
+      expect(pendingSnapshotFunction).toContain(
+        `OLD."${field}" IS DISTINCT FROM NEW."${field}"`,
+      );
+    }
+
+    for (const mutableField of [
+      "status",
+      "settlement_attempt_count",
+      "channel_cost_quota",
+      "profit_quota",
+      "metadata",
+      "updated_at",
+    ]) {
+      expect(pendingSnapshotFunction).not.toContain(
+        `OLD."${mutableField}" IS DISTINCT FROM NEW."${mutableField}"`,
+      );
+    }
+
+    expect(normalizedSql).toContain(
+      'CREATE TRIGGER "usage_events_pending_snapshot_immutable" BEFORE UPDATE ON "usage_events" FOR EACH ROW EXECUTE FUNCTION "enforce_usage_event_pending_snapshot"()',
+    );
+  });
+
   it("freezes activated pricing catalogs and their child rules in PostgreSQL", () => {
     const normalizedSql = migrationSql.replace(/\s+/g, " ");
 
@@ -242,6 +305,9 @@ describe("Go Gateway billing schema", () => {
     expect(normalizedSql).toContain("OLD.state = 'draft' AND NEW.state IN ('draft', 'active')");
     expect(normalizedSql).toContain("OLD.state = 'active' AND NEW.state IN ('active', 'retired')");
     expect(normalizedSql).toContain("OLD.state = 'retired' AND NEW.state IN ('retired', 'active')");
+    expect(normalizedSql).toContain(
+      "IF (OLD.state IN ('active', 'retired') OR NEW.state IN ('active', 'retired')) AND",
+    );
     expect(normalizedSql).toContain(
       "to_jsonb(NEW) - ARRAY['state', 'activated_at', 'updated_at']",
     );

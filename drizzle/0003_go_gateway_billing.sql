@@ -256,6 +256,52 @@ ALTER TABLE "usage_events" ADD CONSTRAINT "usage_events_settlement_attempt_count
 ALTER TABLE "usage_events" ADD CONSTRAINT "usage_events_channel_cost_quota_nonnegative" CHECK ("usage_events"."channel_cost_quota" IS NULL OR "usage_events"."channel_cost_quota" >= 0);--> statement-breakpoint
 ALTER TABLE "usage_events" ADD CONSTRAINT "usage_events_pending_recovery_fields_check" CHECK ("usage_events"."status" <> 'settlement_pending' OR ("usage_events"."operation_id" IS NOT NULL AND "usage_events"."catalog_version_id" IS NOT NULL AND "usage_events"."canonical_usage" IS NOT NULL AND "usage_events"."usage_provenance" IS NOT NULL AND "usage_events"."completion_state" IS NOT NULL AND "usage_events"."funding_kind" IS NOT NULL AND "usage_events"."funding_reference" IS NOT NULL AND "usage_events"."actual_quota" IS NOT NULL AND "usage_events"."completion_snapshot_at" IS NOT NULL));
 --> statement-breakpoint
+CREATE OR REPLACE FUNCTION "enforce_usage_event_pending_snapshot"() RETURNS trigger AS $$
+BEGIN
+  IF OLD.status = 'settlement_pending' THEN
+    IF NEW.status NOT IN ('settlement_pending', 'settled', 'reversed', 'failed') THEN
+      RAISE EXCEPTION 'settlement-pending usage events cannot transition back to %', NEW.status;
+    END IF;
+
+    IF
+      OLD."id" IS DISTINCT FROM NEW."id" OR
+      OLD."user_id" IS DISTINCT FROM NEW."user_id" OR
+      OLD."organization_id" IS DISTINCT FROM NEW."organization_id" OR
+      OLD."api_key_id" IS DISTINCT FROM NEW."api_key_id" OR
+      OLD."catalog_version_id" IS DISTINCT FROM NEW."catalog_version_id" OR
+      OLD."idempotency_key" IS DISTINCT FROM NEW."idempotency_key" OR
+      OLD."request_id" IS DISTINCT FROM NEW."request_id" OR
+      OLD."provider" IS DISTINCT FROM NEW."provider" OR
+      OLD."model" IS DISTINCT FROM NEW."model" OR
+      OLD."input_tokens" IS DISTINCT FROM NEW."input_tokens" OR
+      OLD."output_tokens" IS DISTINCT FROM NEW."output_tokens" OR
+      OLD."total_tokens" IS DISTINCT FROM NEW."total_tokens" OR
+      OLD."cost_microcredits" IS DISTINCT FROM NEW."cost_microcredits" OR
+      OLD."canonical_usage" IS DISTINCT FROM NEW."canonical_usage" OR
+      OLD."usage_provenance" IS DISTINCT FROM NEW."usage_provenance" OR
+      OLD."completion_state" IS DISTINCT FROM NEW."completion_state" OR
+      OLD."stream_end_reason" IS DISTINCT FROM NEW."stream_end_reason" OR
+      OLD."funding_kind" IS DISTINCT FROM NEW."funding_kind" OR
+      OLD."funding_reference" IS DISTINCT FROM NEW."funding_reference" OR
+      OLD."reserved_quota" IS DISTINCT FROM NEW."reserved_quota" OR
+      OLD."actual_quota" IS DISTINCT FROM NEW."actual_quota" OR
+      OLD."operation_id" IS DISTINCT FROM NEW."operation_id" OR
+      OLD."completion_snapshot_at" IS DISTINCT FROM NEW."completion_snapshot_at" OR
+      OLD."occurred_at" IS DISTINCT FROM NEW."occurred_at" OR
+      OLD."created_at" IS DISTINCT FROM NEW."created_at"
+    THEN
+      RAISE EXCEPTION 'settlement-pending usage event snapshots are immutable';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+--> statement-breakpoint
+CREATE TRIGGER "usage_events_pending_snapshot_immutable"
+BEFORE UPDATE ON "usage_events"
+FOR EACH ROW EXECUTE FUNCTION "enforce_usage_event_pending_snapshot"();
+--> statement-breakpoint
 CREATE OR REPLACE FUNCTION "enforce_pricing_catalog_version_lifecycle"() RETURNS trigger AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -280,7 +326,7 @@ BEGIN
     RAISE EXCEPTION 'invalid pricing catalog state transition from % to %', OLD.state, NEW.state;
   END IF;
 
-  IF OLD.state IN ('active', 'retired') AND
+  IF (OLD.state IN ('active', 'retired') OR NEW.state IN ('active', 'retired')) AND
     (to_jsonb(NEW) - ARRAY['state', 'activated_at', 'updated_at']) IS DISTINCT FROM
     (to_jsonb(OLD) - ARRAY['state', 'activated_at', 'updated_at']) THEN
     RAISE EXCEPTION 'active or retired pricing catalog content is immutable';
