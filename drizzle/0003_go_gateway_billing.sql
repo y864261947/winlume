@@ -262,36 +262,42 @@ BEGIN
     IF NEW.status NOT IN ('settlement_pending', 'settled', 'reversed', 'failed') THEN
       RAISE EXCEPTION 'settlement-pending usage events cannot transition back to %', NEW.status;
     END IF;
-
-    IF
-      OLD."id" IS DISTINCT FROM NEW."id" OR
-      OLD."user_id" IS DISTINCT FROM NEW."user_id" OR
-      OLD."organization_id" IS DISTINCT FROM NEW."organization_id" OR
-      OLD."api_key_id" IS DISTINCT FROM NEW."api_key_id" OR
-      OLD."catalog_version_id" IS DISTINCT FROM NEW."catalog_version_id" OR
-      OLD."idempotency_key" IS DISTINCT FROM NEW."idempotency_key" OR
-      OLD."request_id" IS DISTINCT FROM NEW."request_id" OR
-      OLD."provider" IS DISTINCT FROM NEW."provider" OR
-      OLD."model" IS DISTINCT FROM NEW."model" OR
-      OLD."input_tokens" IS DISTINCT FROM NEW."input_tokens" OR
-      OLD."output_tokens" IS DISTINCT FROM NEW."output_tokens" OR
-      OLD."total_tokens" IS DISTINCT FROM NEW."total_tokens" OR
-      OLD."cost_microcredits" IS DISTINCT FROM NEW."cost_microcredits" OR
-      OLD."canonical_usage" IS DISTINCT FROM NEW."canonical_usage" OR
-      OLD."usage_provenance" IS DISTINCT FROM NEW."usage_provenance" OR
-      OLD."completion_state" IS DISTINCT FROM NEW."completion_state" OR
-      OLD."stream_end_reason" IS DISTINCT FROM NEW."stream_end_reason" OR
-      OLD."funding_kind" IS DISTINCT FROM NEW."funding_kind" OR
-      OLD."funding_reference" IS DISTINCT FROM NEW."funding_reference" OR
-      OLD."reserved_quota" IS DISTINCT FROM NEW."reserved_quota" OR
-      OLD."actual_quota" IS DISTINCT FROM NEW."actual_quota" OR
-      OLD."operation_id" IS DISTINCT FROM NEW."operation_id" OR
-      OLD."completion_snapshot_at" IS DISTINCT FROM NEW."completion_snapshot_at" OR
-      OLD."occurred_at" IS DISTINCT FROM NEW."occurred_at" OR
-      OLD."created_at" IS DISTINCT FROM NEW."created_at"
-    THEN
-      RAISE EXCEPTION 'settlement-pending usage event snapshots are immutable';
+  ELSIF OLD.status IN ('settled', 'reversed', 'failed') AND OLD."completion_snapshot_at" IS NOT NULL THEN
+    IF NEW.status IS DISTINCT FROM OLD.status THEN
+      RAISE EXCEPTION 'completed usage event status is immutable';
     END IF;
+  ELSE
+    RETURN NEW;
+  END IF;
+
+  IF
+    OLD."id" IS DISTINCT FROM NEW."id" OR
+    OLD."user_id" IS DISTINCT FROM NEW."user_id" OR
+    OLD."organization_id" IS DISTINCT FROM NEW."organization_id" OR
+    OLD."api_key_id" IS DISTINCT FROM NEW."api_key_id" OR
+    OLD."catalog_version_id" IS DISTINCT FROM NEW."catalog_version_id" OR
+    OLD."idempotency_key" IS DISTINCT FROM NEW."idempotency_key" OR
+    OLD."request_id" IS DISTINCT FROM NEW."request_id" OR
+    OLD."provider" IS DISTINCT FROM NEW."provider" OR
+    OLD."model" IS DISTINCT FROM NEW."model" OR
+    OLD."input_tokens" IS DISTINCT FROM NEW."input_tokens" OR
+    OLD."output_tokens" IS DISTINCT FROM NEW."output_tokens" OR
+    OLD."total_tokens" IS DISTINCT FROM NEW."total_tokens" OR
+    OLD."cost_microcredits" IS DISTINCT FROM NEW."cost_microcredits" OR
+    OLD."canonical_usage" IS DISTINCT FROM NEW."canonical_usage" OR
+    OLD."usage_provenance" IS DISTINCT FROM NEW."usage_provenance" OR
+    OLD."completion_state" IS DISTINCT FROM NEW."completion_state" OR
+    OLD."stream_end_reason" IS DISTINCT FROM NEW."stream_end_reason" OR
+    OLD."funding_kind" IS DISTINCT FROM NEW."funding_kind" OR
+    OLD."funding_reference" IS DISTINCT FROM NEW."funding_reference" OR
+    OLD."reserved_quota" IS DISTINCT FROM NEW."reserved_quota" OR
+    OLD."actual_quota" IS DISTINCT FROM NEW."actual_quota" OR
+    OLD."operation_id" IS DISTINCT FROM NEW."operation_id" OR
+    OLD."completion_snapshot_at" IS DISTINCT FROM NEW."completion_snapshot_at" OR
+    OLD."occurred_at" IS DISTINCT FROM NEW."occurred_at" OR
+    OLD."created_at" IS DISTINCT FROM NEW."created_at"
+  THEN
+    RAISE EXCEPTION 'completed usage event snapshots are immutable';
   END IF;
 
   RETURN NEW;

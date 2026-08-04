@@ -240,6 +240,13 @@ describe("Go Gateway billing schema", () => {
     expect(pendingSnapshotFunction).toContain(
       "IF NEW.status NOT IN ('settlement_pending', 'settled', 'reversed', 'failed') THEN",
     );
+    expect(pendingSnapshotFunction).toContain(
+      "ELSIF OLD.status IN ('settled', 'reversed', 'failed') AND OLD.\"completion_snapshot_at\" IS NOT NULL THEN",
+    );
+    expect(pendingSnapshotFunction).toContain(
+      "IF NEW.status IS DISTINCT FROM OLD.status THEN",
+    );
+    expect(pendingSnapshotFunction).toContain("ELSE RETURN NEW; END IF;");
 
     const frozenFields = [
       "id",
