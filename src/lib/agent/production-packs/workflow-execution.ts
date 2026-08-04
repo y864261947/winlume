@@ -14,9 +14,11 @@ import {
   type ProductionStage,
 } from "./contracts";
 import type {
+  ProductionWorkflowArtifactRef,
   ProductionWorkflowAction,
   ProductionWorkflowCommand as PublicProductionWorkflowCommand,
   ProductionWorkflowProjection,
+  ProductionWorkflowStageStatus,
 } from "./workflow-contract";
 import { parseWorkflowSessionBinding } from "./session-binding";
 import {
@@ -97,6 +99,19 @@ export class ProductionWorkflowExecution {
       workflowId: state.workflowId,
       runId: run.id,
       stageId: stage.id,
+      presentation: {
+        kind: "workflow_run",
+        workflowId: state.workflowId,
+        runId: run.id,
+        stageId: stage.id,
+        stageTitle: stage.title,
+        iteration: state.execution.iteration,
+        intent:
+          state.execution.intent ??
+          (state.execution.iteration > 0
+            ? "revision_start"
+            : "stage_start"),
+      },
       outputs: stage.outputs.map((output) => ({
         id: output.id,
         kinds: [...output.kinds],
@@ -420,11 +435,18 @@ export class ProductionWorkflowExecution {
 
     if (!workflowRuns.length) {
       const stage = pack.stages[0];
+      const outputs: Record<string, ProductionWorkflowArtifactRef[]> = {};
       return {
         workflowId: binding.workflowId,
         pack: toProductionPackMeta(pack),
         currentStage: { id: stage.id, title: stage.title, index: 0, total: pack.stages.length },
-        outputs: {},
+        stages: this.projectStages(pack, {
+          currentStageIndex: 0,
+          currentStatus: "ready",
+          completedStageIds: [],
+          outputs,
+        }),
+        outputs,
         actions: ["start"],
       };
     }
@@ -502,6 +524,12 @@ export class ProductionWorkflowExecution {
         index: state.execution.stageIndex,
         total: pack.stages.length,
       },
+      stages: this.projectStages(pack, {
+        currentStageIndex: state.execution.stageIndex,
+        currentStatus: this.currentStageStatus(run, state.phase),
+        completedStageIds: state.completedStageIds,
+        outputs,
+      }),
       run: {
         id: run.id,
         status: run.status,
@@ -552,6 +580,61 @@ export class ProductionWorkflowExecution {
       throw new Error("Production state points to an unavailable Stage");
     }
     return { pack, stage };
+  }
+
+  private currentStageStatus(
+    run: AgentRun,
+    phase: ProductionRunMetadata["phase"],
+  ): ProductionWorkflowStageStatus {
+    if (
+      run.status === "queued" ||
+      run.status === "running" ||
+      run.status === "failed" ||
+      run.status === "cancelled"
+    ) {
+      return run.status;
+    }
+    if (run.status === "waiting_approval") return "awaiting_approval";
+    if (phase === "workflow_completed") return "completed";
+    if (
+      phase === "awaiting_approval" ||
+      phase === "ready_for_next" ||
+      phase === "needs_revision" ||
+      phase === "failed"
+    ) {
+      return phase;
+    }
+    return "running";
+  }
+
+  private projectStages(
+    pack: ProductionPack,
+    input: {
+      currentStageIndex: number;
+      currentStatus: ProductionWorkflowStageStatus;
+      completedStageIds: string[];
+      outputs: ProductionWorkflowProjection["outputs"];
+    },
+  ): ProductionWorkflowProjection["stages"] {
+    const completed = new Set(input.completedStageIds);
+    return pack.stages.map((stage, index) => ({
+      id: stage.id,
+      title: stage.title,
+      index,
+      ...(stage.handoffSummary ? { summary: stage.handoffSummary } : {}),
+      status:
+        index === input.currentStageIndex
+          ? input.currentStatus
+          : completed.has(stage.id)
+            ? "completed"
+            : "upcoming",
+      outputs: stage.outputs.map((output) => ({
+        id: output.id,
+        required: output.required,
+        kinds: [...output.kinds],
+        artifacts: input.outputs[output.id] ?? [],
+      })),
+    }));
   }
 
   private async stageExecution(

@@ -238,7 +238,7 @@ Expected: focused tests pass; no `scheduleRun` files are staged.
 - Create: `src/components/studio/workflow/WorkflowRunNotice.tsx`
 - Modify: `src/components/studio/ChatThread.tsx`
 
-- [ ] **Step 1: Write failing persistence and mapping tests**
+- [x] **Step 1: Write failing persistence and mapping tests**
 
 Assert a Workflow turn persists canonical prompt text together with public presentation metadata and that `toUiMessages` preserves it; assert ordinary messages remain unchanged.
 
@@ -261,7 +261,7 @@ expect(toUiMessages([userMessage])[0].presentation).toEqual(
 );
 ```
 
-- [ ] **Step 2: Run tests and verify presentation is dropped**
+- [x] **Step 2: Run tests and verify presentation is dropped**
 
 Run:
 
@@ -271,7 +271,7 @@ npx vitest run src/lib/agent/runtime.workflow.test.ts src/lib/agent/executor/cod
 
 Expected: failures identify the missing `presentation` contract and mapping.
 
-- [ ] **Step 3: Add the message contract and execution intent**
+- [x] **Step 3: Add the message contract and execution intent**
 
 Add a discriminated presentation field and persist execution intent as `stage_start`, `revision_start`, or `retry_start`. Legacy production metadata without an intent must parse and derive `stage_start` for iteration zero and `revision_start` for later iterations.
 
@@ -296,15 +296,15 @@ export interface Message {
 }
 ```
 
-- [ ] **Step 4: Derive presentation only on the server**
+- [x] **Step 4: Derive presentation only on the server**
 
 Extend the Workflow execution context returned by `workflow-execution.ts` with the public fields needed by the executor. The coordinator forwards that context; both Studio runtime and Codex executor attach the resulting `Message.presentation` to the persisted user message. No browser request may supply these fields.
 
-- [ ] **Step 5: Render a compact execution notice**
+- [x] **Step 5: Render a compact execution notice**
 
 `WorkflowRunNotice` receives only `WorkflowMessagePresentation` and renders an icon, stage title, iteration/retry label, and accessible text. `ChatThread` checks `message.presentation?.kind === "workflow_run"` before the ordinary user-bubble branch; canonical content is not rendered in that branch.
 
-- [ ] **Step 6: Run focused tests and commit**
+- [x] **Step 6: Run focused tests and commit**
 
 Run:
 

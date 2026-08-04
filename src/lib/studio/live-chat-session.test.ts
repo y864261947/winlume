@@ -39,7 +39,6 @@ describe("live-chat-session seed reconcile", () => {
     ]);
     // Mark as streaming via direct mutation through stop would clear it —
     // seed checks snapshot.streaming OR controller. Simulate streaming flag:
-    const snap = getLiveChatSnapshot(sessionId);
     // force streaming through setMessages already has streaming:true on msg;
     // seedLiveChatFromServer also checks m.streaming on messages via shouldPrefer
     seedLiveChatFromServer(sessionId, [
@@ -71,6 +70,37 @@ describe("live-chat-session seed reconcile", () => {
     ]);
     const after = getLiveChatSnapshot(sessionId);
     expect(after.messages.map((m) => m.id)).toEqual(["srv-u", "srv-a"]);
+  });
+
+  it("preserves Workflow presentation metadata when seeding server history", () => {
+    const sessionId = `${sid}-workflow-presentation`;
+    seedLiveChatFromServer(sessionId, [
+      {
+        ...serverMsg({
+          id: "workflow-run-1",
+          role: "user",
+          content: "canonical Workflow prompt",
+        }),
+        presentation: {
+          kind: "workflow_run",
+          workflowId: "workflow-1",
+          runId: "run-1",
+          stageId: "intake",
+          stageTitle: "需求澄清",
+          iteration: 0,
+          intent: "stage_start",
+        },
+      },
+    ]);
+
+    expect(getLiveChatSnapshot(sessionId).messages[0]).toMatchObject({
+      content: "canonical Workflow prompt",
+      presentation: {
+        kind: "workflow_run",
+        stageTitle: "需求澄清",
+        intent: "stage_start",
+      },
+    });
   });
 
   it("keeps richer live assistant when server lags", () => {

@@ -7,7 +7,13 @@
  * to the conversation rehydrates the in-flight (or just-finished) turn.
  */
 
-import type { AgentSseEvent, ArtifactKind, Message, Role } from "@/lib/agent/types";
+import type {
+  AgentSseEvent,
+  ArtifactKind,
+  Message,
+  Role,
+  WorkflowMessagePresentation,
+} from "@/lib/agent/types";
 import {
   createExecutionMap,
   reduceExecutionMap,
@@ -33,6 +39,7 @@ export type UiChatMessage = {
   id: string;
   role: Role;
   content: string;
+  presentation?: WorkflowMessagePresentation;
   streaming?: boolean;
   thinking?: string;
   toolCalls?: UiToolCall[];
@@ -163,6 +170,7 @@ export function toUiMessages(messages: Message[]): UiChatMessage[] {
       id: m.id,
       role: m.role,
       content: m.content,
+      ...(m.presentation ? { presentation: m.presentation } : {}),
       toolCalls: m.toolCalls?.map((tc) => {
         const result = resultByCallId.get(tc.id);
         return {

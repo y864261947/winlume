@@ -23,6 +23,25 @@ export type ProductionWorkflowPhase =
   | "workflow_completed"
   | "failed";
 
+export type ProductionWorkflowStageStatus =
+  | "ready"
+  | "queued"
+  | "running"
+  | "awaiting_approval"
+  | "ready_for_next"
+  | "needs_revision"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "upcoming";
+
+export type ProductionWorkflowArtifactRef = {
+  id: string;
+  name: string;
+  kind: ArtifactKind;
+  status?: "pending" | "ready" | "failed";
+};
+
 export interface ProductionWorkflowProjection {
   workflowId: string;
   pack: ProductionPackMeta;
@@ -32,6 +51,19 @@ export interface ProductionWorkflowProjection {
     index: number;
     total: number;
   };
+  stages: Array<{
+    id: string;
+    title: string;
+    index: number;
+    summary?: string;
+    status: ProductionWorkflowStageStatus;
+    outputs: Array<{
+      id: string;
+      required: boolean;
+      kinds: ArtifactKind[];
+      artifacts: ProductionWorkflowArtifactRef[];
+    }>;
+  }>;
   run?: {
     id: string;
     status:
@@ -48,12 +80,7 @@ export interface ProductionWorkflowProjection {
   };
   outputs: Record<
     string,
-    Array<{
-      id: string;
-      name: string;
-      kind: ArtifactKind;
-      status?: "pending" | "ready" | "failed";
-    }>
+    ProductionWorkflowArtifactRef[]
   >;
   review?: {
     status: "pending" | "approved" | "changes_requested";

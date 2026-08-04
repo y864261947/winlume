@@ -66,6 +66,9 @@ export const productionRunMetadataSchema = z
         stageId: idSchema,
         stageIndex: z.number().int().min(0).max(19),
         iteration: z.number().int().min(0).max(20),
+        intent: z
+          .enum(["stage_start", "revision_start", "retry_start"])
+          .optional(),
         predecessorRunId: z.string().trim().min(1).max(160).optional(),
         skillIds: z.array(idSchema).min(1).max(8),
         allowedTools: z.array(idSchema).max(12),
@@ -174,6 +177,7 @@ export function prepareFirstProductionStage(
       stageId: firstStage.id,
       stageIndex: 0,
       iteration: 0,
+      intent: "stage_start",
       skillIds: firstStage.skillIds,
       allowedTools: firstStage.allowedTools,
     },
@@ -381,6 +385,7 @@ export function prepareProductionRevision(
     execution: {
       ...state.execution,
       iteration,
+      intent: "revision_start",
       predecessorRunId: input.predecessorRunId,
       skillIds: stage.skillIds,
       allowedTools: state.execution.allowedTools,
@@ -434,6 +439,7 @@ export function prepareProductionRetry(
     execution: {
       ...state.execution,
       iteration,
+      intent: "retry_start",
       predecessorRunId: input.predecessorRunId,
       skillIds: stage.skillIds,
       allowedTools: stage.allowedTools,
@@ -493,6 +499,7 @@ export function prepareNextProductionStage(
       stageId: stage.id,
       stageIndex,
       iteration: 0,
+      intent: "stage_start",
       predecessorRunId: input.predecessorRunId,
       skillIds: stage.skillIds,
       allowedTools: stage.allowedTools,

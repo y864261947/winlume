@@ -55,11 +55,28 @@ export interface ToolCallRecord {
   result?: string;
 }
 
+export type WorkflowRunIntent =
+  | "stage_start"
+  | "revision_start"
+  | "retry_start";
+
+export interface WorkflowMessagePresentation {
+  kind: "workflow_run";
+  workflowId: string;
+  runId: string;
+  stageId: string;
+  stageTitle: string;
+  iteration: number;
+  intent: WorkflowRunIntent;
+}
+
 export interface Message {
   id: string;
   sessionId: string;
   role: Role;
   content: string;
+  /** Public display metadata; canonical content remains model-visible. */
+  presentation?: WorkflowMessagePresentation;
   skillIds?: string[];
   toolCalls?: ToolCallRecord[];
   /** For role "tool": links to the assistant tool_call id */
@@ -122,6 +139,8 @@ export interface WorkflowExecutionContext {
   workflowId: string;
   runId: string;
   stageId: string;
+  /** Present for server-authored Workflow turns; omitted by legacy test fixtures. */
+  presentation?: WorkflowMessagePresentation;
   outputs: WorkflowArtifactOutputContract[];
 }
 

@@ -64,6 +64,15 @@ describe("Workflow runtime", () => {
         workflowId: "workflow-1",
         runId: "run-1",
         stageId: "intake",
+        presentation: {
+          kind: "workflow_run",
+          workflowId: "workflow-1",
+          runId: "run-1",
+          stageId: "intake",
+          stageTitle: "需求澄清",
+          iteration: 0,
+          intent: "stage_start",
+        },
         outputs: [
           { id: "brief", kinds: ["markdown"], required: true },
           { id: "summary", kinds: ["markdown"], required: false },
@@ -87,6 +96,20 @@ describe("Workflow runtime", () => {
       runId: "run-1",
       stageId: "intake",
       outputId: "brief",
+    });
+    const messages = await store.sessions.listMessages("user-1", "session-1");
+    expect(messages[0]).toMatchObject({
+      role: "user",
+      content: "生成工作简报",
+      presentation: {
+        kind: "workflow_run",
+        workflowId: "workflow-1",
+        runId: "run-1",
+        stageId: "intake",
+        stageTitle: "需求澄清",
+        iteration: 0,
+        intent: "stage_start",
+      },
     });
   });
 });

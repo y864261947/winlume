@@ -376,6 +376,9 @@ export async function* runAgentTurn(
     sessionId,
     role: "user",
     content: userText,
+    ...(opts.workflow?.presentation
+      ? { presentation: opts.workflow.presentation }
+      : {}),
     ...(opts.skillIds?.length ? { skillIds: opts.skillIds } : {}),
     createdAt: nowIso(),
   };

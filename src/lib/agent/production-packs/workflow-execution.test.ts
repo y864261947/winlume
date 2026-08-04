@@ -73,6 +73,42 @@ describe("ProductionWorkflowExecution", () => {
     directories.length = 0;
   });
 
+  it("projects the first Stage as ready before any Run exists", async () => {
+    const root = mkdtempSync(join(tmpdir(), "winlume-workflow-execution-"));
+    directories.push(root);
+    const host = createWebFileStore(root);
+    const binding = createWorkflowSessionBinding(
+      pack,
+      { topic: "夏季新品" },
+      { workflowId: "workflow-ready" },
+    );
+    await host.sessions.createSession({
+      id: "session-ready",
+      userId: "user-1",
+      title: "Workflow",
+      model: "gpt-4o-mini",
+      workflow: binding,
+    });
+    const workflow = new ProductionWorkflowExecution({
+      runs: createMemoryRunStore(),
+      sessions: host.sessions,
+      artifacts: host.artifacts,
+      getPack: async () => null,
+    });
+
+    await expect(
+      workflow.getProjection("user-1", "session-ready"),
+    ).resolves.toMatchObject({
+      currentStage: { id: "intake", index: 0, total: 2 },
+      stages: [
+        { id: "intake", status: "ready", outputs: [{ id: "brief" }] },
+        { id: "draft", status: "upcoming" },
+      ],
+      outputs: {},
+      actions: ["start"],
+    });
+  });
+
   it("atomically completes a Run after a concurrent infrastructure revision", async () => {
     const root = mkdtempSync(join(tmpdir(), "winlume-workflow-execution-"));
     directories.push(root);
@@ -144,6 +180,22 @@ describe("ProductionWorkflowExecution", () => {
       sessions: host.sessions,
       artifacts: host.artifacts,
       getPack: async (id) => (id === pack.id ? pack : null),
+    });
+    const active = await runs.getRun("run-1");
+    expect(active).not.toBeNull();
+    await expect(workflow.executionContext(active!)).resolves.toMatchObject({
+      workflowId: "workflow-1",
+      runId: "run-1",
+      stageId: "intake",
+      presentation: {
+        kind: "workflow_run",
+        workflowId: "workflow-1",
+        runId: "run-1",
+        stageId: "intake",
+        stageTitle: "需求澄清",
+        iteration: 0,
+        intent: "stage_start",
+      },
     });
     const completed = await workflow.completeRun("run-1");
 
@@ -225,7 +277,17 @@ describe("ProductionWorkflowExecution", () => {
 
     await expect(
       workflow.getProjection("user-1", "session-actions"),
-    ).resolves.toMatchObject({ actions: ["stop"] });
+    ).resolves.toMatchObject({
+      stages: [
+        {
+          id: "intake",
+          status: "queued",
+          outputs: [{ id: "brief", artifacts: [] }],
+        },
+        { id: "draft", status: "upcoming" },
+      ],
+      actions: ["stop"],
+    });
 
     await runs.transitionRun(created.run.id, "running");
     await expect(
@@ -678,6 +740,31 @@ describe("ProductionWorkflowExecution", () => {
           },
         ],
       },
+      stages: [
+        {
+          id: "intake",
+          title: "需求澄清",
+          status: "completed",
+          outputs: [
+            {
+              id: "brief",
+              artifacts: [
+                {
+                  id: "artifact-brief-next",
+                  name: "工作简报",
+                  kind: "markdown",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "draft",
+          title: "内容成稿",
+          status: "queued",
+          outputs: [{ id: "draft", artifacts: [] }],
+        },
+      ],
       actions: ["stop"],
     });
     expect(projection).not.toHaveProperty("metadata");
