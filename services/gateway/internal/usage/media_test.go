@@ -28,6 +28,16 @@ func TestImageNormalizesTokenUsageAndOneQualifiedCall(t *testing.T) {
 	require.True(t, actual.Complete)
 }
 
+func TestMediaJSONRejectsTrailingJSON(t *testing.T) {
+	observer, err := NewRegistry().New("images", "application/json", Estimate{Model: "gpt-image-1", Protocol: "images"})
+	require.NoError(t, err)
+	require.NoError(t, observer.Observe([]byte(`{"data":[{}]} {"ignored":true}`)))
+
+	actual, completeErr := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.Error(t, completeErr)
+	require.False(t, actual.Complete)
+}
+
 func TestImageWithoutTokenUsageUsesOneBillableUnit(t *testing.T) {
 	payload, err := os.ReadFile(filepath.Join("..", "..", "testdata", "usage", "openai", "image-without-usage.json"))
 	require.NoError(t, err)

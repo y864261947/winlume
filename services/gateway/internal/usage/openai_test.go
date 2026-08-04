@@ -2,8 +2,11 @@ package usage
 
 import (
 	"encoding/json"
+	"errors"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -38,6 +41,16 @@ func TestOpenAIJSONNormalizesUsageDetails(t *testing.T) {
 	require.Equal(t, "json.eof", actual.TerminalEvent)
 }
 
+func TestOpenAIJSONRejectsTrailingJSON(t *testing.T) {
+	observer, err := NewRegistry().New("openai", "application/json", Estimate{Model: "gpt-4o-mini", Protocol: "openai"})
+	require.NoError(t, err)
+	require.NoError(t, observer.Observe([]byte(`{"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}} {"ignored":true}`)))
+
+	actual, completeErr := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.Error(t, completeErr)
+	require.False(t, actual.Complete)
+}
+
 func TestOpenAILeavesInputTextUnsplitWhenTotalExcludesInputCategories(t *testing.T) {
 	actual, err := normalizeOpenAIUsage(map[string]any{
 		"prompt_tokens":     json.Number("40"),
@@ -56,6 +69,58 @@ func TestOpenAILeavesInputTextUnsplitWhenTotalExcludesInputCategories(t *testing
 	require.Equal(t, int64(10), actual.CacheReadTokens)
 	require.Equal(t, int64(4), actual.ImageInputTokens)
 	require.Equal(t, int64(2), actual.AudioInputTokens)
+}
+
+func TestOpenAIUsageRejectsOverflowingInputDetailCategories(t *testing.T) {
+	max := json.Number(strconv.FormatInt(math.MaxInt64, 10))
+	_, err := normalizeOpenAIUsage(map[string]any{
+		"prompt_tokens":     max,
+		"completion_tokens": json.Number("0"),
+		"prompt_tokens_details": map[string]any{
+			"cached_tokens": max,
+			"image_tokens":  json.Number("1"),
+		},
+	}, "openai", Estimate{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "input detail categories")
+}
+
+func TestOpenAIUsageRejectsInputDetailsGreaterThanPromptTokens(t *testing.T) {
+	_, err := normalizeOpenAIUsage(map[string]any{
+		"prompt_tokens":     json.Number("10"),
+		"completion_tokens": json.Number("0"),
+		"prompt_tokens_details": map[string]any{
+			"cached_tokens": json.Number("3"),
+			"text_tokens":   json.Number("8"),
+		},
+	}, "openai", Estimate{})
+	require.EqualError(t, err, "OpenAI usage input detail tokens exceed prompt_tokens")
+}
+
+func TestOpenAIUsageRejectsOutputDetailsGreaterThanCompletionTokens(t *testing.T) {
+	_, err := normalizeOpenAIUsage(map[string]any{
+		"prompt_tokens":     json.Number("0"),
+		"completion_tokens": json.Number("10"),
+		"completion_tokens_details": map[string]any{
+			"reasoning_tokens": json.Number("3"),
+			"text_tokens":      json.Number("8"),
+		},
+	}, "openai", Estimate{})
+	require.EqualError(t, err, "OpenAI usage output detail tokens exceed completion_tokens")
+}
+
+func TestOpenAIUsageRejectsOverflowingOutputDetailCategories(t *testing.T) {
+	max := json.Number(strconv.FormatInt(math.MaxInt64, 10))
+	_, err := normalizeOpenAIUsage(map[string]any{
+		"prompt_tokens":     json.Number("0"),
+		"completion_tokens": max,
+		"completion_tokens_details": map[string]any{
+			"reasoning_tokens": max,
+			"image_tokens":     json.Number("1"),
+		},
+	}, "openai", Estimate{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "output detail categories")
 }
 
 func TestOpenAIRejectsInvalidProviderCosts(t *testing.T) {
@@ -114,6 +179,34 @@ func TestOpenAISSEWithoutUsageCountsOutputLocally(t *testing.T) {
 	require.True(t, actual.Complete)
 }
 
+func TestOpenAISSECountsDistinctToolCallsAndDeduplicatesArguments(t *testing.T) {
+	observer, err := NewRegistry().New("openai", "text/event-stream", Estimate{PromptTokens: 17, Model: "gpt-4o-mini", Protocol: "openai"})
+	require.NoError(t, err)
+	payload := []byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_a\",\"function\":{\"name\":\"alpha\",\"arguments\":\"{\\\"a\\\":\"}}]}},{\"index\":1,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_b\",\"function\":{\"name\":\"beta\",\"arguments\":\"{\\\"b\\\":1}\"}}]}}]}\n\n" +
+		"data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"1}\"}}]}},{\"index\":1,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"b\\\":1}\"}}]}}]}\n\n" +
+		"data: [DONE]\n\n")
+	require.NoError(t, observer.Observe(payload))
+
+	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.NoError(t, err)
+	want := countText(`alpha{"a":1}beta{"b":1}`, "gpt-4o-mini") + 2*7
+	require.Equal(t, want, actual.TextOutputTokens)
+	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
+	require.True(t, actual.Complete)
+}
+
+func TestOpenAIJSONCountsRepeatedToolCallOnce(t *testing.T) {
+	observer, err := NewRegistry().New("openai", "application/json", Estimate{Model: "gpt-4o-mini", Protocol: "openai"})
+	require.NoError(t, err)
+	require.NoError(t, observer.Observe([]byte(`{"choices":[{"index":0,"message":{"tool_calls":[{"index":0,"id":"call_a","function":{"name":"lookup","arguments":"{\"city\":\"Paris\"}"}},{"index":0,"id":"call_a","function":{"name":"lookup","arguments":"{\"city\":\"Paris\"}"}}]}}]}`)))
+
+	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.NoError(t, err)
+	want := countText(`lookup{"city":"Paris"}`, "gpt-4o-mini") + 7
+	require.Equal(t, want, actual.TextOutputTokens)
+	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
+}
+
 func TestResponsesJSONUsesResponsesAliasesWithoutDoubleCounting(t *testing.T) {
 	payload, err := os.ReadFile(filepath.Join("..", "..", "testdata", "usage", "openai", "responses.json"))
 	require.NoError(t, err)
@@ -164,6 +257,28 @@ func TestResponsesJSONIncompleteStatusRemainsIncomplete(t *testing.T) {
 	require.Equal(t, "response.incomplete", actual.TerminalEvent)
 }
 
+func TestResponsesJSONTransportFailuresOverrideCompletedStatus(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		completion Completion
+		terminal   string
+	}{
+		{name: "client disconnected", completion: Completion{StatusCode: 200, EOF: true, ClientDisconnected: true}, terminal: "client_disconnected"},
+		{name: "relay error", completion: Completion{StatusCode: 200, EOF: true, Err: errors.New("relay write failed")}, terminal: "relay_error"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			observer, err := NewRegistry().New("responses", "application/json", Estimate{Model: "gpt-4o-mini", Protocol: "responses"})
+			require.NoError(t, err)
+			require.NoError(t, observer.Observe([]byte(`{"status":"completed","usage":{"input_tokens":3,"output_tokens":1,"total_tokens":4}}`)))
+
+			actual, completeErr := observer.Complete(test.completion)
+			require.NoError(t, completeErr)
+			require.False(t, actual.Complete)
+			require.Equal(t, test.terminal, actual.TerminalEvent)
+		})
+	}
+}
+
 func TestResponsesSSEReadsCompletedUsageAndTerminalEvent(t *testing.T) {
 	payload, err := os.ReadFile(filepath.Join("..", "..", "testdata", "usage", "openai", "responses-terminal.sse"))
 	require.NoError(t, err)
@@ -183,6 +298,55 @@ func TestResponsesSSEReadsCompletedUsageAndTerminalEvent(t *testing.T) {
 	require.Equal(t, int64(4), actual.ReasoningTokens)
 	require.True(t, actual.Complete)
 	require.Equal(t, "response.completed", actual.TerminalEvent)
+}
+
+func TestResponsesSSEIncompleteAndFailedEventsRemainIncomplete(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		typeName string
+	}{
+		{name: "incomplete", typeName: "response.incomplete"},
+		{name: "failed", typeName: "response.failed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			observer, err := NewRegistry().New("responses", "text/event-stream", Estimate{Model: "gpt-4o-mini", Protocol: "responses"})
+			require.NoError(t, err)
+			payload := []byte("event: " + test.typeName + "\n" +
+				"data: {\"type\":\"" + test.typeName + "\",\"response\":{\"id\":\"resp_terminal\",\"status\":\"" + test.name + "\",\"usage\":{\"input_tokens\":9,\"output_tokens\":2,\"total_tokens\":11}}}\n\n")
+			require.NoError(t, observer.Observe(payload))
+
+			actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+			require.NoError(t, err)
+			require.Equal(t, int64(9), actual.TextInputTokens)
+			require.Equal(t, int64(2), actual.TextOutputTokens)
+			require.False(t, actual.Complete)
+			require.Equal(t, test.typeName, actual.TerminalEvent)
+		})
+	}
+}
+
+func TestResponsesSSETransportFailuresOverrideProviderTerminal(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		completion Completion
+		terminal   string
+	}{
+		{name: "client disconnected", completion: Completion{StatusCode: 200, EOF: true, ClientDisconnected: true}, terminal: "client_disconnected"},
+		{name: "relay error", completion: Completion{StatusCode: 200, EOF: true, Err: errors.New("relay write failed")}, terminal: "relay_error"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			observer, err := NewRegistry().New("responses", "text/event-stream", Estimate{Model: "gpt-4o-mini", Protocol: "responses"})
+			require.NoError(t, err)
+			require.NoError(t, observer.Observe([]byte("event: response.incomplete\n"+
+				"data: {\"type\":\"response.incomplete\",\"response\":{\"status\":\"incomplete\",\"usage\":{\"input_tokens\":5,\"output_tokens\":1,\"total_tokens\":6}}}\n\n")))
+
+			actual, completeErr := observer.Complete(test.completion)
+			require.NoError(t, completeErr)
+			require.Equal(t, int64(5), actual.TextInputTokens)
+			require.False(t, actual.Complete)
+			require.Equal(t, test.terminal, actual.TerminalEvent)
+		})
+	}
 }
 
 func TestResponsesSSEDoneWithoutCompletedRemainsIncomplete(t *testing.T) {
@@ -209,6 +373,18 @@ func TestResponsesSSECompletedBeforeDoneRemainsComplete(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, actual.Complete)
 	require.Equal(t, "response.completed", actual.TerminalEvent)
+}
+
+func TestResponsesSSECompletedEventWithIncompleteResponseRemainsIncomplete(t *testing.T) {
+	observer, err := NewRegistry().New("responses", "text/event-stream", Estimate{Model: "gpt-4o-mini", Protocol: "responses"})
+	require.NoError(t, err)
+	require.NoError(t, observer.Observe([]byte("event: response.completed\n"+
+		"data: {\"type\":\"response.completed\",\"response\":{\"status\":\"incomplete\",\"usage\":{\"input_tokens\":3,\"output_tokens\":1,\"total_tokens\":4}}}\n\n")))
+
+	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.NoError(t, err)
+	require.False(t, actual.Complete)
+	require.Equal(t, "response.incomplete", actual.TerminalEvent)
 }
 
 func TestResponsesSSEWithoutUsageCountsTextAndToolArgumentsLocally(t *testing.T) {
@@ -334,6 +510,16 @@ func TestOpenAIMalformedSSEReturnsPartialUsageWithoutCompleting(t *testing.T) {
 	require.Equal(t, "malformed_sse", actual.TerminalEvent)
 }
 
+func TestOpenAISSERejectsTrailingJSON(t *testing.T) {
+	observer, err := NewRegistry().New("openai", "text/event-stream", Estimate{Model: "gpt-4o-mini", Protocol: "openai"})
+	require.NoError(t, err)
+	require.ErrorIs(t, observer.Observe([]byte("data: {\"choices\":[]} {\"ignored\":true}\n\n")), ErrMalformedSSE)
+
+	actual, completeErr := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.ErrorIs(t, completeErr, ErrMalformedSSE)
+	require.False(t, actual.Complete)
+}
+
 func TestOpenAIRejectsSSEEventsLargerThanBound(t *testing.T) {
 	observer, err := NewRegistry().New("openai", "text/event-stream", Estimate{Model: "gpt-4o-mini", Protocol: "openai"})
 	require.NoError(t, err)
@@ -352,6 +538,19 @@ func TestOpenAIRejectsSSEEventsWithLargeEventField(t *testing.T) {
 	require.ErrorIs(t, observer.Observe(payload), ErrSSEEventTooLarge)
 }
 
+func TestOpenAISSEStopsRetainingFallbackAfterCumulativeLimit(t *testing.T) {
+	registry := NewRegistryWithLimits(Limits{MaxFallbackBytes: 10})
+	observer, err := registry.New("openai", "text/event-stream", Estimate{Model: "gpt-4o-mini", Protocol: "openai"})
+	require.NoError(t, err)
+	require.NoError(t, observer.Observe([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"first\"}}]}\n\n")))
+	require.ErrorIs(t, observer.Observe([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"second\"}}]}\n\n")), ErrObservationLimitExceeded)
+
+	actual, completeErr := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.ErrorIs(t, completeErr, ErrObservationLimitExceeded)
+	require.False(t, actual.Complete)
+	require.Equal(t, "observation_limit_exceeded", actual.TerminalEvent)
+}
+
 func TestOpenAIJSONSpillsLargeResponseBeforeNormalization(t *testing.T) {
 	payload := []byte(`{"choices":[{"message":{"content":"ok"}}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5},"padding":"` + strings.Repeat("x", 1024*1024) + `"}`)
 	observer, err := NewRegistry().New("openai", "application/json", Estimate{Model: "gpt-4o-mini", Protocol: "openai"})
@@ -365,6 +564,22 @@ func TestOpenAIJSONSpillsLargeResponseBeforeNormalization(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(3), actual.TextInputTokens)
 	require.Equal(t, int64(2), actual.TextOutputTokens)
+	require.NoFileExists(t, spillPath)
+}
+
+func TestOpenAICompleteCleansSpillAfterOpenFailure(t *testing.T) {
+	registry := NewRegistryWithLimits(Limits{MaxResponseBytes: 1_024, SpillThresholdBytes: 1})
+	observer, err := registry.New("openai", "application/json", Estimate{Model: "gpt-4o-mini", Protocol: "openai"})
+	require.NoError(t, err)
+	require.NoError(t, observer.Observe([]byte(`{"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`)))
+
+	openAI := observer.(*openAIObserver)
+	spillPath := openAI.body.path
+	require.NotEmpty(t, spillPath)
+	require.NoError(t, openAI.body.file.Close())
+
+	_, err = observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.Error(t, err)
 	require.NoFileExists(t, spillPath)
 }
 

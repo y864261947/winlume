@@ -3,7 +3,6 @@ package usage
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -23,22 +22,33 @@ type mediaObserver struct {
 	kind        mediaKind
 	contentType string
 	estimate    Estimate
+	limits      Limits
 	body        *responseStore
+	finalized   bool
 	mu          sync.Mutex
 }
 
 func newMediaObserver(kind mediaKind, contentType string, estimate Estimate) *mediaObserver {
+	return newMediaObserverWithLimits(kind, contentType, estimate, DefaultLimits())
+}
+
+func newMediaObserverWithLimits(kind mediaKind, contentType string, estimate Estimate, limits Limits) *mediaObserver {
+	limits = normalizeLimits(limits)
 	return &mediaObserver{
 		kind:        kind,
 		contentType: contentType,
 		estimate:    estimate,
-		body:        newResponseStore(),
+		limits:      limits,
+		body:        newResponseStoreWithLimits(limits),
 	}
 }
 
 func (observer *mediaObserver) Observe(chunk []byte) error {
 	observer.mu.Lock()
 	defer observer.mu.Unlock()
+	if observer.finalized {
+		return ErrObserverFinalized
+	}
 	_, err := observer.body.Write(chunk)
 	return err
 }
@@ -46,12 +56,24 @@ func (observer *mediaObserver) Observe(chunk []byte) error {
 func (observer *mediaObserver) Complete(completion Completion) (Canonical, error) {
 	observer.mu.Lock()
 	defer observer.mu.Unlock()
+	if observer.finalized {
+		return Canonical{Fields: make(map[string]Provenance)}, ErrObserverFinalized
+	}
+	observer.finalized = true
+	defer observer.body.Close()
+	if terminal := incompleteCompletionTerminal(completion); terminal != "" {
+		result, _ := normalizeOpenAIUsage(nil, "responses", observer.estimate)
+		result.TerminalEvent = terminal
+		return result, nil
+	}
+	if err := observer.body.ObservationError(); err != nil {
+		return Canonical{Fields: make(map[string]Provenance), TerminalEvent: "observation_limit_exceeded"}, err
+	}
 
 	body, err := observer.body.Open()
 	if err != nil {
 		return Canonical{Fields: make(map[string]Provenance)}, err
 	}
-	defer observer.body.Close()
 	defer body.Close()
 
 	var result Canonical
@@ -172,13 +194,8 @@ func normalizeSpeechResponse(reader io.Reader, bodySize int64, contentType strin
 }
 
 func decodeMediaObject(reader io.Reader) (map[string]any, error) {
-	decoder := json.NewDecoder(reader)
-	decoder.UseNumber()
-	var response map[string]any
-	if err := decoder.Decode(&response); err != nil || response == nil {
-		if err == nil {
-			err = fmt.Errorf("response must be a JSON object")
-		}
+	response, err := decodeStrictJSONObject(reader)
+	if err != nil {
 		return nil, fmt.Errorf("decode media response: %w", err)
 	}
 	return response, nil
@@ -239,22 +256,12 @@ func normalizedCallPart(value, fallback string) string {
 }
 
 func finishMediaCompletion(result *Canonical, completion Completion, terminal string) {
-	if completion.ClientDisconnected {
-		result.TerminalEvent = "client_disconnected"
+	if incompleteTerminal := incompleteCompletionTerminal(completion); incompleteTerminal != "" {
+		result.TerminalEvent = incompleteTerminal
 		return
 	}
-	if completion.Err != nil {
-		result.TerminalEvent = "relay_error"
-		return
-	}
-	if completion.EOF && isSuccessStatus(completion.StatusCode) {
-		result.Complete = true
-		result.TerminalEvent = terminal
-		return
-	}
-	if completion.EOF {
-		result.TerminalEvent = "eof_without_success"
-	}
+	result.Complete = true
+	result.TerminalEvent = terminal
 }
 
 func speechDurationMilliseconds(reader io.Reader, bodySize int64, contentType string) (int64, bool) {

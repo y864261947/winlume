@@ -3,7 +3,9 @@ package usage
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 
@@ -13,6 +15,7 @@ import (
 type openAIObserver struct {
 	protocol         string
 	estimate         Estimate
+	limits           Limits
 	stream           bool
 	body             *responseStore
 	sse              sseDecoder
@@ -23,7 +26,11 @@ type openAIObserver struct {
 	localText        strings.Builder
 	responseParts    []responseStreamPart
 	responseArgParts map[string]int
-	toolCount        int64
+	chatTools        map[string]*chatToolCall
+	chatToolAliases  map[string]string
+	chatToolOrder    []string
+	fallbackBytes    int64
+	finalized        bool
 	mu               sync.Mutex
 }
 
@@ -32,14 +39,35 @@ type responseStreamPart struct {
 	done bool
 }
 
+type chatToolCall struct {
+	name              string
+	arguments         string
+	seenArgumentChunk map[string]struct{}
+}
+
 func newOpenAIObserver(protocol string, contentType string, estimate Estimate) *openAIObserver {
-	return &openAIObserver{protocol: protocol, estimate: estimate, stream: isSSEContentType(contentType), body: newResponseStore()}
+	return newOpenAIObserverWithLimits(protocol, contentType, estimate, DefaultLimits())
+}
+
+func newOpenAIObserverWithLimits(protocol string, contentType string, estimate Estimate, limits Limits) *openAIObserver {
+	limits = normalizeLimits(limits)
+	return &openAIObserver{
+		protocol: protocol,
+		estimate: estimate,
+		limits:   limits,
+		stream:   isSSEContentType(contentType),
+		body:     newResponseStoreWithLimits(limits),
+		sse:      sseDecoder{maxEventBytes: limits.MaxEventBytes},
+	}
 }
 
 func (observer *openAIObserver) Observe(chunk []byte) error {
 	observer.mu.Lock()
 	defer observer.mu.Unlock()
 
+	if observer.finalized {
+		return ErrObserverFinalized
+	}
 	if observer.observeErr != nil {
 		return observer.observeErr
 	}
@@ -57,29 +85,37 @@ func (observer *openAIObserver) Observe(chunk []byte) error {
 func (observer *openAIObserver) Complete(completion Completion) (Canonical, error) {
 	observer.mu.Lock()
 	defer observer.mu.Unlock()
+	if observer.finalized {
+		return Canonical{Fields: make(map[string]Provenance)}, ErrObserverFinalized
+	}
+	observer.finalized = true
+	defer observer.body.Close()
 
 	if observer.stream {
 		return observer.completeSSE(completion)
 	}
 	result := Canonical{Fields: make(map[string]Provenance)}
+	if terminal := incompleteCompletionTerminal(completion); terminal != "" {
+		result, _ = normalizeOpenAIUsage(nil, observer.protocol, observer.estimate)
+		result.TerminalEvent = terminal
+		return result, nil
+	}
+	if err := observer.body.ObservationError(); err != nil {
+		result.TerminalEvent = "observation_limit_exceeded"
+		return result, err
+	}
 	body, openErr := observer.body.Open()
 	if openErr != nil {
 		return result, openErr
 	}
-	defer observer.body.Close()
 	defer body.Close()
-	decoder := json.NewDecoder(body)
-	decoder.UseNumber()
-	var response map[string]any
-	if err := decoder.Decode(&response); err != nil || response == nil {
-		if err == nil {
-			err = fmt.Errorf("response must be a JSON object")
-		}
+	response, err := decodeStrictJSONObject(body)
+	if err != nil {
 		return result, fmt.Errorf("decode OpenAI response: %w", err)
 	}
 
 	usage, _ := objectValue(response["usage"])
-	result, err := normalizeOpenAIUsage(usage, observer.protocol, observer.estimate)
+	result, err = normalizeOpenAIUsage(usage, observer.protocol, observer.estimate)
 	if err != nil {
 		return result, err
 	}
@@ -100,19 +136,17 @@ func (observer *openAIObserver) Complete(completion Completion) (Canonical, erro
 			result.Fields["text_output_tokens"] = LocallyCounted
 		}
 	}
-	if completion.EOF && completion.Err == nil && !completion.ClientDisconnected && isSuccessStatus(completion.StatusCode) {
-		if observer.protocol == "responses" {
-			status, _ := response["status"].(string)
-			if status == "completed" {
-				result.Complete = true
-				result.TerminalEvent = "response.completed"
-			} else {
-				result.TerminalEvent = responseJSONTerminal(status)
-			}
-		} else {
+	if observer.protocol == "responses" {
+		status, _ := response["status"].(string)
+		if status == "completed" {
 			result.Complete = true
-			result.TerminalEvent = "json.eof"
+			result.TerminalEvent = "response.completed"
+		} else {
+			result.TerminalEvent = responseJSONTerminal(status)
 		}
+	} else {
+		result.Complete = true
+		result.TerminalEvent = "json.eof"
 	}
 	return result, nil
 }
@@ -128,7 +162,8 @@ func responseJSONTerminal(status string) string {
 func collectChatResponseOutput(response map[string]any) (string, int64) {
 	var text strings.Builder
 	var toolCount int64
-	for _, choiceValue := range arrayValue(response["choices"]) {
+	seenTools := make(map[string]struct{})
+	for choicePosition, choiceValue := range arrayValue(response["choices"]) {
 		choice, ok := objectValue(choiceValue)
 		if !ok {
 			continue
@@ -147,14 +182,21 @@ func collectChatResponseOutput(response map[string]any) (string, int64) {
 			}
 		}
 		calls := arrayValue(message["tool_calls"])
-		if int64(len(calls)) > toolCount {
-			toolCount = int64(len(calls))
-		}
-		for _, callValue := range calls {
+		for callPosition, callValue := range calls {
 			call, ok := objectValue(callValue)
 			if !ok {
 				continue
 			}
+			aliases := chatToolAliases(choice, choicePosition, call, callPosition)
+			if len(aliases) == 0 {
+				continue
+			}
+			canonical := aliases[0]
+			if _, exists := seenTools[canonical]; exists {
+				continue
+			}
+			seenTools[canonical] = struct{}{}
+			toolCount++
 			function, ok := objectValue(call["function"])
 			if !ok {
 				continue
@@ -225,10 +267,8 @@ func (observer *openAIObserver) observeSSEEvent(eventName string, data []byte) e
 		return nil
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	decoder.UseNumber()
-	var event map[string]any
-	if err := decoder.Decode(&event); err != nil || event == nil {
+	event, err := decodeStrictJSONObject(bytes.NewReader(payload))
+	if err != nil {
 		return ErrMalformedSSE
 	}
 	if usage, ok := objectValue(event["usage"]); ok {
@@ -241,41 +281,66 @@ func (observer *openAIObserver) observeSSEEvent(eventName string, data []byte) e
 		}
 		switch typeName {
 		case "response.output_text.delta":
-			observer.collectResponseString(event, "delta")
+			if err := observer.collectResponseString(event, "delta"); err != nil {
+				return err
+			}
 		case "response.function_call_arguments.delta":
-			observer.collectResponseArguments(event, "delta", false)
+			if err := observer.collectResponseArguments(event, "delta", false); err != nil {
+				return err
+			}
 		case "response.function_call_arguments.done":
-			observer.collectResponseArguments(event, "arguments", true)
-		case "response.completed":
+			if err := observer.collectResponseArguments(event, "arguments", true); err != nil {
+				return err
+			}
+		case "response.completed", "response.incomplete", "response.failed":
 			if response, ok := objectValue(event["response"]); ok {
 				observer.response = response
 				if usage, ok := objectValue(response["usage"]); ok {
 					observer.usage = usage
 				}
+				observer.terminal = responseSSETerminal(typeName, response)
+			} else {
+				observer.terminal = typeName
 			}
-			observer.terminal = "response.completed"
 		}
 	} else {
-		observer.collectChatOutput(event)
+		if err := observer.collectChatOutput(event); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (observer *openAIObserver) collectResponseString(event map[string]any, field string) {
-	if value, ok := event[field].(string); ok {
-		observer.responseParts = append(observer.responseParts, responseStreamPart{text: value})
+func responseSSETerminal(typeName string, response map[string]any) string {
+	if typeName != "response.completed" {
+		return typeName
+	}
+	status, _ := response["status"].(string)
+	switch status {
+	case "", "completed":
+		return "response.completed"
+	case "incomplete", "failed":
+		return "response." + status
+	default:
+		return "response.incomplete"
 	}
 }
 
-func (observer *openAIObserver) collectResponseArguments(event map[string]any, field string, done bool) {
+func (observer *openAIObserver) collectResponseString(event map[string]any, field string) error {
+	if value, ok := event[field].(string); ok {
+		return observer.appendResponsePart(value)
+	}
+	return nil
+}
+
+func (observer *openAIObserver) collectResponseArguments(event map[string]any, field string, done bool) error {
 	value, ok := event[field].(string)
 	if !ok {
-		return
+		return nil
 	}
 	key := responseArgumentKey(event)
 	if key == "" {
-		observer.responseParts = append(observer.responseParts, responseStreamPart{text: value, done: done})
-		return
+		return observer.appendResponsePart(value)
 	}
 	if observer.responseArgParts == nil {
 		observer.responseArgParts = make(map[string]int)
@@ -283,15 +348,27 @@ func (observer *openAIObserver) collectResponseArguments(event map[string]any, f
 	if index, exists := observer.responseArgParts[key]; exists {
 		part := &observer.responseParts[index]
 		if done {
-			part.text = value
+			if err := observer.replaceFallbackPart(part, value); err != nil {
+				return err
+			}
 			part.done = true
 		} else if !part.done {
+			if err := observer.reserveFallbackBytes(int64(len(value))); err != nil {
+				return err
+			}
 			part.text += value
 		}
-		return
+		return nil
+	}
+	if value == "" {
+		return nil
+	}
+	if err := observer.reserveFallbackBytes(int64(len(value))); err != nil {
+		return err
 	}
 	observer.responseArgParts[key] = len(observer.responseParts)
 	observer.responseParts = append(observer.responseParts, responseStreamPart{text: value, done: done})
+	return nil
 }
 
 func responseArgumentKey(event map[string]any) string {
@@ -312,6 +389,53 @@ func (observer *openAIObserver) responseStreamText() string {
 	return text.String()
 }
 
+func (observer *openAIObserver) appendResponsePart(value string) error {
+	if value == "" {
+		return nil
+	}
+	if err := observer.reserveFallbackBytes(int64(len(value))); err != nil {
+		return err
+	}
+	observer.responseParts = append(observer.responseParts, responseStreamPart{text: value})
+	return nil
+}
+
+func (observer *openAIObserver) appendChatText(value string) error {
+	if value == "" {
+		return nil
+	}
+	if err := observer.reserveFallbackBytes(int64(len(value))); err != nil {
+		return err
+	}
+	observer.localText.WriteString(value)
+	return nil
+}
+
+func (observer *openAIObserver) replaceFallbackPart(part *responseStreamPart, value string) error {
+	current := int64(len(part.text))
+	next := int64(len(value))
+	if next > current {
+		if err := observer.reserveFallbackBytes(next - current); err != nil {
+			return err
+		}
+	} else {
+		observer.fallbackBytes -= current - next
+	}
+	part.text = value
+	return nil
+}
+
+func (observer *openAIObserver) reserveFallbackBytes(size int64) error {
+	if size <= 0 {
+		return nil
+	}
+	if size > observer.limits.MaxFallbackBytes-observer.fallbackBytes {
+		return ErrObservationLimitExceeded
+	}
+	observer.fallbackBytes += size
+	return nil
+}
+
 func (observer *openAIObserver) completeSSE(completion Completion) (Canonical, error) {
 	result, err := normalizeOpenAIUsage(observer.usage, observer.protocol, observer.estimate)
 	if err != nil {
@@ -321,50 +445,48 @@ func (observer *openAIObserver) completeSSE(completion Completion) (Canonical, e
 		applyResponseImageCalls(&result, observer.response)
 	}
 	if result.TextOutputTokens == 0 {
-		localText := observer.localText.String()
+		localText := observer.chatStreamText()
 		if observer.protocol == "responses" {
 			localText = observer.responseStreamText()
 		}
 		locallyCounted := countText(localText, observer.estimate.Model)
 		if observer.protocol == "openai" {
-			locallyCounted += observer.toolCount * 7
+			locallyCounted += int64(len(observer.chatToolOrder)) * 7
 		}
 		if locallyCounted > 0 {
 			result.TextOutputTokens = locallyCounted
 			result.Fields["text_output_tokens"] = LocallyCounted
 		}
 	}
+	if terminal := incompleteCompletionTerminal(completion); terminal != "" {
+		result.TerminalEvent = terminal
+		return result, nil
+	}
 	if observer.observeErr != nil {
-		result.TerminalEvent = "malformed_sse"
+		if errors.Is(observer.observeErr, ErrObservationLimitExceeded) {
+			result.TerminalEvent = "observation_limit_exceeded"
+		} else {
+			result.TerminalEvent = "malformed_sse"
+		}
 		return result, observer.observeErr
 	}
-	if completion.ClientDisconnected {
-		result.TerminalEvent = "client_disconnected"
-		return result, nil
-	}
-	if completion.Err != nil {
-		result.TerminalEvent = "relay_error"
-		return result, nil
-	}
 	if observer.terminal == "" {
-		if completion.EOF {
-			result.TerminalEvent = "eof_without_terminal"
-		}
+		result.TerminalEvent = "eof_without_terminal"
 		return result, nil
 	}
 	if observer.protocol == "responses" && observer.terminal != "response.completed" {
 		result.TerminalEvent = observer.terminal
 		return result, nil
 	}
-	if observer.terminal != "" && completion.Err == nil && !completion.ClientDisconnected && isSuccessStatus(completion.StatusCode) {
+	if observer.terminal != "" {
 		result.Complete = true
 		result.TerminalEvent = observer.terminal
 	}
 	return result, nil
 }
 
-func (observer *openAIObserver) collectChatOutput(event map[string]any) {
-	for _, choiceValue := range arrayValue(event["choices"]) {
+func (observer *openAIObserver) collectChatOutput(event map[string]any) error {
+	for choicePosition, choiceValue := range arrayValue(event["choices"]) {
 		choice, ok := objectValue(choiceValue)
 		if !ok {
 			continue
@@ -375,30 +497,140 @@ func (observer *openAIObserver) collectChatOutput(event map[string]any) {
 		}
 		for _, field := range []string{"content", "reasoning_content", "reasoning"} {
 			if text, ok := delta[field].(string); ok {
-				observer.localText.WriteString(text)
+				if err := observer.appendChatText(text); err != nil {
+					return err
+				}
 			}
 		}
 		calls := arrayValue(delta["tool_calls"])
-		if int64(len(calls)) > observer.toolCount {
-			observer.toolCount = int64(len(calls))
-		}
-		for _, callValue := range calls {
+		for callPosition, callValue := range calls {
 			call, ok := objectValue(callValue)
 			if !ok {
 				continue
 			}
-			function, ok := objectValue(call["function"])
-			if !ok {
-				continue
-			}
-			if name, ok := function["name"].(string); ok {
-				observer.localText.WriteString(name)
-			}
-			if arguments, ok := function["arguments"].(string); ok {
-				observer.localText.WriteString(arguments)
+			if err := observer.collectChatTool(choice, choicePosition, call, callPosition); err != nil {
+				return err
 			}
 		}
 	}
+	return nil
+}
+
+func chatToolAliases(choice map[string]any, choicePosition int, call map[string]any, callPosition int) []string {
+	choiceKey := fmt.Sprintf("choice_position:%d", choicePosition)
+	if choiceIndex, present, err := nonNegativeInt64(choice, "index"); err == nil && present {
+		choiceKey = fmt.Sprintf("choice_index:%d", choiceIndex)
+	}
+	aliases := make([]string, 0, 2)
+	if callID, ok := call["id"].(string); ok && callID != "" {
+		aliases = append(aliases, choiceKey+"|call_id:"+callID)
+	}
+	if callIndex, present, err := nonNegativeInt64(call, "index"); err == nil && present {
+		aliases = append(aliases, fmt.Sprintf("%s|call_index:%d", choiceKey, callIndex))
+	}
+	if len(aliases) == 0 {
+		aliases = append(aliases, fmt.Sprintf("%s|call_position:%d", choiceKey, callPosition))
+	}
+	return aliases
+}
+
+func (observer *openAIObserver) collectChatTool(choice map[string]any, choicePosition int, call map[string]any, callPosition int) error {
+	aliases := chatToolAliases(choice, choicePosition, call, callPosition)
+	canonical, callState, err := observer.chatToolForAliases(aliases)
+	if err != nil {
+		return err
+	}
+	_ = canonical
+	function, ok := objectValue(call["function"])
+	if !ok {
+		return nil
+	}
+	if name, ok := function["name"].(string); ok && name != "" && callState.name == "" {
+		if err := observer.reserveFallbackBytes(int64(len(name))); err != nil {
+			return err
+		}
+		callState.name = name
+	}
+	if arguments, ok := function["arguments"].(string); ok && arguments != "" {
+		if callState.seenArgumentChunk == nil {
+			callState.seenArgumentChunk = make(map[string]struct{})
+		}
+		if _, seen := callState.seenArgumentChunk[arguments]; !seen {
+			retainedBytes := int64(len(arguments)*2) + fallbackMapEntryBytes
+			if err := observer.reserveFallbackBytes(retainedBytes); err != nil {
+				return err
+			}
+			callState.seenArgumentChunk[arguments] = struct{}{}
+			callState.arguments += arguments
+		}
+	}
+	return nil
+}
+
+const fallbackMapEntryBytes int64 = 32
+
+func (observer *openAIObserver) chatToolForAliases(aliases []string) (string, *chatToolCall, error) {
+	if observer.chatToolAliases == nil {
+		observer.chatToolAliases = make(map[string]string)
+		observer.chatTools = make(map[string]*chatToolCall)
+	}
+	canonical := ""
+	for _, alias := range aliases {
+		if existing, ok := observer.chatToolAliases[alias]; ok {
+			canonical = existing
+			break
+		}
+	}
+	if canonical == "" {
+		canonical = aliases[0]
+		if err := observer.reserveChatToolAliases(aliases); err != nil {
+			return "", nil, err
+		}
+		callState := &chatToolCall{}
+		observer.chatTools[canonical] = callState
+		observer.chatToolOrder = append(observer.chatToolOrder, canonical)
+		for _, alias := range aliases {
+			observer.chatToolAliases[alias] = canonical
+		}
+		return canonical, callState, nil
+	}
+	newAliases := make([]string, 0, len(aliases))
+	for _, alias := range aliases {
+		if _, exists := observer.chatToolAliases[alias]; !exists {
+			newAliases = append(newAliases, alias)
+		}
+	}
+	if err := observer.reserveChatToolAliases(newAliases); err != nil {
+		return "", nil, err
+	}
+	for _, alias := range newAliases {
+		observer.chatToolAliases[alias] = canonical
+	}
+	return canonical, observer.chatTools[canonical], nil
+}
+
+func (observer *openAIObserver) reserveChatToolAliases(aliases []string) error {
+	var size int64
+	seen := make(map[string]struct{}, len(aliases))
+	for _, alias := range aliases {
+		if _, exists := seen[alias]; exists {
+			continue
+		}
+		seen[alias] = struct{}{}
+		size += int64(len(alias)) + fallbackMapEntryBytes
+	}
+	return observer.reserveFallbackBytes(size)
+}
+
+func (observer *openAIObserver) chatStreamText() string {
+	var text strings.Builder
+	text.WriteString(observer.localText.String())
+	for _, canonical := range observer.chatToolOrder {
+		callState := observer.chatTools[canonical]
+		text.WriteString(callState.name)
+		text.WriteString(callState.arguments)
+	}
+	return text.String()
 }
 
 const maxSSEEventBytes = 1024 * 1024
@@ -407,10 +639,18 @@ const maxSSEEventBytes = 1024 * 1024
 // SSE events. Its explicit event bound avoids bufio.Scanner's silent 64 KiB
 // limit while keeping pathological upstream frames bounded.
 type sseDecoder struct {
-	pending    []byte
-	event      string
-	data       bytes.Buffer
-	eventBytes int
+	pending       []byte
+	event         string
+	data          bytes.Buffer
+	eventBytes    int64
+	maxEventBytes int64
+}
+
+func (decoder *sseDecoder) eventLimit() int64 {
+	if decoder.maxEventBytes <= 0 {
+		return maxSSEEventBytes
+	}
+	return decoder.maxEventBytes
 }
 
 func (decoder *sseDecoder) Observe(chunk []byte, handle func(event string, data []byte) error) error {
@@ -419,14 +659,14 @@ func (decoder *sseDecoder) Observe(chunk []byte, handle func(event string, data 
 	for {
 		lineEnd := bytes.IndexByte(decoder.pending, '\n')
 		if lineEnd < 0 {
-			if decoder.eventBytes+len(decoder.pending) > maxSSEEventBytes {
+			if decoder.eventBytes+int64(len(decoder.pending)) > decoder.eventLimit() {
 				decoder.reset()
 				return ErrSSEEventTooLarge
 			}
 			return nil
 		}
-		rawLineBytes := lineEnd + 1
-		if decoder.eventBytes+rawLineBytes > maxSSEEventBytes {
+		rawLineBytes := int64(lineEnd + 1)
+		if decoder.eventBytes+rawLineBytes > decoder.eventLimit() {
 			decoder.reset()
 			return ErrSSEEventTooLarge
 		}
@@ -472,7 +712,7 @@ func (decoder *sseDecoder) line(line []byte, handle func(event string, data []by
 	case "event":
 		decoder.event = string(value)
 	case "data":
-		if decoder.data.Len()+len(value)+1 > maxSSEEventBytes {
+		if int64(decoder.data.Len()+len(value)+1) > decoder.eventLimit() {
 			decoder.reset()
 			return ErrSSEEventTooLarge
 		}
@@ -535,6 +775,13 @@ func normalizeOpenAIUsage(document map[string]any, protocol string, estimate Est
 	if err != nil {
 		return result, err
 	}
+	inputDetailTotal, err := checkedUsageSum("input detail tokens", inputText, inputCategories)
+	if err != nil {
+		return result, err
+	}
+	if hasInput && inputDetailTotal > input {
+		return result, fmt.Errorf("OpenAI usage input detail tokens exceed %s", inputField)
+	}
 	if cache > 0 {
 		result.CacheReadTokens = cache
 		result.Fields["cache_read_tokens"] = Upstream
@@ -564,6 +811,13 @@ func normalizeOpenAIUsage(document map[string]any, protocol string, estimate Est
 	reasoning, imageOutput, audioOutput, outputText, outputCategories, err := outputUsageDetails(outputDetails)
 	if err != nil {
 		return result, err
+	}
+	outputDetailTotal, err := checkedUsageSum("output detail tokens", outputText, outputCategories)
+	if err != nil {
+		return result, err
+	}
+	if hasOutput && outputDetailTotal > output {
+		return result, fmt.Errorf("OpenAI usage output detail tokens exceed %s", outputField)
 	}
 	if reasoning > 0 {
 		result.ReasoningTokens = reasoning
@@ -618,7 +872,7 @@ func inputUsageDetails(document map[string]any) (cache, image, audio, text, cate
 	if err != nil {
 		return
 	}
-	categories = cache + image + audio
+	categories, err = checkedUsageSum("input detail categories", cache, image, audio)
 	return
 }
 
@@ -639,8 +893,22 @@ func outputUsageDetails(document map[string]any) (reasoning, image, audio, text,
 	if err != nil {
 		return
 	}
-	categories = reasoning + image + audio
+	categories, err = checkedUsageSum("output detail categories", reasoning, image, audio)
 	return
+}
+
+func checkedUsageSum(name string, values ...int64) (int64, error) {
+	var total int64
+	for _, value := range values {
+		if value < 0 {
+			return 0, fmt.Errorf("OpenAI usage %s must be non-negative", name)
+		}
+		if value > math.MaxInt64-total {
+			return 0, fmt.Errorf("OpenAI usage %s exceed int64 range", name)
+		}
+		total += value
+	}
+	return total, nil
 }
 
 func nonNegativeInt64(document map[string]any, name string) (int64, bool, error) {
