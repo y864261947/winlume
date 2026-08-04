@@ -323,7 +323,7 @@ Expected: Workflow prompt content remains persisted and model-visible; UI mappin
 - Create: `src/lib/studio/workflow-intake.ts`
 - Create: `src/lib/studio/workflow-intake.test.ts`
 
-- [ ] **Step 1: Write failing pure Intake tests**
+- [x] **Step 1: Write failing pure Intake tests**
 
 Cover required text, `http`/`https` URLs, finite numbers, select options, deduplicated multi-select arrays, Artifact ids, unknown-key removal, and compatible draft reconciliation after a Pack version change.
 
@@ -339,7 +339,7 @@ expect(validateWorkflowIntake(fields, {
 });
 ```
 
-- [ ] **Step 2: Run the Intake test and confirm the helper is absent**
+- [x] **Step 2: Run the Intake test and confirm the helper is absent**
 
 Run:
 
@@ -349,11 +349,11 @@ npx vitest run src/lib/studio/workflow-intake.test.ts --maxWorkers=1
 
 Expected: module-not-found failure for `workflow-intake.ts`.
 
-- [ ] **Step 3: Implement pure draft and validation helpers**
+- [x] **Step 3: Implement pure draft and validation helpers**
 
 Export `workflowDraftKey(packId, version)`, `initialWorkflowIntake(fields)`, `validateWorkflowIntake(fields, raw)`, and `reconcileWorkflowIntake(previousFields, nextFields, previousValues)`. The module must not access `window`; the Client page owns `sessionStorage` calls.
 
-- [ ] **Step 4: Add typed Workflow API helpers**
+- [x] **Step 4: Add typed Workflow API helpers**
 
 Add `getSessionWorkflow`, `executeSessionWorkflowCommand`, and `getRunEvents`, and improve `StudioApiError` with an optional public `code` so `pack_unavailable`, `pack_version_unavailable`, stale `409`, Artifact-field errors, and auth can be handled without string parsing.
 
@@ -370,7 +370,7 @@ export async function executeSessionWorkflowCommand(
 ): Promise<WorkflowCommandResult>;
 ```
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 Run:
 
@@ -388,15 +388,15 @@ Expected: all Intake helper tests pass and browser API types import only browser
 - Create: `src/components/studio/workflow/WorkflowPackSection.tsx`
 - Modify: `src/app/studio/skills/page.tsx`
 
-- [ ] **Step 1: Implement independent Pack loading**
+- [x] **Step 1: Implement independent Pack loading**
 
 `WorkflowPackSection` accepts `scene` and `query`, calls `listWorkflowPacks(scene)`, filters title/summary client-side by the debounced search query, omits itself when the filtered list is empty, and renders its own fixed-height skeleton, retryable inline error, and unavailable reasons. Each card is a normal `Link` to `/studio/packs/<id>?scene=<scene>`.
 
-- [ ] **Step 2: Place Packs above the ordinary Skill result block**
+- [x] **Step 2: Place Packs above the ordinary Skill result block**
 
 Mount the Pack section inside the main scroll area before the Skills count/grid. Pass `scene` and `debouncedQ`, never `department`. Keep Skill loading/error/empty behavior independent so Pack failure cannot erase Skills and Skill failure cannot erase Packs.
 
-- [ ] **Step 3: Verify static behavior and commit**
+- [x] **Step 3: Verify static behavior and commit**
 
 Run:
 
@@ -418,7 +418,7 @@ Expected: ESLint passes; TypeScript reports no new errors beyond the three pre-e
 - Create: `src/components/studio/workflow/WorkflowIntakeForm.tsx`
 - Create: `src/components/studio/workflow/WorkflowArtifactPicker.tsx`
 
-- [ ] **Step 1: Add the awaited dynamic route and stable loading state**
+- [x] **Step 1: Add the awaited dynamic route and stable loading state**
 
 The Server page awaits both `params` and `searchParams`, passes plain strings to the narrow Client component, and does not read browser storage.
 
@@ -441,19 +441,19 @@ export default async function WorkflowPackRoute({
 }
 ```
 
-- [ ] **Step 2: Render every Intake contract type**
+- [x] **Step 2: Render every Intake contract type**
 
 Use text/URL/number inputs, a native select, checkbox option list, and `WorkflowArtifactPicker`. Labels, descriptions, visible/programmatic required state, `aria-describedby`, field errors, and stable input ids come from the Pack contract. On submit, validate all fields and focus the first invalid control.
 
-- [ ] **Step 3: Implement Artifact and Project selection**
+- [x] **Step 3: Implement Artifact and Project selection**
 
 Load `listArtifacts()` and `listProjects()` independently. Artifact rows are filtered by search and declared kinds, expose select/clear/open actions, and preview through a `Modal` containing the existing Artifact metadata/content. Project is optional and a valid requested Project preselects after the list resolves.
 
-- [ ] **Step 4: Implement durable draft and launch errors**
+- [x] **Step 4: Implement durable draft and launch errors**
 
 Read and write `sessionStorage` under `workflowDraftKey(pack.id, pack.version)` only after Pack detail loads. Preserve the draft on every failure; clear only after `launchWorkflowPack` succeeds. A version conflict refetches Pack metadata, reconciles compatible fields, and requires a second click. Auth opens the existing login dialog while preserving route/draft. Success calls `router.push('/studio/c/' + session.id)` without a pending chat message.
 
-- [ ] **Step 5: Verify the route and commit**
+- [x] **Step 5: Verify the route and commit**
 
 Run:
 
@@ -476,7 +476,7 @@ Expected: the build generates `/studio/packs/[packId]`; launch remains Session-o
 - Modify: `src/lib/studio/live-chat-session.ts`
 - Modify: `src/lib/studio/live-chat-session.test.ts`
 
-- [ ] **Step 1: Write the Workflow state matrix tests**
+- [x] **Step 1: Write the Workflow state matrix tests**
 
 Assert labels and primary actions for ready, queued, running, approval, next, revision recovery, completion, failure, cancellation, blocked, and loading. Every transition button must be gated by the projection action union rather than inferred from status.
 
@@ -492,15 +492,15 @@ expect(toWorkflowViewState({
 })).toMatchObject({ kind: "failed", primaryAction: undefined });
 ```
 
-- [ ] **Step 2: Write failing shared event reducer tests**
+- [x] **Step 2: Write failing shared event reducer tests**
 
 Start from one streaming assistant message and assert `plan`, `thinking`, `text_delta`, `tool_call`, `tool_result`, `artifact`, `error`, and `done` produce the same folded UI state that direct chat currently produces.
 
-- [ ] **Step 3: Extract and use the pure reducer**
+- [x] **Step 3: Extract and use the pure reducer**
 
 Move event-to-assistant logic out of `runLiveTurn` into `reduceLiveAgentEvent(state, event)`, returning the next assistant message and side effects (`artifact`, `error`, `terminal`). Direct `/api/chat` SSE and durable replay must call the same function.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 Run:
 
@@ -520,23 +520,23 @@ Expected: direct chat tests remain green and the reducer reports side effects wi
 - Modify: `src/lib/studio/live-chat-session.test.ts`
 - Modify: `src/components/studio/useStudioChat.ts`
 
-- [ ] **Step 1: Write failing Workflow live-store tests**
+- [x] **Step 1: Write failing Workflow live-store tests**
 
 Assert `startWorkflow` sends only `{ sessionId, workflowAction: "start" }`, never queues, and creates a compact temporary Workflow notice plus one streaming assistant. Assert `attachWorkflowRun` replays after a cursor, deduplicates sequences, terminates on a terminal Run, and does not call cancellation when aborted by unmount.
 
-- [ ] **Step 2: Implement direct first-stage start**
+- [x] **Step 2: Implement direct first-stage start**
 
 Add `startWorkflowLiveChat(sessionId, stage)` as a separate exported operation. It bypasses ordinary text validation and queue state, calls `streamChat` with `message` omitted and `workflowAction: "start"`, and uses the shared reducer for returned events.
 
-- [ ] **Step 3: Implement cursor-based durable attachment**
+- [x] **Step 3: Implement cursor-based durable attachment**
 
 Add `attachWorkflowRun(sessionId, runId, stage)` with one attachment per Session/Run. Poll `/api/runs/<id>/events?after=<cursor>` only while queued/running or reconnecting, fold `agent.event.payload.event` through the shared reducer, delay with an abortable 1-second timer when no events arrive, and stop without cancellation on terminal/unmount. Return a cleanup function and a terminal promise to the hook.
 
-- [ ] **Step 4: Expose operations from `useStudioChat`**
+- [x] **Step 4: Expose operations from `useStudioChat`**
 
 Add `startWorkflow(stage)` and `attachWorkflowRun(runId, stage)` while preserving the existing `send` signature for ordinary Sessions.
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 Run:
 
@@ -553,15 +553,15 @@ Expected: disconnect only detaches; it never invokes `/api/chat/stop`.
 **Files:**
 - Create: `src/components/studio/workflow/useSessionWorkflow.ts`
 
-- [ ] **Step 1: Implement authoritative projection lifecycle**
+- [x] **Step 1: Implement authoritative projection lifecycle**
 
 The hook accepts Session identity, `useStudioChat` Workflow operations, Session/message refresh, Artifact refresh, and unauthorized handling. It loads projection on mount, refreshes after commands and terminal attachment, refreshes on focus after a 30-second stale interval, and polls only while a known head is queued/running or an attachment is reconnecting.
 
-- [ ] **Step 2: Implement structured actions**
+- [x] **Step 2: Implement structured actions**
 
 Expose `start`, `stop`, `approve(note?)`, `requestChanges(note)`, `startNext`, `retryStage`, and `refresh`. Use a fresh client idempotency key per explicit click and reuse it only while retrying the same in-flight request. A `409` refreshes projection before surfacing a stale-state message. `requestChanges` rejects blank notes before network access. `startedRunId` triggers durable attachment.
 
-- [ ] **Step 3: Verify static behavior and commit**
+- [x] **Step 3: Verify static behavior and commit**
 
 Run:
 
@@ -580,23 +580,23 @@ Expected: the hook contains no Pack transition inference and exposes server erro
 - Create: `src/components/studio/workflow/WorkflowControlBar.tsx`
 - Modify: `src/app/studio/c/[sessionId]/page.tsx`
 
-- [ ] **Step 1: Build the projection-only Stage rail**
+- [x] **Step 1: Build the projection-only Stage rail**
 
 Use `<ol>` semantics, stable-width desktop items, horizontal overflow, `aria-current="step"`, text+icon status, and reduced-motion-aware `scrollIntoView`. Completed/current stages with output refs open a detail dialog; future stages are non-interactive. Mobile renders one compact trigger row and a `Modal` with all stages, review state, outputs, and only projected actions.
 
-- [ ] **Step 2: Build the Workflow control bar**
+- [x] **Step 2: Build the Workflow control bar**
 
 Reuse `studio-composer-dock` and `studio-liquid-glass` so the Workflow mode occupies the same dock and visual foundation as Composer without mounting Composer's text/model/Skill/attachment/queue controls. Render fixed-size icon+text actions for ready, running/stop, approval note and revision dialog, next, completed output, failed/cancelled retry, and blocked refresh. Revision note is required; approval note is optional.
 
-- [ ] **Step 3: Integrate with the existing Session shell**
+- [x] **Step 3: Integrate with the existing Session shell**
 
 Only Sessions with `session.workflow` load `useSessionWorkflow`. Mount `WorkflowStageRail` below the persistent Session header and above both mobile and desktop work areas. In `renderChatColumn`, render `WorkflowControlBar` for Workflow Sessions and the existing `Composer` unchanged for ordinary Sessions. Output clicks set `selectedId`, open the Works rail, and switch mobile to Works.
 
-- [ ] **Step 4: Reconcile terminal state**
+- [x] **Step 4: Reconcile terminal state**
 
 After terminal events, refetch the Session bundle and Artifacts before clearing streaming indicators. Preserve the existing Chat/Works mobile switch, View Transition names, ArtifactPreview, retry-generation behavior for ordinary messages, and ordinary Composer queue.
 
-- [ ] **Step 5: Run focused static checks and commit**
+- [x] **Step 5: Run focused static checks and commit**
 
 Run:
 
@@ -614,7 +614,7 @@ Expected: ordinary Sessions still render the original Composer; Workflow Session
 **Files:**
 - Modify only files that fail a check within the Phase 3 scope.
 
-- [ ] **Step 1: Run the complete focused Workflow suite**
+- [x] **Step 1: Run the complete focused Workflow suite**
 
 Run:
 
@@ -624,7 +624,7 @@ npx vitest run src/lib/agent/production-packs src/app/api/packs src/app/api/sess
 
 Expected: all focused tests pass.
 
-- [ ] **Step 2: Run repository verification**
+- [x] **Step 2: Run repository verification**
 
 Run separately so load-only timeouts can be classified:
 
@@ -638,15 +638,15 @@ git diff --check
 
 Expected: tests/lint/build pass; independent TypeScript has only the three pre-existing media-worker `ProcessEnv.NODE_ENV` errors; diff check passes apart from Windows line-ending warnings.
 
-- [ ] **Step 3: Start a local server and run Playwright desktop acceptance**
+- [x] **Step 3: Start a local server and run Playwright desktop acceptance**
 
 Use an unused port and verify `/studio/skills`, `/studio/packs/content-office`, and a launched Workflow Session at 1440x900. Check Pack band ordering, unavailable state, every Intake field, draft survival, Session-only launch, Stage rail, explicit first start, stop, review/revision, next, retry, Workflow notice, and Artifact opening. Inspect browser console and failed requests.
 
-- [ ] **Step 4: Run Playwright mobile acceptance**
+- [x] **Step 4: Run Playwright mobile acceptance**
 
 At 390x844, verify no text/control overlap, one-column Pack form, reachable submit, compact Stage trigger, focus-trapped Stage dialog, unchanged Chat/Works switch, Workflow control bar safe-area spacing, and final Artifact opening. Capture screenshots for both viewports.
 
-- [ ] **Step 5: Final scope and history audit**
+- [x] **Step 5: Final scope and history audit**
 
 Run:
 
