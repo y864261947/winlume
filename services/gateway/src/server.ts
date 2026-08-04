@@ -134,6 +134,43 @@ function incomingBody(request: FastifyRequest): Readable | string | Uint8Array |
   return JSON.stringify(body);
 }
 
+/**
+ * Fastify's request.signal is backed by IncomingMessage#close, which can fire
+ * as soon as a normal request body finishes. That would cancel a streaming
+ * upstream fetch before its response arrives. Track the client socket and
+ * response lifecycle instead so a completed request body stays valid.
+ */
+function createProxyLifecycle(request: FastifyRequest, reply: FastifyReply): {
+  signal: AbortSignal;
+  handoff: () => void;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  const socket = request.raw.socket;
+  let cleaned = false;
+
+  const abort = () => {
+    if (!controller.signal.aborted) controller.abort();
+  };
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    request.raw.off("aborted", abort);
+    socket?.off("close", abort);
+    reply.raw.off("finish", cleanup);
+    reply.raw.off("close", cleanup);
+  };
+  const handoff = () => {
+    reply.raw.once("finish", cleanup);
+    reply.raw.once("close", cleanup);
+  };
+
+  request.raw.once("aborted", abort);
+  socket?.once("close", abort);
+
+  return { signal: controller.signal, handoff, cleanup };
+}
+
 function configuredApiKeyValidator(config: GatewayConfig): ApiKeyValidator | undefined {
   if (config.apiKeyHashes.length === 0) return undefined;
   return (rawApiKey) => {
@@ -335,6 +372,9 @@ export function buildGatewayServer(options: GatewayServerOptions = {}): FastifyI
         );
       }
 
+      const proxyLifecycle = createProxyLifecycle(request, reply);
+      let responseHandedOff = false;
+
       const usageContext: GatewayUsageContext = {
         requestId: request.gatewayRequestId,
         family: route.family,
@@ -368,7 +408,7 @@ export function buildGatewayServer(options: GatewayServerOptions = {}): FastifyI
           requestId: request.gatewayRequestId,
           identity: resolved.identity,
           route,
-          signal: request.signal,
+          signal: proxyLifecycle.signal,
         });
         if (reservation && usageAccounting) {
           try {
@@ -389,7 +429,10 @@ export function buildGatewayServer(options: GatewayServerOptions = {}): FastifyI
             );
           }
         }
-        return sendProxyResponse(reply, response);
+        proxyLifecycle.handoff();
+        const sent = sendProxyResponse(reply, response);
+        responseHandedOff = true;
+        return sent;
       } catch (error) {
         if (reservation && usageAccounting) {
           try {
@@ -404,6 +447,8 @@ export function buildGatewayServer(options: GatewayServerOptions = {}): FastifyI
         }
         request.log.error({ err: error, requestId: request.gatewayRequestId }, "Gateway adapter failed");
         return sendError(reply, request, 502, "upstream_error", "upstream_request_failed", "The upstream request failed");
+      } finally {
+        if (!responseHandedOff) proxyLifecycle.cleanup();
       }
     },
   });

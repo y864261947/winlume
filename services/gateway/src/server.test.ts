@@ -174,6 +174,33 @@ describe("gateway server", () => {
     expect(rejected.json().error.code).toBe("missing_api_key");
   });
 
+  it("does not abort the upstream request when the incoming body finishes normally", async () => {
+    let upstreamSignal: AbortSignal | undefined;
+    const app = buildOpenAiApp(
+      vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+        upstreamSignal = init?.signal ?? undefined;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { "content-type": "application/json" },
+        });
+      }) as FetchLike,
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers: {
+        authorization: "Bearer wl_valid_key",
+        "content-type": "application/json",
+      },
+      payload: JSON.stringify({ model: "gpt-test", stream: true }),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(upstreamSignal).toBeDefined();
+    expect(upstreamSignal?.aborted).toBe(false);
+  });
+
   it("uses X-Forwarded-For only from a configured proxy", async () => {
     let receivedIp = "";
     const app = buildGatewayServer({
