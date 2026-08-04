@@ -40,7 +40,10 @@ func EstimateRequest(body []byte, model, protocol string) (Estimate, error) {
 	case "openai":
 		texts, messageCount, nameCount, toolCount = collectOpenAIChat(document)
 	case "responses":
-		texts = collectResponses(document)
+		texts, err = collectResponses(body, document)
+		if err != nil {
+			return Estimate{}, err
+		}
 	case "claude":
 		texts = collectClaude(document)
 	case "gemini":
@@ -224,19 +227,30 @@ func collectOpenAIChat(document map[string]any) ([]string, int64, int64, int64) 
 	return texts, messages, names, tools
 }
 
-func collectResponses(document map[string]any) []string {
-	texts := appendResponsesInput(nil, document["input"])
-	if instructions, ok := document["instructions"]; ok {
-		texts = append(texts, appendContentText(nil, instructions)...)
+func collectResponses(body []byte, document map[string]any) ([]string, error) {
+	rawFields, err := decodeRawFields(body)
+	if err != nil {
+		return nil, err
 	}
-	if tools, ok := document["tools"]; ok && tools != nil {
-		if encoded, err := json.Marshal(tools); err == nil {
-			// Responses accepts several tool shapes; keeping canonical structured
-			// JSON avoids dropping function schemas or MCP configuration.
-			texts = append(texts, string(encoded))
+
+	texts := appendResponsesInput(nil, document["input"])
+	// Match OpenAIResponsesRequest.GetTokenCountMeta: these fields are raw JSON
+	// rather than interpreted content. In particular, object key order and JSON
+	// string quoting affect tokenizer input and must remain intact.
+	for _, field := range []string{"instructions", "metadata", "text", "tool_choice", "prompt", "tools"} {
+		if raw, ok := rawFields[field]; ok && len(raw) > 0 {
+			texts = append(texts, string(raw))
 		}
 	}
-	return texts
+	return texts, nil
+}
+
+func decodeRawFields(body []byte) (map[string]json.RawMessage, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &fields); err != nil || fields == nil {
+		return nil, fmt.Errorf("%w: %v", ErrMalformedRequest, err)
+	}
+	return fields, nil
 }
 
 func appendResponsesInput(texts []string, value any) []string {

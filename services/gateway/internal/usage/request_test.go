@@ -66,7 +66,7 @@ func TestEstimateOpenAICompletionEmbeddingAndResponsesInputs(t *testing.T) {
   "tools":[{"type":"function","name":"lookup","description":"Look up a record.","parameters":{"type":"object"}}],
   "max_output_tokens":42
 }`),
-			wantText: "Question\nUse concise prose.\nFollow policy.\n[{\"description\":\"Look up a record.\",\"name\":\"lookup\",\"parameters\":{\"type\":\"object\"},\"type\":\"function\"}]",
+			wantText: "Question\nUse concise prose.\n\"Follow policy.\"\n[{\"type\":\"function\",\"name\":\"lookup\",\"description\":\"Look up a record.\",\"parameters\":{\"type\":\"object\"}}]",
 			wantMax:  42,
 			protocol: "responses",
 		},
@@ -81,6 +81,19 @@ func TestEstimateOpenAICompletionEmbeddingAndResponsesInputs(t *testing.T) {
 			require.Equal(t, want, estimate.PromptTokens)
 		})
 	}
+}
+
+func TestEstimateResponsesCountsRawConfigurationFields(t *testing.T) {
+	body := []byte(`{"model":"gpt-4o","input":"Question","instructions":{"type":"text","text":"Stay focused"},"metadata":{"tenant":"alpha","trace":7},"text":{"format":{"type":"json_schema","name":"answer"}},"tool_choice":{"type":"function","name":"lookup"},"prompt":{"id":"pmpt_123","variables":{"city":"Paris"}},"tools":[{"type":"function","name":"lookup","description":"Look up a record."}],"max_output_tokens":17}`)
+	bodyBefore := append([]byte(nil), body...)
+
+	estimate, err := EstimateRequest(body, "", "responses")
+	require.NoError(t, err)
+	require.True(t, bytes.Equal(bodyBefore, body))
+	require.Equal(t, int64(17), estimate.MaxOutputTokens)
+
+	wantText := "Question\n{\"type\":\"text\",\"text\":\"Stay focused\"}\n{\"tenant\":\"alpha\",\"trace\":7}\n{\"format\":{\"type\":\"json_schema\",\"name\":\"answer\"}}\n{\"type\":\"function\",\"name\":\"lookup\"}\n{\"id\":\"pmpt_123\",\"variables\":{\"city\":\"Paris\"}}\n[{\"type\":\"function\",\"name\":\"lookup\",\"description\":\"Look up a record.\"}]"
+	require.Equal(t, countText(wantText, "gpt-4o"), estimate.PromptTokens)
 }
 
 func TestEstimateClaudeSystemMessagesAndTools(t *testing.T) {
