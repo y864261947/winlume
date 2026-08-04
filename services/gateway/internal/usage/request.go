@@ -11,9 +11,11 @@ import (
 )
 
 var (
-	ErrMalformedRequest  = errors.New("usage request must be a JSON object")
-	ErrInvalidMaxTokens  = errors.New("requested max output tokens must be a non-negative int64")
-	ErrPromptTokenBounds = errors.New("estimated prompt tokens exceed int64")
+	ErrMalformedRequest    = errors.New("usage request must be a JSON object")
+	ErrInvalidMaxTokens    = errors.New("requested max output tokens must be a non-negative int64")
+	ErrPromptTokenBounds   = errors.New("estimated prompt tokens exceed int64")
+	ErrUnsupportedProtocol = errors.New("unsupported usage request protocol")
+	ErrAmbiguousProtocol   = errors.New("explicit usage request protocol is required for this request shape")
 )
 
 // EstimateRequest reads a relay body without changing it and produces a local
@@ -25,9 +27,9 @@ func EstimateRequest(body []byte, model, protocol string) (Estimate, error) {
 		return Estimate{}, err
 	}
 
-	resolvedProtocol := normalizeProtocol(protocol)
-	if resolvedProtocol == "" {
-		resolvedProtocol = inferProtocol(document)
+	resolvedProtocol, err := resolveProtocol(protocol, document)
+	if err != nil {
+		return Estimate{}, err
 	}
 	resolvedModel := model
 	if strings.TrimSpace(resolvedModel) == "" {
@@ -49,7 +51,7 @@ func EstimateRequest(body []byte, model, protocol string) (Estimate, error) {
 	case "gemini":
 		texts = collectGemini(document)
 	default:
-		texts = collectGeneric(document)
+		return Estimate{}, fmt.Errorf("%w: %s", ErrUnsupportedProtocol, resolvedProtocol)
 	}
 
 	maxOutputTokens, err := requestedMaxTokens(document, resolvedProtocol)
@@ -92,39 +94,66 @@ func decodeRequest(body []byte) (map[string]any, error) {
 	return document, nil
 }
 
-func normalizeProtocol(protocol string) string {
+func resolveProtocol(protocol string, document map[string]any) (string, error) {
+	if protocol = strings.TrimSpace(protocol); protocol != "" {
+		if normalized, ok := normalizeProtocol(protocol); ok {
+			return normalized, nil
+		}
+		return "", fmt.Errorf("%w: %s", ErrUnsupportedProtocol, protocol)
+	}
+	return inferProtocol(document)
+}
+
+func normalizeProtocol(protocol string) (string, bool) {
 	switch strings.ToLower(strings.TrimSpace(protocol)) {
-	case "openai", "openai_chat", "chat_completions", "completions", "embeddings":
-		return "openai"
+	case "openai", "openai_chat", "chat_completions", "completions", "embeddings",
+		"openai-compatible", "openai_compatible", "grok", "grok-openai", "grok_openai",
+		"xai", "x-ai", "xai-openai", "xai_openai":
+		return "openai", true
 	case "responses", "openai_responses", "openai-responses":
-		return "responses"
-	case "claude", "anthropic":
-		return "claude"
-	case "gemini", "google", "google_gemini":
-		return "gemini"
+		return "responses", true
+	case "claude", "anthropic", "claude_messages", "claude-messages", "anthropic_messages", "anthropic-messages":
+		return "claude", true
+	case "gemini", "google", "google_gemini", "google-gemini":
+		return "gemini", true
 	default:
-		return strings.ToLower(strings.TrimSpace(protocol))
+		return "", false
 	}
 }
 
-func inferProtocol(document map[string]any) string {
+func inferProtocol(document map[string]any) (string, error) {
+	candidates := make(map[string]struct{}, 4)
 	if _, ok := document["contents"]; ok {
-		return "gemini"
+		candidates["gemini"] = struct{}{}
 	}
 	if _, ok := document["system"]; ok {
 		if _, messages := document["messages"]; messages {
-			return "claude"
+			candidates["claude"] = struct{}{}
 		}
 	}
-	if _, hasInput := document["input"]; hasInput {
-		if _, responses := document["max_output_tokens"]; responses {
-			return "responses"
-		}
-		if _, responses := document["instructions"]; responses {
-			return "responses"
+	for _, field := range []string{
+		"max_output_tokens", "instructions", "previous_response_id", "conversation",
+		"context_management", "truncation", "prompt_cache_key", "prompt_cache_retention",
+		"safety_identifier", "max_tool_calls",
+	} {
+		if _, ok := document[field]; ok {
+			candidates["responses"] = struct{}{}
+			break
 		}
 	}
-	return "openai"
+	for _, field := range []string{"max_completion_tokens", "response_format", "encoding_format", "dimensions"} {
+		if _, ok := document[field]; ok {
+			candidates["openai"] = struct{}{}
+			break
+		}
+	}
+	if len(candidates) != 1 {
+		return "", ErrAmbiguousProtocol
+	}
+	for protocol := range candidates {
+		return protocol, nil
+	}
+	return "", ErrAmbiguousProtocol
 }
 
 func requestedMaxTokens(document map[string]any, protocol string) (int64, error) {
@@ -390,14 +419,6 @@ func collectGemini(document map[string]any) []string {
 				}
 			}
 		}
-	}
-	return texts
-}
-
-func collectGeneric(document map[string]any) []string {
-	var texts []string
-	for _, field := range []string{"prompt", "input", "system", "messages", "contents"} {
-		texts = append(texts, appendContentText(nil, document[field])...)
 	}
 	return texts
 }

@@ -96,6 +96,112 @@ func TestEstimateResponsesCountsRawConfigurationFields(t *testing.T) {
 	require.Equal(t, countText(wantText, "gpt-4o"), estimate.PromptTokens)
 }
 
+func TestEstimateResponsesPreservesRawConfigurationEncoding(t *testing.T) {
+	body := []byte(`{"model":"gpt-4o","input":"Question","instructions":{"z" : "slash\/escape", "a" : "two  spaces"},"metadata":{"z" : "right", "a" : "left"},"text":{"format" : {"z" : "last", "a" : "first"}},"tool_choice":{"name" : "lookup", "type" : "function"},"prompt":{"id" : "pmpt_\/raw", "variables" : {"z" : "last", "a" : "first"}},"tools":[{"type" : "function", "name" : "lookup", "description" : "has  two spaces"}],"max_output_tokens":17}`)
+	bodyBefore := append([]byte(nil), body...)
+
+	estimate, err := EstimateRequest(body, "", "responses")
+	require.NoError(t, err)
+	require.True(t, bytes.Equal(bodyBefore, body))
+
+	wantText := "Question\n" + `{"z" : "slash\/escape", "a" : "two  spaces"}` + "\n" +
+		`{"z" : "right", "a" : "left"}` + "\n" +
+		`{"format" : {"z" : "last", "a" : "first"}}` + "\n" +
+		`{"name" : "lookup", "type" : "function"}` + "\n" +
+		`{"id" : "pmpt_\/raw", "variables" : {"z" : "last", "a" : "first"}}` + "\n" +
+		`[{"type" : "function", "name" : "lookup", "description" : "has  two spaces"}]`
+	canonicalText := "Question\n" +
+		`{"a":"two  spaces","z":"slash/escape"}` + "\n" +
+		`{"a":"left","z":"right"}` + "\n" +
+		`{"format":{"a":"first","z":"last"}}` + "\n" +
+		`{"name":"lookup","type":"function"}` + "\n" +
+		`{"id":"pmpt_/raw","variables":{"a":"first","z":"last"}}` + "\n" +
+		`[{"description":"has  two spaces","name":"lookup","type":"function"}]`
+	require.NotEqual(t, countText(canonicalText, "gpt-4o"), countText(wantText, "gpt-4o"))
+	require.Equal(t, countText(wantText, "gpt-4o"), estimate.PromptTokens)
+}
+
+func TestEstimateGrokAndXAIUseOpenAICompatibleMessageShape(t *testing.T) {
+	body := []byte(`{"model":"grok-3","messages":[{"role":"user","content":"Use the OpenAI message shape."}]}`)
+	want := countText("user\nUse the OpenAI message shape.", "grok-3") + 3 + 3
+
+	for _, protocol := range []string{"grok", "xai"} {
+		t.Run(protocol, func(t *testing.T) {
+			estimate, err := EstimateRequest(body, "", protocol)
+			require.NoError(t, err)
+			require.Equal(t, "openai", estimate.Protocol)
+			require.Equal(t, want, estimate.PromptTokens)
+		})
+	}
+}
+
+func TestEstimateRequestRejectsUnknownAndAmbiguousProtocols(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     []byte
+		protocol string
+		wantErr  error
+	}{
+		{
+			name:     "unknown explicit protocol",
+			body:     []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"Hello"}]}`),
+			protocol: "provider-that-is-not-supported",
+			wantErr:  ErrUnsupportedProtocol,
+		},
+		{
+			name:     "Claude message without system marker",
+			body:     []byte(`{"model":"claude-3-7-sonnet","messages":[{"role":"user","content":"Hello"}]}`),
+			protocol: "",
+			wantErr:  ErrAmbiguousProtocol,
+		},
+		{
+			name:     "Responses input without protocol marker",
+			body:     []byte(`{"model":"gpt-4o","input":"Hello"}`),
+			protocol: "",
+			wantErr:  ErrAmbiguousProtocol,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := EstimateRequest(tt.body, "", tt.protocol)
+			require.ErrorIs(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestEstimateRequestInfersOnlyUnambiguousProtocols(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     []byte
+		protocol string
+	}{
+		{
+			name:     "Gemini contents",
+			body:     []byte(`{"model":"gemini-2.5-pro","contents":[{"parts":[{"text":"Hello"}]}]}`),
+			protocol: "gemini",
+		},
+		{
+			name:     "Claude system and messages",
+			body:     []byte(`{"model":"claude-3-7-sonnet","system":"Be concise.","messages":[{"role":"user","content":"Hello"}]}`),
+			protocol: "claude",
+		},
+		{
+			name:     "Responses output limit",
+			body:     []byte(`{"model":"gpt-4o","input":"Hello","max_output_tokens":10}`),
+			protocol: "responses",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			estimate, err := EstimateRequest(tt.body, "", "")
+			require.NoError(t, err)
+			require.Equal(t, tt.protocol, estimate.Protocol)
+		})
+	}
+}
+
 func TestEstimateClaudeSystemMessagesAndTools(t *testing.T) {
 	body := []byte(`{
   "model":"claude-3-7-sonnet",
