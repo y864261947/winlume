@@ -15,19 +15,20 @@ var (
 	ErrInvalidMaxTokens    = errors.New("requested max output tokens must be a non-negative int64")
 	ErrPromptTokenBounds   = errors.New("estimated prompt tokens exceed int64")
 	ErrUnsupportedProtocol = errors.New("unsupported usage request protocol")
-	ErrAmbiguousProtocol   = errors.New("explicit usage request protocol is required for this request shape")
+	ErrProtocolRequired    = errors.New("usage request protocol is required")
 )
 
 // EstimateRequest reads a relay body without changing it and produces a local
 // prompt/output reservation estimate. model overrides a body model when set.
-// protocol accepts openai, responses (or openai_responses), claude, and gemini.
+// protocol must be explicit and accepts openai, responses, claude, and gemini
+// aliases so an ambiguous body can never silently change its estimate.
 func EstimateRequest(body []byte, model, protocol string) (Estimate, error) {
-	document, err := decodeRequest(body)
+	resolvedProtocol, err := resolveProtocol(protocol)
 	if err != nil {
 		return Estimate{}, err
 	}
 
-	resolvedProtocol, err := resolveProtocol(protocol, document)
+	document, err := decodeRequest(body)
 	if err != nil {
 		return Estimate{}, err
 	}
@@ -94,14 +95,15 @@ func decodeRequest(body []byte) (map[string]any, error) {
 	return document, nil
 }
 
-func resolveProtocol(protocol string, document map[string]any) (string, error) {
-	if protocol = strings.TrimSpace(protocol); protocol != "" {
-		if normalized, ok := normalizeProtocol(protocol); ok {
-			return normalized, nil
-		}
-		return "", fmt.Errorf("%w: %s", ErrUnsupportedProtocol, protocol)
+func resolveProtocol(protocol string) (string, error) {
+	protocol = strings.TrimSpace(protocol)
+	if protocol == "" {
+		return "", ErrProtocolRequired
 	}
-	return inferProtocol(document)
+	if normalized, ok := normalizeProtocol(protocol); ok {
+		return normalized, nil
+	}
+	return "", fmt.Errorf("%w: %s", ErrUnsupportedProtocol, protocol)
 }
 
 func normalizeProtocol(protocol string) (string, bool) {
@@ -119,41 +121,6 @@ func normalizeProtocol(protocol string) (string, bool) {
 	default:
 		return "", false
 	}
-}
-
-func inferProtocol(document map[string]any) (string, error) {
-	candidates := make(map[string]struct{}, 4)
-	if _, ok := document["contents"]; ok {
-		candidates["gemini"] = struct{}{}
-	}
-	if _, ok := document["system"]; ok {
-		if _, messages := document["messages"]; messages {
-			candidates["claude"] = struct{}{}
-		}
-	}
-	for _, field := range []string{
-		"max_output_tokens", "instructions", "previous_response_id", "conversation",
-		"context_management", "truncation", "prompt_cache_key", "prompt_cache_retention",
-		"safety_identifier", "max_tool_calls",
-	} {
-		if _, ok := document[field]; ok {
-			candidates["responses"] = struct{}{}
-			break
-		}
-	}
-	for _, field := range []string{"max_completion_tokens", "response_format", "encoding_format", "dimensions"} {
-		if _, ok := document[field]; ok {
-			candidates["openai"] = struct{}{}
-			break
-		}
-	}
-	if len(candidates) != 1 {
-		return "", ErrAmbiguousProtocol
-	}
-	for protocol := range candidates {
-		return protocol, nil
-	}
-	return "", ErrAmbiguousProtocol
 }
 
 func requestedMaxTokens(document map[string]any, protocol string) (int64, error) {
