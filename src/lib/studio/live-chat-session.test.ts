@@ -1,6 +1,7 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getLiveChatSnapshot,
+  sendLiveChat,
   seedLiveChatFromServer,
   setLiveChatMessages,
   stopLiveChat,
@@ -72,6 +73,10 @@ describe("live-chat-session seed reconcile", () => {
     expect(after.messages.map((m) => m.id)).toEqual(["srv-u", "srv-a"]);
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("preserves Workflow presentation metadata when seeding server history", () => {
     const sessionId = `${sid}-workflow-presentation`;
     seedLiveChatFromServer(sessionId, [
@@ -122,5 +127,59 @@ describe("live-chat-session seed reconcile", () => {
     expect(after.messages.find((m) => m.role === "assistant")?.content).toContain(
       "很长的正文",
     );
+  });
+
+  it("folds direct chat SSE through the shared live event behavior", async () => {
+    const sessionId = `${sid}-shared-reducer`;
+    const events = [
+      { type: "thinking", text: "分析" },
+      {
+        type: "tool_call",
+        id: "call-1",
+        name: "read_artifact",
+        input: { artifactId: "artifact-1" },
+      },
+      {
+        type: "tool_result",
+        id: "call-1",
+        ok: true,
+        summary: "已读取",
+      },
+      { type: "text_delta", text: "完成" },
+      { type: "done", reason: "completed" },
+    ];
+    const body = `${events
+      .map((event) => `data: ${JSON.stringify(event)}`)
+      .join("\n\n")}\n\n`;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(body, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+      ),
+    );
+
+    await expect(sendLiveChat(sessionId, "开始")).resolves.toBe("sent");
+
+    const assistant = getLiveChatSnapshot(sessionId).messages.find(
+      (message) => message.role === "assistant",
+    );
+    expect(assistant).toMatchObject({
+      content: "完成",
+      thinking: "分析",
+      streaming: false,
+      streamPhase: "done",
+      toolCalls: [
+        {
+          id: "call-1",
+          name: "read_artifact",
+          resultSummary: "已读取",
+          ok: true,
+          status: "done",
+        },
+      ],
+    });
   });
 });
