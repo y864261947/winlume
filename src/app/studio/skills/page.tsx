@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { SkillMeta } from "@/lib/agent/types";
 import type { WorkScene } from "@/lib/studio/work-scenes";
+import { WorkflowPackSection } from "@/components/studio/workflow/WorkflowPackSection";
 
 type Department = {
   id: string;
@@ -231,18 +232,23 @@ function StudioSkillsPageContent() {
         </nav>
 
         <div className="min-w-0 flex-1 overflow-y-auto p-6">
+          <WorkflowPackSection scene={scene} query={debouncedQ} />
+
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-ink-500">
               <LoaderCircle className="h-4 w-4 animate-spin" />
               正在加载 Skills…
             </div>
           ) : error ? (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {error}
+            <div
+              role="alert"
+              className="flex flex-wrap items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+            >
+              <span>{error}</span>
               <button
                 type="button"
                 onClick={() => void load()}
-                className="ml-3 underline"
+                className="ml-auto font-medium underline underline-offset-2"
               >
                 重试
               </button>
