@@ -12,7 +12,18 @@ import type {
 } from "@/lib/agent/types";
 import type { ProductionPackMeta } from "@/lib/agent/production-packs/contracts";
 import type { ProductionPackAvailability } from "@/lib/agent/production-packs/availability";
+import type {
+  ProductionWorkflowAction,
+  ProductionWorkflowCommand,
+  ProductionWorkflowProjection,
+} from "@/lib/agent/production-packs/workflow-contract";
 import { referenceVideoMimeType } from "@/lib/studio/video-upload";
+
+export type {
+  ProductionWorkflowAction,
+  ProductionWorkflowCommand,
+  ProductionWorkflowProjection,
+};
 
 const PENDING_FIRST_MESSAGE_KEY = "winlume:pending-first-message";
 
@@ -23,12 +34,47 @@ export function withUserHeaders(headers?: HeadersInit): Headers {
 }
 
 export class StudioApiError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = "StudioApiError";
     this.status = status;
+    this.code = code ?? defaultStudioApiErrorCode(status);
   }
+}
+
+type StudioApiErrorBody = {
+  error?: unknown;
+  code?: unknown;
+};
+
+function defaultStudioApiErrorCode(status: number): string | undefined {
+  if (status === 400) return "bad_request";
+  if (status === 401) return "unauthorized";
+  if (status === 403) return "forbidden";
+  if (status === 404) return "not_found";
+  if (status === 409) return "conflict";
+  return undefined;
+}
+
+async function toStudioApiError(
+  response: Response,
+  fallback: string,
+): Promise<StudioApiError> {
+  let body: StudioApiErrorBody = {};
+  try {
+    const text = await response.text();
+    if (text) body = JSON.parse(text) as StudioApiErrorBody;
+  } catch {
+    // Use the endpoint-specific fallback when an error body is absent or malformed.
+  }
+  return new StudioApiError(
+    typeof body.error === "string" && body.error ? body.error : fallback,
+    response.status,
+    typeof body.code === "string" && body.code ? body.code : undefined,
+  );
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -103,6 +149,39 @@ export type WorkflowPackLaunchResult = {
   };
 };
 
+export type WorkflowCommandResult = {
+  command: { sourceRunId: string; startedRunId?: string; created: boolean };
+  workflow: ProductionWorkflowProjection;
+};
+
+export type WorkflowRunEvent = {
+  version: number;
+  eventId: string;
+  runId: string;
+  sequence: number;
+  type: string;
+  occurredAt: string;
+  producer: string;
+  payload: unknown;
+  idempotencyKey?: string;
+  correlationId?: string;
+  causationId?: string;
+};
+
+export type WorkflowRunEventsResult = {
+  run: {
+    id: string;
+    sessionId: string;
+    status: NonNullable<ProductionWorkflowProjection["run"]>["status"];
+    projectId?: string;
+    createdAt: string;
+    updatedAt: string;
+    error?: { code: string; message: string; retryable?: boolean };
+  };
+  events: WorkflowRunEvent[];
+  nextSequence: number;
+};
+
 export async function listWorkflowPacks(
   scene?: string,
 ): Promise<WorkflowPackCatalogEntry[]> {
@@ -113,11 +192,7 @@ export async function listWorkflowPacks(
   });
   if (response.status === 401) throw new StudioApiError("请先登录", 401);
   if (!response.ok) {
-    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
-    throw new StudioApiError(
-      (body as { error?: string }).error || "加载工作流失败",
-      response.status,
-    );
+    throw await toStudioApiError(response, "加载工作流失败");
   }
   const body = await parseJson<{ packs?: WorkflowPackCatalogEntry[] }>(response);
   return Array.isArray(body.packs) ? body.packs : [];
@@ -133,11 +208,7 @@ export async function getWorkflowPack(
   if (response.status === 401) throw new StudioApiError("请先登录", 401);
   if (response.status === 404) throw new StudioApiError("工作流不存在", 404);
   if (!response.ok) {
-    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
-    throw new StudioApiError(
-      (body as { error?: string }).error || "加载工作流失败",
-      response.status,
-    );
+    throw await toStudioApiError(response, "加载工作流失败");
   }
   const body = await parseJson<{ pack: WorkflowPackCatalogEntry }>(response);
   return body.pack;
@@ -163,13 +234,67 @@ export async function launchWorkflowPack(
   );
   if (response.status === 401) throw new StudioApiError("请先登录", 401);
   if (!response.ok) {
-    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
-    throw new StudioApiError(
-      (body as { error?: string }).error || "启动工作流失败",
-      response.status,
-    );
+    throw await toStudioApiError(response, "启动工作流失败");
   }
   return parseJson<WorkflowPackLaunchResult>(response);
+}
+
+export async function getSessionWorkflow(
+  sessionId: string,
+): Promise<ProductionWorkflowProjection> {
+  const response = await fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/workflow`,
+    {
+      headers: withUserHeaders(),
+      credentials: "same-origin",
+    },
+  );
+  if (!response.ok) {
+    throw await toStudioApiError(response, "加载工作流状态失败");
+  }
+  return (await parseJson<{ workflow: ProductionWorkflowProjection }>(response))
+    .workflow;
+}
+
+export async function executeSessionWorkflowCommand(
+  sessionId: string,
+  command: ProductionWorkflowCommand,
+  idempotencyKey: string,
+): Promise<WorkflowCommandResult> {
+  const response = await fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/workflow`,
+    {
+      method: "POST",
+      headers: withUserHeaders({ "idempotency-key": idempotencyKey }),
+      credentials: "same-origin",
+      body: JSON.stringify(command),
+    },
+  );
+  if (!response.ok) {
+    throw await toStudioApiError(response, "更新工作流状态失败");
+  }
+  return parseJson<WorkflowCommandResult>(response);
+}
+
+export async function getRunEvents(
+  runId: string,
+  options: { after?: number; limit?: number } = {},
+): Promise<WorkflowRunEventsResult> {
+  const query = new URLSearchParams();
+  if (options.after !== undefined) query.set("after", String(options.after));
+  if (options.limit !== undefined) query.set("limit", String(options.limit));
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  const response = await fetch(
+    `/api/runs/${encodeURIComponent(runId)}/events${suffix}`,
+    {
+      headers: withUserHeaders(),
+      credentials: "same-origin",
+    },
+  );
+  if (!response.ok) {
+    throw await toStudioApiError(response, "读取工作流运行记录失败");
+  }
+  return parseJson<WorkflowRunEventsResult>(response);
 }
 
 /* ── Projects ─────────────────────────────────────────────── */
