@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { Message } from "@/lib/agent/types";
 import {
+  attachWorkflowRun as attachWorkflowRunStore,
   bindLiveChatHooks,
   clearLiveChatError,
   clearLiveChatQueue,
@@ -18,6 +19,7 @@ import {
   removeLiveChatQueueItem,
   seedLiveChatFromServer,
   sendLiveChat,
+  startWorkflowLiveChat,
   setLiveChatMessages,
   setLiveChatModel,
   stopLiveChat,
@@ -28,6 +30,8 @@ import {
   type StreamPhase,
   type UiChatMessage,
   type UiToolCall,
+  type WorkflowLiveStage,
+  type WorkflowRunAttachment,
 } from "@/lib/studio/live-chat-session";
 import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
 
@@ -38,6 +42,8 @@ export type {
   StreamPhase,
   UiChatMessage,
   UiToolCall,
+  WorkflowLiveStage,
+  WorkflowRunAttachment,
 };
 export type { ExecutionStep } from "@/lib/studio/execution-map";
 
@@ -77,6 +83,13 @@ export type UseStudioChatResult = {
       referencedArtifactId?: string;
     },
   ) => Promise<"sent" | "queued" | "rejected">;
+  startWorkflow: (
+    stage: WorkflowLiveStage,
+  ) => Promise<"sent" | "rejected">;
+  attachWorkflowRun: (
+    runId: string,
+    stage: WorkflowLiveStage,
+  ) => WorkflowRunAttachment | null;
   stop: () => void;
   clearError: () => void;
   /** Pending turns waiting for the current stream to finish. */
@@ -182,6 +195,22 @@ export function useStudioChat(
     stopLiveChat(sessionId);
   }, [sessionId]);
 
+  const startWorkflow = useCallback(
+    (stage: WorkflowLiveStage): Promise<"sent" | "rejected"> => {
+      if (!sessionId) return Promise.resolve("rejected");
+      return startWorkflowLiveChat(sessionId, stage);
+    },
+    [sessionId],
+  );
+
+  const attachWorkflowRun = useCallback(
+    (runId: string, stage: WorkflowLiveStage): WorkflowRunAttachment | null => {
+      if (!sessionId) return null;
+      return attachWorkflowRunStore(sessionId, runId, stage);
+    },
+    [sessionId],
+  );
+
   const clearError = useCallback(() => {
     if (!sessionId) return;
     clearLiveChatError(sessionId);
@@ -210,6 +239,8 @@ export function useStudioChat(
       setModel,
       setMessages,
       send,
+      startWorkflow,
+      attachWorkflowRun,
       stop,
       clearError,
       queue: snapshot.queue,
@@ -227,6 +258,8 @@ export function useStudioChat(
       setModel,
       setMessages,
       send,
+      startWorkflow,
+      attachWorkflowRun,
       stop,
       clearError,
       removeFromQueue,

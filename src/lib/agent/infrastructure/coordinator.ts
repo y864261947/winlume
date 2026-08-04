@@ -6,6 +6,7 @@ import type {
   AgentExecutor,
 } from "@/lib/agent/executor/types";
 import type { AgentSseEvent } from "@/lib/agent/types";
+import type { ProductionWorkflowExecution } from "@/lib/agent/production-packs/workflow-execution";
 import type {
   ArtifactStore,
   ProjectStore,
@@ -37,6 +38,7 @@ export interface RunCoordinatorDependencies {
   /** Optional while legacy flat chats remain supported. */
   projects?: ProjectStore;
   artifacts: ArtifactStore;
+  productionWorkflow?: ProductionWorkflowExecution;
   policy?: RunPolicyLike;
   executorFactory?: (mode: AgentExecutionMode) => AgentExecutor;
   leaseTtlMs?: number;
@@ -125,6 +127,7 @@ export class RunCoordinator {
   private readonly sessions: SessionStore;
   private readonly projects?: ProjectStore;
   private readonly artifacts: ArtifactStore;
+  private readonly productionWorkflow?: ProductionWorkflowExecution;
   private readonly policy: RunPolicyLike;
   private readonly executorFactory: (mode: AgentExecutionMode) => AgentExecutor;
   private readonly leaseTtlMs: number;
@@ -140,6 +143,7 @@ export class RunCoordinator {
     this.sessions = dependencies.sessions;
     this.projects = dependencies.projects;
     this.artifacts = dependencies.artifacts;
+    this.productionWorkflow = dependencies.productionWorkflow;
     this.policy = dependencies.policy ?? createStaticRunPolicy();
     this.executorFactory = dependencies.executorFactory ?? createAgentExecutor;
     this.leaseTtlMs = validatePositive(
@@ -162,7 +166,8 @@ export class RunCoordinator {
       executionMode: input.input.executionMode,
       model: input.input.model,
       message: input.input.message,
-      requestedToolNames: preflightToolNames(input.input.executionMode),
+      requestedToolNames:
+        input.input.allowedToolNames ?? preflightToolNames(input.input.executionMode),
       metadata: input.input.metadata,
     };
     const policy = assertExecutablePolicy(this.policy.evaluate(policyInput), input);
@@ -295,7 +300,9 @@ export class RunCoordinator {
       executionMode: executionRun.input.executionMode,
       model: executionRun.input.model,
       message: executionRun.input.message,
-      requestedToolNames: preflightToolNames(executionRun.input.executionMode),
+      requestedToolNames:
+        executionRun.input.allowedToolNames ??
+        preflightToolNames(executionRun.input.executionMode),
       metadata: executionRun.input.metadata,
     });
     const executablePolicy = toExecutablePolicy(executionPolicy, executionRun);
@@ -373,14 +380,18 @@ export class RunCoordinator {
       const executor = this.executorFactory(executionRun.input.executionMode);
       retrySafe = executor.retrySafety === "safe";
       executionStarted = true;
+      const workflow = await this.productionWorkflow?.executionContext(executionRun);
       const executionInput: AgentExecutionInput = {
         userId: executionRun.userId,
         sessionId: executionRun.sessionId,
         userText: executionRun.input.message,
         projectId: executionRun.projectId,
         runId: executionRun.id,
+        ...(workflow ? { workflow } : {}),
         model: executionRun.input.model,
         skillIds: executionRun.input.skillIds,
+        skillSelectionMode: executionRun.input.skillSelectionMode,
+        allowedToolNames: executionRun.input.allowedToolNames,
         referencedArtifactIds: executionRun.input.referencedArtifactIds,
         referencedArtifactId: executionRun.input.referencedArtifactIds?.[0],
         sessions: this.sessions,
@@ -407,6 +418,19 @@ export class RunCoordinator {
           }
         }
         if (event.type === "tool_call") {
+          if (
+            executionRun.input.allowedToolNames &&
+            !executionRun.input.allowedToolNames.includes(event.name)
+          ) {
+            budgetFailure = {
+              code: "tool_not_allowed",
+              message: `Tool is not allowed for this Run: ${event.name}`,
+              retryable: false,
+            };
+            await emitRunError(budgetFailure);
+            active.controller.abort();
+            break;
+          }
           const toolPolicy = this.policy.evaluate({
             userId: executionRun.userId,
             projectId: executionRun.projectId,
@@ -532,9 +556,12 @@ export class RunCoordinator {
           retrySafe,
         );
       }
-      const completed = await this.store.transitionRun(executionRun.id, "completed", {
-        reason: "executor completed",
-      });
+      const completed =
+        this.productionWorkflow && executionRun.metadata?.production
+          ? await this.productionWorkflow.completeRun(executionRun.id)
+          : await this.store.transitionRun(executionRun.id, "completed", {
+              reason: "executor completed",
+            });
       await this.publishRunEvents(executionRun.id);
       await this.queue.ack(queueLease.leaseId);
       return resultFor(completed, true, false, eventCount);

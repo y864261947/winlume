@@ -1,16 +1,60 @@
 {
   "schemaVersion": 1,
   "id": "content-office",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "sceneIds": ["content-office"],
   "title": "内容与办公工作流",
   "summary": "从需求澄清到经过审阅的工作文档。",
   "requiredCapabilities": ["chat"],
+  "intake": [
+    {
+      "id": "topic",
+      "label": "内容主题",
+      "type": "text",
+      "required": true,
+      "description": "需要研究、撰写或整理的核心主题。"
+    },
+    {
+      "id": "audience",
+      "label": "目标读者",
+      "type": "text",
+      "required": true,
+      "description": "最终内容面向的读者或使用者。"
+    },
+    {
+      "id": "delivery-format",
+      "label": "交付形式",
+      "type": "select",
+      "required": true,
+      "description": "期望得到的主要内容形式。",
+      "options": [
+        { "value": "article", "label": "文章" },
+        { "value": "report", "label": "报告" },
+        { "value": "proposal", "label": "方案" },
+        { "value": "summary", "label": "摘要" }
+      ]
+    },
+    {
+      "id": "source-artifact",
+      "label": "参考材料",
+      "type": "artifact",
+      "required": false,
+      "description": "已有的参考文档或材料 Artifact。",
+      "kinds": ["markdown", "text", "json", "html"]
+    }
+  ],
+  "expectedArtifacts": [
+    { "id": "brief", "kinds": ["markdown"], "required": true },
+    { "id": "research-notes", "kinds": ["markdown"], "required": true },
+    { "id": "draft", "kinds": ["markdown"], "required": true },
+    { "id": "review-record", "kinds": ["markdown"], "required": true }
+  ],
   "stages": [
     {
       "id": "intake",
       "title": "需求澄清",
       "objective": "把用户任务和已提供材料整理成可执行、可验收的工作简报。",
+      "handoffSummary": "向材料核验阶段提供目标、读者、范围、约束和待确认事项。",
       "skillIds": ["production-content-intake"],
       "requiredInputs": [],
       "outputs": [
@@ -32,6 +76,7 @@
       "id": "research",
       "title": "材料核验",
       "objective": "基于简报和用户提供的材料形成可追溯的研究笔记，标出证据不足之处。",
+      "handoffSummary": "向内容成稿阶段提供可追溯的事实、来源、推断和未解决问题。",
       "skillIds": ["production-content-research"],
       "requiredInputs": [
         {
@@ -59,6 +104,7 @@
       "id": "draft",
       "title": "内容成稿",
       "objective": "将经核验的研究笔记转成面向既定读者、可继续编辑的完整文稿。",
+      "handoffSummary": "向编辑审查阶段提供完整文稿及其关键来源和未决假设。",
       "skillIds": ["production-content-draft"],
       "requiredInputs": [
         {
@@ -86,6 +132,7 @@
       "id": "review",
       "title": "编辑审查",
       "objective": "以可定位的证据审查文稿，并记录通过、修改或阻断的结论。",
+      "handoffSummary": "提供可定位的审查结论、必要修改和交付就绪状态。",
       "skillIds": ["production-content-review"],
       "requiredInputs": [
         {

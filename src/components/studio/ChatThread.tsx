@@ -27,6 +27,7 @@ import type {
 } from "./useStudioChat";
 import MentionRichText from "./MentionRichText";
 import StudioViewTransition from "./StudioViewTransition";
+import WorkflowRunNotice from "./workflow/WorkflowRunNotice";
 
 export type ChatThreadProps = {
   messages: UiChatMessage[];
@@ -488,6 +489,15 @@ function Bubble({
   const refinementDisplay = isUser
     ? getImageRefinementDisplay(message.content)
     : null;
+
+  if (message.presentation?.kind === "workflow_run") {
+    return (
+      <WorkflowRunNotice
+        presentation={message.presentation}
+        messageId={message.id}
+      />
+    );
+  }
 
   if (message.role === "system" || message.role === "tool") {
     return (

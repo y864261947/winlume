@@ -375,6 +375,7 @@ abstract class StateBackedRunStore implements RunStore {
       }
       const from = run.status;
       run.status = status;
+      if (options.metadata !== undefined) run.metadata = clone(options.metadata);
       const now = options.now ?? new Date();
       if (status === "running" && !run.startedAt) run.startedAt = iso(now);
       if (isTerminalRunStatus(status)) {

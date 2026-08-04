@@ -1,4 +1,20 @@
+import type { ProductionPack } from "@/lib/agent/production-packs/contracts";
+
 export type Role = "user" | "assistant" | "system" | "tool";
+
+export type WorkflowIntakeValue = string | number | string[];
+
+export interface SessionWorkflowBinding {
+  schemaVersion: 1;
+  workflowId: string;
+  packId: string;
+  packVersion: string;
+  /** Immutable server-authored contract used after the registry advances. */
+  packSnapshot?: ProductionPack;
+  intakeValues: Record<string, WorkflowIntakeValue>;
+  inputArtifactIds: string[];
+  boundAt: string;
+}
 
 export interface Session {
   id: string;
@@ -11,6 +27,8 @@ export interface Session {
   pinnedSkillIds?: string[];
   /** Validated launch intent for a capability-specific Studio workflow. */
   capabilityPresetId?: string;
+  /** Server-validated Workflow Pack selection and intake before execution. */
+  workflow?: SessionWorkflowBinding;
   /** Codex SDK thread persisted for coding-specialist continuity. */
   codexThreadId?: string;
   createdAt: string;
@@ -37,11 +55,28 @@ export interface ToolCallRecord {
   result?: string;
 }
 
+export type WorkflowRunIntent =
+  | "stage_start"
+  | "revision_start"
+  | "retry_start";
+
+export interface WorkflowMessagePresentation {
+  kind: "workflow_run";
+  workflowId: string;
+  runId: string;
+  stageId: string;
+  stageTitle: string;
+  iteration: number;
+  intent: WorkflowRunIntent;
+}
+
 export interface Message {
   id: string;
   sessionId: string;
   role: Role;
   content: string;
+  /** Public display metadata; canonical content remains model-visible. */
+  presentation?: WorkflowMessagePresentation;
   skillIds?: string[];
   toolCalls?: ToolCallRecord[];
   /** For role "tool": links to the assistant tool_call id */
@@ -93,6 +128,31 @@ export type ArtifactKind =
   | "binary"
   | "canvas";
 
+export interface WorkflowArtifactOutputContract {
+  id: string;
+  kinds: ArtifactKind[];
+  required: boolean;
+}
+
+/** Server-resolved Stage context available only during one Workflow Run. */
+export interface WorkflowExecutionContext {
+  workflowId: string;
+  runId: string;
+  stageId: string;
+  /** Present for server-authored Workflow turns; omitted by legacy test fixtures. */
+  presentation?: WorkflowMessagePresentation;
+  outputs: WorkflowArtifactOutputContract[];
+}
+
+export interface ArtifactProvenance {
+  workflow?: {
+    workflowId: string;
+    runId: string;
+    stageId: string;
+    outputId: string;
+  };
+}
+
 export interface Artifact {
   id: string;
   userId: string;
@@ -113,6 +173,8 @@ export interface Artifact {
   visibility?: "visible" | "hidden";
   /** Internal role for an artifact used to target an image refinement. */
   purpose?: "annotation";
+  /** Durable origin used to map professional Workflow outputs without inference. */
+  provenance?: ArtifactProvenance;
 }
 
 export type AgentSseEvent =

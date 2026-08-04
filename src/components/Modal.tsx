@@ -1,6 +1,7 @@
 "use client";
 
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scrollLock";
 import { useFocusTrap } from "@/lib/useFocusTrap";
@@ -21,6 +22,10 @@ let nextZIndex = 100;
 
 const EXIT_DURATION = 150;
 
+const subscribeToPortalTarget = () => () => {};
+const getPortalTarget = (): HTMLElement => document.body;
+const getServerPortalTarget = (): null => null;
+
 export default function Modal({
   open,
   onClose,
@@ -31,6 +36,11 @@ export default function Modal({
 }: ModalProps) {
   const [id] = useState(() => `modal-${nextModalId++}`);
   const [rendered, setRendered] = useState(open);
+  const portalTarget = useSyncExternalStore<HTMLElement | null>(
+    subscribeToPortalTarget,
+    getPortalTarget,
+    getServerPortalTarget,
+  );
   const hostRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -43,6 +53,7 @@ export default function Modal({
   // 渲染期间同步打开状态
   if (open && !rendered) setRendered(true);
   const closing = rendered && !open;
+  const active = rendered && portalTarget !== null;
 
   // 关闭动画结束后再卸载
   useEffect(() => {
@@ -53,7 +64,7 @@ export default function Modal({
 
   // 打开期间：分配层级（后打开者恒在上）、登记栈、锁定背景滚动、ESC 只关最上层
   useEffect(() => {
-    if (!rendered) return;
+    if (!active) return;
     const zIndex = nextZIndex;
     nextZIndex += 2;
     if (hostRef.current) hostRef.current.style.zIndex = String(zIndex);
@@ -71,13 +82,13 @@ export default function Modal({
       unlockBodyScroll();
       document.removeEventListener("keydown", onKey);
     };
-  }, [rendered, id]);
+  }, [active, id]);
 
-  useFocusTrap(panelRef, rendered, () => modalStack[modalStack.length - 1] === id);
+  useFocusTrap(panelRef, active, () => modalStack[modalStack.length - 1] === id);
 
-  if (!rendered) return null;
+  if (!active) return null;
 
-  return (
+  return createPortal(
     <div
       ref={hostRef}
       className={`fixed inset-0 ${closing ? "pointer-events-none" : ""}`}
@@ -109,7 +120,8 @@ export default function Modal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    portalTarget,
   );
 }
 
