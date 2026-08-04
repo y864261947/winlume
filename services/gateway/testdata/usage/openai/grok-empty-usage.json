@@ -1,0 +1,17 @@
+{
+  "id": "grok_sanitized_empty_usage",
+  "object": "chat.completion",
+  "model": "grok-3-mini",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Fallback from a sanitized Grok response.",
+        "reasoning_content": " Short reasoning."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {}
+}

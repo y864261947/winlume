@@ -1,0 +1,32 @@
+{
+  "id": "resp_sanitized",
+  "object": "response",
+  "status": "completed",
+  "model": "gpt-4o-mini",
+  "output": [
+    {
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {"type": "output_text", "text": "A sanitized response."}
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 200,
+    "output_tokens": 80,
+    "total_tokens": 280,
+    "input_tokens_details": {
+      "cached_tokens": 30,
+      "image_tokens": 40,
+      "audio_tokens": 10
+    },
+    "output_tokens_details": {
+      "reasoning_tokens": 15,
+      "image_tokens": 4,
+      "audio_tokens": 5
+    },
+    "prompt_tokens": 999,
+    "completion_tokens": 999
+  }
+}

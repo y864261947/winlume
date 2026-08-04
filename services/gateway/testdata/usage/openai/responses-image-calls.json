@@ -1,0 +1,10 @@
+{
+  "id": "resp_sanitized_images",
+  "object": "response",
+  "status": "completed",
+  "output": [
+    {"type": "image_generation_call", "size": "1024x1024", "quality": "low"},
+    {"type": "image_generation_call", "size": "1792x1024", "quality": "high"}
+  ],
+  "usage": {"input_tokens": 1, "output_tokens": 0, "total_tokens": 1}
+}
