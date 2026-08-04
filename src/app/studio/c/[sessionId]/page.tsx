@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderKanban,
+  LoaderCircle,
   PanelLeftClose,
   PanelRight,
 } from "lucide-react";
@@ -28,6 +29,9 @@ import Composer from "@/components/studio/Composer";
 import StudioViewTransition from "@/components/studio/StudioViewTransition";
 import { useStudioHeaderSlot } from "@/components/studio/StudioShell";
 import { useResizablePanel } from "@/components/studio/useResizablePanel";
+import { WorkflowControlBar } from "@/components/studio/workflow/WorkflowControlBar";
+import { WorkflowStageRail } from "@/components/studio/workflow/WorkflowStageRail";
+import { useSessionWorkflow } from "@/components/studio/workflow/useSessionWorkflow";
 import {
   useStudioChat,
   type ArtifactEventPayload,
@@ -87,6 +91,10 @@ export default function StudioSessionPage() {
   const [initialMessages, setInitialMessages] = useState<
     Message[] | undefined
   >(undefined);
+  const [workflowSessionReconciling, setWorkflowSessionReconciling] =
+    useState(false);
+  const [workflowArtifactsReconciling, setWorkflowArtifactsReconciling] =
+    useState(false);
   const [pinnedSkillIds, setPinnedSkillIds] = useState<string[]>([]);
   const pendingSentRef = useRef(false);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -95,6 +103,7 @@ export default function StudioSessionPage() {
     if (!sessionId) return;
     const boot = readHandoffBootstrap(sessionId);
     if (!boot) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only handoff state must be applied before paint.
     setHasHandoff(true);
     setLoading(false);
     setInitialMessages([boot.userMessage]);
@@ -183,6 +192,7 @@ export default function StudioSessionPage() {
   // While open, keep layout slot in sync with resizes / list·preview toggles
   useEffect(() => {
     if (worksRailOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the persisted resize slot mirrors the open rail geometry.
       setWorksRailLayoutWidth(contentRailWidth);
     }
   }, [worksRailOpen, contentRailWidth]);
@@ -398,6 +408,43 @@ export default function StudioSessionPage() {
     onArtifact,
   });
 
+  const refreshSessionBundle = useCallback(async () => {
+    const sid = session?.id ?? sessionId;
+    if (!sid) return;
+    setWorkflowSessionReconciling(true);
+    try {
+      const bundle = await getSessionBundle(sid);
+      startTransition(() => {
+        setSession(bundle.session);
+        setPinnedSkillIds(bundle.session.pinnedSkillIds ?? []);
+        setInitialMessages(bundle.messages);
+      });
+    } finally {
+      setWorkflowSessionReconciling(false);
+    }
+  }, [session?.id, sessionId]);
+
+  const refreshWorkflowArtifacts = useCallback(async () => {
+    setWorkflowArtifactsReconciling(true);
+    try {
+      await refreshArtifacts();
+    } finally {
+      setWorkflowArtifactsReconciling(false);
+    }
+  }, [refreshArtifacts]);
+
+  const workflowEnabled = Boolean(session?.workflow);
+  const workflow = useSessionWorkflow({
+    sessionId: session?.id ?? sessionId,
+    enabled: workflowEnabled,
+    chat,
+    refreshSession: refreshSessionBundle,
+    refreshArtifacts: refreshWorkflowArtifacts,
+    onUnauthorized,
+  });
+  const workflowTerminalReconciling =
+    workflowSessionReconciling || workflowArtifactsReconciling;
+
   // Resolve the shared project context independently from the chat bundle so
   // older sessions (without projectId) continue to render unchanged.
   useEffect(() => {
@@ -436,6 +483,7 @@ export default function StudioSessionPage() {
 
   useEffect(() => {
     if (!sessionId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- invalid client route state is resolved after useParams hydrates.
       setLoadError("无效的会话");
       setLoading(false);
       return;
@@ -509,12 +557,14 @@ export default function StudioSessionPage() {
   // Load artifacts when session is ready
   useEffect(() => {
     if (!session?.id) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- session identity is the external key for the Artifact store.
     void refreshArtifacts();
   }, [session?.id, refreshArtifacts]);
 
   // Load selected artifact content
   useEffect(() => {
     if (!selectedId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing selection must clear its asynchronously loaded preview.
       setContent(null);
       setContentError(null);
       return;
@@ -544,10 +594,11 @@ export default function StudioSessionPage() {
 
   // Auto-send first message handed off from /studio home
   useEffect(() => {
-    if (loading || !session || pendingSentRef.current) return;
+    if (loading || !session || session.workflow || pendingSentRef.current) return;
     const pending = takePendingFirstMessage(session.id);
     if (!pending) return;
     pendingSentRef.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- consuming the one-shot handoff transitions the persisted live store.
     setHasHandoff(false);
     if (pending.model) chat.setModel(pending.model);
     void chat.send(pending.message, {
@@ -621,6 +672,14 @@ export default function StudioSessionPage() {
       flashArtifact(artifactId);
     },
     [flashArtifact, openWorksRail],
+  );
+
+  const openWorkflowArtifact = useCallback(
+    (artifactId: string) => {
+      openArtifactFromChat(artifactId);
+      void refreshArtifacts({ preferId: artifactId });
+    },
+    [openArtifactFromChat, refreshArtifacts],
   );
 
   const jumpToMessage = useCallback((messageId: string) => {
@@ -810,8 +869,17 @@ export default function StudioSessionPage() {
           ) : (
             <ChatThread
               messages={chat.messages}
-              streaming={chat.streaming || (hasHandoff && loading)}
-              emptyHint="发送一条消息，开始与 WinLume 对话。"
+              streaming={
+                chat.streaming ||
+                workflow.reconnecting ||
+                workflowTerminalReconciling ||
+                (hasHandoff && loading)
+              }
+              emptyHint={
+                workflowEnabled
+                  ? "暂无运行记录。"
+                  : "发送一条消息，开始与 WinLume 对话。"
+              }
               highlightMessageId={highlightMessageId}
               onHighlightConsumed={() => setHighlightMessageId(null)}
               artifactsByMessageId={artifactsByMessageId}
@@ -823,41 +891,65 @@ export default function StudioSessionPage() {
           )}
         </div>
       </StudioViewTransition>
-      <Composer
-        onSend={(text, meta) =>
-          chat.send(text, {
-            // Turn-only skillIds; runtime merges session pins server-side
-            skillIds: meta?.skillIds,
-            referencedArtifactIds: meta?.referencedArtifactIds,
-          })
-        }
-        onStop={chat.stop}
-        streaming={chat.streaming || (hasHandoff && loading)}
-        disabled={showThreadSkeleton || (loading && hasHandoff)}
-        model={chat.model}
-        onModelChange={chat.setModel}
-        pinnedSkillIds={pinnedSkillIds}
-        onPinnedSkillIdsChange={(ids) => {
-          void onPinnedSkillIdsChange(ids);
-        }}
-        error={chat.error}
-        onClearError={chat.clearError}
-        queue={chat.queue}
-        onRemoveFromQueue={chat.removeFromQueue}
-        onClearQueue={chat.clearQueue}
-        draftKey={session?.id ?? sessionId}
-        placeholder={
-          hasHandoff && loading ? "正在连接…" : undefined
-        }
-        shareTransitionName={withTransitionNames ? "studio-composer" : null}
-        imageArtifacts={artifacts.filter(
-          (a) => (a.kind === "image" || a.kind === "canvas") && a.status !== "failed",
-        )}
-        sessionId={session?.id ?? sessionId}
-        onImageUploaded={upsertArtifact}
-        onVideoUploaded={upsertArtifact}
-        onVideoAnalysisStarted={openPendingVideoAnalysis}
-      />
+      {!session ? (
+        <div className="studio-composer-dock">
+          <div
+            className="studio-liquid-glass mx-auto flex h-[58px] w-full max-w-3xl items-center gap-3 px-3 text-xs text-[#64748B]"
+            data-variant="session"
+            aria-busy="true"
+          >
+            <LoaderCircle
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 motion-safe:animate-spin"
+            />
+            正在加载会话
+          </div>
+        </div>
+      ) : workflowEnabled ? (
+        <WorkflowControlBar
+          workflow={workflow}
+          onOpenArtifact={openWorkflowArtifact}
+          reconciling={workflowTerminalReconciling}
+          liveError={chat.error}
+          onClearLiveError={chat.clearError}
+        />
+      ) : (
+        <Composer
+          onSend={(text, meta) =>
+            chat.send(text, {
+              // Turn-only skillIds; runtime merges session pins server-side
+              skillIds: meta?.skillIds,
+              referencedArtifactIds: meta?.referencedArtifactIds,
+            })
+          }
+          onStop={chat.stop}
+          streaming={chat.streaming || (hasHandoff && loading)}
+          disabled={showThreadSkeleton || (loading && hasHandoff)}
+          model={chat.model}
+          onModelChange={chat.setModel}
+          pinnedSkillIds={pinnedSkillIds}
+          onPinnedSkillIdsChange={(ids) => {
+            void onPinnedSkillIdsChange(ids);
+          }}
+          error={chat.error}
+          onClearError={chat.clearError}
+          queue={chat.queue}
+          onRemoveFromQueue={chat.removeFromQueue}
+          onClearQueue={chat.clearQueue}
+          draftKey={session?.id ?? sessionId}
+          placeholder={
+            hasHandoff && loading ? "正在连接…" : undefined
+          }
+          shareTransitionName={withTransitionNames ? "studio-composer" : null}
+          imageArtifacts={artifacts.filter(
+            (a) => (a.kind === "image" || a.kind === "canvas") && a.status !== "failed",
+          )}
+          sessionId={session?.id ?? sessionId}
+          onImageUploaded={upsertArtifact}
+          onVideoUploaded={upsertArtifact}
+          onVideoAnalysisStarted={openPendingVideoAnalysis}
+        />
+      )}
     </div>
   );
 
@@ -881,9 +973,11 @@ export default function StudioSessionPage() {
         onClose={() => setPreviewOpen(false)}
         onRefresh={() => void reloadContent()}
         onJumpToMessage={jumpToMessage}
-        onRetryGeneration={retryGeneration}
+        onRetryGeneration={workflowEnabled ? undefined : retryGeneration}
         sessionId={session?.id ?? sessionId}
-        onImageAnnotationRefine={refineImageWithAnnotation}
+        onImageAnnotationRefine={
+          workflowEnabled ? undefined : refineImageWithAnnotation
+        }
         className="min-h-0 flex-1 border-l-0"
       />
     </div>
@@ -894,6 +988,14 @@ export default function StudioSessionPage() {
       className={`studio-session-root flex min-h-0 flex-1 flex-col ${hasHandoff ? "" : "studio-view-in"}`}
       data-handoff={hasHandoff ? "true" : "false"}
     >
+      {workflowEnabled ? (
+        <WorkflowStageRail
+          projection={workflow.projection}
+          loading={workflow.loading}
+          onOpenArtifact={openWorkflowArtifact}
+        />
+      ) : null}
+
       {/* Mobile: tabbed */}
       <div className="flex min-h-0 flex-1 flex-col md:hidden">
         {mobileTab === "chat" ? renderChatColumn(false) : worksColumn}
@@ -1003,9 +1105,11 @@ export default function StudioSessionPage() {
                 onClose={() => setPreviewOpen(false)}
                 onRefresh={() => void reloadContent()}
                 onJumpToMessage={jumpToMessage}
-                onRetryGeneration={retryGeneration}
+                onRetryGeneration={workflowEnabled ? undefined : retryGeneration}
                 sessionId={session?.id ?? sessionId}
-                onImageAnnotationRefine={refineImageWithAnnotation}
+                onImageAnnotationRefine={
+                  workflowEnabled ? undefined : refineImageWithAnnotation
+                }
                 className="h-full w-full min-w-0"
               />
             </div>
