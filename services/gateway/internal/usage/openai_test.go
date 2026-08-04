@@ -179,17 +179,34 @@ func TestOpenAISSEWithoutUsageCountsOutputLocally(t *testing.T) {
 	require.True(t, actual.Complete)
 }
 
-func TestOpenAISSECountsDistinctToolCallsAndDeduplicatesArguments(t *testing.T) {
+func TestOpenAISSECountsDistinctToolCallsAcrossChoices(t *testing.T) {
 	observer, err := NewRegistry().New("openai", "text/event-stream", Estimate{PromptTokens: 17, Model: "gpt-4o-mini", Protocol: "openai"})
 	require.NoError(t, err)
 	payload := []byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_a\",\"function\":{\"name\":\"alpha\",\"arguments\":\"{\\\"a\\\":\"}}]}},{\"index\":1,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_b\",\"function\":{\"name\":\"beta\",\"arguments\":\"{\\\"b\\\":1}\"}}]}}]}\n\n" +
-		"data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"1}\"}}]}},{\"index\":1,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"b\\\":1}\"}}]}}]}\n\n" +
+		"data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"1}\"}}]}}]}\n\n" +
 		"data: [DONE]\n\n")
 	require.NoError(t, observer.Observe(payload))
 
 	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
 	require.NoError(t, err)
 	want := countText(`alpha{"a":1}beta{"b":1}`, "gpt-4o-mini") + 2*7
+	require.Equal(t, want, actual.TextOutputTokens)
+	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
+	require.True(t, actual.Complete)
+}
+
+func TestOpenAISSEAppendsRepeatedToolArgumentDeltas(t *testing.T) {
+	observer, err := NewRegistry().New("openai", "text/event-stream", Estimate{PromptTokens: 17, Model: "gpt-4o-mini", Protocol: "openai"})
+	require.NoError(t, err)
+	payload := []byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_same\",\"function\":{\"name\":\"lookup\",\"arguments\":\"a\"}}]}}]}\n\n" +
+		"data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"a\"}}]}}]}\n\n" +
+		"data: [DONE]\n\n")
+	require.NoError(t, observer.Observe(payload))
+	require.Equal(t, "lookupaa", observer.(*openAIObserver).chatStreamText())
+
+	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.NoError(t, err)
+	want := countText("lookupaa", "gpt-4o-mini") + 7
 	require.Equal(t, want, actual.TextOutputTokens)
 	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
 	require.True(t, actual.Complete)
@@ -325,6 +342,30 @@ func TestResponsesSSEIncompleteAndFailedEventsRemainIncomplete(t *testing.T) {
 	}
 }
 
+func TestResponsesSSEProviderTerminalSurvivesDone(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		typeName string
+	}{
+		{name: "incomplete", typeName: "response.incomplete"},
+		{name: "failed", typeName: "response.failed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			observer, err := NewRegistry().New("responses", "text/event-stream", Estimate{Model: "gpt-4o-mini", Protocol: "responses"})
+			require.NoError(t, err)
+			payload := []byte("event: " + test.typeName + "\n" +
+				"data: {\"type\":\"" + test.typeName + "\",\"response\":{\"status\":\"" + test.name + "\",\"usage\":{\"input_tokens\":9,\"output_tokens\":2,\"total_tokens\":11}}}\n\n" +
+				"data: [DONE]\n\n")
+			require.NoError(t, observer.Observe(payload))
+
+			actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+			require.NoError(t, err)
+			require.False(t, actual.Complete)
+			require.Equal(t, test.typeName, actual.TerminalEvent)
+		})
+	}
+}
+
 func TestResponsesSSETransportFailuresOverrideProviderTerminal(t *testing.T) {
 	for _, test := range []struct {
 		name       string
@@ -405,6 +446,39 @@ func TestResponsesSSEWithoutUsageCountsTextAndToolArgumentsLocally(t *testing.T)
 	require.Equal(t, RequestEstimate, actual.Fields["text_input_tokens"])
 	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
 	require.True(t, actual.Complete)
+}
+
+func TestResponsesSSEMergesConsecutiveTextDeltas(t *testing.T) {
+	registry := NewRegistryWithLimits(Limits{MaxFallbackBytes: 80})
+	observer, err := registry.New("responses", "text/event-stream", Estimate{Model: "gpt-4o-mini", Protocol: "responses"})
+	require.NoError(t, err)
+
+	payload := []byte(strings.Repeat("data: {\"type\":\"response.output_text.delta\",\"delta\":\"x\"}\n\n", 10))
+	require.NoError(t, observer.Observe(payload))
+
+	openAI := observer.(*openAIObserver)
+	require.Len(t, openAI.responseParts, 1)
+	require.Equal(t, strings.Repeat("x", 10), openAI.responseStreamText())
+}
+
+func TestResponsesSSEFallbackLimitCountsPartAndArgumentMapMetadata(t *testing.T) {
+	registry := NewRegistryWithLimits(Limits{MaxFallbackBytes: 256})
+	observer, err := registry.New("responses", "text/event-stream", Estimate{Model: "gpt-4o-mini", Protocol: "responses"})
+	require.NoError(t, err)
+
+	var observeErr error
+	for _, itemID := range strings.Split("abcdefghijklmnop", "") {
+		observeErr = observer.Observe([]byte("data: {\"type\":\"response.function_call_arguments.delta\",\"item_id\":\"" + itemID + "\",\"delta\":\"x\"}\n\n"))
+		if observeErr != nil {
+			break
+		}
+	}
+	require.ErrorIs(t, observeErr, ErrObservationLimitExceeded)
+
+	actual, completeErr := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.ErrorIs(t, completeErr, ErrObservationLimitExceeded)
+	require.False(t, actual.Complete)
+	require.Equal(t, "observation_limit_exceeded", actual.TerminalEvent)
 }
 
 func TestResponsesSSEFunctionArgumentDoneReplacesPriorDeltas(t *testing.T) {
@@ -536,6 +610,43 @@ func TestOpenAIRejectsSSEEventsWithLargeEventField(t *testing.T) {
 	require.NoError(t, err)
 	payload := []byte("event: " + strings.Repeat("x", maxSSEEventBytes) + "\n\n")
 	require.ErrorIs(t, observer.Observe(payload), ErrSSEEventTooLarge)
+}
+
+func TestSSEDecoderResetsStateAfterHandlerError(t *testing.T) {
+	decoder := sseDecoder{maxEventBytes: 128}
+	handlerErr := errors.New("handler failed")
+	err := decoder.Observe([]byte("event: stale\ndata: first\n\nevent: suffix\ndata: second\n\n"), func(string, []byte) error {
+		return handlerErr
+	})
+	require.ErrorIs(t, err, handlerErr)
+	require.Empty(t, decoder.pending)
+	require.Empty(t, decoder.event)
+	require.Zero(t, decoder.data.Len())
+	require.Zero(t, decoder.eventBytes)
+
+	var events []string
+	require.NoError(t, decoder.Observe([]byte("event: fresh\ndata: third\n\n"), func(event string, data []byte) error {
+		events = append(events, event+":"+string(data))
+		return nil
+	}))
+	require.Equal(t, []string{"fresh:third"}, events)
+}
+
+func TestSSEDecoderConsumesLargeChunkWithoutRetainingIt(t *testing.T) {
+	decoder := sseDecoder{maxEventBytes: 64}
+	const frame = "event: item\ndata: x\n\n"
+	payload := []byte(strings.Repeat(frame, 128))
+	require.Greater(t, len(payload), int(decoder.maxEventBytes))
+
+	var count int
+	require.NoError(t, decoder.Observe(payload, func(event string, data []byte) error {
+		require.Equal(t, "item", event)
+		require.Equal(t, []byte("x"), data)
+		count++
+		return nil
+	}))
+	require.Equal(t, 128, count)
+	require.Nil(t, decoder.pending)
 }
 
 func TestOpenAISSEStopsRetainingFallbackAfterCumulativeLimit(t *testing.T) {

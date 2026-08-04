@@ -34,15 +34,23 @@ type openAIObserver struct {
 	mu               sync.Mutex
 }
 
+type responsePartKind uint8
+
+const (
+	responsePartText responsePartKind = iota
+	responsePartArguments
+)
+
 type responseStreamPart struct {
-	text string
-	done bool
+	text        string
+	textBuilder *strings.Builder
+	kind        responsePartKind
+	done        bool
 }
 
 type chatToolCall struct {
-	name              string
-	arguments         string
-	seenArgumentChunk map[string]struct{}
+	name      string
+	arguments string
 }
 
 func newOpenAIObserver(protocol string, contentType string, estimate Estimate) *openAIObserver {
@@ -261,7 +269,7 @@ func collectResponsesJSONOutput(response map[string]any) string {
 func (observer *openAIObserver) observeSSEEvent(eventName string, data []byte) error {
 	payload := bytes.TrimSpace(data)
 	if bytes.Equal(payload, []byte("[DONE]")) {
-		if observer.protocol != "responses" || observer.terminal != "response.completed" {
+		if observer.protocol != "responses" || !strings.HasPrefix(observer.terminal, "response.") {
 			observer.terminal = "[DONE]"
 		}
 		return nil
@@ -328,7 +336,7 @@ func responseSSETerminal(typeName string, response map[string]any) string {
 
 func (observer *openAIObserver) collectResponseString(event map[string]any, field string) error {
 	if value, ok := event[field].(string); ok {
-		return observer.appendResponsePart(value)
+		return observer.appendResponseText(value)
 	}
 	return nil
 }
@@ -340,12 +348,9 @@ func (observer *openAIObserver) collectResponseArguments(event map[string]any, f
 	}
 	key := responseArgumentKey(event)
 	if key == "" {
-		return observer.appendResponsePart(value)
+		return observer.appendResponsePart(responsePartArguments, value, done)
 	}
-	if observer.responseArgParts == nil {
-		observer.responseArgParts = make(map[string]int)
-	}
-	if index, exists := observer.responseArgParts[key]; exists {
+	if index, exists := observer.responseArgumentPart(key); exists {
 		part := &observer.responseParts[index]
 		if done {
 			if err := observer.replaceFallbackPart(part, value); err != nil {
@@ -363,12 +368,27 @@ func (observer *openAIObserver) collectResponseArguments(event map[string]any, f
 	if value == "" {
 		return nil
 	}
-	if err := observer.reserveFallbackBytes(int64(len(value))); err != nil {
+	reservation, err := responsePartReservation(value, key)
+	if err != nil {
 		return err
 	}
+	if err := observer.reserveFallbackBytes(reservation); err != nil {
+		return err
+	}
+	if observer.responseArgParts == nil {
+		observer.responseArgParts = make(map[string]int)
+	}
 	observer.responseArgParts[key] = len(observer.responseParts)
-	observer.responseParts = append(observer.responseParts, responseStreamPart{text: value, done: done})
+	observer.responseParts = append(observer.responseParts, responseStreamPart{text: value, kind: responsePartArguments, done: done})
 	return nil
+}
+
+func (observer *openAIObserver) responseArgumentPart(key string) (int, bool) {
+	if observer.responseArgParts == nil {
+		return 0, false
+	}
+	index, exists := observer.responseArgParts[key]
+	return index, exists
 }
 
 func responseArgumentKey(event map[string]any) string {
@@ -384,19 +404,55 @@ func responseArgumentKey(event map[string]any) string {
 func (observer *openAIObserver) responseStreamText() string {
 	var text strings.Builder
 	for _, part := range observer.responseParts {
-		text.WriteString(part.text)
+		text.WriteString(part.value())
 	}
 	return text.String()
 }
 
-func (observer *openAIObserver) appendResponsePart(value string) error {
+func (part *responseStreamPart) value() string {
+	if part.textBuilder != nil {
+		return part.textBuilder.String()
+	}
+	return part.text
+}
+
+func (observer *openAIObserver) appendResponseText(value string) error {
 	if value == "" {
 		return nil
 	}
-	if err := observer.reserveFallbackBytes(int64(len(value))); err != nil {
+	last := len(observer.responseParts) - 1
+	if last >= 0 && observer.responseParts[last].kind == responsePartText {
+		if err := observer.reserveFallbackBytes(int64(len(value))); err != nil {
+			return err
+		}
+		observer.responseParts[last].textBuilder.WriteString(value)
+		return nil
+	}
+	reservation, err := responsePartReservation(value, "")
+	if err != nil {
 		return err
 	}
-	observer.responseParts = append(observer.responseParts, responseStreamPart{text: value})
+	if err := observer.reserveFallbackBytes(reservation); err != nil {
+		return err
+	}
+	text := &strings.Builder{}
+	text.WriteString(value)
+	observer.responseParts = append(observer.responseParts, responseStreamPart{textBuilder: text, kind: responsePartText})
+	return nil
+}
+
+func (observer *openAIObserver) appendResponsePart(kind responsePartKind, value string, done bool) error {
+	if value == "" {
+		return nil
+	}
+	reservation, err := responsePartReservation(value, "")
+	if err != nil {
+		return err
+	}
+	if err := observer.reserveFallbackBytes(reservation); err != nil {
+		return err
+	}
+	observer.responseParts = append(observer.responseParts, responseStreamPart{text: value, kind: kind, done: done})
 	return nil
 }
 
@@ -412,7 +468,7 @@ func (observer *openAIObserver) appendChatText(value string) error {
 }
 
 func (observer *openAIObserver) replaceFallbackPart(part *responseStreamPart, value string) error {
-	current := int64(len(part.text))
+	current := int64(len(part.value()))
 	next := int64(len(value))
 	if next > current {
 		if err := observer.reserveFallbackBytes(next - current); err != nil {
@@ -421,19 +477,47 @@ func (observer *openAIObserver) replaceFallbackPart(part *responseStreamPart, va
 	} else {
 		observer.fallbackBytes -= current - next
 	}
+	part.textBuilder = nil
 	part.text = value
 	return nil
 }
 
 func (observer *openAIObserver) reserveFallbackBytes(size int64) error {
-	if size <= 0 {
+	if size == 0 {
 		return nil
+	}
+	if size < 0 || observer.fallbackBytes < 0 || observer.fallbackBytes > observer.limits.MaxFallbackBytes {
+		return ErrObservationLimitExceeded
 	}
 	if size > observer.limits.MaxFallbackBytes-observer.fallbackBytes {
 		return ErrObservationLimitExceeded
 	}
 	observer.fallbackBytes += size
 	return nil
+}
+
+const (
+	fallbackMapEntryBytes  int64 = 64
+	fallbackPartEntryBytes int64 = 64
+)
+
+func responsePartReservation(value, key string) (int64, error) {
+	values := []int64{int64(len(value)), fallbackPartEntryBytes}
+	if key != "" {
+		values = append(values, int64(len(key)), fallbackMapEntryBytes)
+	}
+	return checkedFallbackBytes(values...)
+}
+
+func checkedFallbackBytes(values ...int64) (int64, error) {
+	var total int64
+	for _, value := range values {
+		if value < 0 || value > math.MaxInt64-total {
+			return 0, ErrObservationLimitExceeded
+		}
+		total += value
+	}
+	return total, nil
 }
 
 func (observer *openAIObserver) completeSSE(completion Completion) (Canonical, error) {
@@ -552,22 +636,13 @@ func (observer *openAIObserver) collectChatTool(choice map[string]any, choicePos
 		callState.name = name
 	}
 	if arguments, ok := function["arguments"].(string); ok && arguments != "" {
-		if callState.seenArgumentChunk == nil {
-			callState.seenArgumentChunk = make(map[string]struct{})
+		if err := observer.reserveFallbackBytes(int64(len(arguments))); err != nil {
+			return err
 		}
-		if _, seen := callState.seenArgumentChunk[arguments]; !seen {
-			retainedBytes := int64(len(arguments)*2) + fallbackMapEntryBytes
-			if err := observer.reserveFallbackBytes(retainedBytes); err != nil {
-				return err
-			}
-			callState.seenArgumentChunk[arguments] = struct{}{}
-			callState.arguments += arguments
-		}
+		callState.arguments += arguments
 	}
 	return nil
 }
-
-const fallbackMapEntryBytes int64 = 32
 
 func (observer *openAIObserver) chatToolForAliases(aliases []string) (string, *chatToolCall, error) {
 	if observer.chatToolAliases == nil {
@@ -654,47 +729,102 @@ func (decoder *sseDecoder) eventLimit() int64 {
 }
 
 func (decoder *sseDecoder) Observe(chunk []byte, handle func(event string, data []byte) error) error {
-	decoder.pending = append(decoder.pending, chunk...)
-
-	for {
-		lineEnd := bytes.IndexByte(decoder.pending, '\n')
+	for len(chunk) > 0 {
+		lineEnd := bytes.IndexByte(chunk, '\n')
 		if lineEnd < 0 {
-			if decoder.eventBytes+int64(len(decoder.pending)) > decoder.eventLimit() {
+			if err := decoder.appendPending(chunk); err != nil {
 				decoder.reset()
-				return ErrSSEEventTooLarge
+				return err
 			}
 			return nil
 		}
-		rawLineBytes := int64(lineEnd + 1)
-		if decoder.eventBytes+rawLineBytes > decoder.eventLimit() {
+
+		line := chunk[:lineEnd]
+		chunk = chunk[lineEnd+1:]
+		rawLineBytes, err := decoder.completeLineBytes(line)
+		if err != nil {
 			decoder.reset()
-			return ErrSSEEventTooLarge
+			return err
 		}
-		line := decoder.pending[:lineEnd]
-		decoder.pending = decoder.pending[lineEnd+1:]
-		decoder.eventBytes += rawLineBytes
-		if len(line) > 0 && line[len(line)-1] == '\r' {
-			line = line[:len(line)-1]
+		if len(decoder.pending) > 0 {
+			decoder.pending = append(decoder.pending, line...)
+			line = decoder.pending
+			decoder.pending = nil
 		}
-		if err := decoder.line(line, handle); err != nil {
+		if err := decoder.consumeLine(line, rawLineBytes, handle); err != nil {
+			decoder.reset()
 			return err
 		}
 	}
+	return nil
+}
+
+func (decoder *sseDecoder) appendPending(fragment []byte) error {
+	available, err := decoder.remainingEventBytes()
+	if err != nil {
+		return err
+	}
+	pendingBytes := int64(len(decoder.pending))
+	if pendingBytes > available {
+		return ErrSSEEventTooLarge
+	}
+	available -= pendingBytes
+	if int64(len(fragment)) > available {
+		return ErrSSEEventTooLarge
+	}
+	decoder.pending = append(decoder.pending, fragment...)
+	return nil
+}
+
+func (decoder *sseDecoder) completeLineBytes(suffix []byte) (int64, error) {
+	available, err := decoder.remainingEventBytes()
+	if err != nil {
+		return 0, err
+	}
+	pendingBytes := int64(len(decoder.pending))
+	if pendingBytes > available {
+		return 0, ErrSSEEventTooLarge
+	}
+	available -= pendingBytes
+	if available == 0 || int64(len(suffix)) > available-1 {
+		return 0, ErrSSEEventTooLarge
+	}
+	return pendingBytes + int64(len(suffix)) + 1, nil
+}
+
+func (decoder *sseDecoder) remainingEventBytes() (int64, error) {
+	limit := decoder.eventLimit()
+	if decoder.eventBytes < 0 || decoder.eventBytes > limit {
+		return 0, ErrSSEEventTooLarge
+	}
+	return limit - decoder.eventBytes, nil
+}
+
+func (decoder *sseDecoder) consumeLine(line []byte, rawLineBytes int64, handle func(event string, data []byte) error) error {
+	available, err := decoder.remainingEventBytes()
+	if err != nil {
+		return err
+	}
+	if rawLineBytes <= 0 || rawLineBytes > available {
+		return ErrSSEEventTooLarge
+	}
+	decoder.eventBytes += rawLineBytes
+	if len(line) > 0 && line[len(line)-1] == '\r' {
+		line = line[:len(line)-1]
+	}
+	return decoder.line(line, handle)
 }
 
 func (decoder *sseDecoder) line(line []byte, handle func(event string, data []byte) error) error {
 	if len(line) == 0 {
 		if decoder.data.Len() == 0 {
-			decoder.event = ""
-			decoder.eventBytes = 0
+			decoder.clearEvent()
 			return nil
 		}
 		data := append([]byte(nil), decoder.data.Bytes()...)
 		data = bytes.TrimSuffix(data, []byte("\n"))
 		event := decoder.event
-		decoder.event = ""
-		decoder.data.Reset()
-		decoder.eventBytes = 0
+		decoder.clearEvent()
 		return handle(event, data)
 	}
 	if line[0] == ':' {
@@ -712,21 +842,37 @@ func (decoder *sseDecoder) line(line []byte, handle func(event string, data []by
 	case "event":
 		decoder.event = string(value)
 	case "data":
-		if int64(decoder.data.Len()+len(value)+1) > decoder.eventLimit() {
-			decoder.reset()
+		if err := decoder.appendData(value); err != nil {
 			return ErrSSEEventTooLarge
 		}
-		_, _ = decoder.data.Write(value)
-		_ = decoder.data.WriteByte('\n')
 	}
 	return nil
 }
 
+func (decoder *sseDecoder) appendData(value []byte) error {
+	current := int64(decoder.data.Len())
+	limit := decoder.eventLimit()
+	if current < 0 || current > limit {
+		return ErrSSEEventTooLarge
+	}
+	available := limit - current
+	if available == 0 || int64(len(value)) > available-1 {
+		return ErrSSEEventTooLarge
+	}
+	_, _ = decoder.data.Write(value)
+	_ = decoder.data.WriteByte('\n')
+	return nil
+}
+
+func (decoder *sseDecoder) clearEvent() {
+	decoder.event = ""
+	decoder.data = bytes.Buffer{}
+	decoder.eventBytes = 0
+}
+
 func (decoder *sseDecoder) reset() {
 	decoder.pending = nil
-	decoder.event = ""
-	decoder.data.Reset()
-	decoder.eventBytes = 0
+	decoder.clearEvent()
 }
 
 func normalizeOpenAIUsage(document map[string]any, protocol string, estimate Estimate) (Canonical, error) {
