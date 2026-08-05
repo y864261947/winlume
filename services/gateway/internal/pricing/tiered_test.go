@@ -219,14 +219,22 @@ func TestTieredProbePolicyRejectsCredentialLikeHeaderPatterns(t *testing.T) {
 	}{
 		{name: "api key", header: "api-key"},
 		{name: "api key with prefix", header: "tt-api-key"},
+		{name: "camel case api key", header: "XApiKey"},
+		{name: "camel case api key with prefix", header: "TTApiKey"},
 		{name: "auth token", header: "x-auth-token"},
+		{name: "camel case auth token", header: "XAuthToken"},
 		{name: "access token with separators", header: "x_access.token"},
+		{name: "camel case access token", header: "XAccessToken"},
 		{name: "refresh token with separators", header: "x.refresh_token"},
+		{name: "camel case refresh token", header: "XRefreshToken"},
 		{name: "client secret lower-trimmed", header: " Client_Secret "},
+		{name: "camel case client secret", header: "ClientSecret"},
 		{name: "secret segment", header: "x-secret-label"},
 		{name: "password segment", header: "x_password"},
 		{name: "credential segment", header: "x.credential.id"},
 		{name: "cookie segment", header: "x-cookie-label"},
+		{name: "camel case proxy authorization", header: "ProxyAuthorization"},
+		{name: "camel case set cookie", header: "SetCookie"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			snapshot, err := FreezeExpressionWithPolicy(

@@ -849,6 +849,17 @@ func isSensitiveHeader(key string) bool {
 			return true
 		}
 	}
+	canonical := canonicalHeaderKey(key)
+	for _, fragment := range sensitiveCanonicalHeaderFragments {
+		if strings.Contains(canonical, fragment) {
+			return true
+		}
+	}
+	for _, suffix := range sensitiveCanonicalHeaderSuffixes {
+		if canonical == suffix || strings.HasSuffix(canonical, suffix) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -856,6 +867,15 @@ func headerKeyTokens(key string) []string {
 	return strings.FieldsFunc(normalizeHeaderKey(key), func(r rune) bool {
 		return !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9')
 	})
+}
+
+func canonicalHeaderKey(key string) string {
+	return strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			return r
+		}
+		return -1
+	}, normalizeHeaderKey(key))
 }
 
 func containsHeaderTokenPattern(tokens, pattern []string) bool {
@@ -907,6 +927,25 @@ var sensitiveHeaderTokenPatterns = [][]string{
 	{"access", "token"},
 	{"refresh", "token"},
 	{"client", "secret"},
+}
+
+var sensitiveCanonicalHeaderFragments = []string{
+	"apikey",
+	"clientsecret",
+	"secret",
+	"password",
+	"credential",
+	"cookie",
+}
+
+var sensitiveCanonicalHeaderSuffixes = []string{
+	"token",
+	"authtoken",
+	"accesstoken",
+	"refreshtoken",
+	"authorization",
+	"proxyauthorization",
+	"setcookie",
 }
 
 var sensitiveParamSegments = map[string]struct{}{
