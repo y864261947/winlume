@@ -163,6 +163,19 @@ type PendingRecorder interface {
 	RecordPending(ctx context.Context, operation *Operation, actual usage.Canonical, completion relay.Completion) error
 }
 
+// AttemptRecorder is an optional Lifecycle capability for persisting relay
+// retry diagnostics (channel, timing, status, retry reason, sanitized error
+// class) against one operation's shared UsageEventID. It is deliberately
+// separate from Begin/Complete/Fail: a relay AttemptHistory is audit data
+// about channel selection and retries, never an input to the pricing engine
+// or funding policy, and recording it must never gate or duplicate the one
+// terminal Complete/Fail call a request is allowed. The shadow Service does
+// not implement it because it never reserves a usage_events row for
+// gateway_relay_attempts to reference.
+type AttemptRecorder interface {
+	RecordAttempts(ctx context.Context, operation *Operation, history relay.AttemptHistory) error
+}
+
 func (observer *Observer) Complete(ctx context.Context, completion relay.Completion) {
 	actual, err := observer.usage.Complete(usage.Completion{
 		StatusCode: completion.StatusCode, Headers: completion.Headers, BytesWritten: completion.BytesWritten,

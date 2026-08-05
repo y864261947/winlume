@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strings"
 	"time"
@@ -48,34 +49,63 @@ func NewClient(selector ChannelSelector, options ClientOptions) *Client {
 }
 
 // Do selects one channel, reopens the body, and starts the upstream response.
+// It performs exactly one relay attempt; callers that need retry behavior
+// across multiple attempts use Relay instead.
 func (client *Client) Do(ctx context.Context, request Request, history AttemptHistory) (*http.Response, error) {
+	channel, err := client.selectChannel(ctx, request, history)
+	if err != nil {
+		return nil, err
+	}
+	response, _, err := client.relayAttempt(ctx, request, channel)
+	return response, err
+}
+
+// selectChannel asks the configured selector for one destination, filtering
+// caller headers before the selector ever sees them.
+func (client *Client) selectChannel(ctx context.Context, request Request, history AttemptHistory) (Channel, error) {
 	if client == nil || client.selector == nil || request.URL == nil {
-		return nil, ErrNoChannel
+		return Channel{}, ErrNoChannel
 	}
 	selectionRequest := request
 	selectionRequest.Headers = FilterRequestHeaders(request.Headers)
 	channel, err := client.selector.Select(ctx, selectionRequest, history)
 	if err != nil {
-		return nil, err
+		return Channel{}, err
 	}
 	if channel.BaseURL == nil {
-		return nil, ErrNoChannel
+		return Channel{}, ErrNoChannel
 	}
+	return channel, nil
+}
 
+// relayAttempt builds and executes one upstream request against an
+// already-selected channel. The returned bool reports whether the outgoing
+// request was fully written to the upstream connection before any error:
+// retry classification uses it to tell "the upstream never saw this request"
+// apart from "upstream acceptance is uncertain".
+func (client *Client) relayAttempt(ctx context.Context, request Request, channel Channel) (*http.Response, bool, error) {
 	target := JoinUpstreamURL(channel.BaseURL, request.URL)
 	var body io.ReadCloser
+	var err error
 	if request.Body != nil && !strings.EqualFold(request.Method, http.MethodGet) && !strings.EqualFold(request.Method, http.MethodHead) {
 		body, err = request.Body.Open()
 		if err != nil {
-			return nil, fmt.Errorf("open relay request body: %w", err)
+			return nil, false, fmt.Errorf("open relay request body: %w", err)
 		}
 	}
-	upstreamRequest, err := http.NewRequestWithContext(ctx, request.Method, target.String(), body)
+
+	wrote := false
+	trace := &httptrace.ClientTrace{
+		WroteRequest: func(info httptrace.WroteRequestInfo) { wrote = info.Err == nil },
+	}
+	tracedCtx := httptrace.WithClientTrace(ctx, trace)
+
+	upstreamRequest, err := http.NewRequestWithContext(tracedCtx, request.Method, target.String(), body)
 	if err != nil {
 		if body != nil {
 			_ = body.Close()
 		}
-		return nil, fmt.Errorf("build upstream request: %w", err)
+		return nil, false, fmt.Errorf("build upstream request: %w", err)
 	}
 	upstreamRequest.Host = target.Host
 	upstreamRequest.Header = BuildRequestHeaders(request.Headers, RequestHeaderOptions{
@@ -98,9 +128,9 @@ func (client *Client) Do(ctx context.Context, request Request, history AttemptHi
 
 	response, err := client.httpClient.Do(upstreamRequest)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %T", ErrUpstreamUnavailable, err)
+		return nil, wrote, fmt.Errorf("%w: %T", ErrUpstreamUnavailable, err)
 	}
-	return response, nil
+	return response, true, nil
 }
 
 // JoinUpstreamURL preserves the configured origin and the incoming raw query.

@@ -19,11 +19,14 @@ const authoritativePersistenceTimeout = 5 * time.Second
 
 // AuthoritativeRepository is intentionally narrow: one storage transaction
 // owns every hold, settlement, reversal, and idempotency decision.
+// RecordRelayAttempt is the one exception - it is a plain, non-transactional
+// audit insert that never gates or participates in the settlement lifecycle.
 type AuthoritativeRepository interface {
 	Reserve(context.Context, storage.ReservationRequest) (storage.Reservation, error)
 	PersistCompletion(context.Context, storage.CompletionSnapshot) error
 	Settle(context.Context, uuid.UUID) (storage.Settlement, error)
 	Reverse(context.Context, uuid.UUID) error
+	RecordRelayAttempt(context.Context, storage.RelayAttemptRecord) error
 }
 
 // AuthoritativeService is enabled only after the process startup ownership
@@ -194,6 +197,45 @@ func (service *AuthoritativeService) RecordPending(ctx context.Context, operatio
 	spoolCtx, cancel := authoritativeContext(ctx)
 	defer cancel()
 	return service.spool.Write(spoolCtx, envelope)
+}
+
+// RecordAttempts persists history against operation's UsageEventID, one row
+// per attempt. It never touches pricing or funding: the relay.Attempt values
+// it reads (channel ID, raw provider type, timing, status, retry reason,
+// sanitized error class) are already the sanitized, numeric-or-enumerated
+// fields relay.Relay produced, so nothing here can leak a channel URL,
+// upstream credential, or raw error body into storage. A write failure for
+// one attempt does not stop the others - each attempt is independently
+// idempotent in storage - and is reported as the first error encountered.
+func (service *AuthoritativeService) RecordAttempts(ctx context.Context, operation *Operation, history relay.AttemptHistory) error {
+	if service == nil || service.store == nil || operation == nil || operation.UsageEventID == uuid.Nil {
+		return ErrAuthoritativeUnavailable
+	}
+	billingCtx, cancel := authoritativeContext(ctx)
+	defer cancel()
+	var firstErr error
+	for _, attempt := range history {
+		var completedAt *time.Time
+		if !attempt.CompletedAt.IsZero() {
+			value := attempt.CompletedAt
+			completedAt = &value
+		}
+		err := service.store.RecordRelayAttempt(billingCtx, storage.RelayAttemptRecord{
+			UsageEventID:        operation.UsageEventID,
+			AttemptNumber:       attempt.Number,
+			ChannelID:           attempt.ChannelID,
+			ProviderType:        attempt.RawType,
+			Status:              string(attempt.Outcome),
+			RetryReason:         attempt.RetryReason,
+			SanitizedErrorClass: attempt.ErrorClass,
+			StartedAt:           attempt.StartedAt,
+			CompletedAt:         completedAt,
+		})
+		if err != nil && firstErr == nil {
+			firstErr = mapStorageError(err)
+		}
+	}
+	return firstErr
 }
 
 func (service *AuthoritativeService) Fail(ctx context.Context, operation *Operation, _ Failure) error {

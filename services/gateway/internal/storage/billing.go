@@ -72,6 +72,22 @@ type Settlement struct {
 	Status       string
 }
 
+// RelayAttemptRecord is the sanitized, per-attempt audit row persisted
+// alongside a shared billing operation's usage event. It must never carry a
+// request or response body, upstream credential, channel URL, or raw error
+// text - only enough to reconstruct retry behavior after the fact.
+type RelayAttemptRecord struct {
+	UsageEventID        uuid.UUID
+	AttemptNumber       int
+	ChannelID           string
+	ProviderType        int
+	Status              string
+	RetryReason         string
+	SanitizedErrorClass string
+	StartedAt           time.Time
+	CompletedAt         *time.Time
+}
+
 type usageEvent struct {
 	ID            uuid.UUID
 	UserID        uuid.UUID
@@ -284,6 +300,34 @@ func (store *Store) Reverse(ctx context.Context, usageEventID uuid.UUID) error {
 		return ErrUnavailable
 	}
 	if err := tx.Commit(ctx); err != nil {
+		return ErrUnavailable
+	}
+	return nil
+}
+
+// RecordRelayAttempt persists one relay attempt's sanitized diagnostics. It
+// is a plain insert outside the settlement transaction: attempt bookkeeping
+// is audit data, never an input to pricing or funding, and must never block
+// or be blocked by the settle/reverse path. It is idempotent on repeated
+// calls with the same (usage_event_id, attempt_number) - the table's unique
+// index makes a duplicate call for an already-recorded attempt a no-op
+// rather than an error, matching this package's existing idempotency style.
+func (store *Store) RecordRelayAttempt(ctx context.Context, record RelayAttemptRecord) error {
+	if store == nil || store.pool == nil || record.UsageEventID == uuid.Nil || record.AttemptNumber <= 0 ||
+		strings.TrimSpace(record.ChannelID) == "" || record.ProviderType < 0 || strings.TrimSpace(record.Status) == "" ||
+		record.StartedAt.IsZero() {
+		return ErrUnavailable
+	}
+	_, err := store.pool.Exec(ctx, `
+		INSERT INTO gateway_relay_attempts (
+			usage_event_id, attempt_number, channel_id, provider_type, status,
+			retry_reason, sanitized_error_class, started_at, completed_at
+		) VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), $8, $9)
+		ON CONFLICT (usage_event_id, attempt_number) DO NOTHING`,
+		record.UsageEventID, record.AttemptNumber, record.ChannelID, record.ProviderType, record.Status,
+		record.RetryReason, record.SanitizedErrorClass, record.StartedAt, record.CompletedAt,
+	)
+	if err != nil {
 		return ErrUnavailable
 	}
 	return nil

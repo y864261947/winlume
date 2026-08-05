@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -17,12 +18,13 @@ import (
 )
 
 type authoritativeStoreStub struct {
-	reservation storage.ReservationRequest
-	eventID     uuid.UUID
-	snapshot    storage.CompletionSnapshot
-	calls       []string
-	reverseID   uuid.UUID
-	err         error
+	reservation   storage.ReservationRequest
+	eventID       uuid.UUID
+	snapshot      storage.CompletionSnapshot
+	calls         []string
+	reverseID     uuid.UUID
+	relayAttempts []storage.RelayAttemptRecord
+	err           error
 }
 
 func (stub *authoritativeStoreStub) Reserve(_ context.Context, request storage.ReservationRequest) (storage.Reservation, error) {
@@ -51,6 +53,12 @@ func (stub *authoritativeStoreStub) Settle(_ context.Context, eventID uuid.UUID)
 func (stub *authoritativeStoreStub) Reverse(_ context.Context, eventID uuid.UUID) error {
 	stub.calls = append(stub.calls, "reverse")
 	stub.reverseID = eventID
+	return stub.err
+}
+
+func (stub *authoritativeStoreStub) RecordRelayAttempt(_ context.Context, record storage.RelayAttemptRecord) error {
+	stub.calls = append(stub.calls, "record_relay_attempt")
+	stub.relayAttempts = append(stub.relayAttempts, record)
 	return stub.err
 }
 
@@ -147,6 +155,59 @@ func TestAuthoritativeRecordPendingWithoutASpoolIsUnavailable(t *testing.T) {
 
 	err = service.RecordPending(context.Background(), operation, usage.Canonical{Calls: map[string]int64{}, Fields: map[string]usage.Provenance{}}, relay.Completion{EOF: true})
 	require.ErrorIs(t, err, ErrAuthoritativeUnavailable)
+}
+
+func TestAuthoritativeRecordAttemptsPersistsSanitizedPerAttemptDiagnostics(t *testing.T) {
+	store := &authoritativeStoreStub{eventID: uuid.New()}
+	service := NewAuthoritativeService(catalogLoaderStub{catalog: authoritativeCatalog("model")}, store)
+	operation, err := service.Begin(context.Background(), authoritativeBeginRequest(uuid.New()))
+	require.NoError(t, err)
+
+	startedFirst := time.Now().UTC()
+	completedFirst := startedFirst.Add(time.Millisecond)
+	startedSecond := completedFirst.Add(time.Millisecond)
+	completedSecond := startedSecond.Add(time.Millisecond)
+	history := relay.AttemptHistory{
+		{
+			Number: 1, ChannelID: "channel-a", RawType: 7, StartedAt: startedFirst, CompletedAt: completedFirst,
+			Status: 0, Outcome: relay.AttemptRetried, RetryReason: string(relay.RetryReasonTransportBeforeSend),
+			ErrorClass: "transport_unavailable",
+		},
+		{
+			Number: 2, ChannelID: "channel-b", RawType: 3, StartedAt: startedSecond, CompletedAt: completedSecond,
+			Status: 200, Outcome: relay.AttemptCommitted,
+		},
+	}
+
+	require.NoError(t, service.RecordAttempts(context.Background(), operation, history))
+	require.Len(t, store.relayAttempts, 2)
+
+	first := store.relayAttempts[0]
+	require.Equal(t, operation.UsageEventID, first.UsageEventID)
+	require.Equal(t, 1, first.AttemptNumber)
+	require.Equal(t, "channel-a", first.ChannelID)
+	require.Equal(t, 7, first.ProviderType)
+	require.Equal(t, "retried", first.Status)
+	require.Equal(t, "transport_before_send", first.RetryReason)
+	require.Equal(t, "transport_unavailable", first.SanitizedErrorClass)
+	require.Equal(t, startedFirst, first.StartedAt)
+	require.NotNil(t, first.CompletedAt)
+	require.Equal(t, completedFirst, *first.CompletedAt)
+
+	second := store.relayAttempts[1]
+	require.Equal(t, 2, second.AttemptNumber)
+	require.Equal(t, "channel-b", second.ChannelID)
+	require.Equal(t, "committed", second.Status)
+	require.Empty(t, second.RetryReason)
+	require.Empty(t, second.SanitizedErrorClass)
+}
+
+func TestAuthoritativeRecordAttemptsWithoutAUsageEventIDIsUnavailable(t *testing.T) {
+	store := &authoritativeStoreStub{eventID: uuid.New()}
+	service := NewAuthoritativeService(catalogLoaderStub{catalog: authoritativeCatalog("model")}, store)
+	err := service.RecordAttempts(context.Background(), &Operation{}, relay.AttemptHistory{{Number: 1, ChannelID: "x"}})
+	require.ErrorIs(t, err, ErrAuthoritativeUnavailable)
+	require.Empty(t, store.relayAttempts)
 }
 
 func TestAuthoritativeBeginMapsInsufficientFunds(t *testing.T) {

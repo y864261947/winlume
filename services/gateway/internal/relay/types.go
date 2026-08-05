@@ -26,6 +26,14 @@ type Request struct {
 	RequestID                  string
 	TrustedUserID              *uuid.UUID
 	IncludeNewAPICompatibility bool
+	// TaskSubmission marks a request that creates async/queued upstream work
+	// (a paid job, render, or generation task) rather than returning its
+	// entire result synchronously. Once such a request's bytes have been
+	// written to the upstream connection, a transport failure no longer
+	// proves the task was not created - retrying could submit the same paid
+	// work twice - so retry classification refuses to retry it past that
+	// point regardless of the configured retry policy.
+	TaskSubmission bool
 }
 
 // Channel is one concrete provider relay destination.
@@ -38,12 +46,41 @@ type Channel struct {
 	RawType       int
 }
 
+// AttemptOutcome classifies how one relay attempt ended. It is recorded
+// verbatim (never derived from raw error text) so it is always safe to
+// persist alongside billing data.
+type AttemptOutcome string
+
+const (
+	// AttemptCommitted means this attempt's response (whatever its status
+	// code) is the one that gets streamed to the downstream client. No
+	// further attempt follows it.
+	AttemptCommitted AttemptOutcome = "committed"
+	// AttemptRetried means this attempt failed in a configured-retryable way
+	// and another attempt followed it.
+	AttemptRetried AttemptOutcome = "retried"
+	// AttemptFailed means this attempt failed in a way that was not
+	// retryable (or no attempts remained), and it produced no response to
+	// stream to the client.
+	AttemptFailed AttemptOutcome = "failed"
+)
+
 // Attempt records one channel selection outcome without owning billing state.
+// It carries only sanitized, numeric, or enumerated fields - no request body,
+// upstream credential, channel URL, or raw error text - so it is always safe
+// to log, persist, or hand to a ChannelSelector.
 type Attempt struct {
-	ChannelID string
-	StartedAt time.Time
-	Status    int
-	ErrorCode string
+	Number      int
+	ChannelID   string
+	RawType     int
+	StartedAt   time.Time
+	CompletedAt time.Time
+	// Status is the upstream HTTP status code, or 0 when no response was
+	// received (a transport-level failure).
+	Status      int
+	Outcome     AttemptOutcome
+	RetryReason string
+	ErrorClass  string
 }
 
 type AttemptHistory []Attempt
