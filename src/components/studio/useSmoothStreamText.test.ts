@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextRevealChunk } from "./useSmoothStreamText";
+import { nextDisplayedText, nextRevealChunk } from "./useSmoothStreamText";
 
 describe("nextRevealChunk", () => {
   it("returns an empty chunk for empty input", () => {
@@ -47,5 +47,20 @@ describe("nextRevealChunk", () => {
       }
       expect(remaining).toBe("");
     }
+  });
+});
+
+describe("nextDisplayedText", () => {
+  it("reveals only one scheduled chunk from a completed stream backlog", () => {
+    expect(nextDisplayedText("你好", "你好世界")).toBe("你好世");
+    expect(nextDisplayedText("The ", "The answer is ready")).toBe("The answer ");
+  });
+
+  it("snaps when the target was replaced with shorter content", () => {
+    expect(nextDisplayedText("旧内容", "新")).toBe("新");
+  });
+
+  it("does not change already-complete content", () => {
+    expect(nextDisplayedText("完成", "完成")).toBe("完成");
   });
 });

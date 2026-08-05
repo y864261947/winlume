@@ -45,6 +45,13 @@ export function nextRevealChunk(remaining: string): string {
   return remaining.slice(0, end);
 }
 
+/** Reveal exactly one scheduled chunk, or snap when the target was replaced. */
+export function nextDisplayedText(displayed: string, target: string): string {
+  if (target.length < displayed.length) return target;
+  if (displayed.length >= target.length) return displayed;
+  return displayed + nextRevealChunk(target.slice(displayed.length));
+}
+
 /** ~31 ticks/sec: smooth to the eye, comfortable reading speed for either script. */
 const REVEAL_TICK_MS = 32;
 
@@ -58,13 +65,14 @@ const REVEAL_TICK_MS = 32;
  * Only smooths *new* text arriving while `streaming` is true. It never
  * replays a backlog from scratch: a freshly mounted message (e.g. resuming
  * a turn after navigating back) or a finished message shows in full
- * immediately, and animation only applies to deltas from that point on.
+ * immediately. When a stream closes with unrevealed text, that tail is
+ * drained on the same cadence instead of being flushed in one render.
  */
 export function useSmoothStreamText(fullText: string, streaming: boolean): string {
   const [displayed, setDisplayed] = useState(fullText);
-  const [prevStreaming, setPrevStreaming] = useState(streaming);
   const displayedRef = useRef(fullText);
   const targetRef = useRef(fullText);
+  const streamingRef = useRef(streaming);
 
   // Keep both refs effect-synced (never mutate a ref during render) so the
   // interval always reads the latest values without needing to depend on
@@ -76,34 +84,42 @@ export function useSmoothStreamText(fullText: string, streaming: boolean): strin
     displayedRef.current = displayed;
   }, [displayed]);
 
-  // React's documented pattern for resetting state on a prop transition:
-  // adjust state directly during render instead of via an effect. The
-  // moment streaming stops, show the real content immediately — no queued
-  // animation tail after the message is actually done.
-  if (streaming !== prevStreaming) {
-    setPrevStreaming(streaming);
-    if (!streaming) setDisplayed(fullText);
-  }
+  // A finished message restored from storage should render in full. A stream
+  // that just closed is different: its remaining text must stay queued so the
+  // final render does not turn into a burst.
+  useEffect(() => {
+    const wasStreaming = streamingRef.current;
+    streamingRef.current = streaming;
+    if (!streaming && !wasStreaming) {
+      displayedRef.current = fullText;
+      setDisplayed(fullText);
+    }
+  }, [fullText, streaming]);
 
   useEffect(() => {
-    if (!streaming) return;
-
-    const timer = setInterval(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const tick = () => {
       const target = targetRef.current;
       const current = displayedRef.current;
-      if (target.length < current.length) {
-        // Content was reset out from under us (edit/replace); snap to it.
-        displayedRef.current = target;
-        setDisplayed(target);
+      if (current.length >= target.length) {
+        if (!streamingRef.current && timer) {
+          clearInterval(timer);
+          timer = null;
+        }
         return;
       }
-      if (current.length >= target.length) return;
-      const next = current + nextRevealChunk(target.slice(current.length));
+      const next = nextDisplayedText(current, target);
       displayedRef.current = next;
       setDisplayed(next);
-    }, REVEAL_TICK_MS);
+    };
 
-    return () => clearInterval(timer);
+    if (streaming || displayedRef.current.length < targetRef.current.length) {
+      timer = setInterval(tick, REVEAL_TICK_MS);
+    }
+
+    return () => {
+      if (timer) clearInterval(timer);
+    };
   }, [streaming]);
 
   return displayed;
