@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,11 +18,15 @@ import (
 
 	"github.com/google/uuid"
 
+	"winlume/services/gateway/internal/billing"
 	"winlume/services/gateway/internal/config"
 	"winlume/services/gateway/internal/httpapi"
 	"winlume/services/gateway/internal/identity"
 	"winlume/services/gateway/internal/observability"
+	"winlume/services/gateway/internal/pricing"
 	"winlume/services/gateway/internal/relay"
+	"winlume/services/gateway/internal/storage"
+	"winlume/services/gateway/internal/usage"
 )
 
 const shutdownTimeout = 15 * time.Second
@@ -42,7 +47,7 @@ func execute(
 ) int {
 	cfg, err := loadConfig()
 	if err == nil {
-		err = validateOffConfig(cfg)
+		err = cfg.Validate()
 	}
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "gateway configuration is invalid: %v\n", err)
@@ -62,7 +67,7 @@ func execute(
 }
 
 func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
-	if err := validateOffConfig(cfg); err != nil {
+	if err := cfg.Validate(); err != nil {
 		_ = listener.Close()
 		return err
 	}
@@ -73,7 +78,28 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 	}
 	logger := observability.NewLogger(os.Stdout)
 	relayClient := relay.NewClient(selector, relay.ClientOptions{})
-	lookup := configuredAPIKeyLookup{hashes: cfg.APIKeyHashes, allowUnverified: cfg.AllowUnverifiedAPIKeys}
+	var lookup identity.APIKeyLookup = configuredAPIKeyLookup{hashes: cfg.APIKeyHashes, allowUnverified: cfg.AllowUnverifiedAPIKeys}
+	var shadow *billing.Service
+	var billingReady httpapi.ReadinessProbe
+	var internalHandler http.Handler
+	if cfg.BillingMode == config.BillingShadow {
+		store, storageErr := storage.Open(ctx, cfg.DatabaseURL)
+		if storageErr != nil {
+			_ = listener.Close()
+			return storageErr
+		}
+		defer store.Close()
+		lookup = store
+		shadow = billing.NewShadowService(store, store)
+		internalHandler = shadowEventsHandler(store)
+		billingReady = func(probeCtx context.Context) error {
+			if err := store.Health(probeCtx); err != nil {
+				return err
+			}
+			_, err := store.LoadActiveCatalog(probeCtx)
+			return err
+		}
+	}
 
 	serverHandler := httpapi.NewServer(httpapi.Dependencies{
 		Config: cfg,
@@ -84,8 +110,10 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 			}
 			return relay.ErrNoChannel
 		},
+		BillingReady:    billingReady,
+		InternalHandler: internalHandler,
 		PublicHandler: func(response http.ResponseWriter, request *http.Request, route httpapi.Route) {
-			handlePublicRequest(response, request, route, cfg, lookup, relayClient, logger)
+			handlePublicRequest(response, request, route, cfg, lookup, shadow, relayClient, logger)
 		},
 	})
 	httpServer := &http.Server{
@@ -120,14 +148,46 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 	}
 }
 
-func validateOffConfig(cfg config.Config) error {
-	if err := cfg.Validate(); err != nil {
-		return err
-	}
-	if cfg.BillingMode != config.BillingOff {
-		return fmt.Errorf("this Gateway build currently requires WINLUME_GATEWAY_BILLING_MODE=off")
-	}
-	return nil
+func shadowEventsHandler(store *storage.Store) http.Handler {
+	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		filter := storage.ShadowFilter{
+			Cursor: request.URL.Query().Get("cursor"), Limit: 50,
+			Model: request.URL.Query().Get("model"), RequestID: request.URL.Query().Get("request_id"),
+			Outcome: request.URL.Query().Get("outcome"), MismatchClass: request.URL.Query().Get("mismatch_class"),
+		}
+		if raw := request.URL.Query().Get("limit"); raw != "" {
+			limit, err := strconv.Atoi(raw)
+			if err != nil || limit < 1 || limit > 200 {
+				httpapi.WriteError(response, http.StatusBadRequest, "request_error", "invalid_limit", "limit must be between 1 and 200", response.Header().Get("x-request-id"))
+				return
+			}
+			filter.Limit = limit
+		}
+		for _, value := range []struct {
+			raw    string
+			target **time.Time
+		}{
+			{raw: request.URL.Query().Get("from"), target: &filter.From},
+			{raw: request.URL.Query().Get("to"), target: &filter.To},
+		} {
+			if value.raw == "" {
+				continue
+			}
+			parsed, err := time.Parse(time.RFC3339, value.raw)
+			if err != nil {
+				httpapi.WriteError(response, http.StatusBadRequest, "request_error", "invalid_time", "from and to must be RFC3339 timestamps", response.Header().Get("x-request-id"))
+				return
+			}
+			*value.target = &parsed
+		}
+		page, err := store.ListShadows(request.Context(), filter)
+		if err != nil {
+			httpapi.WriteError(response, http.StatusBadRequest, "request_error", "invalid_shadow_query", "The shadow event query is invalid", response.Header().Get("x-request-id"))
+			return
+		}
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(page)
+	})
 }
 
 func handlePublicRequest(
@@ -135,7 +195,8 @@ func handlePublicRequest(
 	request *http.Request,
 	route httpapi.Route,
 	cfg config.Config,
-	lookup configuredAPIKeyLookup,
+	lookup identity.APIKeyLookup,
+	shadow *billing.Service,
 	relayClient *relay.Client,
 	logger *observability.Logger,
 ) {
@@ -145,7 +206,7 @@ func handlePublicRequest(
 		resolved, authErr = identity.AuthenticateAPIKey(request.Context(), request, lookup)
 	}
 	if authErr != nil {
-		if errors.Is(authErr, errAPIKeyVerificationUnavailable) {
+		if errors.Is(authErr, errAPIKeyVerificationUnavailable) || errors.Is(authErr, storage.ErrUnavailable) {
 			httpapi.WriteError(response, http.StatusServiceUnavailable, "authentication_error", "api_key_verification_unavailable", "API key verification is not configured", requestID)
 			return
 		}
@@ -172,6 +233,27 @@ func handlePublicRequest(
 		}()
 	}
 
+	var operation *billing.Operation
+	var estimate usage.Estimate
+	if shadow != nil && bodyStore != nil {
+		body, bodyErr := readBody(bodyStore)
+		if bodyErr == nil {
+			protocol := pricingRequestProtocol(route, request.URL.Path)
+			if protocol != "" {
+				estimate, bodyErr = usage.EstimateRequest(body, "", protocol)
+				if bodyErr == nil && estimate.Model != "" {
+					operation, _ = shadow.Begin(request.Context(), billing.BeginRequest{
+						RequestID: requestID,
+						Identity:  resolved,
+						Model:     estimate.Model,
+						Estimate:  estimate,
+						Request:   pricing.RequestInput{Headers: pricingHeaders(request.Header), Body: body, EvaluationTime: time.Now().UTC()},
+					})
+				}
+			}
+		}
+	}
+
 	incomingURL := *request.URL
 	var trustedUserID = &resolved.UserID
 	if resolved.UserID == uuid.Nil {
@@ -188,11 +270,79 @@ func handlePublicRequest(
 		IncludeNewAPICompatibility: resolved.Source == identity.SourceStudio && cfg.UpstreamOwnership == config.OwnershipNonChargingNewAPI,
 	}, nil)
 	if relayErr != nil {
+		if operation != nil {
+			_ = shadow.Fail(request.Context(), operation, billing.Failure{ErrorClass: "upstream_unavailable"})
+		}
 		logger.Warn(request.Context(), "upstream relay failed", logFields(requestID, route, cfg, resolved, "upstream_unavailable"))
 		httpapi.WriteError(response, http.StatusBadGateway, "upstream_error", "upstream_unavailable", "The configured upstream is unavailable", requestID)
 		return
 	}
-	relay.StreamResponse(request.Context(), response, upstreamResponse, nil)
+	var observer relay.Observer
+	if operation != nil {
+		usageObserver, usageErr := usage.NewRegistry().New(pricingResponseProtocol(route, request.URL.Path), upstreamResponse.Header.Get("Content-Type"), estimate)
+		if usageErr == nil {
+			observer = billing.NewObserver(shadow, operation, usageObserver)
+		} else {
+			_ = shadow.Fail(request.Context(), operation, billing.Failure{ErrorClass: "usage_observer_unavailable"})
+		}
+	}
+	relay.StreamResponse(request.Context(), response, upstreamResponse, observer)
+}
+
+func readBody(store *httpapi.BodyStore) ([]byte, error) {
+	reader, err := store.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	return io.ReadAll(reader)
+}
+
+func pricingHeaders(source http.Header) map[string]string {
+	result := make(map[string]string, len(source))
+	for name, values := range source {
+		if len(values) > 0 {
+			result[name] = values[0]
+		}
+	}
+	return result
+}
+
+func pricingRequestProtocol(route httpapi.Route, path string) string {
+	switch route.Family {
+	case config.ProtocolClaude:
+		return "claude"
+	case config.ProtocolGemini:
+		return "gemini"
+	case config.ProtocolOpenAI, config.ProtocolImages, config.ProtocolAudio:
+		if strings.HasPrefix(path, "/v1/responses") {
+			return "responses"
+		}
+		return "openai"
+	default:
+		return ""
+	}
+}
+
+func pricingResponseProtocol(route httpapi.Route, path string) string {
+	switch route.Family {
+	case config.ProtocolClaude:
+		return "claude"
+	case config.ProtocolImages:
+		return "images"
+	case config.ProtocolAudio:
+		if strings.Contains(path, "/speech") {
+			return "audio_speech"
+		}
+		return "audio"
+	case config.ProtocolOpenAI:
+		if strings.HasPrefix(path, "/v1/responses") {
+			return "responses"
+		}
+		return "openai"
+	default:
+		return ""
+	}
 }
 
 func logFields(requestID string, route httpapi.Route, cfg config.Config, resolved identity.Identity, errorClass string) observability.Fields {

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"net/http"
 	"regexp"
 
@@ -23,20 +24,22 @@ type PublicHandler func(http.ResponseWriter, *http.Request, Route)
 
 // Dependencies contains only the collaborators needed by the HTTP shell.
 type Dependencies struct {
-	Config        config.Config
-	RelayReady    ReadinessProbe
-	BillingReady  ReadinessProbe
-	PublicHandler PublicHandler
+	Config          config.Config
+	RelayReady      ReadinessProbe
+	BillingReady    ReadinessProbe
+	PublicHandler   PublicHandler
+	InternalHandler http.Handler
 }
 
 // Server owns the public HTTP contract without owning authentication, relay, or
 // billing implementation details.
 type Server struct {
-	config        config.Config
-	relayReady    ReadinessProbe
-	billingReady  ReadinessProbe
-	publicHandler PublicHandler
-	handler       http.Handler
+	config          config.Config
+	relayReady      ReadinessProbe
+	billingReady    ReadinessProbe
+	publicHandler   PublicHandler
+	internalHandler http.Handler
+	handler         http.Handler
 }
 
 type healthBody struct {
@@ -68,10 +71,11 @@ type readinessBody struct {
 // NewServer creates the Fastify-compatible operational and public route shell.
 func NewServer(dependencies Dependencies) *Server {
 	server := &Server{
-		config:        dependencies.Config,
-		relayReady:    dependencies.RelayReady,
-		billingReady:  dependencies.BillingReady,
-		publicHandler: dependencies.PublicHandler,
+		config:          dependencies.Config,
+		relayReady:      dependencies.RelayReady,
+		billingReady:    dependencies.BillingReady,
+		publicHandler:   dependencies.PublicHandler,
+		internalHandler: dependencies.InternalHandler,
 	}
 	server.handler = withRequestID(withCORS(http.HandlerFunc(server.serveHTTP), dependencies.Config.CORSOrigins))
 	return server
@@ -104,6 +108,21 @@ func (server *Server) serveHTTP(response http.ResponseWriter, request *http.Requ
 		}
 		server.writeCapabilities(response, request)
 		return
+	case "/internal/billing/shadow-events":
+		if request.Method != http.MethodGet {
+			server.writeMethodNotAllowed(response, request, http.MethodGet)
+			return
+		}
+		if !server.authorizeInternal(request) {
+			writeError(response, http.StatusUnauthorized, "authentication_error", "internal_token_required", "A valid internal token is required", requestID(request))
+			return
+		}
+		if server.internalHandler == nil {
+			writeError(response, http.StatusServiceUnavailable, "billing_error", "shadow_events_unavailable", "Shadow billing is not configured", requestID(request))
+			return
+		}
+		server.internalHandler.ServeHTTP(response, request)
+		return
 	}
 
 	route, pathKnown := matchPublicPath(request.URL.Path)
@@ -131,6 +150,12 @@ func (server *Server) serveHTTP(response http.ResponseWriter, request *http.Requ
 		return
 	}
 	server.publicHandler(response, request, route)
+}
+
+func (server *Server) authorizeInternal(request *http.Request) bool {
+	expected := []byte(server.config.InternalToken)
+	received := []byte(request.Header.Get("x-winlume-internal-token"))
+	return len(expected) > 0 && len(expected) == len(received) && subtle.ConstantTimeCompare(expected, received) == 1
 }
 
 func (server *Server) writeHealth(response http.ResponseWriter, request *http.Request) {

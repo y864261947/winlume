@@ -18,6 +18,14 @@ type Identity struct {
 	APIKeyID       *uuid.UUID
 	OrganizationID *uuid.UUID
 	APIKeyDisplay  string
+	Scopes         []string
+	AllowedModels  []string
+	AllowedGroups  []string
+	IPAllowlist    []string
+	UserGroup      string
+	BillingGroup   string
+	Unlimited      bool
+	QuotaLimit     *int64
 }
 
 // APIKeySource records which supported request header carried a credential.
