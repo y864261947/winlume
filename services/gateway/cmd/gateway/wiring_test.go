@@ -41,6 +41,20 @@ type fakeGatewayStore struct {
 	settlementPendingCalled chan struct{}
 	hasTables               bool
 	healthErr               error
+
+	// closed, blockPass, and closedBeforePassReturned exist to make the
+	// shutdown ordering from Finding 1 of the Task 19 review testable
+	// without a live database: previously Close() was a silent no-op, so a
+	// defer-ordering bug that closed the store before the recovery worker's
+	// in-flight pass returned was invisible to every test. When blockPass is
+	// non-nil, ListSettlementPending blocks on it (after signaling
+	// settlementPendingCalled) until the test releases it, simulating a pass
+	// still in flight at the moment shutdown begins; if Close() runs while
+	// that call is still blocked, closedBeforePassReturned records the
+	// violation for the test to assert against.
+	closed                   atomic.Bool
+	blockPass                chan struct{}
+	closedBeforePassReturned atomic.Bool
 }
 
 func newFakeGatewayStore() *fakeGatewayStore {
@@ -82,6 +96,12 @@ func (f *fakeGatewayStore) ListSettlementPending(context.Context, int) ([]storag
 	case f.settlementPendingCalled <- struct{}{}:
 	default:
 	}
+	if f.blockPass != nil {
+		<-f.blockPass
+		if f.closed.Load() {
+			f.closedBeforePassReturned.Store(true)
+		}
+	}
 	return nil, nil
 }
 
@@ -99,7 +119,7 @@ func (f *fakeGatewayStore) ListShadows(context.Context, storage.ShadowFilter) (s
 	return storage.ShadowPage{}, nil
 }
 
-func (f *fakeGatewayStore) Close() {}
+func (f *fakeGatewayStore) Close() { f.closed.Store(true) }
 
 func withFakeOpenStore(t *testing.T, store gatewayStore, storeErr error) {
 	t.Helper()
@@ -152,6 +172,56 @@ func TestRunStartsRecoveryWorkerInAuthoritativeMode(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("gateway did not shut down after context cancellation")
 	}
+}
+
+// TestRunWaitsForInFlightRecoveryPassBeforeClosingStore proves the Finding 1
+// fix: on shutdown, run() must wait for the recovery worker's goroutine to
+// actually return (background.Wait()) before it closes the store. It blocks
+// the worker mid-pass, cancels ctx (starting shutdown), asserts the store is
+// still open while the pass is in flight, then releases the pass and asserts
+// the store was only closed after run() itself returned - which can only
+// happen once the worker's goroutine has observed ctx.Done() and exited.
+// Before the fix, store.Close() was deferred (and therefore ran, LIFO)
+// before background.Wait(), so this would have closed the store out from
+// under the in-flight ListSettlementPending call.
+func TestRunWaitsForInFlightRecoveryPassBeforeClosingStore(t *testing.T) {
+	store := newFakeGatewayStore()
+	store.blockPass = make(chan struct{})
+	withFakeOpenStore(t, store, nil)
+
+	cfg := billingCapableConfig(t, config.BillingAuthoritative)
+	listener := listenLocal(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() { result <- run(ctx, cfg, listener) }()
+
+	select {
+	case <-store.settlementPendingCalled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("recovery worker did not run a pass")
+	}
+
+	// The worker is now blocked inside ListSettlementPending, simulating a
+	// pass still in flight. Trigger shutdown and confirm the store is not
+	// closed while the pass remains blocked.
+	cancel()
+	require.Never(t, func() bool { return store.closed.Load() }, 300*time.Millisecond, 20*time.Millisecond,
+		"store must not be closed while the recovery worker's pass is still in flight")
+
+	// Release the blocked pass so the worker's Run loop can observe
+	// ctx.Done() and return.
+	close(store.blockPass)
+
+	select {
+	case err := <-result:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("gateway did not shut down after the blocked recovery pass was released")
+	}
+
+	require.True(t, store.closed.Load(), "store must be closed once run() returns")
+	require.False(t, store.closedBeforePassReturned.Load(),
+		"store.Close() must not run until after the recovery worker's in-flight pass returned")
 }
 
 func TestRunDoesNotStartRecoveryWorkerInShadowMode(t *testing.T) {

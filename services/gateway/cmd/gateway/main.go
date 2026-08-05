@@ -140,13 +140,6 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 	var billingReady httpapi.ReadinessProbe
 	var internalHandler http.Handler
 
-	// background collects every long-running goroutine started for this
-	// billing mode (the recovery worker, its metrics poller) so shutdown can
-	// wait for them to observe ctx.Done() and return before run() itself
-	// returns, instead of racing process exit against an in-flight pass.
-	var background sync.WaitGroup
-	defer background.Wait()
-
 	if cfg.BillingMode == config.BillingShadow || cfg.BillingMode == config.BillingAuthoritative {
 		store, storageErr := openStore(ctx, cfg.DatabaseURL)
 		if storageErr != nil {
@@ -154,6 +147,17 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 			return storageErr
 		}
 		defer store.Close()
+
+		// background collects every long-running goroutine started for this
+		// billing mode (the recovery worker, its metrics poller) so shutdown
+		// can wait for them to observe ctx.Done() and return before store.Close()
+		// runs, instead of racing an in-flight recovery pass against a closed
+		// connection pool. Declared (and its Wait deferred) AFTER store.Close()
+		// is deferred so that, by LIFO defer ordering, background.Wait() runs
+		// FIRST on the way out and store.Close() only runs once every
+		// goroutine tracked by background has actually returned.
+		var background sync.WaitGroup
+		defer background.Wait()
 
 		if gateErr := runStartupGates(ctx, cfg, store); gateErr != nil {
 			_ = listener.Close()
@@ -543,10 +547,15 @@ func handlePublicRequest(
 	if observer != nil {
 		// billing.Observer.Complete already ran synchronously inside
 		// StreamResponse and owns the actual settle/fail outcome internally;
-		// it does not return one here, so this only records that a
-		// settlement was attempted for this operation, not that it
-		// necessarily succeeded.
-		metrics.RecordBillingOperation(string(cfg.BillingMode), "settle", "attempted")
+		// it does not return one here, so this only proves a settlement was
+		// dispatched for this operation, never whether it actually succeeded
+		// or failed. Deliberately NOT labeled "success"/"failure"/"attempted"
+		// (which would look like a real outcome and invite a success/failure
+		// alert that could never fire as expected) - it is labeled
+		// "dispatched" instead. Plumbing the real settle outcome back here
+		// requires a change to billing/service.go's Complete signature,
+		// which is out of this task's scope; tracked as a follow-up.
+		metrics.RecordBillingOperation(string(cfg.BillingMode), "settle", "dispatched")
 	}
 	if completion.Err != nil || upstreamResponse.StatusCode >= http.StatusInternalServerError {
 		recordOutcome("upstream_error")
