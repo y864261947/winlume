@@ -45,4 +45,13 @@ func TestBuildUsesNewAPICompatibilityDefaultsAndAggregatesAvailability(t *testin
 	require.True(t, catalog.Availability[0].Enabled)
 	require.False(t, catalog.Availability[1].Enabled)
 	require.Equal(t, "unknown", catalog.Availability[1].ProtocolFamily)
+
+	// EnabledGroups and ProtocolFamilies map to NOT NULL Postgres array columns
+	// with an empty-array default; a nil Go slice encodes as SQL NULL via pgx
+	// and violates that constraint, so every rule must carry a non-nil (even
+	// if empty) slice for both fields.
+	for _, rule := range catalog.Rules {
+		require.NotNil(t, rule.EnabledGroups, "rule %q must not have a nil EnabledGroups slice", rule.ModelKey)
+		require.NotNil(t, rule.ProtocolFamilies, "rule %q must not have a nil ProtocolFamilies slice", rule.ModelKey)
+	}
 }

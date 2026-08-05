@@ -267,6 +267,8 @@ func buildRule(
 		AudioInputRatio:      valueOr(audioRatios, model, decimal.NewFromInt(1)),
 		AudioCompletionRatio: valueOr(audioCompletionRatios, model, decimal.NewFromInt(1)),
 		ToolPrices:           toolPricesForModel(model, configuredToolPrices),
+		EnabledGroups:        []string{},
+		ProtocolFamilies:     []string{},
 	}
 	rule.CacheWriteOneHourRatio = rule.CacheWriteRatio.Mul(decimal.RequireFromString("1.6"))
 
