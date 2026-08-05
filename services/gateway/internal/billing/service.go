@@ -135,12 +135,12 @@ func sanitizeErrorClass(value string) string {
 // Any parsing failure becomes a sanitized failed shadow event after bytes have
 // already been delivered to the client.
 type Observer struct {
-	service   *Service
+	service   Lifecycle
 	operation *Operation
 	usage     usage.Observer
 }
 
-func NewObserver(service *Service, operation *Operation, observer usage.Observer) *Observer {
+func NewObserver(service Lifecycle, operation *Operation, observer usage.Observer) *Observer {
 	if service == nil || operation == nil || observer == nil {
 		return nil
 	}

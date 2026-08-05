@@ -79,10 +79,10 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 	logger := observability.NewLogger(os.Stdout)
 	relayClient := relay.NewClient(selector, relay.ClientOptions{})
 	var lookup identity.APIKeyLookup = configuredAPIKeyLookup{hashes: cfg.APIKeyHashes, allowUnverified: cfg.AllowUnverifiedAPIKeys}
-	var shadow *billing.Service
+	var lifecycle billing.Lifecycle
 	var billingReady httpapi.ReadinessProbe
 	var internalHandler http.Handler
-	if cfg.BillingMode == config.BillingShadow {
+	if cfg.BillingMode == config.BillingShadow || cfg.BillingMode == config.BillingAuthoritative {
 		store, storageErr := storage.Open(ctx, cfg.DatabaseURL)
 		if storageErr != nil {
 			_ = listener.Close()
@@ -90,8 +90,12 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 		}
 		defer store.Close()
 		lookup = store
-		shadow = billing.NewShadowService(store, store)
-		internalHandler = shadowEventsHandler(store)
+		if cfg.BillingMode == config.BillingShadow {
+			lifecycle = billing.NewShadowService(store, store)
+			internalHandler = shadowEventsHandler(store)
+		} else {
+			lifecycle = billing.NewAuthoritativeService(store, store)
+		}
 		billingReady = func(probeCtx context.Context) error {
 			if err := store.Health(probeCtx); err != nil {
 				return err
@@ -113,7 +117,7 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 		BillingReady:    billingReady,
 		InternalHandler: internalHandler,
 		PublicHandler: func(response http.ResponseWriter, request *http.Request, route httpapi.Route) {
-			handlePublicRequest(response, request, route, cfg, lookup, shadow, relayClient, logger)
+			handlePublicRequest(response, request, route, cfg, lookup, lifecycle, relayClient, logger)
 		},
 	})
 	httpServer := &http.Server{
@@ -196,7 +200,7 @@ func handlePublicRequest(
 	route httpapi.Route,
 	cfg config.Config,
 	lookup identity.APIKeyLookup,
-	shadow *billing.Service,
+	lifecycle billing.Lifecycle,
 	relayClient *relay.Client,
 	logger *observability.Logger,
 ) {
@@ -235,22 +239,34 @@ func handlePublicRequest(
 
 	var operation *billing.Operation
 	var estimate usage.Estimate
-	if shadow != nil && bodyStore != nil {
+	if lifecycle != nil && bodyStore != nil {
 		body, bodyErr := readBody(bodyStore)
 		if bodyErr == nil {
 			protocol := pricingRequestProtocol(route, request.URL.Path)
 			if protocol != "" {
 				estimate, bodyErr = usage.EstimateRequest(body, "", protocol)
 				if bodyErr == nil && estimate.Model != "" {
-					operation, _ = shadow.Begin(request.Context(), billing.BeginRequest{
-						RequestID: requestID,
-						Identity:  resolved,
-						Model:     estimate.Model,
-						Estimate:  estimate,
-						Request:   pricing.RequestInput{Headers: pricingHeaders(request.Header), Body: body, EvaluationTime: time.Now().UTC()},
+					operation, bodyErr = lifecycle.Begin(request.Context(), billing.BeginRequest{
+						RequestID:      requestID,
+						IdempotencyKey: request.Header.Get("Idempotency-Key"),
+						Provider:       string(route.Family),
+						Identity:       resolved,
+						Model:          estimate.Model,
+						Estimate:       estimate,
+						Request:        pricing.RequestInput{Headers: pricingHeaders(request.Header), Body: body, EvaluationTime: time.Now().UTC()},
 					})
+					if bodyErr != nil && cfg.BillingMode == config.BillingAuthoritative {
+						writeAuthoritativeBillingError(response, requestID, bodyErr)
+						return
+					}
+				} else if cfg.BillingMode == config.BillingAuthoritative {
+					httpapi.WriteError(response, http.StatusBadRequest, "request_error", "billing_usage_unavailable", "The request model and usage estimate could not be determined", requestID)
+					return
 				}
 			}
+		} else if cfg.BillingMode == config.BillingAuthoritative {
+			httpapi.WriteError(response, http.StatusBadRequest, "request_error", "billing_request_unreadable", "The request could not be read for billing", requestID)
+			return
 		}
 	}
 
@@ -271,7 +287,7 @@ func handlePublicRequest(
 	}, nil)
 	if relayErr != nil {
 		if operation != nil {
-			_ = shadow.Fail(request.Context(), operation, billing.Failure{ErrorClass: "upstream_unavailable"})
+			_ = lifecycle.Fail(request.Context(), operation, billing.Failure{ErrorClass: "upstream_unavailable"})
 		}
 		logger.Warn(request.Context(), "upstream relay failed", logFields(requestID, route, cfg, resolved, "upstream_unavailable"))
 		httpapi.WriteError(response, http.StatusBadGateway, "upstream_error", "upstream_unavailable", "The configured upstream is unavailable", requestID)
@@ -281,12 +297,28 @@ func handlePublicRequest(
 	if operation != nil {
 		usageObserver, usageErr := usage.NewRegistry().New(pricingResponseProtocol(route, request.URL.Path), upstreamResponse.Header.Get("Content-Type"), estimate)
 		if usageErr == nil {
-			observer = billing.NewObserver(shadow, operation, usageObserver)
+			observer = billing.NewObserver(lifecycle, operation, usageObserver)
 		} else {
-			_ = shadow.Fail(request.Context(), operation, billing.Failure{ErrorClass: "usage_observer_unavailable"})
+			_ = lifecycle.Fail(request.Context(), operation, billing.Failure{ErrorClass: "usage_observer_unavailable"})
 		}
 	}
 	relay.StreamResponse(request.Context(), response, upstreamResponse, observer)
+}
+
+// writeAuthoritativeBillingError fails before any upstream call. Shadow mode
+// intentionally never exposes these storage outcomes to a caller because it
+// cannot mutate customer funding.
+func writeAuthoritativeBillingError(response http.ResponseWriter, requestID string, err error) {
+	switch {
+	case errors.Is(err, billing.ErrInsufficientFunds):
+		httpapi.WriteError(response, http.StatusForbidden, "billing_error", "insufficient_quota", "Insufficient API key or account quota", requestID)
+	case errors.Is(err, billing.ErrOperationInFlight):
+		httpapi.WriteError(response, http.StatusConflict, "idempotency_error", "operation_in_flight", "A request with this idempotency key is still in progress", requestID)
+	case errors.Is(err, billing.ErrOperationAlreadyCompleted):
+		httpapi.WriteError(response, http.StatusConflict, "idempotency_error", "operation_already_completed", "A request with this idempotency key has already completed", requestID)
+	default:
+		httpapi.WriteError(response, http.StatusServiceUnavailable, "billing_error", "billing_unavailable", "Billing is temporarily unavailable", requestID)
+	}
 }
 
 func readBody(store *httpapi.BodyStore) ([]byte, error) {
