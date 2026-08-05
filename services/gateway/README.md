@@ -1,9 +1,10 @@
 # WinLume Gateway
 
 The gateway is a standalone Go process, separate from the Next.js application.
-The current runnable increment provides authenticated, bounded streaming relay
-with billing explicitly disabled. It intentionally never falls back to
-`NEW_API_URL`, so it remains usable after old new-api is retired.
+It provides authenticated, bounded streaming relay for OpenAI-compatible and
+provider-native protocols, plus wallet accounting (shadow or authoritative
+billing). It intentionally never falls back to `NEW_API_URL`, so it remains
+usable after old new-api is retired.
 
 The default listener is `127.0.0.1:4010`. Keep it on a private interface and
 let nginx or another edge proxy expose only the API paths that need to be
@@ -27,6 +28,28 @@ npm run dev
 npm run gateway:dev
 ```
 
+`npm run gateway:dev` runs `go run ./cmd/gateway` directly against the
+`services/gateway` module. `npm run gateway:pricing-import` runs
+`go run ./cmd/pricing-import` the same way, for importing/activating a
+pricing catalog from a new-api source (see `internal/importer`).
+
+## Production build
+
+Build a static Linux binary (this repository has no cgo dependency, so
+`CGO_ENABLED=0` is safe and keeps the binary portable across hosts):
+
+```bash
+npm run gateway:build
+# equivalent to:
+# CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go -C services/gateway build -trimpath -o gateway ./cmd/gateway
+```
+
+Copy the resulting `services/gateway/gateway` binary to the production host,
+for example `/opt/winlume-gateway/winlume-gateway`, and point systemd's
+`ExecStart` at that path directly (no Node, no `tsx`, no `npm ci` on the
+gateway host). See [docs/DEPLOY.md](../../docs/DEPLOY.md) for the full unit
+file and environment layout.
+
 ## Production configuration
 
 At least one upstream is required for `/readyz` to return `200`:
@@ -34,7 +57,7 @@ At least one upstream is required for `/readyz` to return `200`:
 ```bash
 WINLUME_GATEWAY_OPENAI_UPSTREAM_URL=https://provider.example/v1
 WINLUME_GATEWAY_OPENAI_UPSTREAM_API_KEY=provider-service-key
-WINLUME_GATEWAY_BILLING_MODE=off
+WINLUME_GATEWAY_BILLING_MODE=shadow
 
 # The WinLume web process and gateway must share this secret. It is a
 # server-to-server credential, never a browser value.
@@ -55,11 +78,12 @@ for example `WINLUME_GATEWAY_CLAUDE_UPSTREAM_URL` or
 authorization value. Images, audio, embeddings, and realtime use the OpenAI
 upstream unless overridden.
 
-## API-key verification in the off-mode increment
+## API-key verification
 
-Studio requests use the internal token and UUID user ID. External requests can
-use the existing static SHA-256 lookup list while PostgreSQL identity storage is
-being wired in a later increment:
+Studio requests use the internal token and UUID user ID. External requests
+verify against PostgreSQL-backed API keys (`WINLUME_GATEWAY_USE_PLATFORM_DATABASE`,
+default true whenever `DATABASE_URL` is set) or, as a fallback/test mode,
+a static SHA-256 hash list:
 
 ```bash
 # SHA-256 hexadecimal values, comma separated
@@ -68,9 +92,7 @@ WINLUME_GATEWAY_API_KEY_HASHES=
 
 If no verifier is configured, API-key requests fail closed with `503`.
 `WINLUME_GATEWAY_ALLOW_UNVERIFIED_KEYS=true` remains a local diagnostic escape
-hatch and must not be enabled in production. Database-backed API-key status,
-scope, IP allowlist, user, and organization lookup will replace this temporary
-off-mode fallback before authoritative billing is available.
+hatch and must not be enabled in production.
 
 Studio authenticates to the gateway with `x-winlume-internal-token` and
 `x-winlume-internal-user-id`. The legacy-compatible
@@ -80,11 +102,51 @@ accepted only with the same token. Browser-supplied `New-Api-User` and
 
 ## Billing safety
 
-This process currently refuses to start unless
-`WINLUME_GATEWAY_BILLING_MODE=off`. It does not open a billing transaction,
-write a shadow event, reserve quota, or mutate a wallet. Shadow and
-authoritative modes stay fail-closed until their PostgreSQL and recovery
-dependencies are implemented and tested.
+`WINLUME_GATEWAY_BILLING_MODE` gates what the process is allowed to do at
+startup (`Validate` refuses to start if the mode's requirements are unmet):
+
+- `off` — no billing transaction, shadow event, quota reservation, or wallet
+  mutation. Useful for local development only.
+- `shadow` (default) — writes usage/ledger rows alongside the existing
+  billing owner, without enforcing quota. Requires `DATABASE_URL` and
+  `WINLUME_GATEWAY_INTERNAL_TOKEN`. This is the safe default for running the
+  Go gateway in production before cutover: it observes real traffic without
+  becoming the system of record.
+- `authoritative` — the Go gateway is the sole quota/ledger owner for the
+  requests it serves. In addition to the `shadow` requirements it also
+  requires:
+  - `WINLUME_GATEWAY_BILLING_OWNER=go`
+  - `WINLUME_GATEWAY_UPSTREAM_OWNERSHIP` set to `provider` (a directly billed
+    upstream) or `non_charging_new_api` (a new-api upstream that never bills)
+  - `WINLUME_GATEWAY_RECOVERY_DIR`, an absolute path to a directory the
+    gateway process exclusively owns (see below)
+
+## Recovery directory
+
+`WINLUME_GATEWAY_RECOVERY_DIR` is a crash-recovery journal directory used only
+in `authoritative` billing mode (see `internal/billing/recovery.go`). It must:
+
+- be an absolute path
+- be writable by, and owned by, the OS user the gateway process runs as
+  (for example the systemd unit's `User=`)
+- never be shared with another process or another gateway instance — two
+  writers to the same recovery directory can corrupt in-flight recovery state
+- persist across restarts (do not point it at `/tmp` or another
+  auto-cleared path)
+
+## Pricing catalog
+
+Authoritative and shadow billing price requests from the `pricing_catalog_versions`
+table's `active` row (`internal/storage/catalog.go`, `ErrNoActiveCatalog` if
+none is active). Import and activate a catalog with:
+
+```bash
+npm run gateway:pricing-import -- --source-label=<label> --apply --activate
+```
+
+Omit `--apply` for a dry run, or omit `--activate` to import without flipping
+the active catalog. The command reads `NEW_API_DATABASE_URL` (source) and
+`DATABASE_URL` (target, only when `--apply` is set).
 
 ## Operations
 
@@ -98,8 +160,7 @@ Protocol routes preserve streaming responses and include a gateway-generated
 `x-request-id`. Routes without a configured protocol family return `501`;
 unknown routes return `404`.
 
-The Next.js standalone tarball does not include the Gateway. During this
-increment, `gateway:dev` runs Go while `gateway:start` intentionally remains the
-legacy production command until the binary packaging task is complete. Do not
-cut production traffic to the Go process yet. The deployment and cutover work
-is tracked in [docs/DEPLOY.md](../../docs/DEPLOY.md).
+The Next.js standalone tarball does not include the gateway. It ships and
+deploys as its own Linux binary and systemd unit, independent from the web
+release. See [docs/DEPLOY.md](../../docs/DEPLOY.md) for the build, unit file,
+and cutover details.
