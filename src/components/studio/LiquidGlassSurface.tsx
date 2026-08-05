@@ -33,7 +33,8 @@ function getCapability(): LiquidGlassCapability {
   };
 }
 
-const HEADER_GLASS_DEFAULTS = {
+/** Studio header / sidebar defaults */
+export const HEADER_GLASS_DEFAULTS = {
   blurAmount: 0.2,
   refraction: 0.42,
   chromAberration: 0.018,
@@ -48,6 +49,31 @@ const HEADER_GLASS_DEFAULTS = {
   shadowOpacity: 0.12,
   shadowSpread: 6,
   shadowOffsetY: 1,
+} as const;
+
+/**
+ * Portal nav (scheme A): refract an opaque page-matched scene sibling.
+ * Lower opacity = less milky; scene carries the clean color.
+ */
+export const PORTAL_NAV_GLASS_DEFAULTS = {
+  blurAmount: 0.12,
+  refraction: 0.62,
+  chromAberration: 0.012,
+  edgeHighlight: 0.22,
+  specular: 0.24,
+  fresnel: 0.9,
+  cornerRadius: 16,
+  zRadius: 14,
+  opacity: 0.55,
+  saturation: 0.1,
+  brightness: 0.12,
+  shadowOpacity: 0.05,
+  shadowSpread: 4,
+  shadowOffsetY: 1,
+} as const;
+
+export type LiquidGlassDefaults = {
+  [K in keyof typeof HEADER_GLASS_DEFAULTS]?: number;
 };
 
 type LiquidGlassChildProps = {
@@ -56,8 +82,17 @@ type LiquidGlassChildProps = {
 
 export default function LiquidGlassSurface({
   children,
+  defaults = HEADER_GLASS_DEFAULTS,
+  className,
+  sceneClassName = "studio-liquid-glass-scene",
+  hideScene = false,
 }: {
   children: ReactElement<LiquidGlassChildProps>;
+  defaults?: LiquidGlassDefaults;
+  className?: string;
+  /** Class for the capture sibling painted *before* the glass in root. */
+  sceneClassName?: string;
+  hideScene?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -74,7 +109,7 @@ export default function LiquidGlassSurface({
         const next = await LiquidGlass.init({
           root,
           glassElements: [glass],
-          defaults: HEADER_GLASS_DEFAULTS,
+          defaults: { ...HEADER_GLASS_DEFAULTS, ...defaults },
         });
 
         if (cancelled) {
@@ -86,7 +121,7 @@ export default function LiquidGlassSurface({
         glass.dataset.liquidGlassReady = "true";
       })
       .catch(() => {
-        // The existing CSS material remains fully functional if WebGL init fails.
+        // CSS frost remains if WebGL init fails.
       });
 
     return () => {
@@ -94,11 +129,16 @@ export default function LiquidGlassSurface({
       glass.removeAttribute("data-liquid-glass-ready");
       instance?.destroy();
     };
-  }, []);
+  }, [defaults]);
 
   return (
-    <div ref={rootRef} className="studio-liquid-glass-surface">
-      <div className="studio-liquid-glass-scene" aria-hidden />
+    <div
+      ref={rootRef}
+      className={["studio-liquid-glass-surface", className].filter(Boolean).join(" ")}
+    >
+      {hideScene ? null : (
+        <div className={sceneClassName} aria-hidden />
+      )}
       {cloneElement(children, { "data-liquid-glass": "true" })}
     </div>
   );
