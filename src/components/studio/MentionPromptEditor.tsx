@@ -118,6 +118,15 @@ const MentionPromptEditor = forwardRef<
     el.dataset.empty = isEmptyEditor(el) ? "true" : "false";
   }, [autoSize, onCaretActivity, onChange]);
 
+  const syncCompositionVisualState = useCallback(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    // IME input must not update the controlled value until composition ends,
+    // but the provisional text should still hide the visual placeholder.
+    el.dataset.empty = isEmptyEditor(el) ? "true" : "false";
+    autoSize();
+  }, [autoSize]);
+
   const hydrate = useCallback(
     (text: string) => {
       const el = rootRef.current;
@@ -230,7 +239,10 @@ const MentionPromptEditor = forwardRef<
   );
 
   const handleInput = (_e: FormEvent<HTMLDivElement>) => {
-    if (composingRef.current) return;
+    if (composingRef.current) {
+      syncCompositionVisualState();
+      return;
+    }
     emitFromDom();
   };
 
@@ -295,6 +307,7 @@ const MentionPromptEditor = forwardRef<
         onCompositionStart={() => {
           composingRef.current = true;
         }}
+        onCompositionUpdate={syncCompositionVisualState}
         onCompositionEnd={() => {
           composingRef.current = false;
           emitFromDom();
