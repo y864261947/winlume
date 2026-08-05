@@ -5,7 +5,6 @@ package storage
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 	"time"
 
@@ -13,25 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// These tests require a real Postgres reachable via DATABASE_URL (or
-// TEST_DATABASE_URL) with the go-gateway-billing migrations applied. They are
-// not executed in this session: there is no local Postgres or Docker
-// available. Run with:
+// These tests require a real Postgres reachable via TEST_DATABASE_URL (or
+// DATABASE_URL). They share the migrated throwaway schema built by
+// billing_integration_test.go's harness. Run with:
 //
 //	go -C services/gateway test -tags=integration ./internal/storage -run TestRecovery -v
 func recoveryTestStore(t *testing.T) *Store {
 	t.Helper()
-	databaseURL := os.Getenv("TEST_DATABASE_URL")
-	if databaseURL == "" {
-		databaseURL = os.Getenv("DATABASE_URL")
-	}
-	if databaseURL == "" {
-		t.Skip("TEST_DATABASE_URL or DATABASE_URL must be set for integration tests")
-	}
-	store, err := Open(context.Background(), databaseURL)
-	require.NoError(t, err)
-	t.Cleanup(store.Close)
-	return store
+	return billingTestStore(t)
 }
 
 func TestRecoveryListSettlementPendingReturnsOldestFirst(t *testing.T) {
@@ -42,7 +30,7 @@ func TestRecoveryListSettlementPendingReturnsOldestFirst(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	second := reserveAndPersistPendingCompletion(t, store, ctx)
 
-	pending, err := store.ListSettlementPending(ctx, 50)
+	pending, err := store.ListSettlementPending(ctx, 500)
 	require.NoError(t, err)
 
 	firstIndex, secondIndex := -1, -1
@@ -67,7 +55,7 @@ func TestRecoveryListSettlementPendingExcludesTerminalEvents(t *testing.T) {
 	_, err := store.Settle(ctx, usageEventID)
 	require.NoError(t, err)
 
-	pending, err := store.ListSettlementPending(ctx, 50)
+	pending, err := store.ListSettlementPending(ctx, 500)
 	require.NoError(t, err)
 	for _, item := range pending {
 		require.NotEqual(t, usageEventID, item.UsageEventID)
@@ -80,7 +68,7 @@ func TestRecoveryListStaleReservationsOnlyReturnsReservedWithoutSnapshot(t *test
 
 	staleUserID := uuid.New()
 	fundTestWallet(t, store, ctx, staleUserID, 1_000_000)
-	reservation, err := store.Reserve(ctx, testReservationRequest(staleUserID))
+	reservation, err := store.Reserve(ctx, testReservationRequest(t, store, staleUserID))
 	require.NoError(t, err)
 
 	// A completed request must never show up as a stale reservation candidate.
@@ -88,7 +76,7 @@ func TestRecoveryListStaleReservationsOnlyReturnsReservedWithoutSnapshot(t *test
 	_, err = store.Settle(ctx, completedUsageEventID)
 	require.NoError(t, err)
 
-	stale, err := store.ListStaleReservations(ctx, time.Now().Add(time.Hour), 50)
+	stale, err := store.ListStaleReservations(ctx, time.Now().Add(time.Hour), 500)
 	require.NoError(t, err)
 
 	found := false
@@ -119,7 +107,7 @@ func TestRecoveryReplayingTheSamePersistCompletionTwiceDoesNotDoubleSettle(t *te
 
 	userID := uuid.New()
 	fundTestWallet(t, store, ctx, userID, 1_000_000)
-	reservation, err := store.Reserve(ctx, testReservationRequest(userID))
+	reservation, err := store.Reserve(ctx, testReservationRequest(t, store, userID))
 	require.NoError(t, err)
 
 	snapshot := testCompletionSnapshot(reservation.UsageEventID, 100)
@@ -138,18 +126,21 @@ func reserveAndPersistPendingCompletion(t *testing.T, store *Store, ctx context.
 	t.Helper()
 	userID := uuid.New()
 	fundTestWallet(t, store, ctx, userID, 1_000_000)
-	reservation, err := store.Reserve(ctx, testReservationRequest(userID))
+	reservation, err := store.Reserve(ctx, testReservationRequest(t, store, userID))
 	require.NoError(t, err)
 	require.NoError(t, store.PersistCompletion(ctx, testCompletionSnapshot(reservation.UsageEventID, 100)))
 	return reservation.UsageEventID
 }
 
-func testReservationRequest(userID uuid.UUID) ReservationRequest {
+// CatalogVersionID is a real foreign key into pricing_catalog_versions, so the
+// request has to reference a row that exists.
+func testReservationRequest(t *testing.T, store *Store, userID uuid.UUID) ReservationRequest {
+	t.Helper()
 	return ReservationRequest{
 		OperationID:      uuid.New(),
 		RequestID:        uuid.NewString(),
 		UserID:           userID,
-		CatalogVersionID: uuid.New(),
+		CatalogVersionID: newTestCatalogVersion(t, store),
 		Provider:         "openai",
 		Model:            "model",
 		ReservedQuota:    500,
@@ -173,6 +164,7 @@ func testCompletionSnapshot(usageEventID uuid.UUID, actualQuota int64) Completio
 // fundTestWallet is intentionally minimal: it inserts just enough ledger
 // history for Reserve/Settle to find spendable balance for the test user. The
 // real schema and wallet creation SQL live in the migrations under drizzle/.
+// 'opening_balance' is the ledger_entry_type enum's term for a starting credit.
 func fundTestWallet(t *testing.T, store *Store, ctx context.Context, userID uuid.UUID, amount int64) {
 	t.Helper()
 	_, err := store.pool.Exec(ctx, `INSERT INTO users (id, username, display_name) VALUES ($1, $2, $2)`, userID, "recovery-"+userID.String())
@@ -181,6 +173,6 @@ func fundTestWallet(t *testing.T, store *Store, ctx context.Context, userID uuid
 	require.NoError(t, store.pool.QueryRow(ctx, `INSERT INTO wallets (user_id) VALUES ($1) RETURNING id`, userID).Scan(&walletID))
 	_, err = store.pool.Exec(ctx, `
 		INSERT INTO wallet_ledger_entries (wallet_id, entry_type, amount_microcredits, idempotency_key, reference)
-		VALUES ($1, 'grant', $2, $3, 'test-fund')`, walletID, amount, uuid.NewString())
+		VALUES ($1, 'opening_balance', $2, $3, 'test-fund')`, walletID, amount, uuid.NewString())
 	require.NoError(t, err)
 }
