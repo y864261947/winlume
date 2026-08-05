@@ -622,7 +622,7 @@ func lockUser(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
 
 func loadFundingPreference(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (string, error) {
 	var preference string
-	err := tx.QueryRow(ctx, `SELECT funding_preference FROM user_billing_policies WHERE user_id = $1`, userID).Scan(&preference)
+	err := tx.QueryRow(ctx, `SELECT funding_preference FROM billing_profiles WHERE user_id = $1`, userID).Scan(&preference)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "subscription_first", nil
 	}
