@@ -18,6 +18,7 @@ export default function EnterprisePortal() {
       <header className={styles.nav}>
         <Link className={styles.brand} href="/business"><span>W</span>Winlume</Link>
         <p>AI that works for real business</p>
+        <Link className={styles.audienceSwitch} href="/">个人版 <ArrowRight aria-hidden /></Link>
         <nav aria-label="企业版导航">
           <Link href="/business">企业版首页</Link><Link href="/business/capabilities">业务能力</Link><Link href="/business/cases">客户案例</Link><Link href="/business/deployment">AI 部署方向</Link><Link href="/business/consultant">咨询专员</Link>
         </nav>

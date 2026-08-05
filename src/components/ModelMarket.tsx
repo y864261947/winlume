@@ -78,6 +78,13 @@ const apiCategories: readonly ApiCategory[] = [
   { id: "data", label: "数据与搜索", icon: "/figma-home/icon-search.svg" },
 ];
 
+const popularModels = [
+  { name: "GPT-4o", detail: "多模态对话", mark: "GPT", tone: "blue" },
+  { name: "Kimi K2", detail: "长上下文", mark: "K", tone: "violet" },
+  { name: "DeepSeek V3", detail: "深度推理", mark: "DS", tone: "teal" },
+  { name: "Flux Pro", detail: "图像生成", mark: "F", tone: "orange" },
+] as const;
+
 const workSceneIcons: Record<WorkSceneId, string> = {
   "content-office": "/figma-home/tool-content.svg",
   "growth-commerce": "/figma-home/tool-commerce.svg",
@@ -333,6 +340,25 @@ export default function ModelMarket() {
                   </div>
                 );
               })}
+            </div>
+            <div className="portal-popular-models" aria-labelledby="popular-models-title">
+              <div className="portal-popular-models-heading">
+                <h3 id="popular-models-title">常用模型</h3>
+                <Link href="/products?cate=api">全部</Link>
+              </div>
+              <div className="portal-model-shortcuts">
+                {popularModels.map((model) => (
+                  <Link
+                    key={model.name}
+                    href={`/studio?preset=chat-default&model=${encodeURIComponent(model.name)}`}
+                    className="portal-model-shortcut"
+                    aria-label={`使用 ${model.name}，${model.detail}`}
+                  >
+                    <span className={`portal-model-mark ${model.tone}`} aria-hidden>{model.mark}</span>
+                    <span><strong>{model.name}</strong><small>{model.detail}</small></span>
+                  </Link>
+                ))}
+              </div>
             </div>
             <ArrowLink href="/studio">进入工作台</ArrowLink>
           </aside>
