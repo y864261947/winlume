@@ -402,56 +402,61 @@ abstract class PartitionedRunStore implements RunStore {
     const idempotencyKey = input.idempotencyKey?.trim() || undefined;
     const scope = input.idempotencyScope ?? defaultScope(input);
     const requestHash = idempotencyKey ? requestFingerprint(input) : undefined;
+    const mapKey = idempotencyKey ? scopedKey(scope, idempotencyKey) : undefined;
 
-    if (idempotencyKey) {
-      const mapKey = scopedKey(scope, idempotencyKey);
-      const existingId = await this.readIndex((state) => state.runIdByIdempotency[mapKey]);
-      if (existingId) {
-        const existingRun = await this.readRun(existingId, (record) => record.run);
-        if (existingRun) {
-          if (existingRun.requestHash && existingRun.requestHash !== requestHash) {
-            throw new RunStoreError(
-              "idempotency_conflict",
-              `Idempotency key already belongs to a different run: ${idempotencyKey}`,
-            );
+    // The whole check-then-create-then-register sequence must be one
+    // critical section: two concurrent callers with the same idempotency
+    // key must not both observe "not found" and each create a run. Every
+    // index read/write below goes straight through loadIndex/saveIndex
+    // (never the readIndex/writeIndex helpers, which would re-enter this
+    // same mutex and deadlock).
+    return this.indexMutex.run(async () => {
+      const state = await this.loadIndex();
+
+      if (mapKey) {
+        const existingId = state.runIdByIdempotency[mapKey];
+        if (existingId) {
+          const existingRun = await this.readRun(existingId, (record) => record.run);
+          if (existingRun) {
+            if (existingRun.requestHash && existingRun.requestHash !== requestHash) {
+              throw new RunStoreError(
+                "idempotency_conflict",
+                `Idempotency key already belongs to a different run: ${idempotencyKey}`,
+              );
+            }
+            return clone({ run: existingRun, created: false });
           }
-          return { run: existingRun, created: false };
-        }
-        // Index pointed at a run file that no longer exists; fall through
-        // and create a fresh run under the same key.
-        await this.writeIndex((state) => {
+          // Index pointed at a run file that no longer exists; drop the
+          // stale mapping and fall through to create a fresh run.
           delete state.runIdByIdempotency[mapKey];
-        });
+        }
       }
-    }
 
-    const run = makeRun(input, iso());
-    const record = emptyRunRecord(run);
-    appendEventInRecord(record, {
-      runId: run.id,
-      type: "run.created",
-      payload: {
-        userId: run.userId,
-        sessionId: run.sessionId,
-        ...(run.projectId ? { projectId: run.projectId } : {}),
-        executionMode: run.input.executionMode,
-      },
-      producer: "run-service",
-      idempotencyKey: "run-created",
-    });
+      const run = makeRun(input, iso());
+      const record = emptyRunRecord(run);
+      appendEventInRecord(record, {
+        runId: run.id,
+        type: "run.created",
+        payload: {
+          userId: run.userId,
+          sessionId: run.sessionId,
+          ...(run.projectId ? { projectId: run.projectId } : {}),
+          executionMode: run.input.executionMode,
+        },
+        producer: "run-service",
+        idempotencyKey: "run-created",
+      });
 
-    await this.runMutex(run.id).run(async () => {
-      const existing = await this.loadRun(run.id);
-      if (existing) throw new RunStoreError("already_exists", `Run already exists: ${run.id}`);
-      await this.saveRun(run.id, record);
-    });
-    await this.writeIndex((state) => {
-      if (idempotencyKey) {
-        state.runIdByIdempotency[scopedKey(scope, idempotencyKey)] = run.id;
-      }
+      await this.runMutex(run.id).run(async () => {
+        const existing = await this.loadRun(run.id);
+        if (existing) throw new RunStoreError("already_exists", `Run already exists: ${run.id}`);
+        await this.saveRun(run.id, record);
+      });
+      if (mapKey) state.runIdByIdempotency[mapKey] = run.id;
       state.runs[run.id] = indexEntryFor(run);
+      await this.saveIndex(state);
+      return clone({ run: record.run, created: true });
     });
-    return { run: clone(record.run), created: true };
   }
 
   async getRun(runId: string): Promise<AgentRun | null> {
