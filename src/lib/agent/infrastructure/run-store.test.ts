@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -157,9 +157,41 @@ describe("run store", () => {
   it("does not silently reset an unsupported durable store version", async () => {
     const root = mkdtempSync(join(tmpdir(), "winlume-runs-version-"));
     directories.push(root);
-    writeFileSync(join(root, "runs.json"), JSON.stringify({ version: 999 }));
-    await expect(createFileRunStore(root).getRun("missing")).rejects.toMatchObject({
+    writeFileSync(join(root, "index.json"), JSON.stringify({ version: 999 }));
+    await expect(createFileRunStore(root).listRuns()).rejects.toMatchObject({
       code: "unsupported_version",
     });
+  });
+
+  it("partitions storage per run so one run's event volume never touches another run's file", async () => {
+    const root = mkdtempSync(join(tmpdir(), "winlume-runs-partition-"));
+    directories.push(root);
+    const store = createFileRunStore(root);
+    const a = await store.createRun(input());
+    const b = await store.createRun({
+      ...input(),
+      sessionId: "session-2",
+      idempotencyKey: "request-2",
+    });
+
+    for (let i = 0; i < 50; i++) {
+      await store.appendEvent({
+        runId: a.run.id,
+        type: "agent.event",
+        payload: { event: { type: "text_delta", text: `chunk-${i}` } },
+      });
+    }
+
+    // No monolithic all-runs file: each run gets its own bounded file.
+    expect(existsSync(join(root, "runs.json"))).toBe(false);
+    const bFile = JSON.parse(
+      readFileSync(join(root, "runs", `${b.run.id}.json`), "utf8"),
+    ) as { events: unknown[] };
+    // Run B's file only ever held its own creation event, unaffected by
+    // however much run A has streamed since.
+    expect(bFile.events).toHaveLength(1);
+
+    const aEvents = await store.listEvents(a.run.id);
+    expect(aEvents).toHaveLength(51); // run.created + 50 deltas
   });
 });

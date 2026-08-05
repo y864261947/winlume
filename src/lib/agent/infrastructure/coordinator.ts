@@ -700,18 +700,28 @@ export class RunCoordinator {
     input: AppendRunEventInput<T>,
   ): Promise<RunEvent<T>> {
     const event = await this.store.appendEvent(input);
-    await this.publishRunEvents(event.runId);
+    await this.publishRunEvents(event.runId, event);
     return event;
   }
 
-  private async publishRunEvents(runId: string): Promise<void> {
+  /**
+   * Notify subscribers of newly persisted events. `knownEvent` lets a caller
+   * that just appended a single event skip a redundant full-history re-read
+   * from the store on the hot per-token streaming path; publishing falls back
+   * to `listEvents` whenever there is a gap (first subscribe, or events
+   * appended by another path such as a lease heartbeat racing this one).
+   */
+  private async publishRunEvents(runId: string, knownEvent?: RunEvent): Promise<void> {
     const previous = this.publishChains.get(runId) ?? Promise.resolve();
     const next = previous
       .catch(() => undefined)
       .then(async () => {
         const listeners = this.listeners.get(runId);
         const afterSequence = this.publishedSequence.get(runId) ?? 0;
-        const events = await this.store.listEvents(runId, { afterSequence });
+        const events =
+          knownEvent && knownEvent.runId === runId && knownEvent.sequence === afterSequence + 1
+            ? [knownEvent]
+            : await this.store.listEvents(runId, { afterSequence });
         for (const event of events) {
           this.publishedSequence.set(runId, event.sequence);
           if (!listeners || listeners.size === 0) continue;
