@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import EnterpriseLanding from "@/components/enterprise/EnterpriseLanding";
+import EnterprisePortal from "@/components/enterprise/EnterprisePortal";
 
 export const metadata: Metadata = {
   title: "ZenAI | 企业级 AI 与软件工程",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function BusinessPage() {
-  return <EnterpriseLanding />;
+  return <EnterprisePortal />;
 }
