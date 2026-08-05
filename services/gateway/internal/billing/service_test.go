@@ -60,3 +60,92 @@ func TestShadowLifecycleFreezesQuoteAndWritesCalculatedUsage(t *testing.T) {
 	require.Equal(t, int64(520), writer.event.CalculatedReservationQuota)
 	require.Equal(t, int64(120), *writer.event.CalculatedActualQuota)
 }
+
+// lifecycleStub is a minimal Lifecycle used to test Observer's error-handling
+// paths independent of either concrete billing implementation.
+type lifecycleStub struct {
+	completeErr   error
+	failErr       error
+	failCalls     int
+	completeCalls int
+}
+
+func (stub *lifecycleStub) Begin(context.Context, BeginRequest) (*Operation, error) { return nil, nil }
+
+func (stub *lifecycleStub) Complete(context.Context, *Operation, usage.Canonical, relay.Completion) (Result, error) {
+	stub.completeCalls++
+	return Result{}, stub.completeErr
+}
+
+func (stub *lifecycleStub) Fail(context.Context, *Operation, Failure) error {
+	stub.failCalls++
+	return stub.failErr
+}
+
+// lifecycleWithPendingRecorder additionally implements PendingRecorder, the
+// way AuthoritativeService does.
+type lifecycleWithPendingRecorder struct {
+	lifecycleStub
+	recordPendingCalls int
+	recordPendingErr   error
+	lastActual         usage.Canonical
+}
+
+func (stub *lifecycleWithPendingRecorder) RecordPending(_ context.Context, _ *Operation, actual usage.Canonical, _ relay.Completion) error {
+	stub.recordPendingCalls++
+	stub.lastActual = actual
+	return stub.recordPendingErr
+}
+
+// usageObserverStub is a minimal usage.Observer for exercising Observer's
+// error-handling paths without any protocol-specific parsing.
+type usageObserverStub struct {
+	canonical usage.Canonical
+	err       error
+}
+
+func (stub usageObserverStub) Observe([]byte) error { return nil }
+
+func (stub usageObserverStub) Complete(usage.Completion) (usage.Canonical, error) {
+	return stub.canonical, stub.err
+}
+
+func observerUsageRegistry(_ *testing.T, _ string) usage.Observer {
+	return usageObserverStub{canonical: usage.Canonical{Calls: map[string]int64{}, Fields: map[string]usage.Provenance{}, Complete: true}}
+}
+
+func TestObserverCompleteFallsBackToPendingRecorderWhenCompleteFails(t *testing.T) {
+	lifecycle := &lifecycleWithPendingRecorder{lifecycleStub: lifecycleStub{completeErr: ErrAuthoritativeUnavailable}}
+	operation := &Operation{ID: uuid.New(), UsageEventID: uuid.New()}
+	observer := NewObserver(lifecycle, operation, observerUsageRegistry(t, "model"))
+	require.NotNil(t, observer)
+
+	observer.Complete(context.Background(), relay.Completion{EOF: true, StatusCode: 200, BytesWritten: 3})
+
+	require.Equal(t, 1, lifecycle.completeCalls)
+	require.Equal(t, 1, lifecycle.recordPendingCalls)
+}
+
+func TestObserverCompleteDoesNotCallPendingRecorderWhenCompleteSucceeds(t *testing.T) {
+	lifecycle := &lifecycleWithPendingRecorder{}
+	operation := &Operation{ID: uuid.New(), UsageEventID: uuid.New()}
+	observer := NewObserver(lifecycle, operation, observerUsageRegistry(t, "model"))
+	require.NotNil(t, observer)
+
+	observer.Complete(context.Background(), relay.Completion{EOF: true, StatusCode: 200, BytesWritten: 3})
+
+	require.Equal(t, 1, lifecycle.completeCalls)
+	require.Equal(t, 0, lifecycle.recordPendingCalls)
+}
+
+func TestObserverCompleteToleratesALifecycleWithNoPendingRecorderSupport(t *testing.T) {
+	lifecycle := &lifecycleStub{completeErr: ErrAuthoritativeUnavailable}
+	operation := &Operation{ID: uuid.New(), UsageEventID: uuid.New()}
+	observer := NewObserver(lifecycle, operation, observerUsageRegistry(t, "model"))
+	require.NotNil(t, observer)
+
+	require.NotPanics(t, func() {
+		observer.Complete(context.Background(), relay.Completion{EOF: true, StatusCode: 200, BytesWritten: 3})
+	})
+	require.Equal(t, 1, lifecycle.completeCalls)
+}

@@ -33,10 +33,30 @@ type AuthoritativeService struct {
 	catalog CatalogLoader
 	store   AuthoritativeRepository
 	engine  pricing.Engine
+	spool   RecoverySpool
 }
 
-func NewAuthoritativeService(catalog CatalogLoader, store AuthoritativeRepository) *AuthoritativeService {
-	return &AuthoritativeService{catalog: catalog, store: store, engine: pricing.NewEngine()}
+// AuthoritativeOption configures optional AuthoritativeService behavior. It
+// exists so new capabilities (like the recovery spool) can be added without
+// breaking already-committed NewAuthoritativeService call sites.
+type AuthoritativeOption func(*AuthoritativeService)
+
+// WithRecoverySpool attaches the local owner-only recovery spool used when
+// Complete cannot even reach Postgres for the pending snapshot. Without this
+// option, a database outage during Complete leaves the operation reserved
+// until the recovery worker's stale-reservation window reverses it -
+// refunding usage that was already generated. With it, the completion is
+// durably recorded locally and finished by the recovery worker instead.
+func WithRecoverySpool(spool RecoverySpool) AuthoritativeOption {
+	return func(service *AuthoritativeService) { service.spool = spool }
+}
+
+func NewAuthoritativeService(catalog CatalogLoader, store AuthoritativeRepository, options ...AuthoritativeOption) *AuthoritativeService {
+	service := &AuthoritativeService{catalog: catalog, store: store, engine: pricing.NewEngine()}
+	for _, option := range options {
+		option(service)
+	}
+	return service
 }
 
 func (service *AuthoritativeService) Begin(ctx context.Context, request BeginRequest) (*Operation, error) {
@@ -134,6 +154,46 @@ func (service *AuthoritativeService) Complete(ctx context.Context, operation *Op
 		return Result{}, mapStorageError(err)
 	}
 	return Result{ActualQuota: settled.ActualQuota, Delta: settled.ActualQuota - operation.Quote.ReservedQuota}, nil
+}
+
+// RecordPending durably records operation's actual, catalog-priced usage in
+// the local recovery spool. It is the fallback path for Complete failures
+// that happen after bytes have already reached the client, when the normal
+// response can no longer be changed: rather than silently losing the
+// completion (and letting the recovery worker eventually reverse the hold
+// as "stale" even though usage was actually generated), the same settlement
+// Complete would have persisted is written to disk for the recovery worker
+// to finish later. It recomputes settlement.Charge.Quota deterministically
+// from operation.Quote and actual, the same inputs Complete already used, so
+// it produces the same final quota Complete would have persisted.
+func (service *AuthoritativeService) RecordPending(ctx context.Context, operation *Operation, actual usage.Canonical, completion relay.Completion) error {
+	if service == nil || service.spool == nil || operation == nil || operation.UsageEventID == uuid.Nil {
+		return ErrAuthoritativeUnavailable
+	}
+	settlement, err := service.engine.Settle(operation.Quote, actual)
+	if err != nil {
+		return err
+	}
+	canonicalUsage, err := json.Marshal(actual)
+	if err != nil {
+		return ErrAuthoritativeUnavailable
+	}
+	completionState := actual.TerminalEvent
+	if completionState == "" && !completion.EOF {
+		completionState = "incomplete_response"
+	}
+	envelope := RecoveryEnvelope{
+		OperationID:      operation.ID.String(),
+		UsageEventID:     operation.UsageEventID.String(),
+		CatalogVersionID: operation.Quote.CatalogVersionID.String(),
+		CanonicalUsage:   canonicalUsage,
+		ActualQuota:      settlement.Charge.Quota,
+		CompletionState:  completionState,
+	}
+	envelope.Checksum = envelope.checksum()
+	spoolCtx, cancel := authoritativeContext(ctx)
+	defer cancel()
+	return service.spool.Write(spoolCtx, envelope)
 }
 
 func (service *AuthoritativeService) Fail(ctx context.Context, operation *Operation, _ Failure) error {

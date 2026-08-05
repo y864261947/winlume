@@ -151,6 +151,18 @@ func (observer *Observer) Observe(_ context.Context, chunk []byte) {
 	_ = observer.usage.Observe(chunk)
 }
 
+// PendingRecorder is an optional Lifecycle capability. Complete errors are
+// discovered after bytes have already reached the client, so nothing can
+// change the response that was already sent - but a lifecycle that can still
+// make the completion durable somewhere else implements this so Observer no
+// longer just drops the error on the floor. AuthoritativeService implements
+// it by falling back to the local recovery spool; the shadow Service does
+// not implement it because it never mutates customer funding and has
+// nothing that needs to survive a failed write.
+type PendingRecorder interface {
+	RecordPending(ctx context.Context, operation *Operation, actual usage.Canonical, completion relay.Completion) error
+}
+
 func (observer *Observer) Complete(ctx context.Context, completion relay.Completion) {
 	actual, err := observer.usage.Complete(usage.Completion{
 		StatusCode: completion.StatusCode, Headers: completion.Headers, BytesWritten: completion.BytesWritten,
@@ -160,5 +172,12 @@ func (observer *Observer) Complete(ctx context.Context, completion relay.Complet
 		_ = observer.service.Fail(ctx, observer.operation, Failure{Completion: completion, ErrorClass: "usage_normalization_failed"})
 		return
 	}
-	_, _ = observer.service.Complete(ctx, observer.operation, actual, completion)
+	if _, completeErr := observer.service.Complete(ctx, observer.operation, actual, completion); completeErr != nil {
+		if recorder, ok := observer.service.(PendingRecorder); ok {
+			// Best effort: if even the local spool cannot take this, the
+			// recovery worker's stale-reservation pass is the last resort,
+			// and there is nothing further this request-scoped call can do.
+			_ = recorder.RecordPending(context.WithoutCancel(ctx), observer.operation, actual, completion)
+		}
+	}
 }

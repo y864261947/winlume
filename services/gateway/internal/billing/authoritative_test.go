@@ -117,6 +117,38 @@ func TestAuthoritativeBeginDoesNotChargeUnpricedModels(t *testing.T) {
 	require.Empty(t, store.calls)
 }
 
+func TestAuthoritativeRecordPendingWritesASpoolEnvelopeWithTheFinalQuota(t *testing.T) {
+	store := &authoritativeStoreStub{eventID: uuid.New()}
+	spool := &spoolFake{}
+	service := NewAuthoritativeService(catalogLoaderStub{catalog: authoritativeCatalog("model")}, store, WithRecoverySpool(spool))
+	operation, err := service.Begin(context.Background(), authoritativeBeginRequest(uuid.New()))
+	require.NoError(t, err)
+
+	actual := usage.Canonical{
+		TextInputTokens: 100, TextOutputTokens: 20, Complete: true,
+		Calls: map[string]int64{}, Fields: map[string]usage.Provenance{"text_input_tokens": usage.Upstream},
+	}
+	require.NoError(t, service.RecordPending(context.Background(), operation, actual, relay.Completion{EOF: true, StatusCode: 200}))
+
+	require.Len(t, spool.envelopes, 1)
+	envelope := spool.envelopes[0]
+	require.Equal(t, operation.ID.String(), envelope.OperationID)
+	require.Equal(t, operation.UsageEventID.String(), envelope.UsageEventID)
+	require.Equal(t, operation.Quote.CatalogVersionID.String(), envelope.CatalogVersionID)
+	require.Equal(t, int64(120), envelope.ActualQuota)
+	require.True(t, envelope.valid())
+}
+
+func TestAuthoritativeRecordPendingWithoutASpoolIsUnavailable(t *testing.T) {
+	store := &authoritativeStoreStub{eventID: uuid.New()}
+	service := NewAuthoritativeService(catalogLoaderStub{catalog: authoritativeCatalog("model")}, store)
+	operation, err := service.Begin(context.Background(), authoritativeBeginRequest(uuid.New()))
+	require.NoError(t, err)
+
+	err = service.RecordPending(context.Background(), operation, usage.Canonical{Calls: map[string]int64{}, Fields: map[string]usage.Provenance{}}, relay.Completion{EOF: true})
+	require.ErrorIs(t, err, ErrAuthoritativeUnavailable)
+}
+
 func TestAuthoritativeBeginMapsInsufficientFunds(t *testing.T) {
 	store := &authoritativeStoreStub{eventID: uuid.New(), err: storage.ErrInsufficientFunds}
 	service := NewAuthoritativeService(catalogLoaderStub{catalog: authoritativeCatalog("model")}, store)
