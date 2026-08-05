@@ -20,6 +20,7 @@ import { RunCoordinator } from "./coordinator";
 import { createStaticRunPolicy } from "./policy";
 import { createInProcessRunQueue } from "./queue";
 import { createMemoryRunStore } from "./run-store";
+import type { RunStore } from "./types";
 
 function createExecutor(
   produce: (input: AgentExecutionInput) => AsyncGenerator<AgentSseEvent, void, undefined>,
@@ -50,6 +51,7 @@ describe("RunCoordinator", () => {
       allowedExecutionModes: ["ai-sdk"],
       allowedModels: ["gpt-4o-mini"],
     }),
+    store: RunStore = createMemoryRunStore(),
   ) {
     const root = mkdtempSync(join(tmpdir(), "winlume-coordinator-"));
     directories.push(root);
@@ -61,7 +63,7 @@ describe("RunCoordinator", () => {
       model: "gpt-4o-mini",
     });
     const coordinator = new RunCoordinator({
-      store: createMemoryRunStore(),
+      store,
       queue: createInProcessRunQueue(),
       sessions: host.sessions,
       projects: host.projects,
@@ -137,6 +139,43 @@ describe("RunCoordinator", () => {
     expect(received).toContain("run.status_changed");
     expect(received).not.toContain("run.created");
     expect(received).not.toContain("run.enqueued");
+  });
+
+  it("streams a burst of text deltas without re-reading full run history per event", async () => {
+    const store = createMemoryRunStore();
+    let listEventsCalls = 0;
+    const originalListEvents = store.listEvents.bind(store);
+    store.listEvents = (...args: Parameters<RunStore["listEvents"]>) => {
+      listEventsCalls += 1;
+      return originalListEvents(...args);
+    };
+    const deltaCount = 50;
+    const coordinator = await setup(
+      () =>
+        createExecutor(async function* () {
+          for (let i = 0; i < deltaCount; i++) {
+            yield { type: "text_delta", text: `chunk-${i}` };
+          }
+          yield { type: "done", reason: "completed" };
+        }),
+      undefined,
+      store,
+    );
+    const submitted = await coordinator.submit(request());
+    const streamed: AgentSseEvent[] = [];
+    coordinator.subscribe(submitted.run.id, () => {});
+    listEventsCalls = 0; // ignore submit-time bookkeeping reads
+    await coordinator.processNext({
+      workerId: "worker-1",
+      onEvent: (event) => {
+        streamed.push(event);
+      },
+    });
+
+    expect(streamed).toHaveLength(deltaCount + 1);
+    // Each appended event is pushed to subscribers directly; the store's
+    // full listEvents history read must not be called once per token.
+    expect(listEventsCalls).toBeLessThan(deltaCount);
   });
 
   it("completes Workflow production state before marking the durable Run completed", async () => {
