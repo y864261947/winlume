@@ -1,0 +1,40 @@
+# Disposable PostgreSQL instance for the go-gateway-billing integration test
+# suite (services/gateway/internal/storage/*_integration_test.go).
+#
+# This compose file is scoped to its own project name so it can never be
+# confused with, or torn down alongside, any other stack (production
+# `winlume` database, the new-api database, or an unrelated local dev
+# Postgres). Always invoke it with an explicit project name, e.g.:
+#
+#   docker compose -p winlume-gateway-test -f services/gateway/compose.test.yml up -d
+#   docker compose -p winlume-gateway-test -f services/gateway/compose.test.yml down -v
+#
+# scripts/test-go-gateway-integration.ps1 does exactly this and verifies the
+# project name before tearing anything down.
+name: winlume-gateway-test
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: gateway_test
+      POSTGRES_PASSWORD: gateway_test
+      POSTGRES_DB: winlume_gateway_test
+    ports:
+      # Fixed local port so the test driver can build a stable connection
+      # string. Bound to loopback only -- this database never needs to be
+      # reachable from outside the host running the tests.
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gateway_test -d winlume_gateway_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - winlume-gateway-test-data:/var/lib/postgresql/data
+
+volumes:
+  # Named volume, scoped to this compose project (winlume-gateway-test). Docker
+  # namespaces named volumes by project, so this can never collide with a
+  # volume belonging to another stack.
+  winlume-gateway-test-data:

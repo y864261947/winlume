@@ -1,0 +1,160 @@
+# CI for the go-gateway-billing service and its Next.js caller contract.
+#
+# Three independent jobs:
+#   - go-checks:        fmt/vet/unit/race/build, no database required.
+#   - go-integration:   spins up a throwaway PostgreSQL 16 service container,
+#                       applies drizzle/0000..0003, and runs the
+#                       `-tags=integration` suite in services/gateway.
+#   - node-contract:    runs the Next.js-side tests that assert the caller
+#                       contract with the gateway (request/response shapes,
+#                       schema) so a gateway change that breaks the Next.js
+#                       side fails CI here, not in production.
+name: Gateway CI
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "services/gateway/**"
+      - "drizzle/**"
+      - "src/lib/agent/provider/gateway.test.ts"
+      - "src/lib/platform/db/gateway-schema.test.ts"
+      - ".github/workflows/gateway.yml"
+  pull_request:
+    paths:
+      - "services/gateway/**"
+      - "drizzle/**"
+      - "src/lib/agent/provider/gateway.test.ts"
+      - "src/lib/platform/db/gateway-schema.test.ts"
+      - ".github/workflows/gateway.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: gateway-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-checks:
+    name: Go fmt / vet / test / build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/gateway
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services/gateway/go.mod
+
+      - name: gofmt cleanliness
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt-clean:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./...
+
+      - name: go test -race
+        run: go test -race ./...
+
+      - name: Build cmd/gateway
+        run: go build -o /dev/null ./cmd/gateway
+
+      - name: Build cmd/pricing-import
+        run: go build -o /dev/null ./cmd/pricing-import
+
+  go-integration:
+    name: Go integration tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gateway_test
+          POSTGRES_PASSWORD: gateway_test
+          POSTGRES_DB: winlume_gateway_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gateway_test -d winlume_gateway_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgres://gateway_test:gateway_test@localhost:5432/winlume_gateway_test?sslmode=disable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services/gateway/go.mod
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Apply migrations
+        run: |
+          set -euo pipefail
+          for f in drizzle/0000_*.sql drizzle/0001_*.sql drizzle/0002_*.sql drizzle/0003_*.sql; do
+            echo "Applying $f"
+            psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f" --quiet
+          done
+
+      - name: Verify migrations committed
+        run: |
+          set -euo pipefail
+          # ON_ERROR_STOP alone does not catch a migration file that runs
+          # every statement successfully but never commits its transaction
+          # (drizzle/0003 historically opened a BEGIN, required to run
+          # `ALTER TYPE ... ADD VALUE` outside its own transaction, but did
+          # not COMMIT). Query a fresh psql connection for tables introduced
+          # by each migration so a silently-rolled-back file fails CI here.
+          expected="users wallets pricing_catalog_versions billing_shadow_events gateway_relay_attempts"
+          found=$(psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 --quiet --tuples-only --no-align -c \
+            "SELECT string_agg(table_name, ',') FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users','wallets','pricing_catalog_versions','billing_shadow_events','gateway_relay_attempts');")
+          for table in $expected; do
+            case ",$found," in
+              *,"$table",*) ;;
+              *) echo "Missing expected table after migrations: $table" >&2; exit 1 ;;
+            esac
+          done
+
+      - name: go test -tags=integration
+        working-directory: services/gateway
+        run: go test -tags=integration ./...
+
+  node-contract:
+    name: Next.js gateway caller contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Run gateway caller contract tests
+        run: npm test -- src/lib/agent/provider/gateway.test.ts src/lib/platform/db/gateway-schema.test.ts
