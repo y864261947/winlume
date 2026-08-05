@@ -496,6 +496,10 @@ function Bubble({
     message.content,
     isAssistant && Boolean(message.streaming),
   );
+  const displayedThinking = useSmoothStreamText(
+    message.thinking ?? "",
+    isAssistant && Boolean(message.streaming),
+  );
 
   if (message.presentation?.kind === "workflow_run") {
     return (
@@ -592,7 +596,7 @@ function Bubble({
 
         {isAssistant ? (
           <ThinkingBlock
-            text={message.thinking}
+            text={displayedThinking}
             streaming={message.streaming}
             durationSec={message.thinkingDurationSec}
             phase={phase}

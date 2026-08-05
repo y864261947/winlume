@@ -5,6 +5,8 @@
 
 export type ChatChunk =
   | { kind: "text"; text: string }
+  /** Reasoning/thinking tokens, distinct from the final answer text. */
+  | { kind: "thinking"; text: string }
   | { kind: "tool_call_delta"; id: string; name?: string; argumentsDelta?: string }
   | { kind: "tool_calls"; calls: { id: string; name: string; arguments: string }[] }
   | { kind: "error"; message: string };
@@ -80,12 +82,18 @@ type OpenAiChunk = {
     index?: number;
     delta?: {
       content?: string | null;
+      /** DeepSeek-R1/Kimi-style reasoning-model field name. */
+      reasoning_content?: string | null;
+      /** Some proxies (e.g. OpenRouter) use this name instead. */
+      reasoning?: string | null;
       role?: string;
       tool_calls?: OpenAiDeltaToolCall[];
     };
     finish_reason?: string | null;
     message?: {
       content?: string | null;
+      reasoning_content?: string | null;
+      reasoning?: string | null;
       tool_calls?: GatewayToolCall[];
     };
   }>;
@@ -139,6 +147,11 @@ export function parseSseDataPayload(data: string): ChatChunk[] {
   const out: ChatChunk[] = [];
   const delta = choice.delta;
 
+  const reasoningDelta = delta?.reasoning_content ?? delta?.reasoning;
+  if (reasoningDelta) {
+    out.push({ kind: "thinking", text: reasoningDelta });
+  }
+
   if (delta?.content) {
     out.push({ kind: "text", text: delta.content });
   }
@@ -160,6 +173,10 @@ export function parseSseDataPayload(data: string): ChatChunk[] {
   }
 
   // Non-stream style message on a choice (rare on stream endpoints)
+  const reasoningMessage = choice.message?.reasoning_content ?? choice.message?.reasoning;
+  if (reasoningMessage) {
+    out.push({ kind: "thinking", text: reasoningMessage });
+  }
   if (choice.message?.content) {
     out.push({ kind: "text", text: choice.message.content });
   }
@@ -337,6 +354,12 @@ export async function* streamGatewayChat(
         return;
       }
       const choice = json.choices?.[0];
+      const reasoning =
+        choice?.message?.reasoning_content ??
+        choice?.message?.reasoning ??
+        choice?.delta?.reasoning_content ??
+        choice?.delta?.reasoning;
+      if (reasoning) yield { kind: "thinking", text: reasoning };
       const content = choice?.message?.content ?? choice?.delta?.content;
       if (content) yield { kind: "text", text: content };
       if (choice?.message?.tool_calls?.length) {

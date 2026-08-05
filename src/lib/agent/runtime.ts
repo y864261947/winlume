@@ -511,6 +511,11 @@ export async function* runAgentTurn(
           continue;
         }
 
+        if (chunk.kind === "thinking") {
+          yield { type: "thinking", text: chunk.text };
+          continue;
+        }
+
         if (chunk.kind === "tool_calls") {
           completedToolCalls = chunk.calls;
           continue;

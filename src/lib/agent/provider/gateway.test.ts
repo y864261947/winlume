@@ -24,6 +24,31 @@ describe("parseSseDataPayload", () => {
     expect(parseSseDataPayload("[DONE]")).toEqual([]);
   });
 
+  it("maps a reasoning_content delta to a thinking chunk, ordered before the text delta", () => {
+    const data = JSON.stringify({
+      choices: [
+        {
+          index: 0,
+          delta: { reasoning_content: "分析一下用户的问题", content: "答案是" },
+          finish_reason: null,
+        },
+      ],
+    });
+    expect(parseSseDataPayload(data)).toEqual([
+      { kind: "thinking", text: "分析一下用户的问题" },
+      { kind: "text", text: "答案是" },
+    ]);
+  });
+
+  it("also accepts the OpenRouter-style `reasoning` delta field name", () => {
+    const data = JSON.stringify({
+      choices: [{ index: 0, delta: { reasoning: "thinking it through" }, finish_reason: null }],
+    });
+    expect(parseSseDataPayload(data)).toEqual([
+      { kind: "thinking", text: "thinking it through" },
+    ]);
+  });
+
   it("maps JSON error objects", () => {
     const data = JSON.stringify({ error: { message: "quota exceeded" } });
     expect(parseSseDataPayload(data)).toEqual([
