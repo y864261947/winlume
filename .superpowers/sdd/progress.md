@@ -18,3 +18,16 @@ Task 7: complete (69a94d6, skill inject, 32 tests)
 Task 8: complete (tool loop + artifacts API, 44 tests, build pass)
 Task 9: complete (bea4f1e, artifact panel+preview)
 Task 10: complete (auth gate, settings default model, mock experience cleanup)
+
+---
+
+# SDD Progress Ledger (go-gateway-billing)
+
+Branch: codex/go-gateway-billing
+Plan: docs/superpowers/plans/2026-08-04-go-gateway-billing.md
+Base before Task 17: 19dbf7b7 (Task 15/16 authoritative reservation, committed after manual review; storage/billing.go integration tests deferred - no local Postgres/Docker)
+
+Task 15/16: complete (commit 19dbf7b7, code reviewed manually, DB integration tests deferred pending Postgres access)
+Task 17: complete (commit 9c857969, review clean - spec compliant, no Critical/Important findings; main.go wiring for recovery worker deferred to Task 19, DB integration tests written but unrun pending Postgres)
+Task 18: complete (commits 9c857969..493dfc2f, review found Important gap - real HTTP status not persisted - fixed in 493dfc2f, re-review verified; minor doc-comment nit left, not blocking. Wiring gap: main.go still calls Client.Do not the new Client.Relay - deferred to Task 19 wiring pass)
+Task 19: complete (commits b4cc51ce..HEAD, metrics/redacted-logs/startup-gates plus both deferred wiring gaps - recovery worker now started in authoritative mode, handlePublicRequest now calls the retrying relay.Client.Relay and records attempts via AttemptRecorder; see task-19-report.md. DB-dependent paths (table-presence query, live authoritative Reserve/Settle) untested pending Postgres access)
