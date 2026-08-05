@@ -13,23 +13,25 @@ import (
 var ErrAnthropicEventOrder = errors.New("invalid Anthropic SSE event order")
 
 type anthropicObserver struct {
-	estimate        Estimate
-	limits          Limits
-	stream          bool
-	body            *responseStore
-	sse             sseDecoder
-	usage           anthropicUsageSnapshot
-	sawStart        bool
-	sawMessageDelta bool
-	sawStop         bool
-	blocks          map[int64]*anthropicContentBlock
-	blockOrder      []*anthropicContentBlock
-	openBlocks      int
-	observeErr      error
-	localText       strings.Builder
-	fallbackBytes   int64
-	finalized       bool
-	mu              sync.Mutex
+	estimate         Estimate
+	limits           Limits
+	stream           bool
+	body             *responseStore
+	sse              sseDecoder
+	usage            anthropicUsageSnapshot
+	sawStart         bool
+	sawMessageDelta  bool
+	sawStop          bool
+	blocks           map[int64]*anthropicContentBlock
+	blockOrder       []*anthropicContentBlock
+	nextBlockIndex   int64
+	activeBlockIndex int64
+	hasActiveBlock   bool
+	observeErr       error
+	localText        strings.Builder
+	fallbackBytes    int64
+	finalized        bool
+	mu               sync.Mutex
 }
 
 type anthropicContentBlock struct {
@@ -41,7 +43,6 @@ type anthropicContentBlock struct {
 	thinking        strings.Builder
 	partialJSON     strings.Builder
 	hasPartialJSON  bool
-	active          bool
 }
 
 type anthropicUsageValue struct {
@@ -322,9 +323,11 @@ func (observer *anthropicObserver) observeSSEEvent(eventName string, data []byte
 		observer.sawStart = true
 		observer.blocks = make(map[int64]*anthropicContentBlock)
 		observer.blockOrder = nil
-		observer.openBlocks = 0
+		observer.nextBlockIndex = 0
+		observer.activeBlockIndex = 0
+		observer.hasActiveBlock = false
 	case "message_delta":
-		if !observer.anthropicMessageActive() || observer.openBlocks > 0 {
+		if !observer.anthropicMessageActive() || observer.hasActiveBlock {
 			return malformedAnthropicEventOrder()
 		}
 		observer.sawMessageDelta = true
@@ -341,7 +344,7 @@ func (observer *anthropicObserver) observeSSEEvent(eventName string, data []byte
 		}
 		mergeAnthropicUsageDelta(&observer.usage, delta)
 	case "message_stop":
-		if !observer.anthropicMessageActive() || !observer.sawMessageDelta || observer.openBlocks > 0 {
+		if !observer.anthropicMessageActive() || !observer.sawMessageDelta || observer.hasActiveBlock {
 			return malformedAnthropicEventOrder()
 		}
 		observer.sawStop = true
@@ -352,6 +355,9 @@ func (observer *anthropicObserver) observeSSEEvent(eventName string, data []byte
 		index, err := anthropicContentBlockIndex(event)
 		if err != nil {
 			return err
+		}
+		if observer.hasActiveBlock || index != observer.nextBlockIndex {
+			return malformedAnthropicEventOrder()
 		}
 		if _, exists := observer.blocks[index]; exists {
 			return malformedAnthropicEventOrder()
@@ -369,7 +375,8 @@ func (observer *anthropicObserver) observeSSEEvent(eventName string, data []byte
 		}
 		observer.blocks[index] = block
 		observer.blockOrder = append(observer.blockOrder, block)
-		observer.openBlocks++
+		observer.activeBlockIndex = index
+		observer.hasActiveBlock = true
 	case "content_block_delta":
 		if !observer.anthropicMessageActive() || observer.sawMessageDelta {
 			return malformedAnthropicEventOrder()
@@ -379,7 +386,7 @@ func (observer *anthropicObserver) observeSSEEvent(eventName string, data []byte
 			return err
 		}
 		block, exists := observer.blocks[index]
-		if !exists || !block.active {
+		if !observer.hasActiveBlock || index != observer.activeBlockIndex || !exists {
 			return malformedAnthropicEventOrder()
 		}
 		delta, ok := objectValue(event["delta"])
@@ -397,12 +404,12 @@ func (observer *anthropicObserver) observeSSEEvent(eventName string, data []byte
 		if err != nil {
 			return err
 		}
-		block, exists := observer.blocks[index]
-		if !exists || !block.active || observer.openBlocks <= 0 {
+		_, exists := observer.blocks[index]
+		if !observer.hasActiveBlock || index != observer.activeBlockIndex || !exists {
 			return malformedAnthropicEventOrder()
 		}
-		block.active = false
-		observer.openBlocks--
+		observer.hasActiveBlock = false
+		observer.nextBlockIndex++
 	}
 	return nil
 }
@@ -483,7 +490,7 @@ const (
 )
 
 func anthropicContentBlockFromStart(contentBlock map[string]any) (*anthropicContentBlock, int64, error) {
-	block := &anthropicContentBlock{active: true}
+	block := &anthropicContentBlock{}
 	block.kind, _ = contentBlock["type"].(string)
 	block.name, _ = contentBlock["name"].(string)
 	if input, present := contentBlock["input"]; present {

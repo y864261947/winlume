@@ -329,6 +329,59 @@ func TestAnthropicSSEEnforcesContentBlockTransitions(t *testing.T) {
 	}
 }
 
+func TestAnthropicSSERejectsNonSequentialContentBlockFlows(t *testing.T) {
+	messageStart := "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":3}}}\n\n"
+	blockZeroStart := "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"zero\"}}\n\n"
+	blockOneStart := "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"text\",\"text\":\"one\"}}\n\n"
+	blockZeroDelta := "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"!\"}}\n\n"
+	blockZeroStop := "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n"
+	blockOneStop := "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":1}\n\n"
+	messageDelta := "event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{}}\n\n"
+	messageStop := "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+
+	for _, test := range []struct {
+		name    string
+		payload []byte
+	}{
+		{name: "first block starts at one", payload: []byte(messageStart + blockOneStart + blockOneStop + messageDelta + messageStop)},
+		{name: "second block starts before first stops", payload: []byte(messageStart + blockZeroStart + blockOneStart + blockZeroStop + blockOneStop + messageDelta + messageStop)},
+		{name: "interleaved delta and stop target different blocks", payload: []byte(messageStart + blockZeroStart + blockOneStart + blockZeroDelta + blockOneStop + blockZeroStop + messageDelta + messageStop)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			observer, err := NewRegistry().New("anthropic", "text/event-stream", Estimate{Model: "claude-sonnet-4-20250514", Protocol: "claude"})
+			require.NoError(t, err)
+
+			observeErr := observer.Observe(test.payload)
+			actual, completeErr := observer.Complete(Completion{StatusCode: 200, EOF: true})
+			require.ErrorIs(t, observeErr, ErrAnthropicEventOrder)
+			require.ErrorIs(t, completeErr, ErrAnthropicEventOrder)
+			require.False(t, actual.Complete)
+		})
+	}
+}
+
+func TestAnthropicSSEAcceptsSequentialContentBlockIndexes(t *testing.T) {
+	payload := []byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":3}}}\n\n" +
+		"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"zero\"}}\n\n" +
+		"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"!\"}}\n\n" +
+		"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n" +
+		"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"text\",\"text\":\"one\"}}\n\n" +
+		"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":1}\n\n" +
+		"event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{}}\n\n" +
+		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
+
+	observer, err := NewRegistry().New("anthropic", "text/event-stream", Estimate{Model: "claude-sonnet-4-20250514", Protocol: "claude"})
+	require.NoError(t, err)
+	require.NoError(t, observer.Observe(payload))
+	require.Equal(t, "zero!one", observer.(*anthropicObserver).anthropicStreamFallbackText())
+
+	actual, err := observer.Complete(Completion{StatusCode: 200, EOF: true})
+	require.NoError(t, err)
+	require.Equal(t, countText("zero!one", "claude-sonnet-4-20250514"), actual.TextOutputTokens)
+	require.Equal(t, LocallyCounted, actual.Fields["text_output_tokens"])
+	require.True(t, actual.Complete)
+}
+
 func TestAnthropicSSEZeroUsageCompletesWithoutFallback(t *testing.T) {
 	payload, err := os.ReadFile(filepath.Join("..", "..", "testdata", "usage", "anthropic", "zero-usage.sse"))
 	require.NoError(t, err)
