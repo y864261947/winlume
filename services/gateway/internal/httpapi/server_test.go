@@ -255,6 +255,37 @@ func TestOperationalRoutesAllowOnlyGet(t *testing.T) {
 	}
 }
 
+func TestMetricsRouteRequiresInternalTokenAndIsNeverPublic(t *testing.T) {
+	cfg := testConfig(config.BillingOff)
+	cfg.InternalToken = "internal-secret"
+	metricsBody := "gateway_requests_total 1\n"
+	server := NewServer(Dependencies{
+		Config:         cfg,
+		MetricsHandler: http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) { _, _ = response.Write([]byte(metricsBody)) }),
+	})
+
+	unauthorized := serve(server, http.MethodGet, "/metrics", nil)
+	require.Equal(t, http.StatusUnauthorized, unauthorized.Code)
+	require.Equal(t, "internal_token_required", decodeError(t, unauthorized).Error.Code)
+
+	authorized := serveWithHeaders(server, http.MethodGet, "/metrics", nil, map[string]string{"x-winlume-internal-token": "internal-secret"})
+	require.Equal(t, http.StatusOK, authorized.Code)
+	require.Equal(t, metricsBody, authorized.Body.String())
+
+	notAllowed := serveWithHeaders(server, http.MethodPost, "/metrics", nil, map[string]string{"x-winlume-internal-token": "internal-secret"})
+	require.Equal(t, http.StatusMethodNotAllowed, notAllowed.Code)
+}
+
+func TestMetricsRouteWithoutHandlerConfiguredReturns503(t *testing.T) {
+	cfg := testConfig(config.BillingOff)
+	cfg.InternalToken = "internal-secret"
+	server := NewServer(Dependencies{Config: cfg})
+
+	response := serveWithHeaders(server, http.MethodGet, "/metrics", nil, map[string]string{"x-winlume-internal-token": "internal-secret"})
+	require.Equal(t, http.StatusServiceUnavailable, response.Code)
+	require.Equal(t, "metrics_unavailable", decodeError(t, response).Error.Code)
+}
+
 func testConfig(mode config.BillingMode) config.Config {
 	return config.Config{
 		BillingMode: mode,

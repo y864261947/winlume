@@ -29,6 +29,11 @@ type Dependencies struct {
 	BillingReady    ReadinessProbe
 	PublicHandler   PublicHandler
 	InternalHandler http.Handler
+	// MetricsHandler serves the Prometheus scrape endpoint. Like
+	// InternalHandler, it is only ever reachable behind the internal token
+	// check - never on the unauthenticated public route surface - so a
+	// bounded-cardinality metric page is never exposed to arbitrary callers.
+	MetricsHandler http.Handler
 }
 
 // Server owns the public HTTP contract without owning authentication, relay, or
@@ -39,6 +44,7 @@ type Server struct {
 	billingReady    ReadinessProbe
 	publicHandler   PublicHandler
 	internalHandler http.Handler
+	metricsHandler  http.Handler
 	handler         http.Handler
 }
 
@@ -76,6 +82,7 @@ func NewServer(dependencies Dependencies) *Server {
 		billingReady:    dependencies.BillingReady,
 		publicHandler:   dependencies.PublicHandler,
 		internalHandler: dependencies.InternalHandler,
+		metricsHandler:  dependencies.MetricsHandler,
 	}
 	server.handler = withRequestID(withCORS(http.HandlerFunc(server.serveHTTP), dependencies.Config.CORSOrigins))
 	return server
@@ -122,6 +129,21 @@ func (server *Server) serveHTTP(response http.ResponseWriter, request *http.Requ
 			return
 		}
 		server.internalHandler.ServeHTTP(response, request)
+		return
+	case "/metrics":
+		if request.Method != http.MethodGet {
+			server.writeMethodNotAllowed(response, request, http.MethodGet)
+			return
+		}
+		if !server.authorizeInternal(request) {
+			writeError(response, http.StatusUnauthorized, "authentication_error", "internal_token_required", "A valid internal token is required", requestID(request))
+			return
+		}
+		if server.metricsHandler == nil {
+			writeError(response, http.StatusServiceUnavailable, "observability_error", "metrics_unavailable", "Metrics are not configured", requestID(request))
+			return
+		}
+		server.metricsHandler.ServeHTTP(response, request)
 		return
 	}
 

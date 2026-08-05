@@ -53,3 +53,25 @@ func (store *Store) Health(ctx context.Context) error {
 	}
 	return nil
 }
+
+// HasRequiredTables reports whether every named table exists in the public
+// schema. It is used by the authoritative/shadow startup gate to fail closed
+// when migrations have not been applied, rather than discovering a missing
+// table only on the first billing request. Table names are always static,
+// developer-supplied constants - never derived from request input - so
+// building the qualified name with string concatenation here is safe.
+func (store *Store) HasRequiredTables(ctx context.Context, tables []string) (bool, error) {
+	if store == nil || store.pool == nil {
+		return false, ErrUnavailable
+	}
+	for _, table := range tables {
+		var found *string
+		if err := store.pool.QueryRow(ctx, "SELECT to_regclass('public.'||$1)::text", table).Scan(&found); err != nil {
+			return false, ErrUnavailable
+		}
+		if found == nil {
+			return false, nil
+		}
+	}
+	return true, nil
+}
