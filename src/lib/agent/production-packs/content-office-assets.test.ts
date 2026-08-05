@@ -56,5 +56,18 @@ describe("content-office first-party assets", () => {
       "draft",
       "review",
     ]);
+    expect(pack.intake.map((field) => field.id)).toEqual([
+      "topic",
+      "audience",
+      "delivery-format",
+      "source-artifact",
+    ]);
+    expect(pack.expectedArtifacts.map((artifact) => artifact.id)).toEqual([
+      "brief",
+      "research-notes",
+      "draft",
+      "review-record",
+    ]);
+    expect(pack.stages.every((stage) => Boolean(stage.handoffSummary))).toBe(true);
   });
 });

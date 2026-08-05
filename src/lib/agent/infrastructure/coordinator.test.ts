@@ -9,6 +9,13 @@ import type {
 } from "@/lib/agent/executor/types";
 import type { AgentSseEvent } from "@/lib/agent/types";
 import { createWebFileStore } from "@/lib/host/web/file-store";
+import { getProductionPack } from "@/lib/agent/production-packs/registry";
+import { createWorkflowSessionBinding } from "@/lib/agent/production-packs/session-binding";
+import {
+  prepareFirstProductionStage,
+  serializeProductionRunMetadata,
+} from "@/lib/agent/production-packs/run-metadata";
+import { ProductionWorkflowExecution } from "@/lib/agent/production-packs/workflow-execution";
 import { RunCoordinator } from "./coordinator";
 import { createStaticRunPolicy } from "./policy";
 import { createInProcessRunQueue } from "./queue";
@@ -171,6 +178,105 @@ describe("RunCoordinator", () => {
     expect(listEventsCalls).toBeLessThan(deltaCount);
   });
 
+  it("completes Workflow production state before marking the durable Run completed", async () => {
+    const root = mkdtempSync(join(tmpdir(), "winlume-coordinator-workflow-"));
+    directories.push(root);
+    const host = createWebFileStore(root);
+    await host.sessions.createSession({
+      id: "session-1",
+      userId: "user-1",
+      title: "Workflow",
+      model: "gpt-4o-mini",
+    });
+    const runs = createMemoryRunStore();
+    const pack = await getProductionPack("content-office");
+    expect(pack).not.toBeNull();
+    const binding = createWorkflowSessionBinding(
+      pack!,
+      {
+        topic: "夏季新品",
+        audience: "品牌团队",
+        "delivery-format": "article",
+      },
+      { workflowId: "workflow-1" },
+    );
+    const first = prepareFirstProductionStage(pack!, binding);
+    const workflow = new ProductionWorkflowExecution({
+      runs,
+      sessions: host.sessions,
+      artifacts: host.artifacts,
+      getPack: getProductionPack,
+    });
+    const coordinator = new RunCoordinator({
+      store: runs,
+      queue: createInProcessRunQueue(),
+      sessions: host.sessions,
+      projects: host.projects,
+      artifacts: host.artifacts,
+      policy: createStaticRunPolicy({
+        allowedExecutionModes: ["ai-sdk"],
+        allowedModels: ["gpt-4o-mini"],
+      }),
+      productionWorkflow: workflow,
+      executorFactory: () =>
+        createExecutor(async function* (input) {
+          expect(input.workflow).toMatchObject({
+            workflowId: "workflow-1",
+            stageId: "intake",
+            outputs: [{ id: "brief", kinds: ["markdown"] }],
+          });
+          await input.artifacts.write(
+            {
+              id: "artifact-brief",
+              userId: input.userId,
+              sessionId: input.sessionId,
+              name: "工作简报",
+              kind: "markdown",
+              mimeType: "text/markdown; charset=utf-8",
+              storageKey: "",
+              createdAt: "2026-08-04T08:00:00.000Z",
+              provenance: {
+                workflow: {
+                  workflowId: input.workflow!.workflowId,
+                  runId: input.workflow!.runId,
+                  stageId: input.workflow!.stageId,
+                  outputId: "brief",
+                },
+              },
+            },
+            "# 工作简报",
+          );
+          yield { type: "done", reason: "completed" };
+        }),
+    });
+    const submitted = await coordinator.submit({
+      id: "run-1",
+      userId: "user-1",
+      sessionId: "session-1",
+      idempotencyKey: first.effect.idempotencyKey,
+      idempotencyScope: `user:user-1:${first.effect.idempotencyScope}`,
+      input: {
+        message: "生成工作简报",
+        executionMode: "ai-sdk",
+        model: "gpt-4o-mini",
+        skillIds: first.effect.skillIds,
+        skillSelectionMode: "replace",
+        allowedToolNames: first.state.execution.allowedTools,
+      },
+      metadata: { production: serializeProductionRunMetadata(first.state) },
+    });
+
+    const result = await coordinator.processNext({ workerId: "worker-1" });
+    const completed = await coordinator.getRun(submitted.run.id);
+
+    expect(result).toMatchObject({ status: "completed" });
+    expect(completed?.metadata?.production).toMatchObject({
+      phase: "ready_for_next",
+      completedStageIds: ["intake"],
+      artifacts: { outputs: { brief: ["artifact-brief"] } },
+    });
+  });
+
   it("cancels a queued run before an executor is started", async () => {
     let calls = 0;
     const coordinator = await setup(() =>
@@ -298,6 +404,33 @@ describe("RunCoordinator", () => {
         }),
       }),
     );
+  });
+
+  it("blocks a tool outside the Run-level allowlist", async () => {
+    let advancedPastToolCall = false;
+    const coordinator = await setup(() =>
+      createExecutor(async function* () {
+        yield { type: "tool_call", id: "call-1", name: "generate_image", input: {} };
+        advancedPastToolCall = true;
+        yield { type: "done", reason: "completed" };
+      }),
+    );
+    const baseRequest = request();
+    const submitted = await coordinator.submit({
+      ...baseRequest,
+      input: {
+        ...baseRequest.input,
+        allowedToolNames: ["write_artifact"],
+      },
+    });
+
+    const result = await coordinator.processNext({ workerId: "worker-1" });
+
+    expect(result?.status).toBe("failed");
+    expect(advancedPastToolCall).toBe(false);
+    expect((await coordinator.getRun(submitted.run.id))?.error).toMatchObject({
+      code: "tool_not_allowed",
+    });
   });
 
   it("does not replay an at-most-once executor after it has started", async () => {

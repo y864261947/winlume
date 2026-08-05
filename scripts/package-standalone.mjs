@@ -35,7 +35,10 @@ function must(path, label) {
 
 must(join(standalone, "server.js"), "standalone server.js");
 must(join(root, ".next", "static"), ".next/static");
-must(join(root, "content", "skills"), "content/skills");
+const contentDirectories = ["skills", "production-packs"];
+for (const directory of contentDirectories) {
+  must(join(root, "content", directory), `content/${directory}`);
+}
 
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
@@ -95,9 +98,11 @@ if (existsSync(join(root, "public"))) {
   cpSync(join(root, "public"), join(stage, "public"), { recursive: true });
 }
 mkdirSync(join(stage, "content"), { recursive: true });
-cpSync(join(root, "content", "skills"), join(stage, "content", "skills"), {
-  recursive: true,
-});
+for (const directory of contentDirectories) {
+  cpSync(join(root, "content", directory), join(stage, "content", directory), {
+    recursive: true,
+  });
+}
 mkdirSync(join(stage, "data"), { recursive: true });
 writeFileSync(
   join(stage, ".env.production.example"),

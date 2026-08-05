@@ -10,6 +10,8 @@ import {
   buildProjectReminder,
   buildReferencedArtifactReminder,
   buildReferencedArtifactsReminder,
+  selectRuntimeSkillIds,
+  selectStudioTools,
   toGatewayMessages,
 } from "./runtime";
 import type { Artifact, Message } from "./types";
@@ -89,6 +91,23 @@ describe("toGatewayMessages", () => {
     expect(toGatewayMessages("S", history)).toEqual([
       { role: "system", content: "S" },
     ]);
+  });
+});
+
+describe("Workflow execution policy", () => {
+  it("replaces pinned Skills and exposes only explicitly allowed tools", () => {
+    expect(
+      selectRuntimeSkillIds(
+        ["project-pinned", "session-pinned"],
+        ["pack-stage"],
+        "replace",
+      ),
+    ).toEqual(["pack-stage"]);
+    expect(
+      selectStudioTools(["read_artifact", "write_artifact"]).map(
+        (tool) => tool.function.name,
+      ),
+    ).toEqual(["write_artifact", "read_artifact"]);
   });
 });
 

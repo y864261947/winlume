@@ -44,4 +44,37 @@ describe("local run recovery", () => {
     expect(recovered?.lease).toBeUndefined();
     expect(await queue.dequeue({ workerId: "worker-1" })).toBeNull();
   });
+
+  it("finalizes a Workflow Run with a durable completed event without replaying it", async () => {
+    const store = createMemoryRunStore();
+    const queue = createInProcessRunQueue();
+    const { run } = await store.createRun({
+      ...request(),
+      metadata: { production: { workflowId: "workflow-1" } },
+    });
+    await store.acquireLease(run.id, "previous-worker", { ttlMs: 60_000 });
+    await store.appendEvent({
+      runId: run.id,
+      type: "agent.event",
+      payload: { event: { type: "done", reason: "completed" } },
+      producer: "executor:ai-sdk",
+    });
+    const finalized: string[] = [];
+
+    await recoverLocalRunQueue({
+      store,
+      queue,
+      maxAttempts: 3,
+      workflowFinalizer: {
+        async completeRun(runId) {
+          finalized.push(runId);
+          return store.transitionRun(runId, "completed");
+        },
+      },
+    });
+
+    expect(finalized).toEqual([run.id]);
+    expect((await store.getRun(run.id))?.status).toBe("completed");
+    expect(await queue.dequeue({ workerId: "worker-1" })).toBeNull();
+  });
 });

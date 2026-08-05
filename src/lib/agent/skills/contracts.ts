@@ -34,9 +34,14 @@ export const artifactKindSchema = z.enum([
   "canvas",
 ]);
 
+export const artifactOutputIdSchema = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9_-]*$/, "must be a lowercase Artifact id")
+  .max(96);
+
 const artifactContractSchema = z
   .object({
-    id: skillIdSchema,
+    id: artifactOutputIdSchema,
     kinds: z.array(artifactKindSchema).min(1).max(8),
     required: z.boolean(),
   })
