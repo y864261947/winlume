@@ -70,9 +70,17 @@ type Rule struct {
 	TieredExpression        string
 	TieredExpressionHash    string
 	TieredExpressionVersion string
+	ProbePolicy             ProbePolicy
 	EnabledGroups           []string
 	ProtocolFamilies        []string
 	RuleHash                string
+}
+
+// ProbePolicy is the catalog-declared allowlist for request data that a tiered
+// expression may freeze. Empty lists deliberately grant no request access.
+type ProbePolicy struct {
+	HeaderNames []string
+	ParamPaths  []string
 }
 
 // GroupRule is a group ratio from the catalog. An empty UserGroup is the
@@ -126,6 +134,7 @@ type ExpressionSnapshot struct {
 	Hash           string
 	Version        string
 	UsedVars       map[string]bool
+	ProbePolicy    ProbePolicy
 	HeaderProbes   map[string]string
 	ParamProbes    map[string]any
 	EstimatedTier  string
@@ -168,6 +177,7 @@ type Charge struct {
 func cloneRule(rule Rule) Rule {
 	clone := rule
 	clone.ToolPrices = cloneDecimalMap(rule.ToolPrices)
+	clone.ProbePolicy = cloneProbePolicy(rule.ProbePolicy)
 	clone.EnabledGroups = append([]string(nil), rule.EnabledGroups...)
 	clone.ProtocolFamilies = append([]string(nil), rule.ProtocolFamilies...)
 	if rule.ChannelCost != nil {
@@ -175,6 +185,13 @@ func cloneRule(rule Rule) Rule {
 		clone.ChannelCost = &cost
 	}
 	return clone
+}
+
+func cloneProbePolicy(policy ProbePolicy) ProbePolicy {
+	return ProbePolicy{
+		HeaderNames: append([]string(nil), policy.HeaderNames...),
+		ParamPaths:  append([]string(nil), policy.ParamPaths...),
+	}
 }
 
 func cloneDecimalMap(values map[string]decimal.Decimal) map[string]decimal.Decimal {
@@ -194,6 +211,7 @@ func cloneExpressionSnapshot(snapshot *ExpressionSnapshot) *ExpressionSnapshot {
 	}
 	clone := *snapshot
 	clone.UsedVars = cloneBoolMap(snapshot.UsedVars)
+	clone.ProbePolicy = cloneProbePolicy(snapshot.ProbePolicy)
 	clone.HeaderProbes = cloneStringMap(snapshot.HeaderProbes)
 	clone.ParamProbes = cloneAnyMap(snapshot.ParamProbes)
 	return &clone

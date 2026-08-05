@@ -45,7 +45,11 @@ func TestMatchTieredPrecedesFixedAndFreezesReferencedRequestProbes(t *testing.T)
 			{
 				ModelKey:         "m",
 				Mode:             ModeTieredExpr,
-				TieredExpression: `v1:has(header(" beta "), "fast-mode") && param("stream_options.fast_mode") == true ? tier("fast", p * 2) : tier("standard", p)`,
+				TieredExpression: `v1:has(header(" Anthropic-Beta "), "fast-mode") && param("stream_options.fast_mode") == true ? tier("fast", p * 2) : tier("standard", p)`,
+				ProbePolicy: ProbePolicy{
+					HeaderNames: []string{"Anthropic-Beta"},
+					ParamPaths:  []string{"stream_options.fast_mode"},
+				},
 				ToolPrices: map[string]decimal.Decimal{
 					"web_search": decimal.NewFromInt(3),
 				},
@@ -61,8 +65,8 @@ func TestMatchTieredPrecedesFixedAndFreezesReferencedRequestProbes(t *testing.T)
 		},
 		Request: RequestInput{
 			Headers: map[string]string{
-				" Beta ":        " fast-mode ",
-				"Authorization": "Bearer must-not-be-frozen",
+				" Anthropic-Beta ": " fast-mode ",
+				"Authorization":    "Bearer must-not-be-frozen",
 			},
 			Body:           []byte(`{"stream_options":{"fast_mode":true},"sensitive":"must-not-be-frozen"}`),
 			EvaluationTime: evaluationTime,
@@ -74,16 +78,62 @@ func TestMatchTieredPrecedesFixedAndFreezesReferencedRequestProbes(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, ModeTieredExpr, quote.Mode)
 	require.Equal(t, "fast", quote.Expression.EstimatedTier)
-	require.Equal(t, map[string]string{"beta": "fast-mode"}, quote.Expression.HeaderProbes)
+	require.Equal(t, map[string]string{"anthropic-beta": "fast-mode"}, quote.Expression.HeaderProbes)
 	require.Equal(t, map[string]any{"stream_options.fast_mode": true}, quote.Expression.ParamProbes)
+	require.Equal(t, ProbePolicy{
+		HeaderNames: []string{"anthropic-beta"},
+		ParamPaths:  []string{"stream_options.fast_mode"},
+	}, quote.Expression.ProbePolicy)
+	require.Equal(t, quote.Expression.ProbePolicy, quote.Rule.ProbePolicy)
 	require.Equal(t, evaluationTime, quote.Expression.EvaluationTime)
 	require.NotContains(t, quote.Expression.HeaderProbes, "authorization")
 	require.NotContains(t, quote.Expression.ParamProbes, "sensitive")
 
 	catalog.Rules[1].ToolPrices["web_search"] = decimal.NewFromInt(99)
-	request.Request.Headers[" Beta "] = "changed"
+	catalog.Rules[1].ProbePolicy.HeaderNames[0] = "changed"
+	request.Request.Headers[" Anthropic-Beta "] = "changed"
 	require.True(t, quote.Rule.ToolPrices["web_search"].Equal(decimal.NewFromInt(3)))
-	require.Equal(t, "fast-mode", quote.Expression.HeaderProbes["beta"])
+	require.Equal(t, "fast-mode", quote.Expression.HeaderProbes["anthropic-beta"])
+	require.Equal(t, []string{"anthropic-beta"}, quote.Expression.ProbePolicy.HeaderNames)
+	require.Equal(t, []string{"anthropic-beta"}, quote.Rule.ProbePolicy.HeaderNames)
+}
+
+func TestMatchTieredProbePolicyRejectsBeforeQuoteFreezesRequestData(t *testing.T) {
+	secretValue := "must-not-appear-in-a-quote"
+	for _, test := range []struct {
+		name       string
+		expression string
+		policy     ProbePolicy
+		request    RequestInput
+	}{
+		{
+			name:       "unapproved header",
+			expression: `v1:has(header("Anthropic-Beta"), "fast") ? p * 2 : p`,
+			request:    RequestInput{Headers: map[string]string{"Anthropic-Beta": secretValue}},
+		},
+		{
+			name:       "sensitive parameter",
+			expression: `v1:param("api_key") == "key" ? p * 2 : p`,
+			policy:     ProbePolicy{ParamPaths: []string{"api_key"}},
+			request:    RequestInput{Body: []byte(`{"api_key":"must-not-appear-in-a-quote"}`)},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			catalog := Catalog{
+				QuotaPerUnit: decimal.NewFromInt(500_000),
+				Rules: []Rule{{
+					ModelKey:         "m",
+					Mode:             ModeTieredExpr,
+					TieredExpression: test.expression,
+					ProbePolicy:      test.policy,
+				}},
+			}
+
+			quote, err := catalog.Quote(QuoteRequest{Model: "m", Request: test.request})
+			require.ErrorIs(t, err, ErrInvalidCatalog)
+			require.Equal(t, Quote{}, quote)
+		})
+	}
 }
 
 func TestMatchSpecialModelAliasesAndCompactPrecedence(t *testing.T) {

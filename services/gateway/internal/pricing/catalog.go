@@ -41,12 +41,14 @@ func (catalog Catalog) Quote(request QuoteRequest) (Quote, error) {
 		PreConsumedTokens: catalog.PreConsumedTokens,
 	}
 	if quote.Mode == ModeTieredExpr {
-		if err := validateTieredRule(rule); err != nil {
+		policy, err := validateTieredRule(rule)
+		if err != nil {
 			return Quote{}, err
 		}
-		expression, err := FreezeExpression(
+		expression, err := FreezeExpressionWithPolicy(
 			rule.TieredExpression,
 			rule.TieredExpressionHash,
+			policy,
 			estimateTokenParams(request.Estimate.PromptTokens, request.Estimate.MaxOutputTokens),
 			request.Request,
 		)
@@ -54,6 +56,7 @@ func (catalog Catalog) Quote(request QuoteRequest) (Quote, error) {
 			return Quote{}, err
 		}
 		quote.Expression = cloneExpressionSnapshot(expression)
+		quote.Rule.ProbePolicy = cloneProbePolicy(expression.ProbePolicy)
 		quote.Rule.TieredExpressionHash = expression.Hash
 		quote.Rule.TieredExpressionVersion = expression.Version
 	}
@@ -71,7 +74,7 @@ func (catalog Catalog) Validate() error {
 			return err
 		}
 		if rule.Mode == ModeTieredExpr {
-			if err := validateTieredRule(rule); err != nil {
+			if _, err := validateTieredRule(rule); err != nil {
 				return err
 			}
 		}
@@ -160,13 +163,13 @@ func validateRule(rule Rule) error {
 	return nil
 }
 
-func validateTieredRule(rule Rule) error {
+func validateTieredRule(rule Rule) (ProbePolicy, error) {
 	info, err := ValidateExpression(rule.TieredExpression, rule.TieredExpressionHash)
 	if err != nil {
-		return fmt.Errorf("%w: tiered expression for %q: %w", ErrInvalidCatalog, rule.ModelKey, err)
+		return ProbePolicy{}, fmt.Errorf("%w: tiered expression for %q: %w", ErrInvalidCatalog, rule.ModelKey, err)
 	}
 	if rule.TieredExpressionVersion != "" && rule.TieredExpressionVersion != info.Version {
-		return fmt.Errorf(
+		return ProbePolicy{}, fmt.Errorf(
 			"%w: tiered expression version %q for %q does not match %q",
 			ErrInvalidCatalog,
 			rule.TieredExpressionVersion,
@@ -174,7 +177,14 @@ func validateTieredRule(rule Rule) error {
 			info.Version,
 		)
 	}
-	return nil
+	policy, err := normalizeProbePolicy(rule.ProbePolicy)
+	if err != nil {
+		return ProbePolicy{}, fmt.Errorf("%w: tiered probe policy for %q: %w", ErrInvalidCatalog, rule.ModelKey, err)
+	}
+	if err := validateCompiledProbePolicy(info, policy); err != nil {
+		return ProbePolicy{}, fmt.Errorf("%w: tiered probe policy for %q: %w", ErrInvalidCatalog, rule.ModelKey, err)
+	}
+	return policy, nil
 }
 
 func estimateTokenParams(promptTokens, maxOutputTokens int64) TokenParams {

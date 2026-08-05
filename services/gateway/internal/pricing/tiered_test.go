@@ -3,6 +3,7 @@ package pricing
 import (
 	"container/list"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -56,6 +57,55 @@ func TestTieredExpressionHashVersionAndWhitelist(t *testing.T) {
 	require.ErrorIs(t, err, ErrExpressionHashMismatch)
 }
 
+func TestTieredExpressionValidationRejectsConditionalNumericHazards(t *testing.T) {
+	tests := []struct {
+		name       string
+		expression string
+		wantError  string
+	}{
+		{
+			name:       "hidden division by zero",
+			expression: `v1:p == 1 ? 1 / (p - 1) : 0`,
+			wantError:  "division denominator",
+		},
+		{
+			name:       "hidden negative result",
+			expression: `v1:p == 1 ? -1 : 0`,
+			wantError:  "unary negative",
+		},
+		{
+			name:       "alternate hidden division by zero",
+			expression: `v1:c == 1 ? 1 / (c - 1) : 0`,
+			wantError:  "division denominator",
+		},
+		{
+			name:       "alternate hidden negative result",
+			expression: `v1:len == 1 ? -1 : 0`,
+			wantError:  "unary negative",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ValidateExpression(test.expression, "")
+			require.ErrorIs(t, err, ErrInvalidExpression)
+			require.ErrorContains(t, err, test.wantError)
+		})
+	}
+}
+
+func TestTieredExpressionRejectsTokenParamsOutsideStaticDomain(t *testing.T) {
+	_, err := RunExpression(
+		`v1:p * 20`,
+		"",
+		TokenParams{P: math.Nextafter(maxExactExpressionTokenValue, math.Inf(1))},
+		RequestInput{},
+	)
+
+	require.ErrorIs(t, err, ErrInvalidExpression)
+	require.ErrorContains(t, err, "token parameter p")
+}
+
 func TestTieredFrozenExpressionRejectsHashCorruption(t *testing.T) {
 	snapshot, err := FreezeExpression(`v1:tier("base", p)`, "", TokenParams{P: 1}, RequestInput{})
 	require.NoError(t, err)
@@ -74,17 +124,129 @@ func TestTieredFrozenExpressionRejectsMissingEvaluationTime(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidExpression)
 }
 
+func TestTieredProbePolicyDefaultsToDenyAndRejectsSensitiveReferences(t *testing.T) {
+	secretValue := "must-not-appear-in-a-quote"
+
+	for _, test := range []struct {
+		name       string
+		expression string
+		policy     ProbePolicy
+		request    RequestInput
+	}{
+		{
+			name:       "unapproved header",
+			expression: `v1:has(header("Anthropic-Beta"), "fast") ? p * 2 : p`,
+			request:    RequestInput{Headers: map[string]string{"Anthropic-Beta": secretValue}},
+		},
+		{
+			name:       "authorization header",
+			expression: `v1:has(header("Authorization"), "Bearer") ? p * 2 : p`,
+			policy:     ProbePolicy{HeaderNames: []string{"Authorization"}},
+			request:    RequestInput{Headers: map[string]string{"Authorization": secretValue}},
+		},
+		{
+			name:       "x api key header",
+			expression: `v1:has(header("x-api-key"), "key") ? p * 2 : p`,
+			policy:     ProbePolicy{HeaderNames: []string{"x-api-key"}},
+			request:    RequestInput{Headers: map[string]string{"x-api-key": secretValue}},
+		},
+		{
+			name:       "x goog api key header",
+			expression: `v1:has(header("x-goog-api-key"), "key") ? p * 2 : p`,
+			policy:     ProbePolicy{HeaderNames: []string{"x-goog-api-key"}},
+			request:    RequestInput{Headers: map[string]string{"x-goog-api-key": secretValue}},
+		},
+		{
+			name:       "api key parameter",
+			expression: `v1:param("api_key") == "key" ? p * 2 : p`,
+			policy:     ProbePolicy{ParamPaths: []string{"api_key"}},
+			request:    RequestInput{Body: []byte(`{"api_key":"must-not-appear-in-a-quote"}`)},
+		},
+		{
+			name:       "nested secret parameter",
+			expression: `v1:param("credentials.secret") == "key" ? p * 2 : p`,
+			policy:     ProbePolicy{ParamPaths: []string{"credentials.secret"}},
+			request:    RequestInput{Body: []byte(`{"credentials":{"secret":"must-not-appear-in-a-quote"}}`)},
+		},
+		{
+			name:       "token parameter",
+			expression: `v1:param("token") == "key" ? p * 2 : p`,
+			policy:     ProbePolicy{ParamPaths: []string{"token"}},
+			request:    RequestInput{Body: []byte(`{"token":"must-not-appear-in-a-quote"}`)},
+		},
+		{
+			name:       "password parameter",
+			expression: `v1:param("password") == "key" ? p * 2 : p`,
+			policy:     ProbePolicy{ParamPaths: []string{"password"}},
+			request:    RequestInput{Body: []byte(`{"password":"must-not-appear-in-a-quote"}`)},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			snapshot, err := FreezeExpressionWithPolicy(test.expression, "", test.policy, TokenParams{P: 1}, test.request)
+			require.ErrorIs(t, err, ErrInvalidExpression)
+			require.Nil(t, snapshot)
+			require.NotContains(t, err.Error(), secretValue)
+		})
+	}
+}
+
+func TestTieredProbePolicyAllowsExplicitNonSensitiveTokenFields(t *testing.T) {
+	snapshot, err := FreezeExpressionWithPolicy(
+		`v1:param("max_tokens") == 20 ? p * 20 : p`,
+		"",
+		ProbePolicy{ParamPaths: []string{"max_tokens"}},
+		TokenParams{P: 1},
+		RequestInput{Body: []byte(`{"max_tokens":20}`)},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{"max_tokens": float64(20)}, snapshot.ParamProbes)
+}
+
+func TestTieredProbeParametersRequireOneCompleteJSONDocument(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		body []byte
+	}{
+		{
+			name: "trailing garbage",
+			body: []byte(`{"stream_options":{"fast_mode":true}} trailing`),
+		},
+		{
+			name: "second document",
+			body: []byte(`{"stream_options":{"fast_mode":true}} {"ignored":true}`),
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			snapshot, err := FreezeExpressionWithPolicy(
+				`v1:param("stream_options.fast_mode") == true ? p * 2 : p`,
+				"",
+				ProbePolicy{ParamPaths: []string{"stream_options.fast_mode"}},
+				TokenParams{P: 1},
+				RequestInput{Body: test.body},
+			)
+			require.ErrorIs(t, err, ErrInvalidExpression)
+			require.ErrorContains(t, err, "body must contain exactly one JSON document")
+			require.Nil(t, snapshot)
+		})
+	}
+}
+
 func TestTieredRequestFunctionsFreezeOnlyReferencedValues(t *testing.T) {
 	evaluationTime := time.Date(2026, time.August, 5, 1, 2, 3, 0, time.UTC)
-	expression := `v1:has(header(" Beta "), "fast-mode") && param("stream_options.fast_mode") == true && param("limit") == 7 && has(param("tags"), "fast") && has(param("options"), "enabled") ? tier("fast", p * 2) : tier("standard", p)`
-	snapshot, err := FreezeExpression(
+	expression := `v1:has(header(" Anthropic-Beta "), "fast-mode") && param("stream_options.fast_mode") == true && param("limit") == 7 && has(param("tags"), "fast") && has(param("options"), "enabled") ? tier("fast", p * 2) : tier("standard", p)`
+	snapshot, err := FreezeExpressionWithPolicy(
 		expression,
 		"",
+		ProbePolicy{
+			HeaderNames: []string{"Anthropic-Beta"},
+			ParamPaths:  []string{"stream_options.fast_mode", "limit", "tags", "options"},
+		},
 		TokenParams{P: 10},
 		RequestInput{
 			Headers: map[string]string{
-				" beta ":        " fast-mode-2026 ",
-				"Authorization": "Bearer not-frozen",
+				" Anthropic-Beta ": " fast-mode-2026 ",
+				"Authorization":    "Bearer not-frozen",
 			},
 			Body:           []byte(`{"stream_options":{"fast_mode":true},"limit":7,"tags":["fast","safe"],"options":{"enabled":true},"ignored":"not-frozen"}`),
 			EvaluationTime: evaluationTime,
@@ -92,7 +254,11 @@ func TestTieredRequestFunctionsFreezeOnlyReferencedValues(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, "fast", snapshot.EstimatedTier)
-	require.Equal(t, map[string]string{"beta": "fast-mode-2026"}, snapshot.HeaderProbes)
+	require.Equal(t, map[string]string{"anthropic-beta": "fast-mode-2026"}, snapshot.HeaderProbes)
+	require.Equal(t, ProbePolicy{
+		HeaderNames: []string{"anthropic-beta"},
+		ParamPaths:  []string{"limit", "options", "stream_options.fast_mode", "tags"},
+	}, snapshot.ProbePolicy)
 	require.Equal(t, map[string]any{
 		"stream_options.fast_mode": true,
 		"limit":                    float64(7),
@@ -105,9 +271,10 @@ func TestTieredRequestFunctionsFreezeOnlyReferencedValues(t *testing.T) {
 	require.Equal(t, 22.0, result.Value)
 	require.False(t, result.CrossedTier)
 
-	missing, err := RunExpression(
+	missing, err := RunExpressionWithPolicy(
 		`v1:has(param("missing"), "x") || has("value", "") ? 2 : 1`,
 		"",
+		ProbePolicy{ParamPaths: []string{"missing"}},
 		TokenParams{},
 		RequestInput{Body: []byte(`{"present":true}`)},
 	)

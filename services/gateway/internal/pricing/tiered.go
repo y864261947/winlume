@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 	"strconv"
@@ -17,12 +18,17 @@ import (
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/ast"
+	"github.com/expr-lang/expr/parser"
 	"github.com/expr-lang/expr/vm"
 )
 
 const (
 	defaultExpressionVersion = "v1"
 	expressionCacheCapacity  = 256
+	// Expr evaluates TokenParams as float64. Keeping the source counts within
+	// the exactly representable integer range makes static float-domain checks
+	// meaningful without imposing the later quota conversion limit.
+	maxExactExpressionTokenValue = float64(1 << 53)
 )
 
 var (
@@ -131,11 +137,24 @@ func ValidateExpression(expression, expectedHash string) (ExpressionInfo, error)
 // FreezeExpression materializes only the header and body probes referenced by
 // an expression. It stores no request body and no unreferenced headers.
 func FreezeExpression(expression, expectedHash string, estimate TokenParams, request RequestInput) (*ExpressionSnapshot, error) {
+	return FreezeExpressionWithPolicy(expression, expectedHash, ProbePolicy{}, estimate, request)
+}
+
+// FreezeExpressionWithPolicy materializes only probes referenced by the
+// expression and explicitly approved by the frozen catalog policy.
+func FreezeExpressionWithPolicy(expression, expectedHash string, policy ProbePolicy, estimate TokenParams, request RequestInput) (*ExpressionSnapshot, error) {
 	compiled, err := compiledExpressionFor(expression, expectedHash)
 	if err != nil {
 		return nil, err
 	}
-	probes := materializeProbes(compiled, request)
+	policy, err = normalizedCompiledProbePolicy(compiled, policy)
+	if err != nil {
+		return nil, err
+	}
+	probes, err := materializeProbes(compiled, request)
+	if err != nil {
+		return nil, err
+	}
 	evaluationTime := frozenEvaluationTime(request.EvaluationTime)
 	result, err := runCompiled(compiled, estimate, probes.headers, probes.params, evaluationTime)
 	if err != nil {
@@ -147,6 +166,7 @@ func FreezeExpression(expression, expectedHash string, estimate TokenParams, req
 		Hash:           compiled.hash,
 		Version:        compiled.version,
 		UsedVars:       cloneBoolMap(compiled.usedVars),
+		ProbePolicy:    cloneProbePolicy(policy),
 		HeaderProbes:   cloneStringMap(probes.headers),
 		ParamProbes:    cloneAnyMap(probes.params),
 		EstimatedTier:  result.MatchedTier,
@@ -157,11 +177,23 @@ func FreezeExpression(expression, expectedHash string, estimate TokenParams, req
 // RunExpression evaluates an expression against a current request. Relay code
 // should use FreezeExpression before relay, then RunFrozenExpression later.
 func RunExpression(expression, expectedHash string, params TokenParams, request RequestInput) (ExpressionResult, error) {
+	return RunExpressionWithPolicy(expression, expectedHash, ProbePolicy{}, params, request)
+}
+
+// RunExpressionWithPolicy evaluates an unfrozen expression using only probes
+// approved by the supplied policy. Relay code should freeze first instead.
+func RunExpressionWithPolicy(expression, expectedHash string, policy ProbePolicy, params TokenParams, request RequestInput) (ExpressionResult, error) {
 	compiled, err := compiledExpressionFor(expression, expectedHash)
 	if err != nil {
 		return ExpressionResult{}, err
 	}
-	probes := materializeProbes(compiled, request)
+	if _, err := normalizedCompiledProbePolicy(compiled, policy); err != nil {
+		return ExpressionResult{}, err
+	}
+	probes, err := materializeProbes(compiled, request)
+	if err != nil {
+		return ExpressionResult{}, err
+	}
 	return runCompiled(compiled, params, probes.headers, probes.params, frozenEvaluationTime(request.EvaluationTime))
 }
 
@@ -237,6 +269,9 @@ func compiledExpressionFor(expression, expectedHash string) (*compiledExpression
 	if err != nil {
 		return nil, err
 	}
+	if err := validateExpressionNumericDomain(body); err != nil {
+		return nil, fmt.Errorf("%w: numeric validation: %v", ErrInvalidExpression, err)
+	}
 	compiled := &compiledExpression{
 		program:    program,
 		expression: expression,
@@ -247,6 +282,293 @@ func compiledExpressionFor(expression, expectedHash string) (*compiledExpression
 		paramPaths: metadata.paramPaths,
 	}
 	return compiledExpressions.putIfAbsent(key, compiled), nil
+}
+
+type numericDomain struct {
+	min float64
+	max float64
+}
+
+// validateExpressionNumericDomain examines the source AST instead of a small
+// collection of runtime vectors. It intentionally accepts only arithmetic for
+// which a finite, non-negative interval can be proven for every branch.
+func validateExpressionNumericDomain(body string) error {
+	tree, err := parser.Parse(body)
+	if err != nil {
+		return fmt.Errorf("parse expression: %v", err)
+	}
+	if err := validateNestedNumericOperations(tree.Node); err != nil {
+		return err
+	}
+	_, err = numericDomainFor(tree.Node)
+	return err
+}
+
+func validateNestedNumericOperations(node ast.Node) error {
+	switch typed := node.(type) {
+	case *ast.UnaryNode:
+		if typed.Operator == "-" {
+			return fmt.Errorf("unary negative values are not allowed")
+		}
+		return validateNestedNumericOperations(typed.Node)
+	case *ast.BinaryNode:
+		switch typed.Operator {
+		case "+", "-", "*", "/", "%", "**":
+			if _, err := numericDomainFor(node); err != nil {
+				return err
+			}
+		}
+		if err := validateNestedNumericOperations(typed.Left); err != nil {
+			return err
+		}
+		return validateNestedNumericOperations(typed.Right)
+	case *ast.ConditionalNode:
+		if err := validateNestedNumericOperations(typed.Cond); err != nil {
+			return err
+		}
+		if err := validateNestedNumericOperations(typed.Exp1); err != nil {
+			return err
+		}
+		return validateNestedNumericOperations(typed.Exp2)
+	case *ast.CallNode:
+		if identifier, ok := typed.Callee.(*ast.IdentifierNode); ok && identifier.Value == "tier" {
+			if len(typed.Arguments) != 2 {
+				return fmt.Errorf("tier requires exactly two arguments")
+			}
+			if _, err := numericDomainFor(typed.Arguments[1]); err != nil {
+				return err
+			}
+		}
+		for _, argument := range typed.Arguments {
+			if err := validateNestedNumericOperations(argument); err != nil {
+				return err
+			}
+		}
+	case *ast.BuiltinNode:
+		for _, argument := range typed.Arguments {
+			if err := validateNestedNumericOperations(argument); err != nil {
+				return err
+			}
+		}
+	case *ast.ChainNode:
+		return validateNestedNumericOperations(typed.Node)
+	case *ast.MemberNode:
+		if err := validateNestedNumericOperations(typed.Node); err != nil {
+			return err
+		}
+		return validateNestedNumericOperations(typed.Property)
+	case *ast.SliceNode:
+		if err := validateNestedNumericOperations(typed.Node); err != nil {
+			return err
+		}
+		if typed.From != nil {
+			if err := validateNestedNumericOperations(typed.From); err != nil {
+				return err
+			}
+		}
+		if typed.To != nil {
+			return validateNestedNumericOperations(typed.To)
+		}
+	case *ast.PredicateNode:
+		return validateNestedNumericOperations(typed.Node)
+	case *ast.VariableDeclaratorNode:
+		if err := validateNestedNumericOperations(typed.Value); err != nil {
+			return err
+		}
+		return validateNestedNumericOperations(typed.Expr)
+	case *ast.SequenceNode:
+		for _, child := range typed.Nodes {
+			if err := validateNestedNumericOperations(child); err != nil {
+				return err
+			}
+		}
+	case *ast.ArrayNode:
+		for _, child := range typed.Nodes {
+			if err := validateNestedNumericOperations(child); err != nil {
+				return err
+			}
+		}
+	case *ast.MapNode:
+		for _, child := range typed.Pairs {
+			if err := validateNestedNumericOperations(child); err != nil {
+				return err
+			}
+		}
+	case *ast.PairNode:
+		if err := validateNestedNumericOperations(typed.Key); err != nil {
+			return err
+		}
+		return validateNestedNumericOperations(typed.Value)
+	}
+	return nil
+}
+
+func numericDomainFor(node ast.Node) (numericDomain, error) {
+	switch typed := node.(type) {
+	case *ast.IntegerNode:
+		if typed.Value < 0 {
+			return numericDomain{}, fmt.Errorf("numeric literal must not be negative")
+		}
+		return numericDomain{min: float64(typed.Value), max: float64(typed.Value)}, nil
+	case *ast.FloatNode:
+		if !isFiniteNonNegative(typed.Value) {
+			return numericDomain{}, fmt.Errorf("numeric literal must be finite and non-negative")
+		}
+		return numericDomain{min: typed.Value, max: typed.Value}, nil
+	case *ast.IdentifierNode:
+		if _, allowed := allowedExpressionVariables[typed.Value]; !allowed {
+			return numericDomain{}, fmt.Errorf("numeric identifier %q is not allowed", typed.Value)
+		}
+		return numericDomain{min: 0, max: maxExactExpressionTokenValue}, nil
+	case *ast.UnaryNode:
+		if typed.Operator == "-" {
+			return numericDomain{}, fmt.Errorf("unary negative values are not allowed")
+		}
+		if typed.Operator != "+" {
+			return numericDomain{}, fmt.Errorf("numeric unary operator %q is not allowed", typed.Operator)
+		}
+		return numericDomainFor(typed.Node)
+	case *ast.BinaryNode:
+		return numericBinaryDomain(typed)
+	case *ast.ConditionalNode:
+		left, err := numericDomainFor(typed.Exp1)
+		if err != nil {
+			return numericDomain{}, err
+		}
+		right, err := numericDomainFor(typed.Exp2)
+		if err != nil {
+			return numericDomain{}, err
+		}
+		return checkedNumericDomain(math.Min(left.min, right.min), math.Max(left.max, right.max), "conditional branch")
+	case *ast.CallNode:
+		identifier, ok := typed.Callee.(*ast.IdentifierNode)
+		if !ok {
+			return numericDomain{}, fmt.Errorf("numeric call must use a named function")
+		}
+		return numericFunctionDomain(identifier.Value, typed.Arguments)
+	case *ast.BuiltinNode:
+		return numericFunctionDomain(typed.Name, typed.Arguments)
+	default:
+		return numericDomain{}, fmt.Errorf("numeric expression %T is not allowed", node)
+	}
+}
+
+func numericBinaryDomain(node *ast.BinaryNode) (numericDomain, error) {
+	left, err := numericDomainFor(node.Left)
+	if err != nil {
+		return numericDomain{}, err
+	}
+	right, err := numericDomainFor(node.Right)
+	if err != nil {
+		if node.Operator == "/" {
+			return numericDomain{}, fmt.Errorf("division denominator must be proven positive: %w", err)
+		}
+		return numericDomain{}, err
+	}
+
+	switch node.Operator {
+	case "+":
+		if left.max > math.MaxFloat64-right.max {
+			return numericDomain{}, fmt.Errorf("addition can overflow float64")
+		}
+		return checkedNumericDomain(left.min+right.min, left.max+right.max, "addition")
+	case "-":
+		minimum := left.min - right.max
+		if minimum < 0 {
+			return numericDomain{}, fmt.Errorf("subtraction can be negative")
+		}
+		return checkedNumericDomain(minimum, left.max-right.min, "subtraction")
+	case "*":
+		if left.max != 0 && right.max > math.MaxFloat64/left.max {
+			return numericDomain{}, fmt.Errorf("multiplication can overflow float64")
+		}
+		return checkedNumericDomain(left.min*right.min, left.max*right.max, "multiplication")
+	case "/":
+		if right.min <= 0 {
+			return numericDomain{}, fmt.Errorf("division denominator must be proven positive")
+		}
+		if right.min < 1 && left.max > math.MaxFloat64*right.min {
+			return numericDomain{}, fmt.Errorf("division can overflow float64")
+		}
+		return checkedNumericDomain(left.min/right.max, left.max/right.min, "division")
+	default:
+		return numericDomain{}, fmt.Errorf("numeric operator %q is not allowed", node.Operator)
+	}
+}
+
+func numericFunctionDomain(name string, arguments []ast.Node) (numericDomain, error) {
+	switch name {
+	case "tier":
+		if len(arguments) != 2 {
+			return numericDomain{}, fmt.Errorf("tier requires exactly two arguments")
+		}
+		return numericDomainFor(arguments[1])
+	case "hour":
+		return numericTimeFunctionDomain(name, arguments, 0, 23)
+	case "minute":
+		return numericTimeFunctionDomain(name, arguments, 0, 59)
+	case "weekday":
+		return numericTimeFunctionDomain(name, arguments, 0, 6)
+	case "month":
+		return numericTimeFunctionDomain(name, arguments, 1, 12)
+	case "day":
+		return numericTimeFunctionDomain(name, arguments, 1, 31)
+	case "max", "min":
+		if len(arguments) != 2 {
+			return numericDomain{}, fmt.Errorf("%s requires exactly two arguments", name)
+		}
+		left, err := numericDomainFor(arguments[0])
+		if err != nil {
+			return numericDomain{}, err
+		}
+		right, err := numericDomainFor(arguments[1])
+		if err != nil {
+			return numericDomain{}, err
+		}
+		if name == "max" {
+			return checkedNumericDomain(math.Max(left.min, right.min), math.Max(left.max, right.max), name)
+		}
+		return checkedNumericDomain(math.Min(left.min, right.min), math.Min(left.max, right.max), name)
+	case "abs", "ceil", "floor":
+		if len(arguments) != 1 {
+			return numericDomain{}, fmt.Errorf("%s requires exactly one argument", name)
+		}
+		value, err := numericDomainFor(arguments[0])
+		if err != nil {
+			return numericDomain{}, err
+		}
+		switch name {
+		case "ceil":
+			return checkedNumericDomain(math.Ceil(value.min), math.Ceil(value.max), name)
+		case "floor":
+			return checkedNumericDomain(math.Floor(value.min), math.Floor(value.max), name)
+		default:
+			return value, nil
+		}
+	default:
+		return numericDomain{}, fmt.Errorf("numeric function %q is not allowed", name)
+	}
+}
+
+func numericTimeFunctionDomain(name string, arguments []ast.Node, minimum, maximum float64) (numericDomain, error) {
+	if len(arguments) != 1 {
+		return numericDomain{}, fmt.Errorf("%s requires exactly one argument", name)
+	}
+	if _, ok := arguments[0].(*ast.StringNode); !ok {
+		return numericDomain{}, fmt.Errorf("%s timezone must be a string literal", name)
+	}
+	return numericDomain{min: minimum, max: maximum}, nil
+}
+
+func checkedNumericDomain(minimum, maximum float64, operation string) (numericDomain, error) {
+	if !isFiniteNonNegative(minimum) || !isFiniteNonNegative(maximum) || minimum > maximum {
+		return numericDomain{}, fmt.Errorf("%s can produce a negative or non-finite value", operation)
+	}
+	return numericDomain{min: minimum, max: maximum}, nil
+}
+
+func isFiniteNonNegative(value float64) bool {
+	return value >= 0 && !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
 func parseExpressionVersion(expression string) (string, string, error) {
@@ -399,7 +721,12 @@ func (visitor *expressionMetadataVisitor) Visit(node *ast.Node) {
 			visitor.headerKeys[key] = struct{}{}
 			return
 		}
-		visitor.paramPaths[strings.TrimSpace(literal.Value)] = struct{}{}
+		path := strings.TrimSpace(literal.Value)
+		if isSensitiveParamPath(path) {
+			visitor.err = fmt.Errorf("%w: param(%q) is not allowed", ErrInvalidExpression, literal.Value)
+			return
+		}
+		visitor.paramPaths[path] = struct{}{}
 	}
 }
 
@@ -438,17 +765,23 @@ func emptyProbes(compiled *compiledExpression) materializedProbes {
 	return probes
 }
 
-func materializeProbes(compiled *compiledExpression, request RequestInput) materializedProbes {
+func materializeProbes(compiled *compiledExpression, request RequestInput) (materializedProbes, error) {
 	probes := emptyProbes(compiled)
 	headers := normalizeHeaders(request.Headers)
 	for _, key := range compiled.headerKeys {
 		probes.headers[key] = headers[key]
 	}
-	document := parseJSONDocument(request.Body)
+	if len(compiled.paramPaths) == 0 {
+		return probes, nil
+	}
+	document, err := parseJSONDocument(request.Body)
+	if err != nil {
+		return materializedProbes{}, fmt.Errorf("%w: %v", ErrInvalidExpression, err)
+	}
 	for _, path := range compiled.paramPaths {
 		probes.params[path] = lookupJSONPath(document, path)
 	}
-	return probes
+	return probes, nil
 }
 
 func normalizeHeaders(headers map[string]string) map[string]string {
@@ -472,24 +805,119 @@ func normalizeHeaderKey(key string) string {
 }
 
 func isSensitiveHeader(key string) bool {
-	switch key {
-	case "authorization", "proxy-authorization", "cookie", "set-cookie":
-		return true
-	default:
-		return false
-	}
+	key = normalizeHeaderKey(key)
+	_, sensitive := sensitiveHeaderNames[key]
+	return sensitive
 }
 
-func parseJSONDocument(body []byte) any {
+func isSensitiveParamPath(path string) bool {
+	for _, segment := range strings.Split(strings.ToLower(strings.TrimSpace(path)), ".") {
+		if _, sensitive := sensitiveParamSegments[strings.TrimSpace(segment)]; sensitive {
+			return true
+		}
+	}
+	return false
+}
+
+var sensitiveHeaderNames = map[string]struct{}{
+	"authorization":       {},
+	"cookie":              {},
+	"set-cookie":          {},
+	"proxy-authorization": {},
+	"x-api-key":           {},
+	"x-goog-api-key":      {},
+}
+
+var sensitiveParamSegments = map[string]struct{}{
+	"api_key":       {},
+	"apikey":        {},
+	"token":         {},
+	"access_token":  {},
+	"refresh_token": {},
+	"auth_token":    {},
+	"secret":        {},
+	"client_secret": {},
+	"password":      {},
+	"credential":    {},
+	"credentials":   {},
+}
+
+func normalizeProbePolicy(policy ProbePolicy) (ProbePolicy, error) {
+	headers := make(map[string]struct{}, len(policy.HeaderNames))
+	for _, raw := range policy.HeaderNames {
+		key := normalizeHeaderKey(raw)
+		if key == "" {
+			return ProbePolicy{}, fmt.Errorf("header allowlist contains an empty name")
+		}
+		if isSensitiveHeader(key) {
+			return ProbePolicy{}, fmt.Errorf("header(%q) is not allowed", raw)
+		}
+		headers[key] = struct{}{}
+	}
+	params := make(map[string]struct{}, len(policy.ParamPaths))
+	for _, raw := range policy.ParamPaths {
+		path := strings.TrimSpace(raw)
+		if path == "" {
+			return ProbePolicy{}, fmt.Errorf("param allowlist contains an empty path")
+		}
+		if isSensitiveParamPath(path) {
+			return ProbePolicy{}, fmt.Errorf("param(%q) is not allowed", raw)
+		}
+		params[path] = struct{}{}
+	}
+	return ProbePolicy{HeaderNames: sortedSet(headers), ParamPaths: sortedSet(params)}, nil
+}
+
+func normalizedCompiledProbePolicy(compiled *compiledExpression, policy ProbePolicy) (ProbePolicy, error) {
+	normalized, err := normalizeProbePolicy(policy)
+	if err != nil {
+		return ProbePolicy{}, fmt.Errorf("%w: probe policy: %v", ErrInvalidExpression, err)
+	}
+	if err := validateCompiledProbePolicy(compiled.info(), normalized); err != nil {
+		return ProbePolicy{}, fmt.Errorf("%w: probe policy: %v", ErrInvalidExpression, err)
+	}
+	return normalized, nil
+}
+
+func validateCompiledProbePolicy(info ExpressionInfo, policy ProbePolicy) error {
+	headers := make(map[string]struct{}, len(policy.HeaderNames))
+	for _, key := range policy.HeaderNames {
+		headers[key] = struct{}{}
+	}
+	for _, key := range info.HeaderKeys {
+		if _, allowed := headers[key]; !allowed {
+			return fmt.Errorf("header(%q) is not approved", key)
+		}
+	}
+	params := make(map[string]struct{}, len(policy.ParamPaths))
+	for _, path := range policy.ParamPaths {
+		params[path] = struct{}{}
+	}
+	for _, path := range info.ParamPaths {
+		if _, allowed := params[path]; !allowed {
+			return fmt.Errorf("param(%q) is not approved", path)
+		}
+	}
+	return nil
+}
+
+func parseJSONDocument(body []byte) (any, error) {
 	if len(bytes.TrimSpace(body)) == 0 {
-		return nil
+		return nil, nil
 	}
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	var document any
 	if err := decoder.Decode(&document); err != nil {
-		return nil
+		return nil, fmt.Errorf("body must contain exactly one JSON document: %w", err)
 	}
-	return document
+	var additional any
+	if err := decoder.Decode(&additional); err != io.EOF {
+		if err == nil {
+			return nil, fmt.Errorf("body must contain exactly one JSON document")
+		}
+		return nil, fmt.Errorf("body must contain exactly one JSON document: %w", err)
+	}
+	return document, nil
 }
 
 func lookupJSONPath(document any, path string) any {
@@ -524,6 +952,9 @@ func lookupJSONPath(document any, path string) any {
 }
 
 func runCompiled(compiled *compiledExpression, params TokenParams, headers map[string]string, values map[string]any, evaluationTime time.Time) (ExpressionResult, error) {
+	if err := validateTokenParams(params); err != nil {
+		return ExpressionResult{}, err
+	}
 	trace := ""
 	environment := map[string]any{
 		"p":     params.P,
@@ -575,6 +1006,29 @@ func runCompiled(compiled *compiledExpression, params TokenParams, headers map[s
 		return ExpressionResult{}, fmt.Errorf("%w: output must not be negative", ErrInvalidExpression)
 	}
 	return ExpressionResult{Value: value, MatchedTier: trace}, nil
+}
+
+func validateTokenParams(params TokenParams) error {
+	for _, parameter := range []struct {
+		name  string
+		value float64
+	}{
+		{name: "p", value: params.P},
+		{name: "c", value: params.C},
+		{name: "len", value: params.Len},
+		{name: "cr", value: params.CR},
+		{name: "cc", value: params.CC},
+		{name: "cc1h", value: params.CC1h},
+		{name: "img", value: params.Img},
+		{name: "img_o", value: params.ImgO},
+		{name: "ai", value: params.AI},
+		{name: "ao", value: params.AO},
+	} {
+		if !isFiniteNonNegative(parameter.value) || parameter.value > maxExactExpressionTokenValue {
+			return fmt.Errorf("%w: token parameter %s must be finite, non-negative, and at most %.0f", ErrInvalidExpression, parameter.name, maxExactExpressionTokenValue)
+		}
+	}
+	return nil
 }
 
 func frozenEvaluationTime(value time.Time) time.Time {
