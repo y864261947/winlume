@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -207,6 +208,14 @@ func (service *AuthoritativeService) RecordPending(ctx context.Context, operatio
 // upstream credential, or raw error body into storage. A write failure for
 // one attempt does not stop the others - each attempt is independently
 // idempotent in storage - and is reported as the first error encountered.
+//
+// Status carries the real upstream HTTP status code (attempt.Status),
+// stringified - "0" for a pure transport failure that never received a
+// response, matching relay.Attempt's own documented convention for "no
+// status". The retried/committed/failed outcome is intentionally not
+// persisted verbatim: the gateway_relay_attempts schema has no column for
+// it, and it remains reconstructable from RetryReason and whether
+// CompletedAt is set.
 func (service *AuthoritativeService) RecordAttempts(ctx context.Context, operation *Operation, history relay.AttemptHistory) error {
 	if service == nil || service.store == nil || operation == nil || operation.UsageEventID == uuid.Nil {
 		return ErrAuthoritativeUnavailable
@@ -225,7 +234,7 @@ func (service *AuthoritativeService) RecordAttempts(ctx context.Context, operati
 			AttemptNumber:       attempt.Number,
 			ChannelID:           attempt.ChannelID,
 			ProviderType:        attempt.RawType,
-			Status:              string(attempt.Outcome),
+			Status:              strconv.Itoa(attempt.Status),
 			RetryReason:         attempt.RetryReason,
 			SanitizedErrorClass: attempt.ErrorClass,
 			StartedAt:           attempt.StartedAt,

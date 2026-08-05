@@ -167,27 +167,37 @@ func TestAuthoritativeRecordAttemptsPersistsSanitizedPerAttemptDiagnostics(t *te
 	completedFirst := startedFirst.Add(time.Millisecond)
 	startedSecond := completedFirst.Add(time.Millisecond)
 	completedSecond := startedSecond.Add(time.Millisecond)
+	startedThird := completedSecond.Add(time.Millisecond)
+	completedThird := startedThird.Add(time.Millisecond)
 	history := relay.AttemptHistory{
 		{
+			// Pure transport failure: no HTTP response was ever received.
 			Number: 1, ChannelID: "channel-a", RawType: 7, StartedAt: startedFirst, CompletedAt: completedFirst,
 			Status: 0, Outcome: relay.AttemptRetried, RetryReason: string(relay.RetryReasonTransportBeforeSend),
 			ErrorClass: "transport_unavailable",
 		},
 		{
+			// Retried after an upstream 503.
 			Number: 2, ChannelID: "channel-b", RawType: 3, StartedAt: startedSecond, CompletedAt: completedSecond,
+			Status: 503, Outcome: relay.AttemptRetried, RetryReason: string(relay.RetryReasonUpstreamStatus),
+			ErrorClass: "upstream_unavailable",
+		},
+		{
+			// Committed success.
+			Number: 3, ChannelID: "channel-c", RawType: 3, StartedAt: startedThird, CompletedAt: completedThird,
 			Status: 200, Outcome: relay.AttemptCommitted,
 		},
 	}
 
 	require.NoError(t, service.RecordAttempts(context.Background(), operation, history))
-	require.Len(t, store.relayAttempts, 2)
+	require.Len(t, store.relayAttempts, 3)
 
 	first := store.relayAttempts[0]
 	require.Equal(t, operation.UsageEventID, first.UsageEventID)
 	require.Equal(t, 1, first.AttemptNumber)
 	require.Equal(t, "channel-a", first.ChannelID)
 	require.Equal(t, 7, first.ProviderType)
-	require.Equal(t, "retried", first.Status)
+	require.Equal(t, "0", first.Status)
 	require.Equal(t, "transport_before_send", first.RetryReason)
 	require.Equal(t, "transport_unavailable", first.SanitizedErrorClass)
 	require.Equal(t, startedFirst, first.StartedAt)
@@ -197,9 +207,16 @@ func TestAuthoritativeRecordAttemptsPersistsSanitizedPerAttemptDiagnostics(t *te
 	second := store.relayAttempts[1]
 	require.Equal(t, 2, second.AttemptNumber)
 	require.Equal(t, "channel-b", second.ChannelID)
-	require.Equal(t, "committed", second.Status)
-	require.Empty(t, second.RetryReason)
-	require.Empty(t, second.SanitizedErrorClass)
+	require.Equal(t, "503", second.Status)
+	require.Equal(t, "upstream_status", second.RetryReason)
+	require.Equal(t, "upstream_unavailable", second.SanitizedErrorClass)
+
+	third := store.relayAttempts[2]
+	require.Equal(t, 3, third.AttemptNumber)
+	require.Equal(t, "channel-c", third.ChannelID)
+	require.Equal(t, "200", third.Status)
+	require.Empty(t, third.RetryReason)
+	require.Empty(t, third.SanitizedErrorClass)
 }
 
 func TestAuthoritativeRecordAttemptsWithoutAUsageEventIDIsUnavailable(t *testing.T) {
