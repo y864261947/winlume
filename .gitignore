@@ -58,3 +58,9 @@ AGENTS.md
 /data/*.db
 /data/blobs/
 /data/runs/
+
+# Go gateway build outputs
+/services/gateway/gateway
+/services/gateway/gateway.exe
+/services/gateway/pricing-import
+/services/gateway/pricing-import.exe
