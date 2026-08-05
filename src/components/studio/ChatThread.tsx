@@ -271,7 +271,13 @@ function ArtifactDraftPreview({
   );
 }
 
-function AssistantMarkdown({ content }: { content: string }) {
+function AssistantMarkdown({
+  content,
+  streaming = false,
+}: {
+  content: string;
+  streaming?: boolean;
+}) {
   return (
     <div className="studio-assistant-markdown break-words">
       <ReactMarkdown
@@ -359,6 +365,12 @@ function AssistantMarkdown({ content }: { content: string }) {
       >
         {content}
       </ReactMarkdown>
+      {streaming ? (
+        <span
+          className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-[#334155] align-middle"
+          aria-hidden
+        />
+      ) : null}
     </div>
   );
 }
@@ -734,19 +746,10 @@ function Bubble({
               />
             )
           ) : (
-            message.streaming ? (
-              <div className="whitespace-pre-wrap break-words">
-                {displayedContent}
-                {message.content ? (
-                  <span
-                    className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-[#334155] align-middle"
-                    aria-hidden
-                  />
-                ) : null}
-              </div>
-            ) : (
-              <AssistantMarkdown content={displayedContent} />
-            )
+            <AssistantMarkdown
+              content={displayedContent}
+              streaming={message.streaming}
+            />
           )
         ) : isAssistant &&
           !message.streaming &&
