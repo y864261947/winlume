@@ -71,7 +71,7 @@ func TestTieredExpressionValidationRejectsConditionalNumericHazards(t *testing.T
 		{
 			name:       "hidden negative result",
 			expression: `v1:p == 1 ? -1 : 0`,
-			wantError:  "unary negative",
+			wantError:  "can be negative",
 		},
 		{
 			name:       "alternate hidden division by zero",
@@ -81,7 +81,7 @@ func TestTieredExpressionValidationRejectsConditionalNumericHazards(t *testing.T
 		{
 			name:       "alternate hidden negative result",
 			expression: `v1:len == 1 ? -1 : 0`,
-			wantError:  "unary negative",
+			wantError:  "can be negative",
 		},
 	}
 
@@ -92,6 +92,26 @@ func TestTieredExpressionValidationRejectsConditionalNumericHazards(t *testing.T
 			require.ErrorContains(t, err, test.wantError)
 		})
 	}
+}
+
+func TestTieredExpressionValidationAllowsSignedIntermediateValues(t *testing.T) {
+	for _, expression := range []string{
+		`v1:abs(p - c)`,
+		`v1:max(0, p - c)`,
+		`v1:(-p) * (-c)`,
+		`v1:tier("base", abs(p - c))`,
+	} {
+		_, err := ValidateExpression(expression, "")
+		require.NoError(t, err, expression)
+	}
+
+	_, err := ValidateExpression(`v1:p - c`, "")
+	require.ErrorIs(t, err, ErrInvalidExpression)
+	require.ErrorContains(t, err, "can be negative")
+
+	_, err = ValidateExpression(`v1:tier("base", p - c)`, "")
+	require.ErrorIs(t, err, ErrInvalidExpression)
+	require.ErrorContains(t, err, "tier result can be negative")
 }
 
 func TestTieredExpressionRejectsTokenParamsOutsideStaticDomain(t *testing.T) {

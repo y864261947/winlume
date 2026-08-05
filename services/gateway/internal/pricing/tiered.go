@@ -290,8 +290,8 @@ type numericDomain struct {
 }
 
 // validateExpressionNumericDomain examines the source AST instead of a small
-// collection of runtime vectors. It intentionally accepts only arithmetic for
-// which a finite, non-negative interval can be proven for every branch.
+// collection of runtime vectors. It accepts finite signed intermediate ranges,
+// then requires the expression result itself to be non-negative.
 func validateExpressionNumericDomain(body string) error {
 	tree, err := parser.Parse(body)
 	if err != nil {
@@ -300,15 +300,21 @@ func validateExpressionNumericDomain(body string) error {
 	if err := validateNestedNumericOperations(tree.Node); err != nil {
 		return err
 	}
-	_, err = numericDomainFor(tree.Node)
+	domain, err := numericDomainFor(tree.Node)
+	if err != nil {
+		return err
+	}
+	_, err = requireNonNegativeNumericDomain(domain, "expression result")
 	return err
 }
 
 func validateNestedNumericOperations(node ast.Node) error {
 	switch typed := node.(type) {
 	case *ast.UnaryNode:
-		if typed.Operator == "-" {
-			return fmt.Errorf("unary negative values are not allowed")
+		if typed.Operator == "-" || typed.Operator == "+" {
+			if _, err := numericDomainFor(node); err != nil {
+				return err
+			}
 		}
 		return validateNestedNumericOperations(typed.Node)
 	case *ast.BinaryNode:
@@ -406,28 +412,28 @@ func validateNestedNumericOperations(node ast.Node) error {
 func numericDomainFor(node ast.Node) (numericDomain, error) {
 	switch typed := node.(type) {
 	case *ast.IntegerNode:
-		if typed.Value < 0 {
-			return numericDomain{}, fmt.Errorf("numeric literal must not be negative")
-		}
-		return numericDomain{min: float64(typed.Value), max: float64(typed.Value)}, nil
+		value := float64(typed.Value)
+		return checkedNumericDomain(value, value, "numeric literal")
 	case *ast.FloatNode:
-		if !isFiniteNonNegative(typed.Value) {
-			return numericDomain{}, fmt.Errorf("numeric literal must be finite and non-negative")
-		}
-		return numericDomain{min: typed.Value, max: typed.Value}, nil
+		return checkedNumericDomain(typed.Value, typed.Value, "numeric literal")
 	case *ast.IdentifierNode:
 		if _, allowed := allowedExpressionVariables[typed.Value]; !allowed {
 			return numericDomain{}, fmt.Errorf("numeric identifier %q is not allowed", typed.Value)
 		}
 		return numericDomain{min: 0, max: maxExactExpressionTokenValue}, nil
 	case *ast.UnaryNode:
-		if typed.Operator == "-" {
-			return numericDomain{}, fmt.Errorf("unary negative values are not allowed")
+		value, err := numericDomainFor(typed.Node)
+		if err != nil {
+			return numericDomain{}, err
 		}
-		if typed.Operator != "+" {
+		switch typed.Operator {
+		case "+":
+			return value, nil
+		case "-":
+			return checkedNumericDomain(-value.max, -value.min, "unary negation")
+		default:
 			return numericDomain{}, fmt.Errorf("numeric unary operator %q is not allowed", typed.Operator)
 		}
-		return numericDomainFor(typed.Node)
 	case *ast.BinaryNode:
 		return numericBinaryDomain(typed)
 	case *ast.ConditionalNode:
@@ -460,37 +466,31 @@ func numericBinaryDomain(node *ast.BinaryNode) (numericDomain, error) {
 	}
 	right, err := numericDomainFor(node.Right)
 	if err != nil {
-		if node.Operator == "/" {
-			return numericDomain{}, fmt.Errorf("division denominator must be proven positive: %w", err)
-		}
 		return numericDomain{}, err
 	}
 
 	switch node.Operator {
 	case "+":
-		if left.max > math.MaxFloat64-right.max {
-			return numericDomain{}, fmt.Errorf("addition can overflow float64")
-		}
 		return checkedNumericDomain(left.min+right.min, left.max+right.max, "addition")
 	case "-":
-		minimum := left.min - right.max
-		if minimum < 0 {
-			return numericDomain{}, fmt.Errorf("subtraction can be negative")
-		}
-		return checkedNumericDomain(minimum, left.max-right.min, "subtraction")
+		return checkedNumericDomain(left.min-right.max, left.max-right.min, "subtraction")
 	case "*":
-		if left.max != 0 && right.max > math.MaxFloat64/left.max {
-			return numericDomain{}, fmt.Errorf("multiplication can overflow float64")
-		}
-		return checkedNumericDomain(left.min*right.min, left.max*right.max, "multiplication")
+		return numericDomainFromValues("multiplication",
+			left.min*right.min,
+			left.min*right.max,
+			left.max*right.min,
+			left.max*right.max,
+		)
 	case "/":
-		if right.min <= 0 {
-			return numericDomain{}, fmt.Errorf("division denominator must be proven positive")
+		if right.min <= 0 && right.max >= 0 {
+			return numericDomain{}, fmt.Errorf("division denominator must be proven non-zero")
 		}
-		if right.min < 1 && left.max > math.MaxFloat64*right.min {
-			return numericDomain{}, fmt.Errorf("division can overflow float64")
-		}
-		return checkedNumericDomain(left.min/right.max, left.max/right.min, "division")
+		return numericDomainFromValues("division",
+			left.min/right.min,
+			left.min/right.max,
+			left.max/right.min,
+			left.max/right.max,
+		)
 	default:
 		return numericDomain{}, fmt.Errorf("numeric operator %q is not allowed", node.Operator)
 	}
@@ -502,7 +502,11 @@ func numericFunctionDomain(name string, arguments []ast.Node) (numericDomain, er
 		if len(arguments) != 2 {
 			return numericDomain{}, fmt.Errorf("tier requires exactly two arguments")
 		}
-		return numericDomainFor(arguments[1])
+		value, err := numericDomainFor(arguments[1])
+		if err != nil {
+			return numericDomain{}, err
+		}
+		return requireNonNegativeNumericDomain(value, "tier result")
 	case "hour":
 		return numericTimeFunctionDomain(name, arguments, 0, 23)
 	case "minute":
@@ -538,12 +542,14 @@ func numericFunctionDomain(name string, arguments []ast.Node) (numericDomain, er
 			return numericDomain{}, err
 		}
 		switch name {
+		case "abs":
+			return checkedNumericDomain(0, math.Max(math.Abs(value.min), math.Abs(value.max)), name)
 		case "ceil":
 			return checkedNumericDomain(math.Ceil(value.min), math.Ceil(value.max), name)
 		case "floor":
 			return checkedNumericDomain(math.Floor(value.min), math.Floor(value.max), name)
 		default:
-			return value, nil
+			return numericDomain{}, fmt.Errorf("numeric function %q is not allowed", name)
 		}
 	default:
 		return numericDomain{}, fmt.Errorf("numeric function %q is not allowed", name)
@@ -561,14 +567,37 @@ func numericTimeFunctionDomain(name string, arguments []ast.Node, minimum, maxim
 }
 
 func checkedNumericDomain(minimum, maximum float64, operation string) (numericDomain, error) {
-	if !isFiniteNonNegative(minimum) || !isFiniteNonNegative(maximum) || minimum > maximum {
-		return numericDomain{}, fmt.Errorf("%s can produce a negative or non-finite value", operation)
+	if !isFinite(minimum) || !isFinite(maximum) || minimum > maximum {
+		return numericDomain{}, fmt.Errorf("%s can produce a non-finite value", operation)
 	}
 	return numericDomain{min: minimum, max: maximum}, nil
 }
 
+func numericDomainFromValues(operation string, values ...float64) (numericDomain, error) {
+	if len(values) == 0 {
+		return numericDomain{}, fmt.Errorf("%s has no numeric values", operation)
+	}
+	minimum, maximum := values[0], values[0]
+	for _, value := range values[1:] {
+		minimum = math.Min(minimum, value)
+		maximum = math.Max(maximum, value)
+	}
+	return checkedNumericDomain(minimum, maximum, operation)
+}
+
+func requireNonNegativeNumericDomain(domain numericDomain, result string) (numericDomain, error) {
+	if domain.min < 0 {
+		return numericDomain{}, fmt.Errorf("%s can be negative", result)
+	}
+	return domain, nil
+}
+
+func isFinite(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
 func isFiniteNonNegative(value float64) bool {
-	return value >= 0 && !math.IsNaN(value) && !math.IsInf(value, 0)
+	return value >= 0 && isFinite(value)
 }
 
 func parseExpressionVersion(expression string) (string, string, error) {
