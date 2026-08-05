@@ -424,3 +424,5 @@ FOR EACH ROW EXECUTE FUNCTION "prevent_gateway_quota_ledger_mutation"();
 CREATE TRIGGER "subscription_quota_ledger_entries_immutable"
 BEFORE UPDATE OR DELETE ON "subscription_quota_ledger_entries"
 FOR EACH ROW EXECUTE FUNCTION "prevent_gateway_quota_ledger_mutation"();
+--> statement-breakpoint
+COMMIT;
