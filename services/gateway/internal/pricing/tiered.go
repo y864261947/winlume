@@ -835,8 +835,43 @@ func normalizeHeaderKey(key string) string {
 
 func isSensitiveHeader(key string) bool {
 	key = normalizeHeaderKey(key)
-	_, sensitive := sensitiveHeaderNames[key]
-	return sensitive
+	if _, sensitive := sensitiveHeaderNames[key]; sensitive {
+		return true
+	}
+	tokens := headerKeyTokens(key)
+	for _, token := range tokens {
+		if _, sensitive := sensitiveHeaderTokens[token]; sensitive {
+			return true
+		}
+	}
+	for _, pattern := range sensitiveHeaderTokenPatterns {
+		if containsHeaderTokenPattern(tokens, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+func headerKeyTokens(key string) []string {
+	return strings.FieldsFunc(normalizeHeaderKey(key), func(r rune) bool {
+		return !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9')
+	})
+}
+
+func containsHeaderTokenPattern(tokens, pattern []string) bool {
+	for start := 0; start+len(pattern) <= len(tokens); start++ {
+		matched := true
+		for offset, token := range pattern {
+			if tokens[start+offset] != token {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
 }
 
 func isSensitiveParamPath(path string) bool {
@@ -855,6 +890,23 @@ var sensitiveHeaderNames = map[string]struct{}{
 	"proxy-authorization": {},
 	"x-api-key":           {},
 	"x-goog-api-key":      {},
+}
+
+var sensitiveHeaderTokens = map[string]struct{}{
+	"apikey":      {},
+	"secret":      {},
+	"password":    {},
+	"credential":  {},
+	"credentials": {},
+	"cookie":      {},
+}
+
+var sensitiveHeaderTokenPatterns = [][]string{
+	{"api", "key"},
+	{"auth", "token"},
+	{"access", "token"},
+	{"refresh", "token"},
+	{"client", "secret"},
 }
 
 var sensitiveParamSegments = map[string]struct{}{

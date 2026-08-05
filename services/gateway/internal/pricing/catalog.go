@@ -69,20 +69,40 @@ func (catalog Catalog) Validate() error {
 	if err := catalog.validateMetadata(); err != nil {
 		return err
 	}
+	type ruleKey struct {
+		mode     Mode
+		modelKey string
+	}
+	ruleKeys := make(map[ruleKey]struct{}, len(catalog.Rules))
 	for _, rule := range catalog.Rules {
 		if err := validateRule(rule); err != nil {
 			return err
 		}
+		key := ruleKey{mode: rule.Mode, modelKey: rule.ModelKey}
+		if _, exists := ruleKeys[key]; exists {
+			return fmt.Errorf("%w: duplicate pricing rule for mode %q and model key %q", ErrInvalidCatalog, rule.Mode, rule.ModelKey)
+		}
+		ruleKeys[key] = struct{}{}
 		if rule.Mode == ModeTieredExpr {
 			if _, err := validateTieredRule(rule); err != nil {
 				return err
 			}
 		}
 	}
+	type groupRuleKey struct {
+		userGroup    string
+		billingGroup string
+	}
+	groupRuleKeys := make(map[groupRuleKey]struct{}, len(catalog.GroupRules))
 	for _, groupRule := range catalog.GroupRules {
 		if groupRule.GroupRatio.IsNegative() {
 			return fmt.Errorf("%w: group ratio for %q -> %q must not be negative", ErrInvalidCatalog, groupRule.UserGroup, groupRule.BillingGroup)
 		}
+		key := groupRuleKey{userGroup: groupRule.UserGroup, billingGroup: groupRule.BillingGroup}
+		if _, exists := groupRuleKeys[key]; exists {
+			return fmt.Errorf("%w: duplicate group override for %q -> %q", ErrInvalidCatalog, groupRule.UserGroup, groupRule.BillingGroup)
+		}
+		groupRuleKeys[key] = struct{}{}
 	}
 	return nil
 }

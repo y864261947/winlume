@@ -210,6 +210,40 @@ func TestTieredProbePolicyDefaultsToDenyAndRejectsSensitiveReferences(t *testing
 	}
 }
 
+func TestTieredProbePolicyRejectsCredentialLikeHeaderPatterns(t *testing.T) {
+	const secretValue = "must-not-appear-in-a-quote"
+
+	for _, test := range []struct {
+		name   string
+		header string
+	}{
+		{name: "api key", header: "api-key"},
+		{name: "api key with prefix", header: "tt-api-key"},
+		{name: "auth token", header: "x-auth-token"},
+		{name: "access token with separators", header: "x_access.token"},
+		{name: "refresh token with separators", header: "x.refresh_token"},
+		{name: "client secret lower-trimmed", header: " Client_Secret "},
+		{name: "secret segment", header: "x-secret-label"},
+		{name: "password segment", header: "x_password"},
+		{name: "credential segment", header: "x.credential.id"},
+		{name: "cookie segment", header: "x-cookie-label"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			snapshot, err := FreezeExpressionWithPolicy(
+				`v1:has(header("`+test.header+`"), "key") ? p * 2 : p`,
+				"",
+				ProbePolicy{HeaderNames: []string{test.header}},
+				TokenParams{P: 1},
+				RequestInput{Headers: map[string]string{test.header: secretValue}},
+			)
+
+			require.ErrorIs(t, err, ErrInvalidExpression)
+			require.Nil(t, snapshot)
+			require.NotContains(t, err.Error(), secretValue)
+		})
+	}
+}
+
 func TestTieredProbePolicyAllowsExplicitNonSensitiveTokenFields(t *testing.T) {
 	snapshot, err := FreezeExpressionWithPolicy(
 		`v1:param("max_tokens") == 20 ? p * 20 : p`,

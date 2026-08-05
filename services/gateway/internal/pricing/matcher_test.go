@@ -34,6 +34,58 @@ func TestMatchExactFixedBeforeRatio(t *testing.T) {
 	require.True(t, quote.Rule.FixedPriceUSD.Equal(decimal.RequireFromString("0.04")))
 }
 
+func TestCatalogValidateRejectsDuplicateRuleAndGroupOverrideKeys(t *testing.T) {
+	ratioOne := Rule{ModelKey: "m", Mode: ModeRatio, ModelRatio: decimal.NewFromInt(1)}
+	ratioTwo := Rule{ModelKey: "m", Mode: ModeRatio, ModelRatio: decimal.NewFromInt(2)}
+	groupOne := GroupRule{UserGroup: "vip", BillingGroup: "premium", GroupRatio: decimal.NewFromInt(1)}
+	groupTwo := GroupRule{UserGroup: "vip", BillingGroup: "premium", GroupRatio: decimal.NewFromInt(2)}
+
+	for _, test := range []struct {
+		name       string
+		rules      []Rule
+		groupRules []GroupRule
+	}{
+		{
+			name:  "duplicate rule in forward order",
+			rules: []Rule{ratioOne, ratioTwo},
+		},
+		{
+			name:  "duplicate rule in reverse order",
+			rules: []Rule{ratioTwo, ratioOne},
+		},
+		{
+			name:       "duplicate group override in forward order",
+			groupRules: []GroupRule{groupOne, groupTwo},
+		},
+		{
+			name:       "duplicate group override in reverse order",
+			groupRules: []GroupRule{groupTwo, groupOne},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			catalog := Catalog{
+				QuotaPerUnit: decimal.NewFromInt(1),
+				Rules:        test.rules,
+				GroupRules:   test.groupRules,
+			}
+
+			require.ErrorIs(t, catalog.Validate(), ErrInvalidCatalog)
+		})
+	}
+}
+
+func TestCatalogValidateAllowsSameModelAcrossModes(t *testing.T) {
+	catalog := Catalog{
+		QuotaPerUnit: decimal.NewFromInt(1),
+		Rules: []Rule{
+			{ModelKey: "m", Mode: ModeRatio, ModelRatio: decimal.NewFromInt(1)},
+			{ModelKey: "m", Mode: ModeFixed, FixedPriceUSD: decimal.RequireFromString("0.04")},
+		},
+	}
+
+	require.NoError(t, catalog.Validate())
+}
+
 func TestMatchTieredPrecedesFixedAndFreezesReferencedRequestProbes(t *testing.T) {
 	evaluationTime := time.Date(2026, time.August, 5, 9, 0, 0, 0, time.UTC)
 	catalog := Catalog{
