@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -41,6 +42,11 @@ type fakeGatewayStore struct {
 	settlementPendingCalled chan struct{}
 	hasTables               bool
 	healthErr               error
+
+	// missingTable makes HasRequiredTables answer per table name rather than
+	// with a flat bool, so a test can prove the startup gate actually asks
+	// for one specific table.
+	missingTable string
 
 	// closed, blockPass, and closedBeforePassReturned exist to make the
 	// shutdown ordering from Finding 1 of the Task 19 review testable
@@ -111,7 +117,10 @@ func (f *fakeGatewayStore) ListStaleReservations(context.Context, time.Time, int
 
 func (f *fakeGatewayStore) Health(context.Context) error { return f.healthErr }
 
-func (f *fakeGatewayStore) HasRequiredTables(context.Context, []string) (bool, error) {
+func (f *fakeGatewayStore) HasRequiredTables(_ context.Context, tables []string) (bool, error) {
+	if f.missingTable != "" && slices.Contains(tables, f.missingTable) {
+		return false, nil
+	}
 	return f.hasTables, nil
 }
 
@@ -313,6 +322,27 @@ func TestRunStartupGatesFailClosedOnEachCheck(t *testing.T) {
 		store.hasTables = false
 		err := runStartupGates(context.Background(), baseCfg(config.BillingAuthoritative), store)
 		require.ErrorContains(t, err, "required tables are missing")
+	})
+
+	// Every funding-path table must be gated, not just the ledger tables the
+	// list originally carried: a missing billing_profiles used to surface
+	// only on the first paid request.
+	t.Run("missing_funding_path_table", func(t *testing.T) {
+		for _, table := range []string{
+			"billing_profiles",
+			"wallets",
+			"wallet_ledger_entries",
+			"subscriptions",
+			"subscription_quota_states",
+			"api_key_billing_policies",
+		} {
+			t.Run(table, func(t *testing.T) {
+				store := newFakeGatewayStore()
+				store.missingTable = table
+				err := runStartupGates(context.Background(), baseCfg(config.BillingAuthoritative), store)
+				require.ErrorContains(t, err, "required tables are missing")
+			})
+		}
 	})
 
 	t.Run("no_internal_token", func(t *testing.T) {

@@ -51,6 +51,14 @@ var (
 		"pricing_catalog_versions",
 		"api_key_quota_ledger_entries",
 		"subscription_quota_ledger_entries",
+		// Every table on the funding path. A missing one of these used to
+		// surface only on the first paid request instead of at startup.
+		"billing_profiles",
+		"wallets",
+		"wallet_ledger_entries",
+		"subscriptions",
+		"subscription_quota_states",
+		"api_key_billing_policies",
 	}
 	shadowRequiredTables = []string{
 		"usage_events",
