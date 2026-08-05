@@ -160,6 +160,13 @@ export async function* streamAiSdkGatewayChat(
             yield { kind: "text", text: chunk.delta };
           }
           break;
+        case "reasoning-delta":
+          if (typeof chunk.text === "string") {
+            yield { kind: "thinking", text: chunk.text };
+          } else if (typeof chunk.delta === "string") {
+            yield { kind: "thinking", text: chunk.delta };
+          }
+          break;
         case "tool-call":
           calls.push({
             id: String(chunk.toolCallId ?? `ai-sdk-tool-call-${calls.length}`),
@@ -179,8 +186,8 @@ export async function* streamAiSdkGatewayChat(
           };
           break;
         default:
-          // Reasoning, source, finish, and raw provider chunks do not map to
-          // the existing Studio transport contract yet.
+          // Source, finish, and raw provider chunks do not map to the
+          // existing Studio transport contract yet.
           break;
       }
     }
