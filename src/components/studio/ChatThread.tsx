@@ -27,6 +27,7 @@ import type {
 } from "./useStudioChat";
 import MentionRichText from "./MentionRichText";
 import StudioViewTransition from "./StudioViewTransition";
+import { useSmoothStreamText } from "./useSmoothStreamText";
 import WorkflowRunNotice from "./workflow/WorkflowRunNotice";
 
 export type ChatThreadProps = {
@@ -489,6 +490,12 @@ function Bubble({
   const refinementDisplay = isUser
     ? getImageRefinementDisplay(message.content)
     : null;
+  // Must run unconditionally (Rules of Hooks) even though early returns below
+  // never use it — only paces the assistant text bubble further down.
+  const displayedContent = useSmoothStreamText(
+    message.content,
+    isAssistant && Boolean(message.streaming),
+  );
 
   if (message.presentation?.kind === "workflow_run") {
     return (
@@ -630,7 +637,7 @@ function Bubble({
             )
           ) : (
             <div className="whitespace-pre-wrap break-words">
-              {message.content}
+              {displayedContent}
               {message.streaming && message.content ? (
                 <span
                   className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-[#334155] align-middle"
