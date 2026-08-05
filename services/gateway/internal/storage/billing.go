@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -18,6 +19,67 @@ var (
 	ErrOperationInFlight         = errors.New("billing operation already in flight")
 	ErrOperationAlreadyCompleted = errors.New("billing operation already completed")
 )
+
+// Reserve, Settle and Reverse all run at pgx.Serializable. PostgreSQL's
+// serializable snapshot isolation may cancel one of two legitimately
+// concurrent transactions with SQLSTATE 40001 ("could not serialize access
+// due to read/write dependencies", whose own hint is "The transaction might
+// succeed if retried") or 40P01 (deadlock detected). Those two codes - and
+// only those two - are retried, each attempt as a completely fresh
+// transaction. Every other failure, including context cancellation and any
+// business-level error, is returned to the caller immediately.
+const (
+	maxSerializableAttempts = 4
+	serializableRetryDelay  = 5 * time.Millisecond
+)
+
+const (
+	sqlStateSerializationFailure = "40001"
+	sqlStateDeadlockDetected     = "40P01"
+)
+
+// serializationFailure marks a database error the caller may safely retry. It
+// never escapes this package: withSerializableRetry either retries it or
+// converts it to ErrUnavailable once the attempt budget is spent.
+type serializationFailure struct{ err error }
+
+func (failure *serializationFailure) Error() string { return failure.err.Error() }
+
+func (failure *serializationFailure) Unwrap() error { return failure.err }
+
+// txFailure classifies a raw database error. A serialization/deadlock failure
+// becomes a retryable marker; everything else keeps this package's existing
+// opaque ErrUnavailable contract so no driver detail reaches the caller.
+func txFailure(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && (pgErr.Code == sqlStateSerializationFailure || pgErr.Code == sqlStateDeadlockDetected) {
+		return &serializationFailure{err: err}
+	}
+	return ErrUnavailable
+}
+
+// withSerializableRetry runs attempt until it succeeds, fails with a
+// non-retryable error, or exhausts the bounded attempt budget. attempt must
+// begin its own transaction so every retry observes a fresh snapshot.
+func withSerializableRetry(ctx context.Context, attempt func() error) error {
+	for attemptNumber := 1; ; attemptNumber++ {
+		err := attempt()
+		var retryable *serializationFailure
+		if !errors.As(err, &retryable) {
+			return err
+		}
+		if attemptNumber >= maxSerializableAttempts || ctx.Err() != nil {
+			return ErrUnavailable
+		}
+		timer := time.NewTimer(serializableRetryDelay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ErrUnavailable
+		case <-timer.C:
+		}
+	}
+}
 
 type FundingKind string
 
@@ -118,13 +180,30 @@ func (store *Store) Reserve(ctx context.Context, request ReservationRequest) (Re
 	if request.APIKeyID != nil && !request.APIKeyUnlimited && request.APIKeyQuotaLimit == nil {
 		return Reservation{}, ErrUnavailable
 	}
+	var reservation Reservation
+	// Each attempt re-runs reserveAttempt from scratch, which mints a fresh
+	// usageEventID while keeping the caller's OperationID. The failed attempt
+	// rolled back, so usage_events_operation_id_unique still sees exactly one
+	// row per operation and a genuine duplicate operation is still a clean
+	// conflict rather than a retry.
+	if err := withSerializableRetry(ctx, func() error {
+		var attemptErr error
+		reservation, attemptErr = store.reserveAttempt(ctx, request)
+		return attemptErr
+	}); err != nil {
+		return Reservation{}, err
+	}
+	return reservation, nil
+}
+
+func (store *Store) reserveAttempt(ctx context.Context, request ReservationRequest) (Reservation, error) {
 	tx, err := store.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return Reservation{}, ErrUnavailable
+		return Reservation{}, txFailure(err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	if err := lockUser(ctx, tx, request.UserID); err != nil {
-		return Reservation{}, ErrUnavailable
+		return Reservation{}, txFailure(err)
 	}
 	if request.IdempotencyKey != "" {
 		if err := loadIdempotentOperation(ctx, tx, request.UserID, request.IdempotencyKey); err != nil {
@@ -151,7 +230,7 @@ func (store *Store) Reserve(ctx context.Context, request ReservationRequest) (Re
 		usageEventID, request.UserID, request.OrganizationID, request.APIKeyID, request.CatalogVersionID,
 		request.IdempotencyKey, request.RequestID, provider, request.Model, request.ReservedQuota, request.OperationID.String(), metadata,
 	); err != nil {
-		return Reservation{}, ErrUnavailable
+		return Reservation{}, txFailure(err)
 	}
 	if err := reserveAPIKeyQuota(ctx, tx, request, usageEventID, apiKeyBounded); err != nil {
 		return Reservation{}, err
@@ -162,10 +241,10 @@ func (store *Store) Reserve(ctx context.Context, request ReservationRequest) (Re
 		return Reservation{}, err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE usage_events SET funding_kind = $2, funding_reference = $3, updated_at = now() WHERE id = $1`, usageEventID, kind, reference); err != nil {
-		return Reservation{}, ErrUnavailable
+		return Reservation{}, txFailure(err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return Reservation{}, ErrUnavailable
+		return Reservation{}, txFailure(err)
 	}
 	return Reservation{UsageEventID: usageEventID, FundingKind: kind, FundingReference: reference, ReservedQuota: request.ReservedQuota}, nil
 }
@@ -213,9 +292,24 @@ func (store *Store) Settle(ctx context.Context, usageEventID uuid.UUID) (Settlem
 	if store == nil || store.pool == nil || usageEventID == uuid.Nil {
 		return Settlement{}, ErrUnavailable
 	}
+	// Settle is idempotent on terminal states (an already-settled event
+	// returns its stored settlement), so re-running a rolled-back attempt is
+	// safe by construction.
+	var settlement Settlement
+	if err := withSerializableRetry(ctx, func() error {
+		var attemptErr error
+		settlement, attemptErr = store.settleAttempt(ctx, usageEventID)
+		return attemptErr
+	}); err != nil {
+		return Settlement{}, err
+	}
+	return settlement, nil
+}
+
+func (store *Store) settleAttempt(ctx context.Context, usageEventID uuid.UUID) (Settlement, error) {
 	tx, err := store.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return Settlement{}, ErrUnavailable
+		return Settlement{}, txFailure(err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	event, err := loadUsageEvent(ctx, tx, usageEventID)
@@ -235,7 +329,7 @@ func (store *Store) Settle(ctx context.Context, usageEventID uuid.UUID) (Settlem
 		return Settlement{}, ErrOperationInFlight
 	}
 	if err := lockUser(ctx, tx, event.UserID); err != nil {
-		return Settlement{}, ErrUnavailable
+		return Settlement{}, txFailure(err)
 	}
 
 	if event.APIKeyBounded {
@@ -255,10 +349,10 @@ func (store *Store) Settle(ctx context.Context, usageEventID uuid.UUID) (Settlem
 		return Settlement{}, err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE usage_events SET status = 'settled', updated_at = now() WHERE id = $1 AND status = 'settlement_pending'`, event.ID); err != nil {
-		return Settlement{}, ErrUnavailable
+		return Settlement{}, txFailure(err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return Settlement{}, ErrUnavailable
+		return Settlement{}, txFailure(err)
 	}
 	return Settlement{UsageEventID: event.ID, ActualQuota: *event.ActualQuota, Status: "settled"}, nil
 }
@@ -267,9 +361,17 @@ func (store *Store) Reverse(ctx context.Context, usageEventID uuid.UUID) error {
 	if store == nil || store.pool == nil || usageEventID == uuid.Nil {
 		return ErrUnavailable
 	}
+	// Reverse is idempotent on an already-reversed event, so a rolled-back
+	// attempt can be re-run safely.
+	return withSerializableRetry(ctx, func() error {
+		return store.reverseAttempt(ctx, usageEventID)
+	})
+}
+
+func (store *Store) reverseAttempt(ctx context.Context, usageEventID uuid.UUID) error {
 	tx, err := store.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return ErrUnavailable
+		return txFailure(err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	event, err := loadUsageEvent(ctx, tx, usageEventID)
@@ -286,7 +388,7 @@ func (store *Store) Reverse(ctx context.Context, usageEventID uuid.UUID) error {
 		return ErrOperationInFlight
 	}
 	if err := lockUser(ctx, tx, event.UserID); err != nil {
-		return ErrUnavailable
+		return txFailure(err)
 	}
 	if event.APIKeyBounded {
 		if err := releaseAPIKeyHold(ctx, tx, event); err != nil {
@@ -297,10 +399,10 @@ func (store *Store) Reverse(ctx context.Context, usageEventID uuid.UUID) error {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE usage_events SET status = 'reversed', updated_at = now() WHERE id = $1 AND status = 'reserved'`, event.ID); err != nil {
-		return ErrUnavailable
+		return txFailure(err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return ErrUnavailable
+		return txFailure(err)
 	}
 	return nil
 }
@@ -482,7 +584,7 @@ func (store *Store) applyFundingSettlement(ctx context.Context, tx pgx.Tx, event
 				cumulative_quota_consumed = cumulative_quota_consumed + $2, updated_at = now()
 			WHERE subscription_id = $1`, state.ID, *event.ActualQuota)
 		if err != nil {
-			return ErrUnavailable
+			return txFailure(err)
 		}
 		return nil
 	default:
@@ -516,7 +618,7 @@ func reserveWallet(ctx context.Context, tx pgx.Tx, usageEventID, userID, operati
 		return "", false, nil
 	}
 	if err != nil {
-		return "", false, ErrUnavailable
+		return "", false, txFailure(err)
 	}
 	balance, err := walletBalance(ctx, tx, walletID)
 	if err != nil {
@@ -586,7 +688,7 @@ func loadUsageEvent(ctx context.Context, tx pgx.Tx, id uuid.UUID) (usageEvent, e
 		return usageEvent{}, ErrUnavailable
 	}
 	if err != nil {
-		return usageEvent{}, ErrUnavailable
+		return usageEvent{}, txFailure(err)
 	}
 	if apiKeyID.Valid {
 		parsed := uuid.UUID(apiKeyID.Bytes)
@@ -605,7 +707,7 @@ func loadIdempotentOperation(ctx context.Context, tx pgx.Tx, userID uuid.UUID, k
 		return nil
 	}
 	if err != nil {
-		return ErrUnavailable
+		return txFailure(err)
 	}
 	switch status {
 	case "settled", "reversed", "failed":
@@ -627,7 +729,7 @@ func loadFundingPreference(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (st
 		return "subscription_first", nil
 	}
 	if err != nil {
-		return "", ErrUnavailable
+		return "", txFailure(err)
 	}
 	return preference, nil
 }
@@ -651,7 +753,13 @@ func apiKeyQuotaLimit(ctx context.Context, tx pgx.Tx, apiKeyID uuid.UUID) (int64
 	var unlimited bool
 	var limit pgtype.Int8
 	err := tx.QueryRow(ctx, `SELECT unlimited, quota_limit FROM api_key_billing_policies WHERE api_key_id = $1`, apiKeyID).Scan(&unlimited, &limit)
-	if errors.Is(err, pgx.ErrNoRows) || err != nil || unlimited || !limit.Valid || limit.Int64 < 0 {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrUnavailable
+	}
+	if err != nil {
+		return 0, txFailure(err)
+	}
+	if unlimited || !limit.Valid || limit.Int64 < 0 {
 		return 0, ErrUnavailable
 	}
 	return limit.Int64, nil
@@ -660,7 +768,7 @@ func apiKeyQuotaLimit(ctx context.Context, tx pgx.Tx, apiKeyID uuid.UUID) (int64
 func apiKeySpendable(ctx context.Context, tx pgx.Tx, apiKeyID uuid.UUID, limit int64) (int64, error) {
 	var delta int64
 	if err := tx.QueryRow(ctx, `SELECT COALESCE(SUM(quota_delta), 0)::bigint FROM api_key_quota_ledger_entries WHERE api_key_id = $1`, apiKeyID).Scan(&delta); err != nil {
-		return 0, ErrUnavailable
+		return 0, txFailure(err)
 	}
 	if delta > 0 || limit < -delta {
 		return 0, ErrUnavailable
@@ -671,7 +779,7 @@ func apiKeySpendable(ctx context.Context, tx pgx.Tx, apiKeyID uuid.UUID, limit i
 func walletBalance(ctx context.Context, tx pgx.Tx, walletID uuid.UUID) (int64, error) {
 	var balance int64
 	if err := tx.QueryRow(ctx, `SELECT COALESCE(SUM(amount_microcredits), 0)::bigint FROM wallet_ledger_entries WHERE wallet_id = $1`, walletID).Scan(&balance); err != nil {
-		return 0, ErrUnavailable
+		return 0, txFailure(err)
 	}
 	return balance, nil
 }
@@ -693,7 +801,7 @@ func loadActiveSubscriptionState(ctx context.Context, tx pgx.Tx, userID uuid.UUI
 		return subscriptionState{}, pgx.ErrNoRows
 	}
 	if err != nil {
-		return subscriptionState{}, ErrUnavailable
+		return subscriptionState{}, txFailure(err)
 	}
 	return state, nil
 }
@@ -720,7 +828,7 @@ func loadSubscriptionState(ctx context.Context, tx pgx.Tx, reference string, req
 		return subscriptionState{}, ErrInsufficientFunds
 	}
 	if err != nil {
-		return subscriptionState{}, ErrUnavailable
+		return subscriptionState{}, txFailure(err)
 	}
 	return state, nil
 }
@@ -754,7 +862,7 @@ func resetSubscriptionWindow(ctx context.Context, tx pgx.Tx, state *subscription
 		SET reset_window_started_at = $2, reset_window_ends_at = $3, next_reset_at = $4,
 			window_quota_consumed = 0, updated_at = now()
 		WHERE subscription_id = $1`, state.ID, start, start.Add(windowDuration), next); err != nil {
-		return ErrUnavailable
+		return txFailure(err)
 	}
 	state.WindowStartedAt = start
 	state.WindowEndsAt = start.Add(windowDuration)
@@ -790,7 +898,7 @@ func activeSubscriptionHolds(ctx context.Context, tx pgx.Tx, subscriptionID uuid
 	if err := tx.QueryRow(ctx, `
 		SELECT COALESCE(SUM(quota_delta) FILTER (WHERE entry_type IN ('hold', 'release')), 0)::bigint
 		FROM subscription_quota_ledger_entries WHERE subscription_id = $1`, subscriptionID).Scan(&holds); err != nil {
-		return 0, ErrUnavailable
+		return 0, txFailure(err)
 	}
 	if holds < 0 {
 		return 0, ErrUnavailable
@@ -827,10 +935,10 @@ func settlePending(ctx context.Context, tx pgx.Tx, event usageEvent, cause error
 		return Settlement{}, cause
 	}
 	if _, err := tx.Exec(ctx, `UPDATE usage_events SET settlement_attempt_count = settlement_attempt_count + 1, updated_at = now() WHERE id = $1`, event.ID); err != nil {
-		return Settlement{}, ErrUnavailable
+		return Settlement{}, txFailure(err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return Settlement{}, ErrUnavailable
+		return Settlement{}, txFailure(err)
 	}
 	return Settlement{}, ErrInsufficientFunds
 }
@@ -862,7 +970,7 @@ func insertAPIKeyLedger(ctx context.Context, tx pgx.Tx, apiKeyID, usageEventID u
 		INSERT INTO api_key_quota_ledger_entries (api_key_id, usage_event_id, entry_type, quota_delta, idempotency_key, reference)
 		VALUES ($1, $2, $3, $4, $5, $6)`, apiKeyID, usageEventID, entryType, delta, idempotencyKey, reference)
 	if err != nil {
-		return ErrUnavailable
+		return txFailure(err)
 	}
 	return nil
 }
@@ -875,7 +983,7 @@ func insertWalletLedger(ctx context.Context, tx pgx.Tx, walletID, usageEventID u
 		INSERT INTO wallet_ledger_entries (wallet_id, usage_event_id, entry_type, amount_microcredits, idempotency_key, reference)
 		VALUES ($1, $2, $3, $4, $5, $6)`, walletID, usageEventID, entryType, delta, idempotencyKey, reference)
 	if err != nil {
-		return ErrUnavailable
+		return txFailure(err)
 	}
 	return nil
 }
@@ -888,7 +996,7 @@ func insertSubscriptionLedger(ctx context.Context, tx pgx.Tx, subscriptionID, us
 		INSERT INTO subscription_quota_ledger_entries (subscription_id, usage_event_id, entry_type, quota_delta, idempotency_key, reference)
 		VALUES ($1, $2, $3, $4, $5, $6)`, subscriptionID, usageEventID, entryType, delta, idempotencyKey, reference)
 	if err != nil {
-		return ErrUnavailable
+		return txFailure(err)
 	}
 	return nil
 }

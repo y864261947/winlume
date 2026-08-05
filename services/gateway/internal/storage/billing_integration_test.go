@@ -358,12 +358,10 @@ func TestReserveConcurrentWalletHoldsAllowOnlyOneOverspender(t *testing.T) {
 			continue
 		}
 		failed++
-		// The loser is rejected either on quota (ErrInsufficientFunds) or by
-		// PostgreSQL's serializable conflict detection (mapped to
-		// ErrUnavailable). Both are safe; what must never happen is a second
-		// success. In practice today it is always ErrUnavailable - see
-		// TestReserveConcurrentReservationsBothSucceedWhenFundsAllow for the
-		// underlying SQLSTATE 40001 defect.
+		// The loser is rejected either on quota (ErrInsufficientFunds) or, if
+		// every bounded serialization retry also conflicts, by PostgreSQL's
+		// serializable conflict detection (mapped to ErrUnavailable). Both are
+		// safe; what must never happen is a second success.
 		require.True(t, result.err == ErrInsufficientFunds || result.err == ErrUnavailable,
 			"unexpected error from losing reservation: %v", result.err)
 		t.Logf("losing reservation rejected with: %v", result.err)
@@ -380,25 +378,21 @@ func TestReserveConcurrentWalletHoldsAllowOnlyOneOverspender(t *testing.T) {
 // quota" from "concurrent reservations against one user always collide". Two
 // reservations that both fit must both commit.
 //
-// KNOWN DEFECT - skipped, not deleted, so it can be un-skipped by whoever fixes
-// this. Reserve runs at IsoLevel: Serializable and has no retry on
-// serialization failure, so two overlapping reservations for the same user
-// deterministically leave one caller with:
+// This was a KNOWN DEFECT until the bounded serialization retry landed. Reserve
+// runs at IsoLevel: Serializable, and pg_advisory_xact_lock does not prevent
+// PostgreSQL's SSI machinery from cancelling the second caller: it blocks on
+// the lock, reads fresh post-commit data, and is then cancelled as the SSI
+// pivot with
 //
 //	SQLSTATE 40001 "could not serialize access due to read/write dependencies
-//	among transactions" (Reason code: Canceled on conflict out to pivot N,
-//	during read; hint: "The transaction might succeed if retried")
+//	among transactions" (hint: "The transaction might succeed if retried")
 //
-// raised by the wallet-balance SUM inside reserveWallet. billing.go maps every
-// such error to ErrUnavailable, so a well-funded user simply loses one of any
-// two concurrent LLM requests with a 5xx-class error. Reproduced 5/5 runs.
-// pg_advisory_xact_lock does not prevent it: the loser blocks on the lock,
-// reads fresh data, and is then cancelled as the SSI pivot. Settle and Reverse
-// use the same isolation level and read-then-write ledger shape, so they carry
-// the same exposure. The fix is a bounded retry on 40001/40P01, not a weaker
-// isolation level. Money safety is NOT affected - this fails closed.
+// raised by the wallet-balance SUM inside reserveWallet. With no retry, every
+// such failure mapped to ErrUnavailable and a well-funded user lost one of any
+// two concurrent LLM requests to a 5xx-class error. Reserve/Settle/Reverse now
+// retry 40001/40P01 in a fresh transaction, so this test asserts both
+// reservations commit.
 func TestReserveConcurrentReservationsBothSucceedWhenFundsAllow(t *testing.T) {
-	t.Skip("KNOWN DEFECT: Reserve has no retry on SQLSTATE 40001; see comment above")
 	store := billingTestStore(t)
 	ctx := context.Background()
 	userID := newTestUser(t, store)
