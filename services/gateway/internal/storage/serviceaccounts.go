@@ -18,19 +18,19 @@ var ErrServiceAccountNotFound = errors.New("service account not found")
 // ServiceAccount is one API key belonging to a service-account user, joined
 // with its billing policy for the gateway admin surface.
 type ServiceAccount struct {
-	UserID       uuid.UUID
-	Username     string
-	DisplayName  string
-	UserStatus   string
-	APIKeyID     uuid.UUID
-	KeyPrefix    string
-	APIKeyStatus string
-	UserGroup    string
-	BillingGroup string
-	Unlimited    bool
-	QuotaLimit   *int64
-	LastUsedAt   *time.Time
-	CreatedAt    time.Time
+	UserID       uuid.UUID  `json:"user_id"`
+	Username     string     `json:"username"`
+	DisplayName  string     `json:"display_name"`
+	UserStatus   string     `json:"user_status"`
+	APIKeyID     uuid.UUID  `json:"api_key_id"`
+	KeyPrefix    string     `json:"key_prefix"`
+	APIKeyStatus string     `json:"api_key_status"`
+	UserGroup    string     `json:"user_group"`
+	BillingGroup string     `json:"billing_group"`
+	Unlimited    bool       `json:"unlimited"`
+	QuotaLimit   *int64     `json:"quota_limit"`
+	LastUsedAt   *time.Time `json:"last_used_at"`
+	CreatedAt    time.Time  `json:"created_at"`
 }
 
 func scanServiceAccount(row pgx.Row) (ServiceAccount, error) {
