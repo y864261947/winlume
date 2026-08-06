@@ -417,3 +417,26 @@ func familyEnvironmentSuffix(family ProtocolFamily) string {
 func isAllowedUpstreamOwnership(ownership UpstreamOwnership) bool {
 	return ownership == OwnershipProvider || ownership == OwnershipNonChargingNewAPI
 }
+
+// KnownProtocolFamilies returns the full set of protocol family strings this
+// gateway understands, for validating caller-supplied protocol_family values
+// (e.g. in the channels admin API) against the same set env-var upstream
+// configuration keys on.
+func KnownProtocolFamilies() []string {
+	families := make([]string, len(protocolFamilies))
+	for i, family := range protocolFamilies {
+		families[i] = string(family)
+	}
+	return families
+}
+
+// IsKnownProtocolFamily reports whether value matches one of
+// KnownProtocolFamilies.
+func IsKnownProtocolFamily(value string) bool {
+	for _, family := range protocolFamilies {
+		if string(family) == value {
+			return true
+		}
+	}
+	return false
+}

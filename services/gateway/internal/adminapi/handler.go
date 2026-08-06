@@ -27,6 +27,7 @@ type Store interface {
 	UpdateServiceAccountPolicy(ctx context.Context, apiKeyID uuid.UUID, input storage.UpdateServiceAccountPolicyInput) (storage.ServiceAccount, error)
 	RevokeServiceAccountKey(ctx context.Context, apiKeyID uuid.UUID) error
 	PricingStore
+	ChannelStore
 }
 
 // NewHandler builds the /internal/admin/* mux (service accounts and quick-
@@ -38,6 +39,7 @@ func NewHandler(store Store) http.Handler {
 	mux.HandleFunc("PATCH /internal/admin/service-accounts/{id}", updateHandler(store))
 	mux.HandleFunc("POST /internal/admin/service-accounts/{id}/revoke", revokeHandler(store))
 	registerPricingRoutes(mux, store)
+	registerChannelRoutes(mux, store)
 	return mux
 }
 

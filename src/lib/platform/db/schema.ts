@@ -57,6 +57,11 @@ export const subscriptionQuotaLedgerEntryTypeEnum = pgEnum("subscription_quota_l
   "reset",
   "adjustment",
 ]);
+export const enterpriseBillingRequestStatusEnum = pgEnum("enterprise_billing_request_status", [
+  "pending",
+  "approved",
+  "rejected",
+]);
 
 const createdAt = timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
 const updatedAt = timestamp("updated_at", { withTimezone: true }).defaultNow().notNull();
@@ -748,4 +753,66 @@ export const paymentOrders = pgTable(
     uniqueIndex("payment_orders_user_idempotency_unique").on(table.userId, table.idempotencyKey),
     index("payment_orders_user_status_index").on(table.userId, table.status),
   ],
+);
+
+/**
+ * v1 enterprise billing: a lead-capture form (this table) plus a manual
+ * gateway-admin review queue. Deliberately NOT an automated invoicing/net-30
+ * billing engine — that is out of scope for this pass. Submitted by an org
+ * owner/admin on behalf of their organization; reviewed by a platform admin
+ * who approves/rejects off-platform (offline contract, manual onboarding).
+ */
+export const enterpriseBillingRequests = pgTable(
+  "enterprise_billing_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    submittedByUserId: uuid("submitted_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    companyName: varchar("company_name", { length: 200 }).notNull(),
+    taxId: varchar("tax_id", { length: 64 }),
+    contactName: varchar("contact_name", { length: 120 }).notNull(),
+    contactEmail: varchar("contact_email", { length: 320 }).notNull(),
+    contactPhone: varchar("contact_phone", { length: 40 }),
+    estimatedMonthlySpendCredits: numeric("estimated_monthly_spend_credits"),
+    notes: text("notes"),
+    status: enterpriseBillingRequestStatusEnum("status").default("pending").notNull(),
+    reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    reviewNotes: text("review_notes"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    index("enterprise_billing_requests_organization_index").on(table.organizationId),
+    index("enterprise_billing_requests_status_index").on(table.status),
+    index("enterprise_billing_requests_organization_created_index").on(table.organizationId, table.createdAt),
+    // Enforces the "one open request per org" product rule at the data layer,
+    // in addition to the application-level check in submitEnterpriseBillingRequest.
+    uniqueIndex("enterprise_billing_requests_organization_pending_unique")
+      .on(table.organizationId)
+      .where(sql`${table.status} = 'pending'`),
+  ],
+);
+
+/**
+ * Upstream relay channel connection config, managed via
+ * /gateway-admin/channels. Config management only — services/gateway's
+ * relay.StaticSelector does not read this table yet, so it has no effect on
+ * live request routing until a separate follow-up wires it in.
+ */
+export const channels = pgTable(
+  "channels",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: varchar("name", { length: 120 }).notNull(),
+    protocolFamily: varchar("protocol_family", { length: 64 }).notNull(),
+    baseUrl: text("base_url").notNull(),
+    apiKey: text("api_key").notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
+    priority: integer("priority").default(0).notNull(),
+    weight: integer("weight").default(0).notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [uniqueIndex("channels_name_unique").on(table.name)],
 );

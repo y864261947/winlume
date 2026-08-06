@@ -36,6 +36,20 @@
       "when": 1786007466840,
       "tag": "0004_lovely_brood",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786034437077,
+      "tag": "0005_abnormal_mole_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786034953871,
+      "tag": "0006_nice_captain_universe",
+      "breakpoints": true
     }
   ]
 }

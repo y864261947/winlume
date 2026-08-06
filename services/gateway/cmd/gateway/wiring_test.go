@@ -150,6 +150,20 @@ func (f *fakeGatewayStore) ReplaceModelRules(context.Context, []storage.ModelRul
 	return uuid.Nil, nil
 }
 
+func (f *fakeGatewayStore) ListChannels(context.Context) ([]storage.ChannelRecord, error) {
+	return nil, nil
+}
+
+func (f *fakeGatewayStore) CreateChannel(context.Context, storage.ChannelInput) (storage.ChannelRecord, error) {
+	return storage.ChannelRecord{}, nil
+}
+
+func (f *fakeGatewayStore) UpdateChannel(context.Context, uuid.UUID, storage.ChannelInput) (storage.ChannelRecord, error) {
+	return storage.ChannelRecord{}, nil
+}
+
+func (f *fakeGatewayStore) DeleteChannel(context.Context, uuid.UUID) error { return nil }
+
 func (f *fakeGatewayStore) Close() { f.closed.Store(true) }
 
 func withFakeOpenStore(t *testing.T, store gatewayStore, storeErr error) {

@@ -24,6 +24,7 @@ function KeyDialog({
   const [name, setName] = useState("");
   const [modelScopes, setModelScopes] = useState("");
   const [quotaLimit, setQuotaLimit] = useState("");
+  const [ipAllowList, setIpAllowList] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +49,10 @@ function KeyDialog({
       .split(",")
       .map((entry) => entry.trim())
       .filter(Boolean);
+    const ips = ipAllowList
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
     setSubmitting(true);
     setError(null);
     try {
@@ -56,6 +61,7 @@ function KeyDialog({
         organizationId,
         modelScopes: scopes,
         quotaLimit: quota,
+        ipAllowList: ips,
       });
       onCreated(result.key, result.secret);
     } catch (reason) {
@@ -85,6 +91,11 @@ function KeyDialog({
           <label className="block text-sm font-medium text-ink-800">
             额度上限（可选，单位：Credits）
             <input type="number" min="0" step="0.01" value={quotaLimit} onChange={(event) => setQuotaLimit(event.target.value)} placeholder="留空表示不限额" className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500" />
+          </label>
+          <label className="block text-sm font-medium text-ink-800">
+            IP 白名单（可选，逗号分隔）
+            <input value={ipAllowList} onChange={(event) => setIpAllowList(event.target.value)} placeholder="例如：203.0.113.10, 203.0.113.0/24" className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500" />
+            <span className="mt-1 block text-xs text-ink-500">留空表示不限制来源 IP。</span>
           </label>
           <p className="text-xs leading-5 text-ink-500">完整密钥只会显示一次。请保存到部署平台的受保护环境变量中。</p>
           {error ? <p role="alert" className="text-sm text-rose-700">{error}</p> : null}

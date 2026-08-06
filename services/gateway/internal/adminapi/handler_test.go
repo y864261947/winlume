@@ -29,6 +29,16 @@ type fakeStore struct {
 	replaceModelErr error
 	lastGroupInputs []storage.GroupRuleInput
 	lastModelInputs []storage.ModelRuleInput
+
+	channels          []storage.ChannelRecord
+	listChannelsErr   error
+	createChannelErr  error
+	updateChannelErr  error
+	deleteChannelErr  error
+	lastCreateChannel storage.ChannelInput
+	lastUpdateChannel storage.ChannelInput
+	lastUpdateID      uuid.UUID
+	lastDeleteID      uuid.UUID
 }
 
 func (f *fakeStore) ListServiceAccounts(context.Context) ([]storage.ServiceAccount, error) {
@@ -88,6 +98,75 @@ func (f *fakeStore) ReplaceModelRules(_ context.Context, rules []storage.ModelRu
 		})
 	}
 	return uuid.New(), nil
+}
+
+func (f *fakeStore) ListChannels(context.Context) ([]storage.ChannelRecord, error) {
+	if f.listChannelsErr != nil {
+		return nil, f.listChannelsErr
+	}
+	return f.channels, nil
+}
+
+func (f *fakeStore) CreateChannel(_ context.Context, input storage.ChannelInput) (storage.ChannelRecord, error) {
+	if f.createChannelErr != nil {
+		return storage.ChannelRecord{}, f.createChannelErr
+	}
+	f.lastCreateChannel = input
+	record := storage.ChannelRecord{ID: uuid.New()}
+	if input.Name != nil {
+		record.Name = *input.Name
+	}
+	if input.ProtocolFamily != nil {
+		record.ProtocolFamily = *input.ProtocolFamily
+	}
+	if input.BaseURL != nil {
+		record.BaseURL = *input.BaseURL
+	}
+	if input.APIKey != nil {
+		record.APIKey = *input.APIKey
+	}
+	if input.Enabled != nil {
+		record.Enabled = *input.Enabled
+	} else {
+		record.Enabled = true
+	}
+	if input.Priority != nil {
+		record.Priority = *input.Priority
+	}
+	if input.Weight != nil {
+		record.Weight = *input.Weight
+	}
+	record.Metadata = input.Metadata
+	if record.Metadata == nil {
+		record.Metadata = map[string]any{}
+	}
+	f.channels = append(f.channels, record)
+	return record, nil
+}
+
+func (f *fakeStore) UpdateChannel(_ context.Context, id uuid.UUID, input storage.ChannelInput) (storage.ChannelRecord, error) {
+	if f.updateChannelErr != nil {
+		return storage.ChannelRecord{}, f.updateChannelErr
+	}
+	f.lastUpdateID = id
+	f.lastUpdateChannel = input
+	record := storage.ChannelRecord{ID: id, Name: "updated"}
+	if input.Name != nil {
+		record.Name = *input.Name
+	}
+	if input.APIKey != nil {
+		record.APIKey = *input.APIKey
+	}
+	record.Metadata = map[string]any{}
+	return record, nil
+}
+
+func (f *fakeStore) DeleteChannel(_ context.Context, id uuid.UUID) error {
+	if f.deleteChannelErr != nil {
+		return f.deleteChannelErr
+	}
+	f.lastDeleteID = id
+	return nil
 }
 
 func TestListServiceAccounts(t *testing.T) {

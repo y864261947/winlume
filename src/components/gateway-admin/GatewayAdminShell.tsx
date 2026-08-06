@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { KeyRound, LayoutGrid, LucideIcon, Receipt, ScrollText, Users } from "lucide-react";
+import { Building2, KeyRound, LayoutGrid, LucideIcon, Receipt, ScrollText, Users, Waypoints } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -37,6 +37,18 @@ const navItems: NavItem[] = [
     label: "Usage Logs",
     description: "全平台用量日志",
     icon: ScrollText,
+  },
+  {
+    href: "/gateway-admin/billing-requests",
+    label: "Billing Requests",
+    description: "对公结算申请",
+    icon: Building2,
+  },
+  {
+    href: "/gateway-admin/channels",
+    label: "Channels",
+    description: "上游渠道配置",
+    icon: Waypoints,
   },
 ];
 

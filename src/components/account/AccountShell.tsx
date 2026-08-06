@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Bell,
   BookOpen,
+  Building2,
   ChevronRight,
   CircleHelp,
   KeyRound,
@@ -25,6 +26,7 @@ const navigation = [
   { href: "/account/keys", label: "API Keys", mobileLabel: "Keys", icon: KeyRound },
   { href: "/account/wallet", aliases: ["/account/usage"], label: "钱包与用量", mobileLabel: "钱包", icon: WalletCards },
   { href: "/account/pricing", label: "我的计费", mobileLabel: "计费", icon: Receipt },
+  { href: "/account/enterprise", label: "对公结算", mobileLabel: "对公", icon: Building2 },
   { href: "/account/personalization", label: "人格与工具", mobileLabel: "设置", icon: Settings2 },
   { href: "/account/team", label: "团队", mobileLabel: "团队", icon: UsersRound },
   { href: "/account/community", label: "交流社区", mobileLabel: "社区", icon: Store },
