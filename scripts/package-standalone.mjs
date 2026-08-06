@@ -118,6 +118,7 @@ writeFileSync(
     "WINLUME_AUTH_MODE=winlume",
     "WINLUME_GATEWAY_URL=http://127.0.0.1:4010",
     "WINLUME_GATEWAY_INTERNAL_TOKEN=",
+    "WINLUME_SERVICE_KEY=",
     "# NEW_API_URL=  # legacy compatibility only; leave unset after cutover",
     "",
   ].join("\n"),
