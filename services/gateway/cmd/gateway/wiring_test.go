@@ -138,6 +138,18 @@ func (f *fakeGatewayStore) UpdateServiceAccountPolicy(context.Context, uuid.UUID
 
 func (f *fakeGatewayStore) RevokeServiceAccountKey(context.Context, uuid.UUID) error { return nil }
 
+func (f *fakeGatewayStore) GetCurrentPricing(context.Context) ([]storage.GroupRuleRecord, []storage.ModelRuleRecord, error) {
+	return nil, nil, nil
+}
+
+func (f *fakeGatewayStore) ReplaceGroupRules(context.Context, []storage.GroupRuleInput) (uuid.UUID, error) {
+	return uuid.Nil, nil
+}
+
+func (f *fakeGatewayStore) ReplaceModelRules(context.Context, []storage.ModelRuleInput) (uuid.UUID, error) {
+	return uuid.Nil, nil
+}
+
 func (f *fakeGatewayStore) Close() { f.closed.Store(true) }
 
 func withFakeOpenStore(t *testing.T, store gatewayStore, storeErr error) {

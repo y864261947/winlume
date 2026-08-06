@@ -21,6 +21,14 @@ type fakeStore struct {
 	revokeErr   error
 	revokedID   uuid.UUID
 	updateInput storage.UpdateServiceAccountPolicyInput
+
+	groupRules      []storage.GroupRuleRecord
+	modelRules      []storage.ModelRuleRecord
+	getPricingErr   error
+	replaceGroupErr error
+	replaceModelErr error
+	lastGroupInputs []storage.GroupRuleInput
+	lastModelInputs []storage.ModelRuleInput
 }
 
 func (f *fakeStore) ListServiceAccounts(context.Context) ([]storage.ServiceAccount, error) {
@@ -41,6 +49,45 @@ func (f *fakeStore) RevokeServiceAccountKey(_ context.Context, id uuid.UUID) err
 	}
 	f.revokedID = id
 	return nil
+}
+
+func (f *fakeStore) GetCurrentPricing(context.Context) ([]storage.GroupRuleRecord, []storage.ModelRuleRecord, error) {
+	if f.getPricingErr != nil {
+		return nil, nil, f.getPricingErr
+	}
+	return f.groupRules, f.modelRules, nil
+}
+
+func (f *fakeStore) ReplaceGroupRules(_ context.Context, rules []storage.GroupRuleInput) (uuid.UUID, error) {
+	if f.replaceGroupErr != nil {
+		return uuid.Nil, f.replaceGroupErr
+	}
+	f.lastGroupInputs = rules
+	f.groupRules = make([]storage.GroupRuleRecord, 0, len(rules))
+	for _, rule := range rules {
+		f.groupRules = append(f.groupRules, storage.GroupRuleRecord{
+			UserGroup:    rule.UserGroup,
+			BillingGroup: rule.BillingGroup,
+			GroupRatio:   rule.GroupRatio,
+		})
+	}
+	return uuid.New(), nil
+}
+
+func (f *fakeStore) ReplaceModelRules(_ context.Context, rules []storage.ModelRuleInput) (uuid.UUID, error) {
+	if f.replaceModelErr != nil {
+		return uuid.Nil, f.replaceModelErr
+	}
+	f.lastModelInputs = rules
+	f.modelRules = make([]storage.ModelRuleRecord, 0, len(rules))
+	for _, rule := range rules {
+		f.modelRules = append(f.modelRules, storage.ModelRuleRecord{
+			ModelKey:   rule.ModelKey,
+			Mode:       rule.Mode,
+			ModelRatio: rule.ModelRatio,
+		})
+	}
+	return uuid.New(), nil
 }
 
 func TestListServiceAccounts(t *testing.T) {

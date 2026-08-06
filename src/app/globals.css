@@ -1,5 +1,6 @@
 /* source(none): do not auto-scan the whole repo (HTML dumps break the CSS parser) */
 @import "tailwindcss" source(none);
+@plugin "tailwindcss-animate";
 
 /* Only extract utility classes from application source */
 @source "../**/*.{js,ts,jsx,tsx}";

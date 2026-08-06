@@ -19,20 +19,25 @@ import (
 )
 
 // Store is the narrow storage surface this package depends on, satisfied by
-// *storage.Store in production and a fake in tests.
+// *storage.Store in production and a fake in tests. It embeds PricingStore
+// so a single fake can satisfy both the service-account and quick-edit
+// pricing surfaces.
 type Store interface {
 	ListServiceAccounts(ctx context.Context) ([]storage.ServiceAccount, error)
 	UpdateServiceAccountPolicy(ctx context.Context, apiKeyID uuid.UUID, input storage.UpdateServiceAccountPolicyInput) (storage.ServiceAccount, error)
 	RevokeServiceAccountKey(ctx context.Context, apiKeyID uuid.UUID) error
+	PricingStore
 }
 
-// NewHandler builds the /internal/admin/service-accounts* mux. Callers mount
-// it behind their own token check; this handler performs no auth itself.
+// NewHandler builds the /internal/admin/* mux (service accounts and quick-
+// edit pricing). Callers mount it behind their own token check; this
+// handler performs no auth itself.
 func NewHandler(store Store) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /internal/admin/service-accounts", listHandler(store))
 	mux.HandleFunc("PATCH /internal/admin/service-accounts/{id}", updateHandler(store))
 	mux.HandleFunc("POST /internal/admin/service-accounts/{id}/revoke", revokeHandler(store))
+	registerPricingRoutes(mux, store)
 	return mux
 }
 
