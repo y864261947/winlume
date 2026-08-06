@@ -15,6 +15,7 @@ interface ServiceAccount {
   quota_limit: number | null;
   last_used_at: string | null;
   created_at: string;
+  total_spent_microcredits: number;
 }
 
 export default function ServiceAccountsTable() {
@@ -87,6 +88,7 @@ export default function ServiceAccountsTable() {
           <th className="p-3 font-medium">Key</th>
           <th className="p-3 font-medium">计费组</th>
           <th className="p-3 font-medium">配额</th>
+          <th className="p-3 font-medium">已用</th>
           <th className="p-3 font-medium">状态</th>
           <th className="p-3 font-medium">操作</th>
         </tr>
@@ -98,6 +100,7 @@ export default function ServiceAccountsTable() {
             <td className="p-3 font-mono text-xs text-ink-700">{account.key_prefix}…</td>
             <td className="p-3 text-ink-700">{account.billing_group}</td>
             <td className="p-3 text-ink-700">{account.unlimited ? "无限制" : (account.quota_limit ?? 0)}</td>
+            <td className="p-3 text-ink-700">{account.total_spent_microcredits}</td>
             <td className="p-3 text-ink-700">{account.api_key_status}</td>
             <td className="p-3">
               <button type="button" onClick={() => void updateQuota(account)} className="mr-3 text-ink-700 underline hover:text-ink-950">改配额</button>

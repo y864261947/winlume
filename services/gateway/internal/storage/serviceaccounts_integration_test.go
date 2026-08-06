@@ -33,6 +33,7 @@ func TestServiceAccountLifecycle(t *testing.T) {
 	require.Equal(t, "default", list[0].BillingGroup)
 	require.False(t, list[0].Unlimited)
 	require.Nil(t, list[0].QuotaLimit)
+	require.Equal(t, int64(0), list[0].TotalSpentMicrocredits)
 
 	limit := int64(500000)
 	updated, err := store.UpdateServiceAccountPolicy(ctx, apiKeyID, UpdateServiceAccountPolicyInput{

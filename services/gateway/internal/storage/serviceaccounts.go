@@ -31,6 +31,9 @@ type ServiceAccount struct {
 	QuotaLimit   *int64     `json:"quota_limit"`
 	LastUsedAt   *time.Time `json:"last_used_at"`
 	CreatedAt    time.Time  `json:"created_at"`
+	// TotalSpentMicrocredits is the sum of settled usage_events for this API
+	// key (cost_microcredits where status = 'settled'), 0 when there is none.
+	TotalSpentMicrocredits int64 `json:"total_spent_microcredits"`
 }
 
 func scanServiceAccount(row pgx.Row) (ServiceAccount, error) {
@@ -43,7 +46,7 @@ func scanServiceAccount(row pgx.Row) (ServiceAccount, error) {
 		&account.UserID, &account.Username, &account.DisplayName, &account.UserStatus,
 		&account.APIKeyID, &account.KeyPrefix, &account.APIKeyStatus,
 		&account.UserGroup, &account.BillingGroup, &account.Unlimited, &quotaLimit,
-		&lastUsedAt, &account.CreatedAt,
+		&lastUsedAt, &account.CreatedAt, &account.TotalSpentMicrocredits,
 	)
 	if err != nil {
 		return ServiceAccount{}, err
@@ -64,7 +67,9 @@ const serviceAccountSelectColumns = `
 	k.id, k.key_prefix, k.status,
 	COALESCE(p.user_group, 'default'), COALESCE(p.billing_group, 'default'),
 	COALESCE(p.unlimited, false), p.quota_limit,
-	k.last_used_at, k.created_at`
+	k.last_used_at, k.created_at,
+	COALESCE((SELECT sum(cost_microcredits) FROM usage_events
+		WHERE usage_events.api_key_id = k.id AND usage_events.status = 'settled'), 0) AS total_spent`
 
 // ListServiceAccounts returns one row per API key belonging to a
 // service-account user, newest user first.
