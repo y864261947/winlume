@@ -286,6 +286,21 @@ func TestMetricsRouteWithoutHandlerConfiguredReturns503(t *testing.T) {
 	require.Equal(t, "metrics_unavailable", decodeError(t, response).Error.Code)
 }
 
+func TestAdminRoutesRequireAdminToken(t *testing.T) {
+	cfg := testConfig(config.BillingShadow)
+	cfg.GatewayAdminToken = "admin-secret"
+	server := NewServer(Dependencies{
+		Config:       cfg,
+		AdminHandler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }),
+	})
+
+	unauthorized := serve(server, http.MethodGet, "/internal/admin/service-accounts", nil)
+	require.Equal(t, http.StatusUnauthorized, unauthorized.Code)
+
+	authorized := serveWithHeaders(server, http.MethodGet, "/internal/admin/service-accounts", nil, map[string]string{"x-winlume-gateway-admin-token": "admin-secret"})
+	require.Equal(t, http.StatusOK, authorized.Code)
+}
+
 func testConfig(mode config.BillingMode) config.Config {
 	return config.Config{
 		BillingMode: mode,

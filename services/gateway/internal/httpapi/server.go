@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"net/http"
 	"regexp"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -29,6 +30,10 @@ type Dependencies struct {
 	BillingReady    ReadinessProbe
 	PublicHandler   PublicHandler
 	InternalHandler http.Handler
+	// AdminHandler serves /internal/admin/*. Like InternalHandler it is only
+	// ever reachable behind its own token check (authorizeAdmin), never on
+	// the unauthenticated public route surface.
+	AdminHandler http.Handler
 	// MetricsHandler serves the Prometheus scrape endpoint. Like
 	// InternalHandler, it is only ever reachable behind the internal token
 	// check - never on the unauthenticated public route surface - so a
@@ -44,6 +49,7 @@ type Server struct {
 	billingReady    ReadinessProbe
 	publicHandler   PublicHandler
 	internalHandler http.Handler
+	adminHandler    http.Handler
 	metricsHandler  http.Handler
 	handler         http.Handler
 }
@@ -82,6 +88,7 @@ func NewServer(dependencies Dependencies) *Server {
 		billingReady:    dependencies.BillingReady,
 		publicHandler:   dependencies.PublicHandler,
 		internalHandler: dependencies.InternalHandler,
+		adminHandler:    dependencies.AdminHandler,
 		metricsHandler:  dependencies.MetricsHandler,
 	}
 	server.handler = withRequestID(withCORS(http.HandlerFunc(server.serveHTTP), dependencies.Config.CORSOrigins))
@@ -147,6 +154,19 @@ func (server *Server) serveHTTP(response http.ResponseWriter, request *http.Requ
 		return
 	}
 
+	if strings.HasPrefix(request.URL.Path, "/internal/admin/") {
+		if !server.authorizeAdmin(request) {
+			writeError(response, http.StatusUnauthorized, "authentication_error", "admin_token_required", "A valid admin token is required", requestID(request))
+			return
+		}
+		if server.adminHandler == nil {
+			writeError(response, http.StatusServiceUnavailable, "admin_error", "admin_api_unavailable", "The admin API is not configured", requestID(request))
+			return
+		}
+		server.adminHandler.ServeHTTP(response, request)
+		return
+	}
+
 	route, pathKnown := matchPublicPath(request.URL.Path)
 	if !pathKnown {
 		writeError(response, http.StatusNotFound, "not_found", "route_not_found", "The requested API route does not exist", requestID(request))
@@ -177,6 +197,12 @@ func (server *Server) serveHTTP(response http.ResponseWriter, request *http.Requ
 func (server *Server) authorizeInternal(request *http.Request) bool {
 	expected := []byte(server.config.InternalToken)
 	received := []byte(request.Header.Get("x-winlume-internal-token"))
+	return len(expected) > 0 && len(expected) == len(received) && subtle.ConstantTimeCompare(expected, received) == 1
+}
+
+func (server *Server) authorizeAdmin(request *http.Request) bool {
+	expected := []byte(server.config.GatewayAdminToken)
+	received := []byte(request.Header.Get("x-winlume-gateway-admin-token"))
 	return len(expected) > 0 && len(expected) == len(received) && subtle.ConstantTimeCompare(expected, received) == 1
 }
 
