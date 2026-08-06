@@ -88,31 +88,82 @@ is a candidate for the "representative period" window mentioned above, not a
 blocking gate for shadow deployment itself (shadow mode cannot mutate real
 funds regardless of outcome).
 
-## Step 5: Authoritative go/no-go criteria (not yet met — do not cut over)
-
-Required before Task 24 may proceed:
+## Step 5: Authoritative go/no-go criteria
 
 - [x] Exact deterministic fixture parity (Task 11's golden parity suite,
       already passing pre-existing).
-- [ ] Explained live mismatches — requires the representative-period shadow
-      reconciliation from Step 3's follow-up, not yet done.
-- [ ] Zero unexplained stale reservations — requires the representative
-      period; shadow mode never reserves, so this specifically needs to be
-      checked once authoritative-adjacent testing (or a longer shadow window
-      with real traffic patterns) exists.
+- [~] Explained live mismatches — no representative-period (hours/days) shadow
+      reconciliation against new-api's own consume log was performed before
+      cutover. This is a **known, accepted residual risk**, not a closed item —
+      see "Accepted risk" below.
+- [~] Zero unexplained stale reservations — not observable pre-cutover (shadow
+      mode never reserves). Should be monitored post-cutover via
+      `usage_events` rows stuck in `reserved`/`settlement_pending` past the
+      recovery worker's window.
 - [x] Successful recovery replay — proven directly against real Postgres by
       the Task 17 recovery integration tests (`storage/recovery_integration_test.go`,
       5/5 passing).
-- [ ] Direct-provider or non-charging-new-api upstream ownership — not yet
-      confirmed which applies to WinLume's current new-api account/channel
-      configuration; this must be verified before `WINLUME_GATEWAY_UPSTREAM_OWNERSHIP`
-      can be set for an authoritative attempt.
-- [ ] Tested rollback to shadow/off — the rollback mechanism (stop, restore
-      backed-up unit/env files, restart) is documented above but has not
-      itself been dry-run.
-- [ ] Recorded approval: who approved ownership transfer and when — N/A,
-      not requested; Task 24 is out of scope until explicitly authorized.
+- [x] Direct-provider or non-charging-new-api upstream ownership — **confirmed**
+      by direct inspection of new-api's database: WinLume's token
+      (`tokens.id=162`, group `gpt-pro`) has `unlimited_quota=true`. New-api
+      records `used_quota` for observability but never enforces or meaningfully
+      bills against this token — it is not a real, funded, metered account on
+      new-api's side. `WINLUME_GATEWAY_UPSTREAM_OWNERSHIP=non_charging_new_api`
+      is the correct and now-verified setting.
+- [~] Tested rollback to shadow/off — the mechanism (edit
+      `/etc/winlume/gateway.env`'s `WINLUME_GATEWAY_BILLING_MODE` back to
+      `shadow`, or restore `gateway.env.pre-authoritative-bak` /
+      `gateway.env.pre-go-bak` + the corresponding `.service.pre-go-bak` unit,
+      then `systemctl restart winlume-gateway`) was **not dry-run** before
+      cutover. Low risk: it's the same binary, a config-only change, and the
+      backup files are confirmed present on `176.122.164.148`.
+- [x] Recorded approval: user explicitly authorized proceeding ("可以切") on
+      2026-08-06 after being shown this checklist with open items, accepting
+      the residual reconciliation-window risk below.
 
-**This branch is in shadow mode. Task 24 (authoritative cutover) requires an
-explicit, separate go-ahead and should not proceed until the unchecked items
-above are closed.**
+## Step 6: Authoritative cutover executed (2026-08-06, ~00:35 UTC)
+
+Per explicit user authorization, proceeded without waiting for a
+representative-period shadow reconciliation window. What was verified instead,
+as the strongest available substitute:
+
+- `WINLUME_GATEWAY_BILLING_OWNER=go`, `WINLUME_GATEWAY_UPSTREAM_OWNERSHIP=non_charging_new_api`
+  (empirically confirmed, not assumed — see above), and
+  `WINLUME_GATEWAY_RECOVERY_DIR=/opt/winlume-gateway/recovery` (created,
+  `0700`) added to `/etc/winlume/gateway.env`.
+  `/etc/winlume/gateway.env.pre-authoritative-bak` preserved as a
+  mode-only rollback point (in addition to the full `.pre-go-bak` Fastify
+  rollback from Step 2).
+- `WINLUME_GATEWAY_BILLING_MODE` flipped to `authoritative`, service
+  restarted. **`/readyz` returned 200**, which is meaningful automated proof:
+  it only returns 200 after `runStartupGates` (Task 19) passes DB
+  connectivity, the complete required-table list (including the funding-path
+  tables added in the post-Task-20 follow-up), one active valid catalog,
+  internal token presence, recovery-directory writability,
+  `BILLING_OWNER=go`, and allowed upstream ownership — all in one gate, all
+  fail-closed.
+- Smoke-tested with the same synthetic, unfunded identity used in shadow-mode
+  testing: request correctly rejected with `503 billing_error/billing_unavailable`
+  **before any upstream relay call was made** — no cost incurred, no crash,
+  fails closed for an unknown identity exactly as designed.
+- `winlume.service` (the main app) confirmed unaffected: `active`, `/studio`
+  returns 200 throughout.
+
+**Accepted risk, explicitly not closed by this cutover:** no real, funded
+account's request has yet been traced end-to-end (Go's shadow/authoritative
+charge vs. new-api's own consume log for the same request ID) in production.
+The correctness this depends on is backed by 31 passing real-PostgreSQL
+integration tests covering the exact reservation/settlement/refund/funding-
+preference logic now running live, plus the fail-closed proof above — but a
+live reconciliation against a real paid transaction has not been done. This
+should be performed as soon as practical after cutover (compare the first
+handful of real `usage_events` rows against new-api's logs for the same
+request IDs) rather than treated as optional follow-up.
+
+**Rollback, if needed:** `WINLUME_GATEWAY_BILLING_MODE=shadow` in
+`/etc/winlume/gateway.env` (or restore `.pre-authoritative-bak`), then
+`systemctl restart winlume-gateway`. Full revert to the old Fastify gateway:
+restore `/etc/systemd/system/winlume-gateway.service.pre-go-bak` and
+`/etc/winlume/gateway.env.pre-go-bak`, `systemctl daemon-reload`, restart —
+`/opt/winlume-gateway.previous-fastify` still holds the complete prior
+deployment.
