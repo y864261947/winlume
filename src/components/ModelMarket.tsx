@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, ChevronRight, CircleHelp, LayoutGrid, Search, ArrowUp } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { Bell, ChevronLeft, ChevronRight, CircleHelp, LayoutGrid, Search, ArrowUp } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
 import { type Audience } from "@/data/audience";
 import { formatBalance } from "@/lib/account";
@@ -49,6 +49,24 @@ type ApiCategory = {
 
 /** Max brand chips per row (homepage density). */
 const API_BRAND_LIMIT = 5;
+
+/** Hardcoded Model Review carousel slides (generated banners in public/). */
+const FEATURED_SLIDES = [
+  {
+    id: "claude-fable-5",
+    src: "/figma-home/featured/slide-claude-fable-5.png",
+    alt: "Model Review · Claude Fable 5",
+    href: "/products?cate=api",
+  },
+  {
+    id: "gpt-5-6-sol",
+    src: "/figma-home/featured/slide-gpt-5-6-sol.png",
+    alt: "Model Review · GPT-5.6 Sol",
+    href: "/products?cate=api",
+  },
+] as const;
+
+const FEATURED_AUTO_MS = 5000;
 
 /** Home API category rows: hardcoded marketplace brands (no generic filler labels). */
 const apiCategories: readonly ApiCategory[] = [
@@ -541,6 +559,8 @@ export default function ModelMarket() {
   const { account, balanceConfig, audience, openLogin, selectAudience } = useModals();
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
+  const [featuredIndex, setFeaturedIndex] = useState(0);
+  const [featuredPaused, setFeaturedPaused] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [activePathId, setActivePathId] = useState<ProductPath["id"]>("api");
   const [flyAways, setFlyAways] = useState<FlyAway[]>([]);
@@ -559,6 +579,19 @@ export default function ModelMarket() {
   useEffect(() => {
     activePathIdRef.current = activePathId;
   }, [activePathId]);
+
+  const stepFeatured = useCallback((delta: number) => {
+    setFeaturedIndex((current) => {
+      const n = FEATURED_SLIDES.length;
+      return (current + delta + n) % n;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (featuredPaused || FEATURED_SLIDES.length <= 1) return;
+    const timer = window.setInterval(() => stepFeatured(1), FEATURED_AUTO_MS);
+    return () => window.clearInterval(timer);
+  }, [featuredPaused, stepFeatured]);
 
   useEffect(() => {
     return () => {
@@ -730,19 +763,70 @@ export default function ModelMarket() {
             </div>
           </aside>
 
-          <article className="portal-featured-card">
-            <Image className="portal-featured-art" src="/figma-home/featured.svg" alt="" fill sizes="812px" priority loading="eager" />
-            <div className="portal-featured-copy">
-              <h2>今日精选</h2><p>AI 行业前沿动态</p><SectionLabel>模型动态</SectionLabel>
-              <h3>Kimi 新模型发布</h3><p>长文本、多模态与 Agent 能力迎来新升级</p>
-              <PortalLink href="/products?cate=api" className="portal-primary-button">查看详情</PortalLink>
+          <article
+            className="portal-featured-card portal-featured-carousel"
+            aria-roledescription="carousel"
+            aria-label="Model Review 精选轮播"
+            onMouseEnter={() => setFeaturedPaused(true)}
+            onMouseLeave={() => setFeaturedPaused(false)}
+            onFocusCapture={() => setFeaturedPaused(true)}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setFeaturedPaused(false);
+              }
+            }}
+          >
+            <div className="portal-featured-track">
+              {FEATURED_SLIDES.map((slide, index) => (
+                <PortalLink
+                  key={slide.id}
+                  href={slide.href}
+                  className={`portal-featured-slide${index === featuredIndex ? " is-active" : ""}`}
+                  aria-hidden={index !== featuredIndex}
+                  tabIndex={index === featuredIndex ? 0 : -1}
+                >
+                  <Image
+                    className="portal-featured-slide-img"
+                    src={slide.src}
+                    alt={slide.alt}
+                    fill
+                    sizes="(max-width: 1100px) 100vw, 812px"
+                    priority={index === 0}
+                  />
+                </PortalLink>
+              ))}
             </div>
-            <div className="portal-featured-news">
-              <PortalLink href="/products?cate=app">视频生成进入实时编辑阶段</PortalLink>
-              <PortalLink href="/products?cate=api">企业 Agent 加速进入业务系统</PortalLink>
-              <PortalLink href="/products?cate=app">多模态搜索的下一轮竞争</PortalLink>
+
+            <button
+              type="button"
+              className="portal-featured-nav is-prev"
+              aria-label="上一张精选"
+              onClick={() => stepFeatured(-1)}
+            >
+              <ChevronLeft aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="portal-featured-nav is-next"
+              aria-label="下一张精选"
+              onClick={() => stepFeatured(1)}
+            >
+              <ChevronRight aria-hidden />
+            </button>
+
+            <div className="portal-featured-dots" role="tablist" aria-label="精选页码">
+              {FEATURED_SLIDES.map((slide, index) => (
+                <button
+                  key={slide.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={index === featuredIndex}
+                  aria-label={`第 ${index + 1} 张：${slide.alt}`}
+                  className={index === featuredIndex ? "is-active" : ""}
+                  onClick={() => setFeaturedIndex(index)}
+                />
+              ))}
             </div>
-            <div className="portal-featured-footer"><ArrowLink href="/products">查看全部行业动态</ArrowLink><span>‹ 01 / 04 ›</span></div>
           </article>
 
           <div className="portal-side-cards">
