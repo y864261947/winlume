@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Heart, Settings2, UsersRound, WalletCards } from "lucide-react";
+import { ArrowUpRight, Heart, KeyRound, Settings2, UsersRound, WalletCards } from "lucide-react";
 import { useEffect, useState } from "react";
+import { StatTile } from "@/components/ui/stat-tile";
 import { getConsoleOverview } from "@/lib/console/client";
 import type { ConsoleOverview } from "@/lib/console/types";
 
@@ -41,9 +42,27 @@ export default function AccountOverview() {
 
     {error ? <div className="mt-6 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">账户实时数据暂不可用，下面显示基础账户入口。</div> : null}
       <div className="mt-6 grid gap-4 md:grid-cols-3">
-        <div className="border border-sky-200 bg-sky-50/75 p-5"><p className="text-sm text-ink-600">账户余额</p><p className="mt-2 font-mono text-2xl font-semibold text-ink-950">{metric(overview?.wallet.availableCredits)}</p><p className="mt-1 text-xs text-ink-500">{overview?.wallet.currency ?? "credits"}</p></div>
-        <div className="border border-emerald-200 bg-emerald-50/75 p-5"><p className="text-sm text-ink-600">可用 API Keys</p><p className="mt-2 font-mono text-2xl font-semibold text-ink-950">{metric(overview?.apiKeyCount)}</p><p className="mt-1 text-xs text-ink-500">按部署环境分别管理</p></div>
-        <div className="border border-orange-200 bg-orange-50/75 p-5"><p className="text-sm text-ink-600">工作区</p><p className="mt-2 truncate text-2xl font-semibold text-ink-950">{overview?.activeOrganization?.name ?? "--"}</p><p className="mt-1 text-xs text-ink-500">{overview?.activeOrganization ? `${overview.activeOrganization.role} 权限` : "登录后显示权限"}</p></div>
+        <StatTile
+          label="账户余额"
+          value={metric(overview?.wallet.availableCredits)}
+          hint={overview?.wallet.currency ?? "credits"}
+          icon={WalletCards}
+          tone="primary"
+        />
+        <StatTile
+          label="可用 API Keys"
+          value={metric(overview?.apiKeyCount)}
+          hint="按部署环境分别管理"
+          icon={KeyRound}
+          tone="success"
+        />
+        <StatTile
+          label="工作区"
+          value={<span className="block truncate">{overview?.activeOrganization?.name ?? "--"}</span>}
+          hint={overview?.activeOrganization ? `${overview.activeOrganization.role} 权限` : "登录后显示权限"}
+          icon={UsersRound}
+          tone="warning"
+        />
       </div>
 
       <section className="mt-5 border border-sky-200 bg-sky-50/55 p-5"><p className="text-xs font-semibold text-primary-600">ACCOUNT OVERVIEW</p><div className="mt-2 flex flex-col justify-between gap-5 lg:flex-row lg:items-center"><div><h2 className="text-2xl font-semibold text-ink-950">把常用能力留在自己的工作空间</h2><p className="mt-2 text-sm leading-6 text-ink-600">在这里管理资料、支付方式、团队权限与常用工具收藏。</p></div><ol className="grid grid-cols-3 gap-2 text-center text-xs"><li className="border border-sky-200 bg-surface px-4 py-3"><strong className="block text-primary-600">01</strong><span className="mt-2 block text-ink-700">选择入口</span></li><li className="border border-sky-200 bg-surface px-4 py-3"><strong className="block text-primary-600">02</strong><span className="mt-2 block text-ink-700">完成配置</span></li><li className="border border-sky-200 bg-surface px-4 py-3"><strong className="block text-primary-600">03</strong><span className="mt-2 block text-ink-700">开始使用</span></li></ol></div></section>

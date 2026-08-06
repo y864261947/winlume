@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Infinity as InfinityIcon, KeyRound, Loader2, Wallet } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatTile } from "@/components/ui/stat-tile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface ServiceAccount {
@@ -126,68 +129,102 @@ export default function ServiceAccountsTable() {
     [load],
   );
 
-  if (loading) return <p className="text-sm text-ink-600">加载中…</p>;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (accounts.length === 0) {
-    return <p className="text-sm text-ink-600">还没有 service account。用 create-service-account 命令创建一个。</p>;
-  }
+  const stats = useMemo(() => {
+    const unlimitedCount = accounts.filter((a) => a.unlimited).length;
+    const totalSpent = accounts.reduce((sum, a) => sum + a.total_spent_microcredits, 0);
+    return { total: accounts.length, unlimitedCount, totalSpent };
+  }, [accounts]);
 
   return (
-    <>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>应用</TableHead>
-            <TableHead>Key</TableHead>
-            <TableHead>计费组</TableHead>
-            <TableHead>配额</TableHead>
-            <TableHead>已用</TableHead>
-            <TableHead>最近使用</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead>操作</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {accounts.map((account) => (
-            <TableRow key={account.api_key_id}>
-              <TableCell>
-                <div className="font-medium text-ink-950">{account.display_name}</div>
-                <div className="text-xs text-ink-500">{account.username}</div>
-              </TableCell>
-              <TableCell>
-                <span className="font-mono text-xs text-ink-700">{account.key_prefix}…</span>
-              </TableCell>
-              <TableCell>{account.billing_group}</TableCell>
-              <TableCell>
-                {account.unlimited ? (
-                  <Badge variant="success">无限制</Badge>
-                ) : (
-                  <span>{account.quota_limit ?? 0}</span>
-                )}
-              </TableCell>
-              <TableCell>{account.total_spent_microcredits}</TableCell>
-              <TableCell>{formatDateTime(account.last_used_at)}</TableCell>
-              <TableCell>
-                <Badge variant={account.api_key_status === "revoked" ? "destructive" : "outline"}>
-                  {account.api_key_status}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => openEdit(account)}>
-                    改配额
-                  </Button>
-                  {account.api_key_status !== "revoked" && (
-                    <Button variant="destructive" size="sm" onClick={() => void revoke(account)}>
-                      吊销
-                    </Button>
-                  )}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+    <div className="flex flex-col gap-6">
+      {!loading && !error && accounts.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatTile label="Service Accounts 总数" value={stats.total} icon={KeyRound} tone="primary" />
+          <StatTile label="无限制账户" value={stats.unlimitedCount} icon={InfinityIcon} tone="success" />
+          <StatTile
+            label="累计消耗"
+            value={stats.totalSpent}
+            hint="microcredits"
+            icon={Wallet}
+            tone="warning"
+          />
+        </div>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Service Accounts</CardTitle>
+          <CardDescription>内部应用的 API key、计费组与配额管理。</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-ink-500">
+              <Loader2 className="size-4 animate-spin" /> 加载中…
+            </div>
+          ) : error ? (
+            <p className="text-sm text-red-600">{error}</p>
+          ) : accounts.length === 0 ? (
+            <p className="py-8 text-center text-sm text-ink-500">
+              还没有 service account。用 create-service-account 命令创建一个。
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>应用</TableHead>
+                  <TableHead>Key</TableHead>
+                  <TableHead>计费组</TableHead>
+                  <TableHead>配额</TableHead>
+                  <TableHead>已用</TableHead>
+                  <TableHead>最近使用</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accounts.map((account) => (
+                  <TableRow key={account.api_key_id}>
+                    <TableCell>
+                      <div className="font-medium text-ink-950">{account.display_name}</div>
+                      <div className="text-xs text-ink-500">{account.username}</div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-mono text-xs text-ink-700">{account.key_prefix}…</span>
+                    </TableCell>
+                    <TableCell>{account.billing_group}</TableCell>
+                    <TableCell>
+                      {account.unlimited ? (
+                        <Badge variant="success">无限制</Badge>
+                      ) : (
+                        <span>{account.quota_limit ?? 0}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{account.total_spent_microcredits}</TableCell>
+                    <TableCell>{formatDateTime(account.last_used_at)}</TableCell>
+                    <TableCell>
+                      <Badge variant={account.api_key_status === "revoked" ? "destructive" : "outline"}>
+                        {account.api_key_status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openEdit(account)}>
+                          改配额
+                        </Button>
+                        {account.api_key_status !== "revoked" && (
+                          <Button variant="destructive" size="sm" onClick={() => void revoke(account)}>
+                            吊销
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={editing != null} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent>
@@ -232,6 +269,6 @@ export default function ServiceAccountsTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, ShieldCheck, UserCheck, Users as UsersIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { StatTile } from "@/components/ui/stat-tile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface PlatformUser {
@@ -128,26 +131,54 @@ export default function UsersTable() {
   const canPrev = offset > 0;
   const canNext = offset + users.length < total;
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <Input
-          value={searchInput}
-          onChange={(event) => setSearchInput(event.target.value)}
-          placeholder="按用户名 / 邮箱 / 显示名搜索…"
-          className="max-w-sm"
-        />
-      </div>
+  const stats = useMemo(() => {
+    const active = users.filter((u) => u.status === "active").length;
+    const suspended = users.filter((u) => u.status === "suspended").length;
+    const admins = users.filter((u) => u.platformRole === "admin").length;
+    return { active, suspended, admins };
+  }, [users]);
 
-      {loading && users.length === 0 ? (
-        <p className="text-sm text-ink-600">加载中…</p>
-      ) : error ? (
-        <p className="text-sm text-red-600">{error}</p>
-      ) : users.length === 0 ? (
-        <p className="text-sm text-ink-600">没有匹配的用户。</p>
-      ) : (
-        <>
-          <Table>
+  return (
+    <div className="flex flex-col gap-6">
+      {!loading && !error && users.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatTile label="用户总数" value={total} icon={UsersIcon} tone="primary" hint="当前筛选条件下" />
+          <StatTile
+            label="活跃 / 封禁（本页）"
+            value={`${stats.active} / ${stats.suspended}`}
+            icon={UserCheck}
+            tone="success"
+          />
+          <StatTile label="管理员（本页）" value={stats.admins} icon={ShieldCheck} tone="warning" />
+        </div>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Users</CardTitle>
+          <CardDescription>平台用户管理：搜索、封禁 / 恢复、调整管理员权限。</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <Input
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="按用户名 / 邮箱 / 显示名搜索…"
+              className="max-w-sm"
+            />
+          </div>
+
+          {loading && users.length === 0 ? (
+            <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-ink-500">
+              <Loader2 className="size-4 animate-spin" /> 加载中…
+            </div>
+          ) : error ? (
+            <p className="text-sm text-red-600">{error}</p>
+          ) : users.length === 0 ? (
+            <p className="py-8 text-center text-sm text-ink-500">没有匹配的用户。</p>
+          ) : (
+            <>
+              <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>用户名</TableHead>
@@ -207,7 +238,9 @@ export default function UsersTable() {
             </div>
           </div>
         </>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={pending != null} onOpenChange={(open) => !open && setPending(null)}>
         <DialogContent>

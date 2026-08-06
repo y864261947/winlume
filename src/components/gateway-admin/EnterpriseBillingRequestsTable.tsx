@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { StatTile } from "@/components/ui/stat-tile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface EnterpriseBillingRequest {
@@ -70,6 +73,36 @@ export default function EnterpriseBillingRequestsTable() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Lightweight status-breakdown counts for the summary tiles, reusing the same list endpoint
+  // (limit=1 just to read `total`) rather than adding a new aggregate endpoint.
+  const [statusCounts, setStatusCounts] = useState<{ pending: number; approved: number; rejected: number } | null>(
+    null,
+  );
+
+  const loadStatusCounts = useCallback(async () => {
+    try {
+      const [pendingRes, approvedRes, rejectedRes] = await Promise.all(
+        (["pending", "approved", "rejected"] as const).map((status) =>
+          fetch(`/api/gateway-admin/billing-requests?status=${status}&limit=1&offset=0`, { cache: "no-store" }),
+        ),
+      );
+      const [pendingBody, approvedBody, rejectedBody] = await Promise.all([
+        pendingRes.json().catch(() => ({})),
+        approvedRes.json().catch(() => ({})),
+        rejectedRes.json().catch(() => ({})),
+      ]);
+      if (pendingRes.ok && approvedRes.ok && rejectedRes.ok) {
+        setStatusCounts({
+          pending: pendingBody.total ?? 0,
+          approved: approvedBody.total ?? 0,
+          rejected: rejectedBody.total ?? 0,
+        });
+      }
+    } catch {
+      // Summary tiles are non-critical; silently skip on failure.
+    }
+  }, []);
+
   const load = useCallback(async (currentStatus: StatusFilter, currentSearch: string, currentOffset: number) => {
     setLoading(true);
     setError(null);
@@ -102,6 +135,10 @@ export default function EnterpriseBillingRequestsTable() {
     void load(statusFilter, search, offset);
   }, [load, statusFilter, search, offset]);
 
+  useEffect(() => {
+    void loadStatusCounts();
+  }, [loadStatusCounts]);
+
   const openAction = useCallback((kind: "approved" | "rejected", request: EnterpriseBillingRequest) => {
     setActionError(null);
     setReviewNotes("");
@@ -124,11 +161,11 @@ export default function EnterpriseBillingRequestsTable() {
         return;
       }
       setPending(null);
-      await load(statusFilter, search, offset);
+      await Promise.all([load(statusFilter, search, offset), loadStatusCounts()]);
     } finally {
       setSaving(false);
     }
-  }, [pending, reviewNotes, load, statusFilter, search, offset]);
+  }, [pending, reviewNotes, load, statusFilter, search, offset, loadStatusCounts]);
 
   const rangeStart = total === 0 ? 0 : offset + 1;
   const rangeEnd = Math.min(offset + requests.length, total);
@@ -136,7 +173,21 @@ export default function EnterpriseBillingRequestsTable() {
   const canNext = offset + requests.length < total;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
+      {statusCounts && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatTile label="待审核" value={statusCounts.pending} icon={Clock} tone="warning" />
+          <StatTile label="已通过" value={statusCounts.approved} icon={CheckCircle2} tone="success" />
+          <StatTile label="已驳回" value={statusCounts.rejected} icon={XCircle} tone="default" />
+        </div>
+      )}
+
+      <Card>
+      <CardHeader>
+        <CardTitle>Billing Requests</CardTitle>
+        <CardDescription>对公结算申请：人工审核企业客户提交的结算信息，通过/驳回后走线下签约与对接。</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <Input
           value={searchInput}
@@ -162,11 +213,13 @@ export default function EnterpriseBillingRequestsTable() {
       </div>
 
       {loading && requests.length === 0 ? (
-        <p className="text-sm text-ink-600">加载中…</p>
+        <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-ink-500">
+          <Loader2 className="size-4 animate-spin" /> 加载中…
+        </div>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : requests.length === 0 ? (
-        <p className="text-sm text-ink-600">没有匹配的申请。</p>
+        <p className="py-8 text-center text-sm text-ink-500">没有匹配的申请。</p>
       ) : (
         <>
           <Table>
@@ -235,6 +288,8 @@ export default function EnterpriseBillingRequestsTable() {
           </div>
         </>
       )}
+      </CardContent>
+      </Card>
 
       <Dialog open={pending != null} onOpenChange={(open) => !open && setPending(null)}>
         <DialogContent>

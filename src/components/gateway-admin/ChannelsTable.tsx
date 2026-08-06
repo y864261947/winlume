@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Loader2, ToggleRight, Waypoints } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatTile } from "@/components/ui/stat-tile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const PROTOCOL_FAMILIES = [
@@ -202,23 +205,51 @@ export default function ChannelsTable() {
     [load],
   );
 
-  if (loading) return <p className="text-sm text-ink-600">加载中…</p>;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-
   const dialogOpen = creating || editing != null;
 
-  return (
-    <>
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-ink-600">
-          管理上游渠道配置。这里只管理配置数据——是否已接入实际请求路由，需要单独确认后再切换。
-        </p>
-        <Button onClick={openCreate}>新建渠道</Button>
-      </div>
+  const stats = useMemo(() => {
+    const enabled = channels.filter((c) => c.enabled).length;
+    const missingKey = channels.filter((c) => !c.has_api_key).length;
+    return { total: channels.length, enabled, missingKey };
+  }, [channels]);
 
-      {channels.length === 0 ? (
-        <p className="text-sm text-ink-600">还没有配置渠道。</p>
-      ) : (
+  return (
+    <div className="flex flex-col gap-6">
+      {!loading && !error && channels.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatTile label="渠道总数" value={stats.total} icon={Waypoints} tone="primary" />
+          <StatTile label="已启用" value={stats.enabled} icon={ToggleRight} tone="success" />
+          <StatTile
+            label="缺少 API Key"
+            value={stats.missingKey}
+            icon={AlertTriangle}
+            tone={stats.missingKey > 0 ? "warning" : "default"}
+          />
+        </div>
+      )}
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Channels</CardTitle>
+              <CardDescription>上游渠道连接配置（地址、密钥、优先级/权重）。</CardDescription>
+            </div>
+            <Button onClick={openCreate} disabled={loading || !!error}>
+              新建渠道
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-ink-500">
+              <Loader2 className="size-4 animate-spin" /> 加载中…
+            </div>
+          ) : error ? (
+            <p className="text-sm text-red-600">{error}</p>
+          ) : channels.length === 0 ? (
+            <p className="py-8 text-center text-sm text-ink-500">还没有配置渠道。</p>
+          ) : (
         <Table>
           <TableHeader>
             <TableRow>
@@ -265,7 +296,9 @@ export default function ChannelsTable() {
             ))}
           </TableBody>
         </Table>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent>
@@ -348,6 +381,6 @@ export default function ChannelsTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

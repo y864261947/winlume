@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -128,33 +130,43 @@ export default function PricingModelRulesTable() {
     }
   }, [rows]);
 
-  if (loading) return <p className="text-sm text-ink-600">加载中…</p>;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-
   return (
-    <div>
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-ink-950">模型倍率</h2>
-          {dirty && <Badge variant="outline">未保存</Badge>}
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              模型倍率
+              {dirty && <Badge variant="outline">未保存</Badge>}
+            </CardTitle>
+            <CardDescription>
+              {loading || error
+                ? "编辑各模型的定价倍率。"
+                : `共 ${rows.length} 条模型规则 · 当前仅支持 mode = ratio 的规则编辑`}
+            </CardDescription>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={addRow} disabled={loading || !!error}>
+              添加行
+            </Button>
+            <Button size="sm" onClick={() => void save()} disabled={saving || !dirty}>
+              {saving ? "保存中…" : "保存"}
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={addRow}>
-            添加行
-          </Button>
-          <Button size="sm" onClick={() => void save()} disabled={saving || !dirty}>
-            {saving ? "保存中…" : "保存"}
-          </Button>
-        </div>
-      </div>
+      </CardHeader>
+      <CardContent>
+        {saveError && <p className="mb-2 text-sm text-red-600">{saveError}</p>}
 
-      <p className="mb-2 text-xs text-ink-500">当前仅支持 mode = ratio 的模型规则编辑。</p>
-
-      {saveError && <p className="mb-2 text-sm text-red-600">{saveError}</p>}
-
-      {rows.length === 0 ? (
-        <p className="text-sm text-ink-600">还没有模型倍率规则。</p>
-      ) : (
+        {loading ? (
+          <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-ink-500">
+            <Loader2 className="size-4 animate-spin" /> 加载中…
+          </div>
+        ) : error ? (
+          <p className="text-sm text-red-600">{error}</p>
+        ) : rows.length === 0 ? (
+          <p className="py-8 text-center text-sm text-ink-500">还没有模型倍率规则。</p>
+        ) : (
         <Table>
           <TableHeader>
             <TableRow>
@@ -212,7 +224,8 @@ export default function PricingModelRulesTable() {
             ))}
           </TableBody>
         </Table>
-      )}
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

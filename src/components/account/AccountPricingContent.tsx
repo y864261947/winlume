@@ -1,4 +1,8 @@
+import { CalendarClock, Gauge, Layers, Users } from "lucide-react";
 import { ConsoleEmptyState, ConsolePage } from "@/components/console/ConsolePage";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatTile } from "@/components/ui/stat-tile";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export type AccountPricingStatus =
   | "unauthenticated"
@@ -102,26 +106,28 @@ export default function AccountPricingContent({
     <ConsolePage title="我的计费" description={description}>
       <div className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-4">
-          <div className="border border-line bg-surface p-5">
-            <p className="text-sm text-ink-500">计费组</p>
-            <p className="mt-3 font-mono text-2xl font-semibold text-ink-950">{billingGroup}</p>
-            <p className="mt-1 text-xs text-ink-500">用户组 {userGroup}</p>
-          </div>
-          <div className="border border-line bg-surface p-5">
-            <p className="text-sm text-ink-500">组倍率</p>
-            <p className="mt-3 font-mono text-2xl font-semibold text-ink-950">{ratio(groupRatio)}</p>
-            <p className="mt-1 text-xs text-ink-500">叠加在模型倍率之上</p>
-          </div>
-          <div className="border border-line bg-surface p-5">
-            <p className="text-sm text-ink-500">算法版本</p>
-            <p className="mt-3 font-mono text-2xl font-semibold text-ink-950">{catalog?.algorithmVersion ?? "--"}</p>
-            <p className="mt-1 text-xs text-ink-500">生效于 {date(catalog?.activatedAt)}</p>
-          </div>
-          <div className="border border-line bg-surface p-5">
-            <p className="text-sm text-ink-500">额度换算</p>
-            <p className="mt-3 font-mono text-2xl font-semibold text-ink-950">{ratio(catalog?.quotaPerUnit)}</p>
-            <p className="mt-1 text-xs text-ink-500">每计价单位对应的额度</p>
-          </div>
+          <Card>
+            <CardContent className="flex flex-col gap-1">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm text-ink-500">计费组</p>
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-canvas text-ink-600"><Users className="size-4" /></span>
+              </div>
+              <p className="mt-2 font-mono text-2xl font-semibold text-ink-950">{billingGroup}</p>
+              <p className="mt-1 text-xs text-ink-500">用户组 {userGroup}</p>
+            </CardContent>
+          </Card>
+          <StatTile label="组倍率" value={ratio(groupRatio)} hint="叠加在模型倍率之上" icon={Gauge} tone="primary" />
+          <Card>
+            <CardContent className="flex flex-col gap-1">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm text-ink-500">算法版本</p>
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-canvas text-ink-600"><Layers className="size-4" /></span>
+              </div>
+              <p className="mt-2 font-mono text-2xl font-semibold text-ink-950">{catalog?.algorithmVersion ?? "--"}</p>
+              <p className="mt-1 text-xs text-ink-500">生效于 {date(catalog?.activatedAt)}</p>
+            </CardContent>
+          </Card>
+          <StatTile label="额度换算" value={ratio(catalog?.quotaPerUnit)} hint="每计价单位对应的额度" icon={CalendarClock} />
         </div>
 
         {isDefaultFallback ? (
@@ -136,56 +142,56 @@ export default function AccountPricingContent({
           </div>
         )}
 
-        <section className="border border-line bg-surface">
-          <div className="border-b border-line px-5 py-4">
-            <h2 className="text-sm font-semibold text-ink-950">模型费率</h2>
-            <p className="mt-1 text-xs text-ink-500">
+        <Card>
+          <CardHeader>
+            <CardTitle>模型费率</CardTitle>
+            <CardDescription>
               仅展示对你的计费组开放的模型：enabled_groups 为空（对所有组开放）或包含
               <span className="mx-1 font-mono text-ink-700">{billingGroup}</span>
               的定价规则。
-            </p>
-          </div>
-          {!models || models.length === 0 ? (
-            <ConsoleEmptyState title="暂无可用模型定价" description="当前计费组下没有匹配的模型定价规则。" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left text-sm">
-                <thead className="border-b border-line bg-canvas text-xs text-ink-500">
-                  <tr>
-                    <th className="px-4 py-3">模型</th>
-                    <th className="px-4 py-3">计价方式</th>
-                    <th className="px-4 py-3 text-right">模型倍率 / 固定单价</th>
-                    <th className="px-4 py-3 text-right">输出倍率</th>
-                    <th className="px-4 py-3 text-right">缓存读取</th>
-                    <th className="px-4 py-3 text-right">缓存写入</th>
-                    <th className="px-4 py-3 text-right">缓存写入(1h)</th>
-                    <th className="px-4 py-3 text-right">图像</th>
-                    <th className="px-4 py-3 text-right">音频输入</th>
-                    <th className="px-4 py-3 text-right">音频输出</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!models || models.length === 0 ? (
+              <ConsoleEmptyState title="暂无可用模型定价" description="当前计费组下没有匹配的模型定价规则。" />
+            ) : (
+              <Table className="min-w-[900px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>模型</TableHead>
+                    <TableHead>计价方式</TableHead>
+                    <TableHead className="text-right">模型倍率 / 固定单价</TableHead>
+                    <TableHead className="text-right">输出倍率</TableHead>
+                    <TableHead className="text-right">缓存读取</TableHead>
+                    <TableHead className="text-right">缓存写入</TableHead>
+                    <TableHead className="text-right">缓存写入(1h)</TableHead>
+                    <TableHead className="text-right">图像</TableHead>
+                    <TableHead className="text-right">音频输入</TableHead>
+                    <TableHead className="text-right">音频输出</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {models.map((model) => (
-                    <tr key={model.modelKey}>
-                      <td className="px-4 py-3 font-mono text-xs text-ink-800">{model.modelKey}</td>
-                      <td className="px-4 py-3 text-ink-700">{modeLabels[model.mode] ?? model.mode}</td>
-                      <td className="px-4 py-3 text-right font-mono text-ink-800">
+                    <TableRow key={model.modelKey}>
+                      <TableCell className="font-mono text-xs text-ink-800">{model.modelKey}</TableCell>
+                      <TableCell className="text-ink-700">{modeLabels[model.mode] ?? model.mode}</TableCell>
+                      <TableCell className="text-right font-mono text-ink-800">
                         {model.mode === "fixed" ? ratio(model.fixedPriceUsd) : ratio(model.modelRatio)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-ink-700">{ratio(model.completionRatio)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-ink-700">{ratio(model.cacheReadRatio)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-ink-700">{ratio(model.cacheWriteRatio)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-ink-700">{ratio(model.cacheWriteOneHourRatio)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-ink-700">{ratio(model.imageRatio)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-ink-700">{ratio(model.audioInputRatio)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-ink-700">{ratio(model.audioCompletionRatio)}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-ink-700">{ratio(model.completionRatio)}</TableCell>
+                      <TableCell className="text-right font-mono text-ink-700">{ratio(model.cacheReadRatio)}</TableCell>
+                      <TableCell className="text-right font-mono text-ink-700">{ratio(model.cacheWriteRatio)}</TableCell>
+                      <TableCell className="text-right font-mono text-ink-700">{ratio(model.cacheWriteOneHourRatio)}</TableCell>
+                      <TableCell className="text-right font-mono text-ink-700">{ratio(model.imageRatio)}</TableCell>
+                      <TableCell className="text-right font-mono text-ink-700">{ratio(model.audioInputRatio)}</TableCell>
+                      <TableCell className="text-right font-mono text-ink-700">{ratio(model.audioCompletionRatio)}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </ConsolePage>
   );

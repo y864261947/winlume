@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { CheckCircle2, Loader2, ScrollText, Wallet, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { StatTile } from "@/components/ui/stat-tile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface UsageLogEvent {
@@ -106,9 +109,41 @@ export default function UsageLogsTable() {
   const page = Math.floor(offset / PAGE_SIZE) + 1;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const pageStats = useMemo(() => {
+    const totalCost = events.reduce((sum, e) => sum + e.costMicrocredits, 0);
+    const settled = events.filter((e) => e.status === "settled").length;
+    const failed = events.filter((e) => e.status === "failed" || e.status === "reversed").length;
+    return { totalCost, settled, failed };
+  }, [events]);
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-md border border-line bg-surface p-4">
+    <div className="flex flex-col gap-6">
+      {!loading && !error && events.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatTile
+            label="本页请求数"
+            value={events.length}
+            icon={ScrollText}
+            tone="primary"
+            hint={`共 ${total} 条`}
+          />
+          <StatTile label="本页费用" value={pageStats.totalCost} hint="microcredits" icon={Wallet} tone="warning" />
+          <StatTile
+            label="已结算 / 失败（本页）"
+            value={`${pageStats.settled} / ${pageStats.failed}`}
+            icon={pageStats.failed > 0 ? XCircle : CheckCircle2}
+            tone={pageStats.failed > 0 ? "warning" : "success"}
+          />
+        </div>
+      )}
+
+      <Card>
+      <CardHeader>
+        <CardTitle>Usage Logs</CardTitle>
+        <CardDescription>全平台用量日志，按时间、状态、模型、用户筛选。</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end gap-3 rounded-md border border-line bg-canvas p-4">
         <div className="grid gap-1.5">
           <label className="text-xs font-medium text-ink-600" htmlFor="logs-since">
             起始时间
@@ -182,9 +217,11 @@ export default function UsageLogsTable() {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-ink-600">加载中…</p>
+        <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-ink-500">
+          <Loader2 className="size-4 animate-spin" /> 加载中…
+        </div>
       ) : events.length === 0 ? (
-        <p className="text-sm text-ink-600">没有符合条件的用量记录。</p>
+        <p className="py-8 text-center text-sm text-ink-500">没有符合条件的用量记录。</p>
       ) : (
         <Table>
           <TableHeader>
@@ -250,6 +287,8 @@ export default function UsageLogsTable() {
           </Button>
         </div>
       </div>
+      </CardContent>
+      </Card>
     </div>
   );
 }
