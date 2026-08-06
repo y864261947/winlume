@@ -74,6 +74,7 @@ export const users = pgTable(
     passwordHash: varchar("password_hash", { length: 255 }),
     status: userStatusEnum("status").default("active").notNull(),
     platformRole: platformRoleEnum("platform_role").default("user").notNull(),
+    isServiceAccount: boolean("is_service_account").default(false).notNull(),
     authVersion: integer("auth_version").default(1).notNull(),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt,

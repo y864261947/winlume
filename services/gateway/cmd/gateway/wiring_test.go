@@ -128,6 +128,16 @@ func (f *fakeGatewayStore) ListShadows(context.Context, storage.ShadowFilter) (s
 	return storage.ShadowPage{}, nil
 }
 
+func (f *fakeGatewayStore) ListServiceAccounts(context.Context) ([]storage.ServiceAccount, error) {
+	return nil, nil
+}
+
+func (f *fakeGatewayStore) UpdateServiceAccountPolicy(context.Context, uuid.UUID, storage.UpdateServiceAccountPolicyInput) (storage.ServiceAccount, error) {
+	return storage.ServiceAccount{}, nil
+}
+
+func (f *fakeGatewayStore) RevokeServiceAccountKey(context.Context, uuid.UUID) error { return nil }
+
 func (f *fakeGatewayStore) Close() { f.closed.Store(true) }
 
 func withFakeOpenStore(t *testing.T, store gatewayStore, storeErr error) {

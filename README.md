@@ -39,10 +39,12 @@ Copy `.env.example` to `.env.local` (or export vars in your shell):
 | `NEXTAUTH_URL` | Yes in production | Canonical public web origin. |
 | `WINLUME_AUTH_MODE` | No | `winlume` by default. Set `legacy` only for a tightly bounded new-api compatibility period. |
 | `WINLUME_GATEWAY_URL` | No | Native gateway origin for server-side Studio calls. Default: `http://127.0.0.1:4010`. |
-| `WINLUME_GATEWAY_INTERNAL_TOKEN` | Yes for native Studio | Shared server-to-server token between the web process and standalone gateway. Never expose it to the browser. |
+| `WINLUME_GATEWAY_INTERNAL_TOKEN` | For ops endpoints | Shared server-to-server token for the gateway's ops-only surface (`/internal/billing/shadow-events`, `/metrics`) and the Go server's Studio-token auth path. Not used by WinLume's own chat/image traffic anymore — see `WINLUME_SERVICE_KEY`. Never expose it to the browser. |
+| `WINLUME_SERVICE_KEY` | Yes for native Studio | Service-account Bearer token WinLume's own chat and image calls send to the gateway (`Authorization: Bearer <key>`). Provision one with `create-service-account`. |
+| `WINLUME_GATEWAY_ADMIN_TOKEN` | Only if `/gateway-admin` is deployed | Shared secret the `/gateway-admin` Next.js routes use to call the Go gateway's `/internal/admin/*` service-account management API. Server-only; never expose it to the browser. |
 | `NEW_API_URL` | Legacy only | Old NewAPI origin. Leave unset after cutover; it is not a native gateway upstream. |
 | `WINLUME_GATEWAY_TOKEN` | Legacy only | Server-side Bearer token for the legacy chat transport. Leave unset in native mode. |
-| `WINLUME_IMAGE_GATEWAY_TOKEN` | Legacy only | Separate server-side Bearer token for the legacy image transport. Native Studio uses the internal gateway token; leave unset after cutover. |
+| `WINLUME_IMAGE_GATEWAY_TOKEN` | Legacy only | Separate server-side Bearer token for the legacy image transport. Native Studio uses `WINLUME_SERVICE_KEY`; leave unset after cutover. |
 | `WINLUME_IMAGE_MODEL` | No | Default image model id when a tool call omits `model`. Default: `gpt-image-2` |
 | `WINLUME_DATA_DIR` | No | Override local data root (default: `./data`) |
 | `WINLUME_CHAT_PATH` | No | Override chat path (default: `/v1/chat/completions`) |
@@ -67,6 +69,7 @@ AUTH_SECRET=replace-with-a-random-secret
 WINLUME_AUTH_MODE=winlume
 WINLUME_GATEWAY_URL=http://127.0.0.1:4010
 WINLUME_GATEWAY_INTERNAL_TOKEN=replace-with-a-separate-random-secret
+WINLUME_SERVICE_KEY=wl_replace-with-a-service-account-key
 WINLUME_GATEWAY_OPENAI_UPSTREAM_URL=https://provider.example/v1
 WINLUME_GATEWAY_OPENAI_UPSTREAM_API_KEY=provider-service-key
 ```

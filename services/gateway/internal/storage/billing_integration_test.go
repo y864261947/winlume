@@ -94,6 +94,7 @@ func applyBillingTestMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 		"0001_yellow_silver_sable.sql",
 		"0002_lovely_nightmare.sql",
 		"0003_go_gateway_billing.sql",
+		"0004_lovely_brood.sql",
 	}
 	for _, name := range migrations {
 		path := filepath.Join("..", "..", "..", "..", "drizzle", name)

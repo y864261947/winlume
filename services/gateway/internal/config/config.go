@@ -83,6 +83,7 @@ type Config struct {
 	BodyLimitBytes          int64
 	CORSOrigins             []string
 	InternalToken           string
+	GatewayAdminToken       string
 	DatabaseURL             string
 	APIKeyHashes            []string
 	AllowUnverifiedAPIKeys  bool
@@ -161,6 +162,7 @@ func Load() (Config, error) {
 		BodyLimitBytes:          bodyLimitBytes,
 		CORSOrigins:             parseList(firstNonEmpty("WINLUME_GATEWAY_CORS_ORIGINS")),
 		InternalToken:           firstNonEmpty("WINLUME_GATEWAY_INTERNAL_TOKEN", "WINLUME_GATEWAY_STUDIO_TOKEN"),
+		GatewayAdminToken:       firstNonEmpty("WINLUME_GATEWAY_ADMIN_TOKEN"),
 		DatabaseURL:             databaseURL,
 		APIKeyHashes:            parseList(firstNonEmpty("WINLUME_GATEWAY_API_KEY_HASHES")),
 		AllowUnverifiedAPIKeys:  allowUnverifiedAPIKeys,
