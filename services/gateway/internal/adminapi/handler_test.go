@@ -108,3 +108,14 @@ func TestRevokeServiceAccountKeyPropagatesStorageUnavailable(t *testing.T) {
 
 	require.Equal(t, http.StatusInternalServerError, recorder.Code)
 }
+
+func TestRevokeServiceAccountKeyNotFound(t *testing.T) {
+	store := &fakeStore{revokeErr: storage.ErrServiceAccountNotFound}
+	handler := NewHandler(store)
+
+	request := httptest.NewRequest(http.MethodPost, "/internal/admin/service-accounts/"+uuid.New().String()+"/revoke", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusNotFound, recorder.Code)
+}
