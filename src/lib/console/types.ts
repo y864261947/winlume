@@ -10,6 +10,9 @@ export type ConsoleApiKey = {
   usedQuota: number;
   modelScopes: string[];
   ipAllowList: string[];
+  organizationId: string | null;
+  ownerUserId: string;
+  ownerName: string | null;
 };
 
 export type ConsoleWallet = {

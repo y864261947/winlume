@@ -1,10 +1,12 @@
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import { getCurrentUserId } from "@/lib/auth/session";
 import {
+  canManageOrganizationResources,
   getPlatformDb,
   getPlatformRepositories,
   usageEvents,
 } from "@/lib/platform";
+import type { OrganizationRole } from "@/lib/platform";
 import type { ApiKeyRecord } from "@/lib/platform/repositories";
 import type {
   ConsoleApiKey,
@@ -75,7 +77,11 @@ export async function requireConsoleContext(): Promise<ConsoleRequestContext> {
   return { userId, repositories };
 }
 
-export function mapConsoleApiKey(record: ApiKeyRecord, usedQuotaMicrocredits = BigInt(0)): ConsoleApiKey {
+export function mapConsoleApiKey(
+  record: ApiKeyRecord,
+  usedQuotaMicrocredits = BigInt(0),
+  ownerName: string | null = null,
+): ConsoleApiKey {
   const expired = Boolean(record.expiresAt && record.expiresAt.getTime() <= Date.now());
   return {
     id: record.id,
@@ -89,16 +95,21 @@ export function mapConsoleApiKey(record: ApiKeyRecord, usedQuotaMicrocredits = B
     usedQuota: microcreditsToCredits(usedQuotaMicrocredits),
     modelScopes: record.allowedModels,
     ipAllowList: record.ipAllowlist,
+    organizationId: record.organizationId,
+    ownerUserId: record.userId,
+    ownerName,
   };
 }
 
-async function usedQuotaByApiKey(userId: string): Promise<Map<string, bigint>> {
+/** Sums settled usage cost per API key, regardless of which user owns the key. */
+async function usedQuotaForApiKeys(apiKeyIds: string[]): Promise<Map<string, bigint>> {
+  if (apiKeyIds.length === 0) return new Map();
   const database = getPlatformDb();
   if (!database) return new Map();
   const rows = await database
     .select({ apiKeyId: usageEvents.apiKeyId, cost: usageEvents.costMicrocredits })
     .from(usageEvents)
-    .where(and(eq(usageEvents.userId, userId), eq(usageEvents.status, "settled")));
+    .where(and(inArray(usageEvents.apiKeyId, apiKeyIds), eq(usageEvents.status, "settled")));
   const result = new Map<string, bigint>();
   for (const row of rows) {
     if (!row.apiKeyId) continue;
@@ -107,14 +118,40 @@ async function usedQuotaByApiKey(userId: string): Promise<Map<string, bigint>> {
   return result;
 }
 
-export async function listConsoleApiKeys(context: ConsoleRequestContext): Promise<ConsoleApiKey[]> {
-  const [records, usedByKey] = await Promise.all([
-    context.repositories.apiKeys.listForUser(context.userId),
-    usedQuotaByApiKey(context.userId),
-  ]);
+/**
+ * Lists keys for the caller's personal workspace (organizationId omitted) or
+ * for a whole organization workspace (organizationId provided). Callers must
+ * verify the caller's membership/permissions in that organization before
+ * passing organizationId — this function does not re-check access.
+ */
+export async function listConsoleApiKeys(
+  context: ConsoleRequestContext,
+  organizationId?: string | null,
+): Promise<ConsoleApiKey[]> {
+  const records = organizationId
+    ? await context.repositories.apiKeys.listForOrganization(organizationId)
+    : await context.repositories.apiKeys.listForUser(context.userId);
+  const usedByKey = await usedQuotaForApiKeys(records.map((record) => record.id));
+  let ownerNames: Map<string, string> | null = null;
+  if (organizationId) {
+    const uniqueOwnerIds = [...new Set(records.map((record) => record.userId))];
+    const owners = await Promise.all(uniqueOwnerIds.map((id) => context.repositories.users.findById(id)));
+    ownerNames = new Map(
+      owners
+        .filter((owner): owner is NonNullable<typeof owner> => Boolean(owner))
+        .map((owner) => [owner.id, owner.displayName]),
+    );
+  }
   return records
-    .map((record) => mapConsoleApiKey(record, usedByKey.get(record.id) ?? BigInt(0)))
+    .map((record) => mapConsoleApiKey(record, usedByKey.get(record.id) ?? BigInt(0), ownerNames?.get(record.userId) ?? null))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+/** Same permission tier team.ts uses for member management (owner/admin), scoped to API keys. */
+export function ensureOrganizationKeyManager(role: OrganizationRole): void {
+  if (!canManageOrganizationResources(role)) {
+    throw new ConsoleRequestError("只有工作区 owner 或 admin 可以管理工作区 API Key。", 403, "organization_key_forbidden");
+  }
 }
 
 function dayKey(date: Date): string {
@@ -264,6 +301,7 @@ export async function getConsoleOverview(context: ConsoleRequestContext): Promis
 
 export function parseConsoleKeyInput(value: unknown): {
   name: string;
+  organizationId: string | null;
   expiresAt: Date | null;
   quotaLimitMicrocredits: bigint | null;
   allowedModels: string[];
@@ -276,6 +314,13 @@ export function parseConsoleKeyInput(value: unknown): {
   const name = typeof input.name === "string" ? input.name.trim() : "";
   if (!name || name.length > 120) {
     throw new ConsoleRequestError("密钥名称必须为 1 到 120 个字符。", 400, "invalid_key_name");
+  }
+  let organizationId: string | null = null;
+  if (input.organizationId !== undefined && input.organizationId !== null && input.organizationId !== "") {
+    if (typeof input.organizationId !== "string") {
+      throw new ConsoleRequestError("工作区标识无效。", 400, "invalid_organization_id");
+    }
+    organizationId = input.organizationId;
   }
   let expiresAt: Date | null = null;
   if (input.expiresAt !== undefined && input.expiresAt !== null && input.expiresAt !== "") {
@@ -297,6 +342,7 @@ export function parseConsoleKeyInput(value: unknown): {
     : creditsToMicrocredits(typeof input.quotaLimit === "number" ? input.quotaLimit : Number.NaN);
   return {
     name,
+    organizationId,
     expiresAt,
     quotaLimitMicrocredits,
     allowedModels: asStringList(input.modelScopes, "invalid_model_scopes"),

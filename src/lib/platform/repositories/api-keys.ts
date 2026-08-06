@@ -77,6 +77,15 @@ export class ApiKeyRepository {
     return this.database.select().from(apiKeys).where(and(...conditions));
   }
 
+  /**
+   * Returns every API key created by any member of the organization, not just
+   * the caller's own keys. Use this for org-shared key visibility; `listForUser`
+   * still scopes to a single user even when an organizationId is supplied.
+   */
+  async listForOrganization(organizationId: string): Promise<ApiKeyRecord[]> {
+    return this.database.select().from(apiKeys).where(eq(apiKeys.organizationId, organizationId));
+  }
+
   async setStatus(id: string, status: ApiKeyStatus): Promise<ApiKeyRecord | null> {
     const [record] = await this.database
       .update(apiKeys)

@@ -3,7 +3,7 @@
 import { Check, Copy, KeyRound, LoaderCircle, Plus, ShieldAlert, Trash2, X } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { createConsoleKey, listConsoleKeys, revokeConsoleKey } from "@/lib/console/client";
-import type { ConsoleApiKey } from "@/lib/console/types";
+import type { ConsoleApiKey, ConsoleOrganization } from "@/lib/console/types";
 import { ConsoleEmptyState, ConsolePage } from "./ConsolePage";
 
 function date(value: string | null) {
@@ -12,8 +12,18 @@ function date(value: string | null) {
   return Number.isNaN(parsed.getTime()) ? "--" : new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(parsed);
 }
 
-function KeyDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (key: ConsoleApiKey, secret: string) => void }) {
+function KeyDialog({
+  organizationId,
+  onClose,
+  onCreated,
+}: {
+  organizationId: string | null;
+  onClose: () => void;
+  onCreated: (key: ConsoleApiKey, secret: string) => void;
+}) {
   const [name, setName] = useState("");
+  const [modelScopes, setModelScopes] = useState("");
+  const [quotaLimit, setQuotaLimit] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,10 +34,29 @@ function KeyDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (ke
       setError("请输入密钥名称。");
       return;
     }
+    let quota: number | null = null;
+    const trimmedQuota = quotaLimit.trim();
+    if (trimmedQuota) {
+      const parsed = Number(trimmedQuota);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        setError("额度上限必须是有效的非负数字。");
+        return;
+      }
+      quota = parsed;
+    }
+    const scopes = modelScopes
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
     setSubmitting(true);
     setError(null);
     try {
-      const result = await createConsoleKey({ name: normalized });
+      const result = await createConsoleKey({
+        name: normalized,
+        organizationId,
+        modelScopes: scopes,
+        quotaLimit: quota,
+      });
       onCreated(result.key, result.secret);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "创建失败，请重试。");
@@ -48,6 +77,15 @@ function KeyDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (ke
             名称
             <input autoFocus value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder="例如：生产环境" className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500" />
           </label>
+          <label className="block text-sm font-medium text-ink-800">
+            允许的模型（可选，逗号分隔）
+            <input value={modelScopes} onChange={(event) => setModelScopes(event.target.value)} placeholder="例如：gpt-4o, claude-3-5-sonnet" className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500" />
+            <span className="mt-1 block text-xs text-ink-500">留空表示不限制可调用的模型。</span>
+          </label>
+          <label className="block text-sm font-medium text-ink-800">
+            额度上限（可选，单位：Credits）
+            <input type="number" min="0" step="0.01" value={quotaLimit} onChange={(event) => setQuotaLimit(event.target.value)} placeholder="留空表示不限额" className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500" />
+          </label>
           <p className="text-xs leading-5 text-ink-500">完整密钥只会显示一次。请保存到部署平台的受保护环境变量中。</p>
           {error ? <p role="alert" className="text-sm text-rose-700">{error}</p> : null}
         </div>
@@ -65,6 +103,8 @@ function KeyDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (ke
 
 export default function ConsoleKeysContent() {
   const [keys, setKeys] = useState<ConsoleApiKey[]>([]);
+  const [organizations, setOrganizations] = useState<ConsoleOrganization[]>([]);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
@@ -72,12 +112,14 @@ export default function ConsoleKeysContent() {
   const [copied, setCopied] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (nextOrganizationId?: string | null) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await listConsoleKeys();
+      const result = await listConsoleKeys(nextOrganizationId);
       setKeys(result.keys);
+      setOrganizations(result.organizations);
+      setOrganizationId(nextOrganizationId ?? null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "无法加载 API Keys。");
     } finally {
@@ -89,6 +131,9 @@ export default function ConsoleKeysContent() {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  const activeOrganization = organizationId ? organizations.find((org) => org.id === organizationId) ?? null : null;
+  const canManage = !organizationId || activeOrganization?.role === "owner" || activeOrganization?.role === "admin";
 
   async function revoke(key: ConsoleApiKey) {
     if (!window.confirm(`撤销 “${key.name}” 后，使用它的应用会立即失去访问权限。是否继续？`)) return;
@@ -114,8 +159,23 @@ export default function ConsoleKeysContent() {
     <ConsolePage
       title="API Keys"
       description="为每个部署或集成创建单独密钥；可随时撤销，不会暴露其他密钥。"
-      actions={<button onClick={() => setShowDialog(true)} className="inline-flex items-center gap-2 bg-ink-950 px-3 py-2 text-sm font-medium text-white hover:bg-ink-800"><Plus className="h-4 w-4" /> 新建 Key</button>}
+      actions={canManage ? <button onClick={() => setShowDialog(true)} className="inline-flex items-center gap-2 bg-ink-950 px-3 py-2 text-sm font-medium text-white hover:bg-ink-800"><Plus className="h-4 w-4" /> 新建 Key</button> : undefined}
     >
+      {organizations.length > 0 ? (
+        <div className="mb-4 flex items-center gap-2 text-sm text-ink-600">
+          <span>工作区</span>
+          <select
+            aria-label="选择工作区"
+            value={organizationId ?? ""}
+            onChange={(event) => void load(event.target.value || null)}
+            className="border border-line bg-canvas px-2 py-1.5 text-sm text-ink-700 outline-none focus:border-ink-500"
+          >
+            <option value="">个人</option>
+            {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
+          </select>
+        </div>
+      ) : null}
+      {!canManage ? <p className="mb-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">你可以查看该工作区的 API Key，但没有创建或撤销权限（仅 owner / admin 可管理）。</p> : null}
       {revealed ? (
         <section className="mb-6 border border-emerald-200 bg-emerald-50 p-4">
           <div className="flex gap-3">
@@ -138,14 +198,14 @@ export default function ConsoleKeysContent() {
       ) : (
         <div className="overflow-x-auto border border-line bg-surface">
           <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="border-b border-line bg-canvas text-xs font-medium text-ink-500"><tr><th className="px-4 py-3">名称</th><th className="px-4 py-3">前缀</th><th className="px-4 py-3">状态</th><th className="px-4 py-3">上次使用</th><th className="px-4 py-3">创建时间</th><th className="w-14 px-4 py-3"><span className="sr-only">操作</span></th></tr></thead>
+            <thead className="border-b border-line bg-canvas text-xs font-medium text-ink-500"><tr><th className="px-4 py-3">名称</th>{organizationId ? <th className="px-4 py-3">所有者</th> : null}<th className="px-4 py-3">前缀</th><th className="px-4 py-3">状态</th><th className="px-4 py-3">上次使用</th><th className="px-4 py-3">创建时间</th><th className="w-14 px-4 py-3"><span className="sr-only">操作</span></th></tr></thead>
             <tbody className="divide-y divide-line">
-              {keys.map((key) => <tr key={key.id} className="text-ink-700"><td className="px-4 py-3 font-medium text-ink-950">{key.name}</td><td className="px-4 py-3 font-mono text-xs">{key.prefix}...</td><td className="px-4 py-3"><span className={key.status === "active" ? "text-emerald-700" : "text-ink-500"}>{key.status === "active" ? "可用" : key.status === "revoked" ? "已撤销" : "已过期"}</span></td><td className="px-4 py-3 text-xs text-ink-500">{date(key.lastUsedAt)}</td><td className="px-4 py-3 text-xs text-ink-500">{date(key.createdAt)}</td><td className="px-4 py-3">{key.status === "active" ? <button type="button" disabled={revoking === key.id} onClick={() => void revoke(key)} aria-label={`撤销 ${key.name}`} title="撤销密钥" className="grid h-8 w-8 place-items-center text-ink-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">{revoking === key.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button> : null}</td></tr>)}
+              {keys.map((key) => <tr key={key.id} className="text-ink-700"><td className="px-4 py-3 font-medium text-ink-950">{key.name}</td>{organizationId ? <td className="px-4 py-3 text-xs text-ink-500">{key.ownerName ?? "--"}</td> : null}<td className="px-4 py-3 font-mono text-xs">{key.prefix}...</td><td className="px-4 py-3"><span className={key.status === "active" ? "text-emerald-700" : "text-ink-500"}>{key.status === "active" ? "可用" : key.status === "revoked" ? "已撤销" : "已过期"}</span></td><td className="px-4 py-3 text-xs text-ink-500">{date(key.lastUsedAt)}</td><td className="px-4 py-3 text-xs text-ink-500">{date(key.createdAt)}</td><td className="px-4 py-3">{key.status === "active" && canManage ? <button type="button" disabled={revoking === key.id} onClick={() => void revoke(key)} aria-label={`撤销 ${key.name}`} title="撤销密钥" className="grid h-8 w-8 place-items-center text-ink-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">{revoking === key.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button> : null}</td></tr>)}
             </tbody>
           </table>
         </div>
       )}
-      {showDialog ? <KeyDialog onClose={() => setShowDialog(false)} onCreated={(key, secret) => { setKeys((current) => [key, ...current]); setRevealed(secret); setShowDialog(false); }} /> : null}
+      {showDialog ? <KeyDialog organizationId={organizationId} onClose={() => setShowDialog(false)} onCreated={(key, secret) => { setKeys((current) => [key, ...current]); setRevealed(secret); setShowDialog(false); }} /> : null}
     </ConsolePage>
   );
 }

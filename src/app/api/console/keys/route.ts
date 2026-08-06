@@ -1,18 +1,30 @@
 import {
   consoleError,
   consoleJson,
+  ensureOrganizationKeyManager,
   listConsoleApiKeys,
   mapConsoleApiKey,
   parseConsoleKeyInput,
   requireConsoleContext,
 } from "@/lib/console/server";
+import { listConsoleOrganizations, requireConsoleOrganization } from "@/lib/console/workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    return consoleJson({ keys: await listConsoleApiKeys(await requireConsoleContext()) });
+    const context = await requireConsoleContext();
+    const organizationId = new URL(request.url).searchParams.get("organizationId") || null;
+    if (organizationId) {
+      // Throws 403/404 if the caller isn't a member of this organization.
+      await requireConsoleOrganization(context, organizationId);
+    }
+    const [keys, organizations] = await Promise.all([
+      listConsoleApiKeys(context, organizationId),
+      listConsoleOrganizations(context),
+    ]);
+    return consoleJson({ keys, organizations });
   } catch (error) {
     return consoleError(error);
   }
@@ -22,8 +34,13 @@ export async function POST(request: Request) {
   try {
     const context = await requireConsoleContext();
     const input = parseConsoleKeyInput(await request.json());
+    if (input.organizationId) {
+      const selected = await requireConsoleOrganization(context, input.organizationId);
+      ensureOrganizationKeyManager(selected.membership.role);
+    }
     const { record, plaintext } = await context.repositories.apiKeys.create({
       userId: context.userId,
+      organizationId: input.organizationId,
       name: input.name,
       expiresAt: input.expiresAt,
       quotaLimitMicrocredits: input.quotaLimitMicrocredits,

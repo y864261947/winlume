@@ -1,6 +1,7 @@
 import type {
   ConsoleApiErrorPayload,
   ConsoleApiKey,
+  ConsoleOrganization,
   ConsoleOverview,
   ConsolePresetKind,
   ConsolePersonalityPreset,
@@ -58,12 +59,16 @@ export function getConsoleWallet() {
   return request<ConsoleWalletDetails>("/api/console/wallet", { cache: "no-store" });
 }
 
-export function listConsoleKeys() {
-  return request<{ keys: ConsoleApiKey[] }>("/api/console/keys", { cache: "no-store" });
+export function listConsoleKeys(organizationId?: string | null) {
+  return request<{ keys: ConsoleApiKey[]; organizations: ConsoleOrganization[] }>(
+    `/api/console/keys${organizationQuery(organizationId)}`,
+    { cache: "no-store" },
+  );
 }
 
 export function createConsoleKey(input: {
   name: string;
+  organizationId?: string | null;
   expiresAt?: string | null;
   quotaLimit?: number | null;
   modelScopes?: string[];
