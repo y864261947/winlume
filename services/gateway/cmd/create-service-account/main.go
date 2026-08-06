@@ -1,7 +1,8 @@
 // Command create-service-account is the one-time, operator-run tool that
 // provisions a new internal-application identity: a users row flagged
-// is_service_account, one api_keys row, and a default billing policy. The
-// plaintext key is printed exactly once — it is never stored. See
+// is_service_account, one api_keys row, a default billing policy, and a
+// wallet row. The plaintext key is printed exactly once — it is never
+// stored. See
 // docs/superpowers/specs/2026-08-06-gateway-service-accounts-design.md.
 package main
 
@@ -101,6 +102,11 @@ func execute(ctx context.Context, arguments []string, getenv func(string) string
 		INSERT INTO api_key_billing_policies (api_key_id, billing_group, unlimited, quota_limit)
 		VALUES ($1, $2, false, 0)`, apiKeyID, billingGroup); err != nil {
 		_, _ = fmt.Fprintln(stderr, "create-service-account could not insert the billing policy")
+		return 1
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO wallets (user_id) VALUES ($1)`, userID); err != nil {
+		_, _ = fmt.Fprintln(stderr, "create-service-account could not insert the wallet")
 		return 1
 	}
 	if err := tx.Commit(ctx); err != nil {
