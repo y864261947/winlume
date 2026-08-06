@@ -20,6 +20,7 @@
     "test:gateway": "go -C services/gateway test ./...",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:prod": "node scripts/db-migrate.mjs",
     "migration:new-api": "tsx scripts/migrate-new-api.ts",
     "migration:new-api:dry-run": "tsx scripts/migrate-new-api.ts --dry-run",
     "package:deploy": "node scripts/package-standalone.mjs"

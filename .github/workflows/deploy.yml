@@ -114,6 +114,28 @@ jobs:
             echo 'Refusing native deployment: remove legacy new-api variables from /etc/winlume/web.env first.' >&2
             exit 1
           fi
+          # Apply pending Postgres schema migrations before the new process
+          # starts. Failure here aborts the deploy so code never runs against
+          # a schema it does not understand (e.g. missing columns on login).
+          # DATABASE_URL is read from the package-local .env and optional
+          # /etc/winlume/web.env (later file wins for the same key).
+          set -a
+          # shellcheck disable=SC1091
+          [ -f /opt/winlume/.env ] && . /opt/winlume/.env
+          # shellcheck disable=SC1091
+          [ -f /etc/winlume/web.env ] && . /etc/winlume/web.env
+          set +a
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo 'Refusing deployment: DATABASE_URL is not set; cannot run migrations.' >&2
+            exit 1
+          fi
+          if [ ! -f /opt/winlume/scripts/db-migrate.mjs ]; then
+            echo 'Refusing deployment: scripts/db-migrate.mjs missing from package.' >&2
+            exit 1
+          fi
+          echo 'Running database migrations…'
+          (cd /opt/winlume && node scripts/db-migrate.mjs)
+          echo 'Database migrations complete.'
           cat > /etc/systemd/system/winlume.service <<'UNIT'
           [Unit]
           Description=WinLume Next.js Studio

@@ -104,6 +104,42 @@ for (const directory of contentDirectories) {
   });
 }
 mkdirSync(join(stage, "data"), { recursive: true });
+
+// Ship SQL migrations + the production migrator so deploy can apply schema
+// changes before restarting the web process. Snapshots are not required at
+// runtime (only meta/_journal.json + *.sql).
+{
+  must(join(root, "drizzle", "meta", "_journal.json"), "drizzle journal");
+  must(join(root, "scripts", "db-migrate.mjs"), "db-migrate script");
+  const drizzleStage = join(stage, "drizzle");
+  mkdirSync(join(drizzleStage, "meta"), { recursive: true });
+  cpSync(join(root, "drizzle", "meta", "_journal.json"), join(drizzleStage, "meta", "_journal.json"));
+  for (const entry of readdirSync(join(root, "drizzle"))) {
+    if (!entry.endsWith(".sql")) continue;
+    cpSync(join(root, "drizzle", entry), join(drizzleStage, entry));
+  }
+  mkdirSync(join(stage, "scripts"), { recursive: true });
+  cpSync(join(root, "scripts", "db-migrate.mjs"), join(stage, "scripts", "db-migrate.mjs"));
+
+  // Ensure `pg` is resolvable for the migrator even if the Next standalone
+  // tree omits it (it is a direct dependency of the app, but be explicit).
+  const stagePg = join(stage, "node_modules", "pg");
+  const rootPg = join(root, "node_modules", "pg");
+  if (!existsSync(stagePg) && existsSync(rootPg)) {
+    mkdirSync(join(stage, "node_modules"), { recursive: true });
+    cpSync(rootPg, stagePg, { recursive: true });
+    console.log("bundled node_modules/pg for db-migrate");
+  }
+  // pg's optional native deps / transitive `postgres-array` etc.
+  for (const dep of ["pg-types", "pg-protocol", "pg-connection-string", "pg-pool", "pg-int8", "pgpass", "postgres-array", "postgres-bytea", "postgres-date", "postgres-interval", "xtend", "split2"]) {
+    const from = join(root, "node_modules", dep);
+    const to = join(stage, "node_modules", dep);
+    if (!existsSync(to) && existsSync(from)) {
+      cpSync(from, to, { recursive: true });
+    }
+  }
+}
+
 writeFileSync(
   join(stage, ".env.production.example"),
   [

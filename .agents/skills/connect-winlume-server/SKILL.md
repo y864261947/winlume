@@ -52,6 +52,28 @@ After a restart or deployment, require the service to remain `active` and both l
 
 Prefer `.github/workflows/deploy.yml`. It publishes the standalone artifact using `DEPLOY_HOST`, `DEPLOY_USER`, and `DEPLOY_SSH_PRIVATE_KEY`; set the host secret to `176.122.164.148` and keep the key only in GitHub Secrets.
 
-For a manual release, first build and package locally, upload the artifact, retain `/opt/winlume.previous` for rollback, preserve `.env` and `data`, then restart only `winlume.service`. Do not delete or alter other `/opt` applications.
+Every web deploy must apply Postgres schema migrations **before** restarting `winlume.service`. The workflow does this automatically via:
 
-If a deployment health check fails, restore `/opt/winlume.previous` before broad troubleshooting and verify the same endpoints again.
+```bash
+cd /opt/winlume && node scripts/db-migrate.mjs
+```
+
+The package must contain `drizzle/*.sql`, `drizzle/meta/_journal.json`, and `scripts/db-migrate.mjs`. Migration failure aborts the deploy on purpose so the app never boots against a missing column/table.
+
+For a manual release:
+
+1. Build and package locally (`npm run build && npm run package:deploy`).
+2. Upload the artifact; retain `/opt/winlume.previous` for rollback; preserve `.env` and `data`.
+3. Source env (`/opt/winlume/.env`, optional `/etc/winlume/web.env`) and run `node scripts/db-migrate.mjs`.
+4. Restart only `winlume.service`.
+
+Do not delete or alter other `/opt` applications.
+
+If a deployment health check fails, restore `/opt/winlume.previous` before broad troubleshooting and verify the same endpoints again. If login or any DB-backed path fails with `column … does not exist` / `relation … does not exist`, check migration state first:
+
+```bash
+# on the host
+cd /opt/winlume && set -a && . ./.env; set +a
+node scripts/db-migrate.mjs --dry-run
+psql "$DATABASE_URL" -c 'SELECT id, left(hash,12) AS hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at;'
+```

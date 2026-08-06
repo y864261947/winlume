@@ -161,7 +161,8 @@ Open [http://localhost:3000](http://localhost:3000) — the app redirects into S
 | `npm start` | Serve production build |
 | `npm run gateway:dev` | Watch and run the standalone Fastify gateway |
 | `npm run gateway:start` | Run the standalone Fastify gateway without watch mode |
-| `npm run db:migrate` | Apply WinLume PostgreSQL migrations |
+| `npm run db:migrate` | Apply WinLume PostgreSQL migrations (drizzle-kit) |
+| `npm run db:migrate:prod` | Apply migrations with the standalone-safe runner (used in production deploy) |
 | `npm run migration:new-api:dry-run` | Validate a new-api migration without writing data |
 | `npm run migration:new-api -- --apply ...` | Apply a reviewed new-api migration explicitly |
 | `npm test` | Vitest unit tests |
