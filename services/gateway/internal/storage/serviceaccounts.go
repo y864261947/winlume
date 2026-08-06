@@ -72,7 +72,7 @@ const serviceAccountSelectColumns = `
 		WHERE usage_events.api_key_id = k.id AND usage_events.status = 'settled'), 0) AS total_spent`
 
 // ListServiceAccounts returns one row per API key belonging to a
-// service-account user, newest user first.
+// service-account user, oldest user first.
 func (store *Store) ListServiceAccounts(ctx context.Context) ([]ServiceAccount, error) {
 	if store == nil || store.pool == nil {
 		return nil, ErrUnavailable

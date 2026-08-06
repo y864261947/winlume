@@ -32,9 +32,9 @@ export interface StreamGatewayChatParams {
   messages: GatewayChatMessage[];
   /** Bearer token override; defaults to WINLUME_SERVICE_KEY. Used mainly by tests. */
   token?: string;
-  /** Auth.js/platform user id for the trusted Studio service identity. */
+  /** @deprecated ignored — retained only for call-site compatibility, not read for auth. */
   userId?: string;
-  /** Override the trusted Studio service token. */
+  /** @deprecated ignored — retained only for call-site compatibility, not read for auth. */
   internalToken?: string;
   tools?: unknown[];
   tool_choice?: unknown;
@@ -444,9 +444,9 @@ export interface GenerateImageParams {
   /** Present → calls the image-edit endpoint with every image in order. */
   sourceImages?: { bytes: Buffer; mimeType: string }[];
   token?: string;
-  /** Auth.js/platform user id for the trusted Studio service identity. */
+  /** @deprecated ignored — retained only for call-site compatibility, not read for auth. */
   userId?: string;
-  /** Override the trusted Studio service token. */
+  /** @deprecated ignored — retained only for call-site compatibility, not read for auth. */
   internalToken?: string;
   baseUrl?: string;
   fetchImpl?: typeof fetch;
