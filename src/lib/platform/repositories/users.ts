@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, count, eq, ilike, or, sql } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
 import type { PlatformDatabase } from "../db/client";
 import { users } from "../db/schema";
@@ -99,5 +99,68 @@ export class UserRepository {
       .update(users)
       .set({ authVersion: sql`${users.authVersion} + 1`, updatedAt: new Date() })
       .where(eq(users.id, userId));
+  }
+
+  /** Lists non-service-account platform users for the admin users page. Always
+   * excludes service accounts (those are managed on the Service Accounts page).
+   * `search` matches username/email/displayName via case-insensitive ILIKE. */
+  async list(params: {
+    search?: string;
+    status?: UserStatus;
+    limit: number;
+    offset: number;
+  }): Promise<{ users: PlatformUserRecord[]; total: number }> {
+    const conditions = [eq(users.isServiceAccount, false)];
+
+    const search = params.search?.trim();
+    if (search) {
+      const pattern = `%${search}%`;
+      conditions.push(
+        or(
+          ilike(users.username, pattern),
+          ilike(users.email, pattern),
+          ilike(users.displayName, pattern),
+        )!,
+      );
+    }
+
+    if (params.status) {
+      conditions.push(eq(users.status, params.status));
+    }
+
+    const where = and(...conditions);
+
+    const [rows, [{ value: total }]] = await Promise.all([
+      this.database
+        .select()
+        .from(users)
+        .where(where)
+        .orderBy(users.createdAt)
+        .limit(params.limit)
+        .offset(params.offset),
+      this.database.select({ value: count() }).from(users).where(where),
+    ]);
+
+    return { users: rows, total };
+  }
+
+  async updateStatus(id: string, status: Exclude<UserStatus, "pending">): Promise<PlatformUserRecord> {
+    const [user] = await this.database
+      .update(users)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    if (!user) throw new Error("User not found.");
+    return user;
+  }
+
+  async updatePlatformRole(id: string, role: PlatformRole): Promise<PlatformUserRecord> {
+    const [user] = await this.database
+      .update(users)
+      .set({ platformRole: role, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    if (!user) throw new Error("User not found.");
+    return user;
   }
 }
