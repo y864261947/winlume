@@ -106,16 +106,56 @@ chmod 700 /var/lib/winlume-gateway/recovery
 
 ## Database and migration
 
-Before starting the native web or gateway process:
+### Automatic on every web deploy
+
+The production GitHub Actions workflow (`.github/workflows/deploy.yml`) runs
+schema migrations **after** unpacking the new release and restoring `.env`,
+and **before** restarting `winlume.service`:
+
+```bash
+# remote host, WorkingDirectory=/opt/winlume
+node scripts/db-migrate.mjs
+```
+
+The standalone tarball ships:
+
+- `drizzle/*.sql` and `drizzle/meta/_journal.json`
+- `scripts/db-migrate.mjs` (depends only on `pg`, no `drizzle-kit` on the host)
+
+If migrations fail, the deploy aborts and the new process is **not** started.
+That is intentional: code that expects new columns/tables must never come up
+against an old schema (this is how Google login broke when
+`users.is_service_account` was missing).
+
+`scripts/db-migrate.mjs` is compatible with drizzle-kit's
+`drizzle.__drizzle_migrations` journal. On a legacy database that already
+has tables but an empty journal, it auto-baselines migrations whose effects
+are already present, then applies only the remaining ones.
+
+### Manual / local
+
+From a full repo checkout (dev machines, emergency ops):
 
 ```bash
 npm ci
+# Prefer the production-compatible runner (also works locally):
+npm run db:migrate:prod
+# Or drizzle-kit's own runner (requires drizzle-kit):
 npm run db:migrate
 ```
 
-Apply schema migrations in a maintenance window with a tested PostgreSQL
-backup. The deploy workflow must not automatically import new-api data.
-Migration is a separate, operator-reviewed action:
+On the production host after a manual unpack:
+
+```bash
+cd /opt/winlume
+set -a && . ./.env && [ -f /etc/winlume/web.env ] && . /etc/winlume/web.env; set +a
+node scripts/db-migrate.mjs
+# optional: node scripts/db-migrate.mjs --dry-run
+```
+
+Apply large or risky schema migrations in a maintenance window with a tested
+PostgreSQL backup. The deploy workflow must not automatically import new-api
+data. That migration is a separate, operator-reviewed action:
 
 ```bash
 DATABASE_URL='postgres://winlume:...' \
