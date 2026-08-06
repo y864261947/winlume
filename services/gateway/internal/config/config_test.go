@@ -17,6 +17,7 @@ var gatewayEnvironmentNames = func() []string {
 		"WINLUME_GATEWAY_CORS_ORIGINS",
 		"WINLUME_GATEWAY_INTERNAL_TOKEN",
 		"WINLUME_GATEWAY_STUDIO_TOKEN",
+		"WINLUME_GATEWAY_ADMIN_TOKEN",
 		"WINLUME_GATEWAY_API_KEY_HASHES",
 		"WINLUME_GATEWAY_ALLOW_UNVERIFIED_KEYS",
 		"WINLUME_GATEWAY_USE_PLATFORM_DATABASE",
@@ -370,4 +371,13 @@ func TestValidateRejectsIncompleteBillingConfiguration(t *testing.T) {
 			require.ErrorContains(t, testCase.cfg.Validate(), testCase.want)
 		})
 	}
+}
+
+func TestLoadReadsGatewayAdminToken(t *testing.T) {
+	clearGatewayEnvironment(t)
+	t.Setenv("WINLUME_GATEWAY_ADMIN_TOKEN", "admin-secret")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, "admin-secret", cfg.GatewayAdminToken)
 }
