@@ -4,8 +4,8 @@
  *
  * Output: winlume-deploy.tar.gz (gitignored)
  *
- * The Fastify gateway is intentionally not bundled here. It runs from its
- * own production checkout and systemd unit; see docs/DEPLOY.md.
+ * The Go gateway is intentionally not bundled here. It ships as its own
+ * Linux binary and systemd unit; see docs/DEPLOY.md.
  */
 import {
   cpSync,
@@ -108,7 +108,7 @@ writeFileSync(
   join(stage, ".env.production.example"),
   [
     "# This environment file is for the Next.js web/control-plane process.",
-    "# Deploy the Fastify gateway separately; see docs/DEPLOY.md.",
+    "# Deploy the Go gateway binary separately; see docs/DEPLOY.md.",
     "NODE_ENV=production",
     "PORT=3001",
     "HOSTNAME=127.0.0.1",

@@ -1,0 +1,5 @@
+data: {"id":"chatcmpl_sanitized","choices":[{"index":0,"delta":{"content":"Safe partial"}}]}
+
+data: {"id":"chatcmpl_sanitized","choices":[
+
+: keep-alive

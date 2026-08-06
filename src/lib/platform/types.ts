@@ -21,8 +21,32 @@ export const LEDGER_ENTRY_TYPES = [
 ] as const;
 export type LedgerEntryType = (typeof LEDGER_ENTRY_TYPES)[number];
 
-export const USAGE_EVENT_STATUSES = ["reserved", "settled", "reversed", "failed"] as const;
+export const USAGE_EVENT_STATUSES = ["reserved", "settlement_pending", "settled", "reversed", "failed"] as const;
 export type UsageEventStatus = (typeof USAGE_EVENT_STATUSES)[number];
+
+export const CATALOG_STATES = ["draft", "active", "retired"] as const;
+export type PricingCatalogState = (typeof CATALOG_STATES)[number];
+
+export const PRICE_MODES = ["ratio", "fixed", "tiered_expr"] as const;
+export type PricingMode = (typeof PRICE_MODES)[number];
+
+export const FUNDING_PREFERENCES = [
+  "subscription_first",
+  "wallet_first",
+  "subscription_only",
+  "wallet_only",
+] as const;
+export type FundingPreference = (typeof FUNDING_PREFERENCES)[number];
+
+export const SUBSCRIPTION_QUOTA_LEDGER_ENTRY_TYPES = [
+  "hold",
+  "release",
+  "debit",
+  "refund",
+  "reset",
+  "adjustment",
+] as const;
+export type SubscriptionQuotaLedgerEntryType = (typeof SUBSCRIPTION_QUOTA_LEDGER_ENTRY_TYPES)[number];
 
 export const PRESET_SCOPES = ["personal", "organization"] as const;
 export type PresetScope = (typeof PRESET_SCOPES)[number];

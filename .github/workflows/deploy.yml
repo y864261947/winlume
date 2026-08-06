@@ -6,7 +6,7 @@
 #   DEPLOY_SSH_PRIVATE_KEY   Ed25519 private key authorized on the deploy host
 # Native platform secrets (DATABASE_URL, AUTH_SECRET, WINLUME_GATEWAY_URL,
 # WINLUME_GATEWAY_INTERNAL_TOKEN) are pre-provisioned on the host. The
-# standalone Fastify gateway is released and restarted separately.
+# standalone Go gateway binary is released and restarted separately.
 
 name: Deploy production
 
