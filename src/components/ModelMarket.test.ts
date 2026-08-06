@@ -1,62 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { getApiMenuOptions } from "./ModelMarket";
-import type { CapabilityCatalog } from "@/lib/studio/capabilities";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
-const availableCatalog = {
-  models: ["gpt-5 mini", "ops/model"],
-  capabilities: [
-    { id: "chat", availability: "available", supportedTools: [] },
-    { id: "image.generate", availability: "available", supportedTools: [] },
-    { id: "canvas.generate", availability: "available", supportedTools: [] },
-    { id: "video.generate", availability: "needs_setup", supportedTools: [] },
-  ],
-} satisfies CapabilityCatalog;
+/**
+ * Homepage API categories are static brand rows (302-style).
+ * We assert the source defines the expected category labels without exporting internals.
+ */
+describe("homepage API categories", () => {
+  const source = readFileSync(join(__dirname, "ModelMarket.tsx"), "utf8");
 
-describe("homepage API menu options", () => {
-  it("sends every live chat model to Studio with the selected model", () => {
-    expect(getApiMenuOptions({
-      id: "chat",
-      label: "语言模型",
-      icon: "/chat.svg",
-      capability: "chat",
-      presetId: "chat-default",
-    }, availableCatalog)).toEqual([
-      {
-        id: "gpt-5 mini",
-        label: "gpt-5 mini",
-        href: "/studio?preset=chat-default&model=gpt-5%20mini",
-      },
-      {
-        id: "ops/model",
-        label: "ops/model",
-        href: "/studio?preset=chat-default&model=ops%2Fmodel",
-      },
-    ]);
+  it("lists marketplace-style categories and no popular-models block", () => {
+    for (const label of [
+      "语言大模型",
+      "图片生成",
+      "图片处理",
+      "视频生成",
+      "音视频处理",
+      "信息处理",
+      "RAG相关",
+      "工具API",
+    ]) {
+      expect(source).toContain(`label: "${label}"`);
+    }
+    expect(source).not.toContain("常用模型");
+    expect(source).not.toContain("popularModels");
   });
 
-  it("exposes fixed creation presets only when their capability is available", () => {
-    expect(getApiMenuOptions({
-      id: "image",
-      label: "图片生成",
-      icon: "/image.svg",
-      capability: "image.generate",
-      presetId: "image-default",
-      launchLabel: "打开图像创作",
-    }, availableCatalog)).toEqual([
-      {
-        id: "image-default",
-        label: "打开图像创作",
-        href: "/studio?preset=image-default",
-      },
-    ]);
-
-    expect(getApiMenuOptions({
-      id: "video",
-      label: "视频生成",
-      icon: "/video.svg",
-      capability: "video.generate",
-      presetId: "video-default",
-      launchLabel: "打开视频创作",
-    }, availableCatalog)).toEqual([]);
+  it("renders brand chips without 通用接口 and caps at 5", () => {
+    expect(source).toContain("portal-api-brands");
+    expect(source).toContain("portal-api-brand");
+    expect(source).toContain('label: "OpenAI"');
+    expect(source).toContain('label: "Anthropic"');
+    expect(source).toContain('label: "Recraft"');
+    expect(source).not.toMatch(/label:\s*"通用接口"/);
+    expect(source).toContain("API_BRAND_LIMIT = 5");
   });
 });
+

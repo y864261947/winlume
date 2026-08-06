@@ -88,6 +88,42 @@ func TestNewAPIParity(t *testing.T) {
 	}
 }
 
+// TestNewAPITextQuotaFormulaParity locks the production reconciliation case:
+// new-api PostTextConsumeQuota computes
+//
+//	quota = (prompt + completion * completion_ratio) * model_ratio * group_ratio
+//
+// For gpt-5.5 with prompt=1780, completion=340 (includes reasoning),
+// model_ratio=2.5, completion_ratio=6, group_ratio=0.25 the result is 2388.
+func TestNewAPITextQuotaFormulaParity(t *testing.T) {
+	engine := NewEngine()
+	quote := Quote{
+		Mode:       ModeRatio,
+		Model:      "gpt-5.5",
+		GroupRatio: decimal.RequireFromString("0.25"),
+		Rule: Rule{
+			ModelKey:        "gpt-5.5",
+			Mode:            ModeRatio,
+			ModelRatio:      decimal.RequireFromString("2.5"),
+			CompletionRatio: decimal.RequireFromString("6"),
+			CacheReadRatio:  decimal.RequireFromString("0.1"),
+		},
+		QuotaPerUnit:      decimal.NewFromInt(500000),
+		PreConsumedTokens: 500,
+		ReservedQuota:     0,
+	}
+	// Reasoning stays inside TextOutputTokens; it is not an extra line item.
+	actual := usage.Canonical{
+		TextInputTokens:  1780,
+		TextOutputTokens: 340,
+		ReasoningTokens:  136,
+		Fields:           map[string]usage.Provenance{},
+	}
+	charge, err := engine.Calculate(quote, actual)
+	require.NoError(t, err)
+	require.Equal(t, int64(2388), charge.Quota)
+}
+
 func TestEngineRejectsUnsafeArithmetic(t *testing.T) {
 	engine := NewEngine()
 	quote := Quote{

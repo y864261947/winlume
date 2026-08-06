@@ -483,7 +483,7 @@ func TestHandlePublicRequestRetriesAndRecordsAttemptHistory(t *testing.T) {
 	request.Header.Set("x-winlume-internal-user-id", uuid.NewString())
 	response := httptest.NewRecorder()
 
-	handlePublicRequest(response, request, route, cfg, configuredAPIKeyLookup{}, lifecycle, relayClient, logger, metrics)
+	handlePublicRequest(response, request, route, cfg, configuredAPIKeyLookup{}, nil, lifecycle, relayClient, logger, metrics)
 
 	require.Equal(t, http.StatusOK, response.Code)
 	require.GreaterOrEqual(t, int(atomic.LoadInt32(&upstreamCalls)), 2, "the retrying Relay path must retry the first 503")

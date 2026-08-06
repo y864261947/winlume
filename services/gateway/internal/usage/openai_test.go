@@ -14,6 +14,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestOpenAIReasoningRemainsInsideBillableTextOutput(t *testing.T) {
+	// Mirrors the production gpt-5.5 reconciliation case against new-api:
+	// completion_tokens includes reasoning_tokens, and the full total is billed.
+	actual, err := normalizeOpenAIUsage(map[string]any{
+		"prompt_tokens":     json.Number("1780"),
+		"completion_tokens": json.Number("340"),
+		"total_tokens":      json.Number("2120"),
+		"completion_tokens_details": map[string]any{
+			"reasoning_tokens": json.Number("136"),
+		},
+	}, "openai", Estimate{})
+	require.NoError(t, err)
+	require.Equal(t, int64(1780), actual.TextInputTokens)
+	require.Equal(t, int64(340), actual.TextOutputTokens)
+	require.Equal(t, int64(136), actual.ReasoningTokens)
+	require.Equal(t, Upstream, actual.Fields["text_output_tokens"])
+}
+
 func TestOpenAIJSONNormalizesUsageDetails(t *testing.T) {
 	payload, err := os.ReadFile(filepath.Join("..", "..", "testdata", "usage", "openai", "chat.json"))
 	require.NoError(t, err)
@@ -26,7 +44,9 @@ func TestOpenAIJSONNormalizesUsageDetails(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(120), actual.RawInputTokens)
 	require.Equal(t, int64(85), actual.TextInputTokens)
-	require.Equal(t, int64(22), actual.TextOutputTokens)
+	// completion_tokens=30 includes reasoning_tokens=8; new-api bills the full
+	// completion total, so TextOutputTokens must keep reasoning inside it.
+	require.Equal(t, int64(30), actual.TextOutputTokens)
 	require.Equal(t, int64(8), actual.ReasoningTokens)
 	require.Equal(t, int64(20), actual.CacheReadTokens)
 	require.Equal(t, int64(10), actual.ImageInputTokens)
@@ -34,7 +54,7 @@ func TestOpenAIJSONNormalizesUsageDetails(t *testing.T) {
 	require.Equal(t, decimal.RequireFromString("0.012345"), actual.ProviderCostUSD)
 	require.Equal(t, Upstream, actual.Fields["raw_input_tokens"])
 	require.Equal(t, Derived, actual.Fields["text_input_tokens"])
-	require.Equal(t, Derived, actual.Fields["text_output_tokens"])
+	require.Equal(t, Upstream, actual.Fields["text_output_tokens"])
 	require.Equal(t, Upstream, actual.Fields["reasoning_tokens"])
 	require.Equal(t, ProviderCost, actual.Fields["provider_cost_usd"])
 	require.True(t, actual.Complete)
@@ -236,7 +256,9 @@ func TestResponsesJSONUsesResponsesAliasesWithoutDoubleCounting(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(200), actual.RawInputTokens)
 	require.Equal(t, int64(120), actual.TextInputTokens)
-	require.Equal(t, int64(56), actual.TextOutputTokens)
+	// output_tokens=80 with image=4 + audio=5 carved out for separate ratios;
+	// reasoning=15 remains inside the billable text total (80-4-5=71).
+	require.Equal(t, int64(71), actual.TextOutputTokens)
 	require.Equal(t, int64(30), actual.CacheReadTokens)
 	require.Equal(t, int64(40), actual.ImageInputTokens)
 	require.Equal(t, int64(10), actual.AudioInputTokens)
@@ -310,7 +332,8 @@ func TestResponsesSSEReadsCompletedUsageAndTerminalEvent(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(33), actual.RawInputTokens)
 	require.Equal(t, int64(28), actual.TextInputTokens)
-	require.Equal(t, int64(8), actual.TextOutputTokens)
+	// output_tokens=12 includes reasoning_tokens=4 for new-api parity.
+	require.Equal(t, int64(12), actual.TextOutputTokens)
 	require.Equal(t, int64(5), actual.CacheReadTokens)
 	require.Equal(t, int64(4), actual.ReasoningTokens)
 	require.True(t, actual.Complete)
@@ -511,7 +534,8 @@ func TestGrokUsesOpenAIUsageAndDerivesMissingCompletionTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(50), actual.RawInputTokens)
 	require.Equal(t, int64(40), actual.TextInputTokens)
-	require.Equal(t, int64(10), actual.TextOutputTokens)
+	// total-input derived completion is 12; reasoning=2 stays inside that total.
+	require.Equal(t, int64(12), actual.TextOutputTokens)
 	require.Equal(t, int64(2), actual.ReasoningTokens)
 	require.Equal(t, Derived, actual.Fields["text_output_tokens"])
 	require.True(t, actual.Complete)
