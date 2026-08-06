@@ -158,7 +158,6 @@ describe("streamGatewayChat", () => {
     expect(init.method).toBe("POST");
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer test-token");
-    expect(headers["New-Api-User"]).toBe("42");
     const body = JSON.parse(String(init.body)) as {
       model: string;
       stream: boolean;
@@ -213,10 +212,12 @@ describe("streamGatewayChat", () => {
     expect(out).toEqual([{ kind: "text", text: "full reply" }]);
   });
 
-  it("uses the native internal identity without inheriting legacy transport headers", async () => {
+  it("ignores userId/internalToken and legacy env vars, sending only the Authorization bearer token", async () => {
     vi.stubEnv("WINLUME_AUTH_MODE", "winlume");
     vi.stubEnv("NEW_API_URL", "https://retired-new-api.example");
     vi.stubEnv("WINLUME_GATEWAY_TOKEN", "retired-token");
+    vi.stubEnv("WINLUME_GATEWAY_INTERNAL_TOKEN", "retired-internal-token");
+    vi.stubEnv("WINLUME_SERVICE_KEY", "wl_service_native");
     const fetchImpl = vi.fn(async () => new Response("data: [DONE]\n\n", {
       status: 200,
       headers: { "content-type": "text/event-stream" },
@@ -237,10 +238,10 @@ describe("streamGatewayChat", () => {
     expect(chunks).toEqual([]);
     const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
-    expect(headers.Authorization).toBeUndefined();
+    expect(headers.Authorization).toBe("Bearer wl_service_native");
     expect(headers["New-Api-User"]).toBeUndefined();
-    expect(headers["x-winlume-internal-token"]).toBe("studio-secret");
-    expect(headers["x-winlume-internal-user-id"]).toBe("user-1");
+    expect(headers["x-winlume-internal-token"]).toBeUndefined();
+    expect(headers["x-winlume-internal-user-id"]).toBeUndefined();
     vi.unstubAllEnvs();
   });
 });
@@ -361,5 +362,25 @@ describe("generateImage", () => {
         fetchImpl: fetchImpl as unknown as typeof fetch,
       }),
     ).rejects.toThrow("quota exceeded");
+  });
+});
+
+describe("streamGatewayChat auth", () => {
+  it("sends WINLUME_SERVICE_KEY as a Bearer token when no explicit token is passed", async () => {
+    const originalKey = process.env.WINLUME_SERVICE_KEY;
+    process.env.WINLUME_SERVICE_KEY = "wl_service_test";
+    const fetchImpl = vi.fn(async () =>
+      new Response("data: [DONE]\n\n", { headers: { "content-type": "text/event-stream" } }),
+    );
+    try {
+      const generator = streamGatewayChat({ model: "gpt-4.1-mini", messages: [], fetchImpl });
+      for await (const _chunk of generator) {
+        // drain
+      }
+      const headers = fetchImpl.mock.calls[0][1]?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe("Bearer wl_service_test");
+    } finally {
+      process.env.WINLUME_SERVICE_KEY = originalKey;
+    }
   });
 });
