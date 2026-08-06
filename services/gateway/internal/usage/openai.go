@@ -978,13 +978,21 @@ func normalizeOpenAIUsage(document map[string]any, protocol string, estimate Est
 		result.Fields["audio_output_tokens"] = Upstream
 	}
 	if hasOutput && output > 0 {
+		// new-api PostTextConsumeQuota bills completion_tokens as a whole:
+		// completionQuota = completionTokens * completionRatio. Reasoning is a
+		// reported subcategory of that total and must stay billable inside
+		// TextOutputTokens (see pricing.Engine ratioChargeComponents).
+		// Carve out only image/audio output tokens, which this gateway prices
+		// at separate ratios and would otherwise double-charge.
 		result.TextOutputTokens = output
 		result.Fields["text_output_tokens"] = outputProvenance
-		if outputText > 0 {
-			result.TextOutputTokens = outputText
-		} else if outputCategories > 0 && output >= outputCategories {
-			result.TextOutputTokens = output - outputCategories
+		separatelyPriced := imageOutput + audioOutput
+		if separatelyPriced > 0 && output >= separatelyPriced {
+			result.TextOutputTokens = output - separatelyPriced
 			result.Fields["text_output_tokens"] = Derived
+		} else if outputText > 0 && reasoning == 0 && separatelyPriced == 0 {
+			// Explicit text_tokens with no category split: trust the detail.
+			result.TextOutputTokens = outputText
 		}
 	}
 

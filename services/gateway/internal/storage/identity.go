@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -51,6 +52,39 @@ func (store *Store) LookupAPIKey(ctx context.Context, digest string) (identity.I
 		result.QuotaLimit = &limit
 	}
 	return result, nil
+}
+
+// EnrichIdentityBilling fills empty UserGroup/BillingGroup from
+// billing_profiles.default_group so Studio (and other paths that authenticate
+// without an API-key policy) resolve the same group_ratio new-api would use
+// for a matching group name. Existing non-empty groups from API-key policies
+// are left untouched. Missing profiles default both groups to "default".
+func (store *Store) EnrichIdentityBilling(ctx context.Context, id identity.Identity) (identity.Identity, error) {
+	if store == nil || store.pool == nil || id.UserID == uuid.Nil {
+		return id, ErrUnavailable
+	}
+	if id.UserGroup != "" && id.BillingGroup != "" {
+		return id, nil
+	}
+	var defaultGroup string
+	err := store.pool.QueryRow(ctx, `
+		SELECT default_group FROM billing_profiles WHERE user_id = $1`, id.UserID).Scan(&defaultGroup)
+	if errors.Is(err, pgx.ErrNoRows) {
+		defaultGroup = "default"
+	} else if err != nil {
+		return id, ErrUnavailable
+	}
+	defaultGroup = strings.TrimSpace(defaultGroup)
+	if defaultGroup == "" {
+		defaultGroup = "default"
+	}
+	if id.UserGroup == "" {
+		id.UserGroup = defaultGroup
+	}
+	if id.BillingGroup == "" {
+		id.BillingGroup = defaultGroup
+	}
+	return id, nil
 }
 
 // MarkAPIKeyUsed is deliberately best-effort and is called only after a key

@@ -147,6 +147,7 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 	var lifecycle billing.Lifecycle
 	var billingReady httpapi.ReadinessProbe
 	var internalHandler http.Handler
+	var enrichIdentity func(context.Context, identity.Identity) (identity.Identity, error)
 
 	if cfg.BillingMode == config.BillingShadow || cfg.BillingMode == config.BillingAuthoritative {
 		store, storageErr := openStore(ctx, cfg.DatabaseURL)
@@ -155,6 +156,9 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 			return storageErr
 		}
 		defer store.Close()
+		if enricher, ok := store.(identityBillingEnricher); ok {
+			enrichIdentity = enricher.EnrichIdentityBilling
+		}
 
 		// background collects every long-running goroutine started for this
 		// billing mode (the recovery worker, its metrics poller) so shutdown
@@ -209,7 +213,7 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 		InternalHandler: internalHandler,
 		MetricsHandler:  metrics.Handler(),
 		PublicHandler: func(response http.ResponseWriter, request *http.Request, route httpapi.Route) {
-			handlePublicRequest(response, request, route, cfg, lookup, lifecycle, relayClient, logger, metrics)
+			handlePublicRequest(response, request, route, cfg, lookup, enrichIdentity, lifecycle, relayClient, logger, metrics)
 		},
 	})
 	httpServer := &http.Server{
@@ -406,12 +410,19 @@ func shadowEventsHandler(store gatewayStore) http.Handler {
 	})
 }
 
+// identityBillingEnricher loads billing_profiles groups for identities that
+// authenticated without an API-key policy (Studio internal token).
+type identityBillingEnricher interface {
+	EnrichIdentityBilling(context.Context, identity.Identity) (identity.Identity, error)
+}
+
 func handlePublicRequest(
 	response http.ResponseWriter,
 	request *http.Request,
 	route httpapi.Route,
 	cfg config.Config,
 	lookup identity.APIKeyLookup,
+	enrichIdentity func(context.Context, identity.Identity) (identity.Identity, error),
 	lifecycle billing.Lifecycle,
 	relayClient *relay.Client,
 	logger *observability.Logger,
@@ -436,6 +447,18 @@ func handlePublicRequest(
 		}
 		httpapi.WriteError(response, http.StatusUnauthorized, "authentication_error", "missing_or_invalid_api_key", "Provide a valid API key or trusted Studio identity", requestID)
 		return
+	}
+	if enrichIdentity != nil && resolved.Source == identity.SourceStudio {
+		enriched, enrichErr := enrichIdentity(request.Context(), resolved)
+		if enrichErr != nil {
+			if cfg.BillingMode == config.BillingAuthoritative {
+				recordOutcome("billing_error")
+				httpapi.WriteError(response, http.StatusServiceUnavailable, "billing_error", "billing_unavailable", "Billing identity could not be resolved", requestID)
+				return
+			}
+		} else {
+			resolved = enriched
+		}
 	}
 
 	var bodyStore *httpapi.BodyStore
