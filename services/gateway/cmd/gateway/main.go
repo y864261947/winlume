@@ -20,6 +20,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"winlume/services/gateway/internal/adminapi"
 	"winlume/services/gateway/internal/billing"
 	"winlume/services/gateway/internal/config"
 	"winlume/services/gateway/internal/httpapi"
@@ -82,6 +83,7 @@ type gatewayStore interface {
 	Health(ctx context.Context) error
 	HasRequiredTables(ctx context.Context, tables []string) (bool, error)
 	ListShadows(ctx context.Context, filter storage.ShadowFilter) (storage.ShadowPage, error)
+	adminapi.Store
 	Close()
 }
 
@@ -147,6 +149,7 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 	var lifecycle billing.Lifecycle
 	var billingReady httpapi.ReadinessProbe
 	var internalHandler http.Handler
+	var adminHandler http.Handler
 	var enrichIdentity func(context.Context, identity.Identity) (identity.Identity, error)
 
 	if cfg.BillingMode == config.BillingShadow || cfg.BillingMode == config.BillingAuthoritative {
@@ -177,6 +180,9 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 		}
 
 		lookup = store
+		if cfg.GatewayAdminToken != "" {
+			adminHandler = adminapi.NewHandler(store)
+		}
 		if cfg.BillingMode == config.BillingShadow {
 			lifecycle = billing.NewShadowService(store, store)
 			internalHandler = shadowEventsHandler(store)
@@ -211,6 +217,7 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 		},
 		BillingReady:    billingReady,
 		InternalHandler: internalHandler,
+		AdminHandler:    adminHandler,
 		MetricsHandler:  metrics.Handler(),
 		PublicHandler: func(response http.ResponseWriter, request *http.Request, route httpapi.Route) {
 			handlePublicRequest(response, request, route, cfg, lookup, enrichIdentity, lifecycle, relayClient, logger, metrics)
