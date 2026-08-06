@@ -47,6 +47,7 @@ next-env.d.ts
 /_deploy_clean/
 /_tmp_newmax_extract/
 /_tmp_newmax_peek/
+/tmp-docs/
 
 # local ops (secrets)
 /docs/INFRA.md

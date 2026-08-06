@@ -25,7 +25,6 @@ const navigation = [
   { href: "/account/wallet", aliases: ["/account/usage"], label: "钱包与用量", mobileLabel: "钱包", icon: WalletCards },
   { href: "/account/personalization", label: "人格与工具", mobileLabel: "设置", icon: Settings2 },
   { href: "/account/team", label: "团队", mobileLabel: "团队", icon: UsersRound },
-  { href: "/account/api", label: "API 文档", mobileLabel: "API", icon: BookOpen },
   { href: "/account/community", label: "交流社区", mobileLabel: "社区", icon: Store },
 ];
 
@@ -83,6 +82,7 @@ export default function AccountShell({ children }: { children: ReactNode }) {
               <Link href="/products?cate=app">AI 应用</Link>
               <Link href="/studio">智能体</Link>
               <Link href="/products?cate=api">API</Link>
+              <Link href="/docs">文档</Link>
               <Link href="/business">企业服务</Link>
             </nav>
             <div className="portal-user-links">
@@ -144,7 +144,7 @@ export default function AccountShell({ children }: { children: ReactNode }) {
             </nav>
             <div className="portal-account-side-help">
               <p>帮助与支持</p>
-              <Link href="/account/api">
+              <Link href="/docs" target="_blank" rel="noreferrer">
                 <BookOpen aria-hidden />
                 文档中心
               </Link>

@@ -688,6 +688,7 @@ export default function ModelMarket() {
               <PortalLink href="/products?cate=app">AI 应用</PortalLink>
               <PortalLink href="/studio">智能体</PortalLink>
               <PortalLink href="/products?cate=api">API</PortalLink>
+              <PortalLink href="/docs">文档</PortalLink>
               <PortalLink href="/business">企业服务</PortalLink>
             </nav>
             <div className="portal-user-links">
