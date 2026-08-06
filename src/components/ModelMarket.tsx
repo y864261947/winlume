@@ -190,7 +190,7 @@ const productPaths = [
     id: "api",
     index: "01",
     title: "一个 API Key，连接全部模型",
-    outcome: "对话、图像、视频与语音统一接入，OpenAI 兼容调用。",
+    outcome: "多模态统一接入，OpenAI 兼容，换模型不用改代码。",
     meta: "模型 API",
     href: "/products?cate=api",
     cta: "浏览模型",
@@ -233,7 +233,7 @@ const productPaths = [
     outcome: "选题、分镜、画面与导出串成一条流水线。",
     meta: "视频创作",
     href: "/studio?preset=video-default",
-    cta: "打开视频台",
+    cta: "开始创作",
     preview: {
       kind: "video" as const,
       eyebrow: "Studio · Video",
@@ -250,7 +250,7 @@ const productPaths = [
     id: "workflow",
     index: "04",
     title: "把重复任务收成可运行的流程",
-    outcome: "连接模型、工具与人工审核，按模板启动。",
+    outcome: "模型、工具与人工审核连成模板，一点即跑。",
     meta: "工作流",
     href: "/studio/skills",
     cta: "查看模板",
@@ -289,8 +289,8 @@ const productPaths = [
   {
     id: "business",
     index: "06",
-    title: "让 AI 进入企业工作流程",
-    outcome: "知识库、客服销售与私有化部署，可管可控。",
+    title: "私有化与专属部署，按你的流程接",
+    outcome: "知识库、权限审批与专属环境，从方案到上线有人对接。",
     meta: "企业方案",
     href: "/business",
     cta: "查看方案",
@@ -845,30 +845,7 @@ export default function ModelMarket() {
             <div className="portal-ed-stage-glow" aria-hidden />
             <div className="portal-ed-stage-head">
               <p className="portal-ed-kicker">Product paths</p>
-              <div className="portal-ed-stage-head-row">
-                <h2 id="portal-paths-title">选一条路径，先看见产品，再决定进入</h2>
-                <p className="portal-ed-lede">
-                  模型接入、创作工作台、团队治理与企业部署，每条路径对应一个可直接开始的结果。
-                </p>
-              </div>
-              <dl className="portal-ed-metrics" aria-label="平台要点">
-                <div>
-                  <dt>统一接口</dt>
-                  <dd>OpenAI 兼容</dd>
-                </div>
-                <div>
-                  <dt>创作面</dt>
-                  <dd>图 · 视频 · 对话</dd>
-                </div>
-                <div>
-                  <dt>治理</dt>
-                  <dd>Key · 预算 · 审计</dd>
-                </div>
-                <div>
-                  <dt>企业</dt>
-                  <dd>私有化可选</dd>
-                </div>
-              </dl>
+              <h2 id="portal-paths-title">选一条路径，先看见产品，再决定进入</h2>
             </div>
 
             <div className="portal-ed-stage-body">
