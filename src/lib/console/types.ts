@@ -59,6 +59,16 @@ export type ConsoleUsagePoint = {
   requests: number;
 };
 
+export type ConsoleUsageByKey = {
+  apiKeyId: string;
+  keyName: string;
+  keyPrefix: string;
+  ownerName: string | null;
+  requests: number;
+  settledCredits: number;
+  reservedCredits: number;
+};
+
 export type ConsoleOverview = {
   wallet: ConsoleWallet;
   apiKeyCount: number;

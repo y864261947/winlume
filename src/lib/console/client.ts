@@ -9,6 +9,7 @@ import type {
   ConsoleTeam,
   ConsoleTeamMember,
   ConsoleToolPreset,
+  ConsoleUsageByKey,
   ConsoleWalletDetails,
 } from "./types";
 
@@ -84,6 +85,13 @@ export function revokeConsoleKey(id: string) {
   return request<{ key: ConsoleApiKey }>(`/api/console/keys/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
+}
+
+export function getConsoleUsageByKey(organizationId?: string | null) {
+  return request<{ items: ConsoleUsageByKey[] }>(
+    `/api/console/usage/by-key${organizationQuery(organizationId)}`,
+    { cache: "no-store" },
+  );
 }
 
 function organizationQuery(organizationId?: string | null): string {

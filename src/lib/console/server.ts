@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import { getCurrentUserId } from "@/lib/auth/session";
 import {
   canManageOrganizationResources,
@@ -13,6 +13,7 @@ import type {
   ConsoleLedgerEntry,
   ConsoleOverview,
   ConsolePaymentOrder,
+  ConsoleUsageByKey,
   ConsoleUsagePoint,
   ConsoleWalletDetails,
 } from "./types";
@@ -145,6 +146,94 @@ export async function listConsoleApiKeys(
   return records
     .map((record) => mapConsoleApiKey(record, usedByKey.get(record.id) ?? BigInt(0), ownerNames?.get(record.userId) ?? null))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+/**
+ * Breaks down usage (requests, settled/reserved credits) by API key over the
+ * trailing `sinceDays` days.
+ *
+ * Personal view (organizationId omitted): scopes to usageEvents.userId ===
+ * context.userId, same rows getConsoleOverview already sums, just grouped by
+ * apiKeyId instead of by day.
+ *
+ * Organization view (organizationId provided): scopes to
+ * usageEvents.organizationId. That column is populated by the Go gateway at
+ * write time from the resolved caller identity's organization (see
+ * services/gateway/internal/billing/service.go, which sets
+ * `OrganizationID: operation.Identity.OrganizationID` on the insert in
+ * services/gateway/internal/storage/billing.go) — not derived after the
+ * fact from the key's current organizationId — so it reliably reflects every
+ * member's usage under the org's keys, not just the caller's own keys, and we
+ * scope directly on usageEvents.organizationId rather than joining through
+ * apiKeys.organizationId.
+ *
+ * Callers must verify the caller's membership/permissions in that
+ * organization before passing organizationId — this function does not
+ * re-check access (mirrors listConsoleApiKeys above).
+ */
+export async function getConsoleUsageByKey(
+  context: ConsoleRequestContext,
+  organizationId?: string | null,
+  sinceDays = 14,
+): Promise<ConsoleUsageByKey[]> {
+  const database = getPlatformDb();
+  if (!database) throw new ConsoleRequestError("平台数据库尚未配置。", 503, "platform_not_configured");
+
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - (sinceDays - 1));
+  since.setUTCHours(0, 0, 0, 0);
+
+  const scopeCondition = organizationId
+    ? eq(usageEvents.organizationId, organizationId)
+    : eq(usageEvents.userId, context.userId);
+
+  const rows = await database
+    .select({
+      apiKeyId: usageEvents.apiKeyId,
+      requests: sql<string>`count(*) filter (where ${usageEvents.status} = 'settled')`,
+      settled: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'settled' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
+      reserved: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'reserved' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
+    })
+    .from(usageEvents)
+    .where(and(scopeCondition, gte(usageEvents.occurredAt, since), isNotNull(usageEvents.apiKeyId)))
+    .groupBy(usageEvents.apiKeyId);
+
+  const apiKeyIds = rows.map((row) => row.apiKeyId).filter((id): id is string => Boolean(id));
+  if (apiKeyIds.length === 0) return [];
+
+  // Reuse the same key listing the keys feature uses per workspace, so key
+  // name/prefix labels stay consistent with what ConsoleKeysContent shows.
+  const keyRecords = organizationId
+    ? await context.repositories.apiKeys.listForOrganization(organizationId)
+    : await context.repositories.apiKeys.listForUser(context.userId);
+  const keysById = new Map(keyRecords.map((record) => [record.id, record]));
+
+  let ownerNames: Map<string, string> | null = null;
+  if (organizationId) {
+    const uniqueOwnerIds = [...new Set(keyRecords.map((record) => record.userId))];
+    const owners = await Promise.all(uniqueOwnerIds.map((id) => context.repositories.users.findById(id)));
+    ownerNames = new Map(
+      owners
+        .filter((owner): owner is NonNullable<typeof owner> => Boolean(owner))
+        .map((owner) => [owner.id, owner.displayName]),
+    );
+  }
+
+  return rows
+    .filter((row): row is typeof row & { apiKeyId: string } => Boolean(row.apiKeyId))
+    .map((row) => {
+      const record = keysById.get(row.apiKeyId);
+      return {
+        apiKeyId: row.apiKeyId,
+        keyName: record?.name ?? "未知 Key",
+        keyPrefix: record?.keyPrefix ?? "--",
+        ownerName: organizationId && record ? ownerNames?.get(record.userId) ?? null : null,
+        requests: Number(row.requests),
+        settledCredits: microcreditsToCredits(BigInt(row.settled)),
+        reservedCredits: microcreditsToCredits(BigInt(row.reserved)),
+      };
+    })
+    .sort((left, right) => right.settledCredits - left.settledCredits);
 }
 
 /** Same permission tier team.ts uses for member management (owner/admin), scoped to API keys. */
