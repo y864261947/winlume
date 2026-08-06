@@ -1,5 +1,6 @@
-import AccountApiContent from "@/components/account/AccountApiContent";
+import { redirect } from "next/navigation";
 
+/** 旧账户内 API 文档页 → 独立文档中心 */
 export default function AccountApiPage() {
-  return <AccountApiContent />;
+  redirect("/docs/api");
 }

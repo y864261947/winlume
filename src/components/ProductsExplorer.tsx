@@ -151,6 +151,7 @@ export default function ProductsExplorer({
               >
                 API
               </Link>
+              <Link href="/docs">文档</Link>
               <Link href="/business">企业服务</Link>
             </nav>
             <div className="portal-user-links">
