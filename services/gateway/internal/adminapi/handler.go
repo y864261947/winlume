@@ -28,6 +28,7 @@ type Store interface {
 	RevokeServiceAccountKey(ctx context.Context, apiKeyID uuid.UUID) error
 	PricingStore
 	ChannelStore
+	ModelAvailabilityStore
 }
 
 // NewHandler builds the /internal/admin/* mux (service accounts and quick-
@@ -40,6 +41,7 @@ func NewHandler(store Store) http.Handler {
 	mux.HandleFunc("POST /internal/admin/service-accounts/{id}/revoke", revokeHandler(store))
 	registerPricingRoutes(mux, store)
 	registerChannelRoutes(mux, store)
+	registerModelAvailabilityRoutes(mux, store)
 	return mux
 }
 

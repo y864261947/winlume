@@ -69,6 +69,15 @@ export type ConsoleUsageByKey = {
   reservedCredits: number;
 };
 
+export type ConsoleOrganizationUsageRollup = {
+  periodStart: string;
+  periodEnd: string;
+  totalRequests: number;
+  totalSettledCredits: number;
+  totalReservedCredits: number;
+  byKey: ConsoleUsageByKey[];
+};
+
 export type ConsoleOverview = {
   wallet: ConsoleWallet;
   apiKeyCount: number;

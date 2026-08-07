@@ -1,16 +1,33 @@
 "use client";
 
-import { Activity, Gauge, LoaderCircle, ReceiptText } from "lucide-react";
+import { Activity, Gauge, LoaderCircle, ReceiptText, Users, Wallet } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { ConsoleEmptyState, ConsolePage } from "@/components/console/ConsolePage";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getConsoleOverview, getConsoleUsageByKey, listConsoleKeys } from "@/lib/console/client";
-import type { ConsoleOrganization, ConsoleOverview, ConsoleUsageByKey } from "@/lib/console/types";
+import {
+  getConsoleOrganizationUsageRollup,
+  getConsoleOverview,
+  getConsoleUsageByKey,
+  listConsoleKeys,
+} from "@/lib/console/client";
+import type {
+  ConsoleOrganization,
+  ConsoleOrganizationUsageRollup,
+  ConsoleOverview,
+  ConsoleUsageByKey,
+} from "@/lib/console/types";
 
 function number(value: number) {
   return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value);
+}
+
+function monthLabel(isoDate: string) {
+  const parsed = new Date(isoDate);
+  return Number.isNaN(parsed.getTime())
+    ? "--"
+    : new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "long" }).format(parsed);
 }
 
 export default function AccountUsageContent() {
@@ -18,8 +35,10 @@ export default function AccountUsageContent() {
   const [organizations, setOrganizations] = useState<ConsoleOrganization[]>([]);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [byKey, setByKey] = useState<ConsoleUsageByKey[]>([]);
+  const [rollup, setRollup] = useState<ConsoleOrganizationUsageRollup | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [byKeyError, setByKeyError] = useState<string | null>(null);
+  const [rollupError, setRollupError] = useState<string | null>(null);
 
   // The day-by-date overview endpoint (/api/console/overview) isn't
   // organization-aware — it always scopes to the caller's own usage — so
@@ -53,13 +72,33 @@ export default function AccountUsageContent() {
     }
   }, []);
 
+  // Org-only rollup (total spend/requests across every key in the workspace
+  // for the current billing month) — a personal workspace has a single
+  // owner, so the trailing-window by-key table above already covers it.
+  const loadRollup = useCallback(async (targetOrganizationId: string | null) => {
+    if (!targetOrganizationId) {
+      setRollup(null);
+      setRollupError(null);
+      return;
+    }
+    setRollupError(null);
+    try {
+      const result = await getConsoleOrganizationUsageRollup(targetOrganizationId);
+      setRollup(result);
+    } catch (reason) {
+      setRollup(null);
+      setRollupError(reason instanceof Error ? reason.message : "无法加载工作区用量汇总。");
+    }
+  }, []);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadOverview();
       void loadByKey(organizationId);
+      void loadRollup(organizationId);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [organizationId, loadOverview, loadByKey]);
+  }, [organizationId, loadOverview, loadByKey, loadRollup]);
 
   function selectWorkspace(nextOrganizationId: string | null) {
     setOrganizationId(nextOrganizationId);
@@ -98,6 +137,61 @@ export default function AccountUsageContent() {
             icon={Gauge}
           />
         </div>
+        {organizationId ? (
+          <Card className="mt-7">
+            <CardHeader>
+              <CardTitle>工作区用量汇总</CardTitle>
+              <CardDescription>
+                {rollup ? `${monthLabel(rollup.periodStart)}，跨该工作区下全部 Key 的合计` : "跨该工作区下全部 Key 的合计（当前计费月）"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {rollupError ? (
+                <p role="alert" className="border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{rollupError}</p>
+              ) : rollup ? (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <StatTile label="本月已结算额度" value={number(rollup.totalSettledCredits)} icon={Wallet} tone="primary" />
+                    <StatTile label="本月请求数" value={number(rollup.totalRequests)} icon={Activity} />
+                    <StatTile label="预留额度" value={number(rollup.totalReservedCredits)} icon={Users} />
+                  </div>
+                  {rollup.byKey.length > 0 ? (
+                    <Table className="mt-5 min-w-[640px]">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Key</TableHead>
+                          <TableHead>所有者</TableHead>
+                          <TableHead>请求数</TableHead>
+                          <TableHead>已结算额度</TableHead>
+                          <TableHead>预留额度</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {rollup.byKey.map((item) => (
+                          <TableRow key={item.apiKeyId}>
+                            <TableCell className="text-ink-800">
+                              <span className="font-medium text-ink-950">{item.keyName}</span>
+                              <span className="ml-2 font-mono text-xs text-ink-500">{item.keyPrefix}...</span>
+                            </TableCell>
+                            <TableCell className="text-xs text-ink-500">{item.ownerName ?? "--"}</TableCell>
+                            <TableCell className="font-mono text-ink-700">{number(item.requests)}</TableCell>
+                            <TableCell className="font-mono text-ink-700">{number(item.settledCredits)}</TableCell>
+                            <TableCell className="font-mono text-ink-700">{number(item.reservedCredits)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <ConsoleEmptyState title="本月暂无用量" description="该工作区下的 Key 本月还没有产生已结算或预留的请求。" />
+                  )}
+                </>
+              ) : (
+                <div className="flex min-h-24 items-center justify-center gap-2 text-sm text-ink-500"><LoaderCircle className="h-4 w-4 animate-spin" /> 正在加载工作区用量汇总…</div>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card className="mt-7">
           <CardHeader>
             <CardTitle>按日用量</CardTitle>

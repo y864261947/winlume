@@ -2,6 +2,7 @@ import type {
   ConsoleApiErrorPayload,
   ConsoleApiKey,
   ConsoleOrganization,
+  ConsoleOrganizationUsageRollup,
   ConsoleOverview,
   ConsolePresetKind,
   ConsolePersonalityPreset,
@@ -90,6 +91,13 @@ export function revokeConsoleKey(id: string) {
 export function getConsoleUsageByKey(organizationId?: string | null) {
   return request<{ items: ConsoleUsageByKey[] }>(
     `/api/console/usage/by-key${organizationQuery(organizationId)}`,
+    { cache: "no-store" },
+  );
+}
+
+export function getConsoleOrganizationUsageRollup(organizationId: string) {
+  return request<ConsoleOrganizationUsageRollup>(
+    `/api/console/usage/rollup${organizationQuery(organizationId)}`,
     { cache: "no-store" },
   );
 }

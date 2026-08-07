@@ -2,6 +2,8 @@
 package config
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"os"
@@ -16,6 +18,11 @@ const (
 )
 
 var defaultTrustedProxyIPs = []string{"127.0.0.1", "::1"}
+
+// ChannelEncryptionKeySize is the required length, in bytes, of the AES-256
+// key used by services/gateway/internal/storage/channels.go to encrypt the
+// channels.api_key column at rest.
+const ChannelEncryptionKeySize = 32
 
 // BillingMode controls whether the gateway performs no billing, shadow writes,
 // or authoritative quota and ledger mutation.
@@ -95,6 +102,13 @@ type Config struct {
 	UpstreamOwnership       UpstreamOwnership
 	RecoveryDir             string
 	Upstreams               map[ProtocolFamily]UpstreamConfig
+	// ChannelEncryptionKey is the decoded AES-256 key (exactly
+	// ChannelEncryptionKeySize bytes) sourced from WINLUME_CHANNEL_ENCRYPTION_KEY,
+	// or nil if that variable is unset. storage.Open requires a non-nil key
+	// before it will open a database-backed store (which owns the channels
+	// table), so any deployment that reaches shadow/authoritative billing
+	// mode - the default - fails closed at startup without it.
+	ChannelEncryptionKey []byte
 }
 
 // Load reads gateway-specific environment configuration. It deliberately never
@@ -149,6 +163,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	channelEncryptionKey, err := decodeChannelEncryptionKey(firstNonEmpty("WINLUME_CHANNEL_ENCRYPTION_KEY"))
+	if err != nil {
+		return Config{}, err
+	}
 
 	trustedProxyIPs := parseList(firstNonEmpty("WINLUME_GATEWAY_TRUSTED_PROXY_IPS"))
 	if len(trustedProxyIPs) == 0 {
@@ -174,7 +192,34 @@ func Load() (Config, error) {
 		UpstreamOwnership:       UpstreamOwnership(firstNonEmpty("WINLUME_GATEWAY_UPSTREAM_OWNERSHIP")),
 		RecoveryDir:             firstNonEmpty("WINLUME_GATEWAY_RECOVERY_DIR"),
 		Upstreams:               upstreams,
+		ChannelEncryptionKey:    channelEncryptionKey,
 	}, nil
+}
+
+// decodeChannelEncryptionKey parses WINLUME_CHANNEL_ENCRYPTION_KEY. An empty
+// value returns (nil, nil): the variable is optional at Load time and only
+// required later, by storage.Open, when a database-backed store is actually
+// opened (see the ChannelEncryptionKey field doc comment). A non-empty value
+// must decode - as 64 hex characters, or as base64 (standard or URL-safe,
+// padded or not) - to exactly ChannelEncryptionKeySize bytes; anything else
+// is a fail-fast configuration error.
+func decodeChannelEncryptionKey(value string) ([]byte, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil, nil
+	}
+	if decoded, err := hex.DecodeString(trimmed); err == nil && len(decoded) == ChannelEncryptionKeySize {
+		return decoded, nil
+	}
+	for _, encoding := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding} {
+		if decoded, err := encoding.DecodeString(trimmed); err == nil && len(decoded) == ChannelEncryptionKeySize {
+			return decoded, nil
+		}
+	}
+	return nil, fmt.Errorf(
+		"WINLUME_CHANNEL_ENCRYPTION_KEY must decode (as 64 hex characters, or base64) to exactly %d bytes",
+		ChannelEncryptionKeySize,
+	)
 }
 
 // Validate checks configuration whose safety depends on the selected billing

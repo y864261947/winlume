@@ -49,6 +49,7 @@ export default function ServiceAccountsTable() {
   const [unlimitedInput, setUnlimitedInput] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -135,6 +136,16 @@ export default function ServiceAccountsTable() {
     return { total: accounts.length, unlimitedCount, totalSpent };
   }, [accounts]);
 
+  const filteredAccounts = useMemo(() => {
+    const query = searchInput.trim().toLowerCase();
+    if (!query) return accounts;
+    return accounts.filter((account) =>
+      [account.display_name, account.username, account.key_prefix].some((field) =>
+        field.toLowerCase().includes(query),
+      ),
+    );
+  }, [accounts, searchInput]);
+
   return (
     <div className="flex flex-col gap-6">
       {!loading && !error && accounts.length > 0 && (
@@ -156,7 +167,18 @@ export default function ServiceAccountsTable() {
           <CardTitle>Service Accounts</CardTitle>
           <CardDescription>内部应用的 API key、计费组与配额管理。</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
+          {!loading && !error && accounts.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Input
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="按应用名 / 用户名 / key 前缀搜索…"
+                className="max-w-sm"
+              />
+            </div>
+          )}
+
           {loading ? (
             <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-ink-500">
               <Loader2 className="size-4 animate-spin" /> 加载中…
@@ -167,6 +189,8 @@ export default function ServiceAccountsTable() {
             <p className="py-8 text-center text-sm text-ink-500">
               还没有 service account。用 create-service-account 命令创建一个。
             </p>
+          ) : filteredAccounts.length === 0 ? (
+            <p className="py-8 text-center text-sm text-ink-500">没有匹配的 service account。</p>
           ) : (
             <Table>
               <TableHeader>
@@ -182,7 +206,7 @@ export default function ServiceAccountsTable() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {accounts.map((account) => (
+                {filteredAccounts.map((account) => (
                   <TableRow key={account.api_key_id}>
                     <TableCell>
                       <div className="font-medium text-ink-950">{account.display_name}</div>

@@ -121,6 +121,29 @@ startup (`Validate` refuses to start if the mode's requirements are unmet):
   - `WINLUME_GATEWAY_RECOVERY_DIR`, an absolute path to a directory the
     gateway process exclusively owns (see below)
 
+## Channel encryption
+
+`WINLUME_CHANNEL_ENCRYPTION_KEY` is the AES-256 key used to encrypt the
+`channels` table's `api_key` column at rest
+(`internal/storage/channels.go`, `internal/storage/channel_crypto.go`). It is
+required whenever the gateway opens its database-backed store — that is, in
+`shadow` (the default) or `authoritative` billing mode — and the process
+fails to start without it; only `off` mode (no billing database at all) can
+run without it.
+
+The value must decode to exactly 32 bytes: either 64 hex characters, or
+base64 (standard or URL-safe, padded or not). Generate one with:
+
+```bash
+openssl rand -hex 32
+```
+
+Losing this key makes every stored channel `api_key` permanently unreadable
+(rows written before this key existed are read back as plaintext unchanged —
+see the migration note at the top of `channel_crypto.go` — but every row
+written or re-saved after this key exists is only recoverable with it). Back
+it up like any other production secret, and never commit it or log it.
+
 ## Recovery directory
 
 `WINLUME_GATEWAY_RECOVERY_DIR` is a crash-recovery journal directory used only

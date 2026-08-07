@@ -79,8 +79,23 @@ func openBillingTestStore(databaseURL string) (*Store, error) {
 		pool.Close()
 		return nil, err
 	}
-	return &Store{pool: pool}, nil
+	// billingTestChannelCipher is a fixed, test-only AES-256 key so the
+	// channels integration tests (channels_integration_test.go) exercise
+	// real encryption/decryption at the storage boundary, not a no-op
+	// passthrough - matching how storage.Open always builds a real cipher in
+	// production.
+	cipher, err := newChannelCipher(billingTestChannelKey)
+	if err != nil {
+		pool.Close()
+		return nil, err
+	}
+	return &Store{pool: pool, channelCipher: cipher}, nil
 }
+
+// billingTestChannelKey is a fixed 32-byte AES-256 key used only by this test
+// suite; it is not read from any environment variable and must never be used
+// outside tests.
+var billingTestChannelKey = []byte("winlume-test-channel-key-32bytes")
 
 func applyBillingTestMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 	if _, err := pool.Exec(ctx, `DROP SCHEMA IF EXISTS `+billingTestSchema+` CASCADE`); err != nil {

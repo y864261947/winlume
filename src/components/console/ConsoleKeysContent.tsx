@@ -4,12 +4,43 @@ import { Check, Copy, KeyRound, LoaderCircle, Plus, ShieldAlert, Trash2, X } fro
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { createConsoleKey, listConsoleKeys, revokeConsoleKey } from "@/lib/console/client";
 import type { ConsoleApiKey, ConsoleOrganization } from "@/lib/console/types";
+import { Badge } from "@/components/ui/badge";
 import { ConsoleEmptyState, ConsolePage } from "./ConsolePage";
 
 function date(value: string | null) {
   if (!value) return "从未使用";
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? "--" : new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(parsed);
+}
+
+function KeyRestrictionBadges({ apiKey }: { apiKey: ConsoleApiKey }) {
+  const hasModelScopes = apiKey.modelScopes.length > 0;
+  const hasQuota = apiKey.quotaLimit !== null;
+  const hasIpAllowList = apiKey.ipAllowList.length > 0;
+
+  if (!hasModelScopes && !hasQuota && !hasIpAllowList) {
+    return <Badge variant="success">无限制</Badge>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {hasModelScopes ? (
+        <Badge variant="outline" title={`允许的模型：${apiKey.modelScopes.join(", ")}`}>
+          {apiKey.modelScopes.length} 个模型
+        </Badge>
+      ) : null}
+      {hasQuota ? (
+        <Badge variant="outline" title={`额度上限：${apiKey.quotaLimit} Credits（已用 ${apiKey.usedQuota}）`}>
+          配额 {apiKey.quotaLimit}
+        </Badge>
+      ) : null}
+      {hasIpAllowList ? (
+        <Badge variant="outline" title={`IP 白名单：${apiKey.ipAllowList.join(", ")}`}>
+          IP 限制
+        </Badge>
+      ) : null}
+    </div>
+  );
 }
 
 function KeyDialog({
@@ -208,10 +239,10 @@ export default function ConsoleKeysContent() {
         <ConsoleEmptyState title="还没有 API Key" description="为服务端应用创建第一个 API Key。密钥只会在创建后显示一次。" />
       ) : (
         <div className="overflow-x-auto border border-line bg-surface">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="border-b border-line bg-canvas text-xs font-medium text-ink-500"><tr><th className="px-4 py-3">名称</th>{organizationId ? <th className="px-4 py-3">所有者</th> : null}<th className="px-4 py-3">前缀</th><th className="px-4 py-3">状态</th><th className="px-4 py-3">上次使用</th><th className="px-4 py-3">创建时间</th><th className="w-14 px-4 py-3"><span className="sr-only">操作</span></th></tr></thead>
+          <table className="w-full min-w-[920px] text-left text-sm">
+            <thead className="border-b border-line bg-canvas text-xs font-medium text-ink-500"><tr><th className="px-4 py-3">名称</th>{organizationId ? <th className="px-4 py-3">所有者</th> : null}<th className="px-4 py-3">前缀</th><th className="px-4 py-3">限制</th><th className="px-4 py-3">状态</th><th className="px-4 py-3">上次使用</th><th className="px-4 py-3">创建时间</th><th className="w-14 px-4 py-3"><span className="sr-only">操作</span></th></tr></thead>
             <tbody className="divide-y divide-line">
-              {keys.map((key) => <tr key={key.id} className="text-ink-700"><td className="px-4 py-3 font-medium text-ink-950">{key.name}</td>{organizationId ? <td className="px-4 py-3 text-xs text-ink-500">{key.ownerName ?? "--"}</td> : null}<td className="px-4 py-3 font-mono text-xs">{key.prefix}...</td><td className="px-4 py-3"><span className={key.status === "active" ? "text-emerald-700" : "text-ink-500"}>{key.status === "active" ? "可用" : key.status === "revoked" ? "已撤销" : "已过期"}</span></td><td className="px-4 py-3 text-xs text-ink-500">{date(key.lastUsedAt)}</td><td className="px-4 py-3 text-xs text-ink-500">{date(key.createdAt)}</td><td className="px-4 py-3">{key.status === "active" && canManage ? <button type="button" disabled={revoking === key.id} onClick={() => void revoke(key)} aria-label={`撤销 ${key.name}`} title="撤销密钥" className="grid h-8 w-8 place-items-center text-ink-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">{revoking === key.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button> : null}</td></tr>)}
+              {keys.map((key) => <tr key={key.id} className="text-ink-700"><td className="px-4 py-3 font-medium text-ink-950">{key.name}</td>{organizationId ? <td className="px-4 py-3 text-xs text-ink-500">{key.ownerName ?? "--"}</td> : null}<td className="px-4 py-3 font-mono text-xs">{key.prefix}...</td><td className="px-4 py-3"><KeyRestrictionBadges apiKey={key} /></td><td className="px-4 py-3"><span className={key.status === "active" ? "text-emerald-700" : "text-ink-500"}>{key.status === "active" ? "可用" : key.status === "revoked" ? "已撤销" : "已过期"}</span></td><td className="px-4 py-3 text-xs text-ink-500">{date(key.lastUsedAt)}</td><td className="px-4 py-3 text-xs text-ink-500">{date(key.createdAt)}</td><td className="px-4 py-3">{key.status === "active" && canManage ? <button type="button" disabled={revoking === key.id} onClick={() => void revoke(key)} aria-label={`撤销 ${key.name}`} title="撤销密钥" className="grid h-8 w-8 place-items-center text-ink-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">{revoking === key.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button> : null}</td></tr>)}
             </tbody>
           </table>
         </div>

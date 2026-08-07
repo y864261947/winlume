@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { getCurrentUserId } from "@/lib/auth/session";
 import {
   canManageOrganizationResources,
@@ -12,6 +12,7 @@ import type { ApiKeyRecord } from "@/lib/platform/repositories";
 import type {
   ConsoleApiKey,
   ConsoleLedgerEntry,
+  ConsoleOrganizationUsageRollup,
   ConsoleOverview,
   ConsolePaymentOrder,
   ConsoleUsageByKey,
@@ -235,6 +236,103 @@ export async function getConsoleUsageByKey(
       };
     })
     .sort((left, right) => right.settledCredits - left.settledCredits);
+}
+
+/**
+ * Aggregates usage across every API key belonging to an organization for a
+ * given period (defaults to the current UTC calendar month, i.e. the
+ * "current billing period"): total requests, total settled/reserved
+ * credits, plus the same per-key breakdown rows getConsoleUsageByKey
+ * produces so the UI can reuse one row shape for both the trailing-window
+ * and rollup views.
+ *
+ * Scopes on usageEvents.organizationId, same as getConsoleUsageByKey's
+ * organization branch — see that function's comment for why we scope
+ * directly on the usage event's recorded organizationId rather than joining
+ * through apiKeys.organizationId (a key's current org can drift after the
+ * fact; the usage event's org is fixed at write time by the gateway).
+ *
+ * Callers must verify the caller's membership in this organization before
+ * calling (mirrors getConsoleUsageByKey/listConsoleApiKeys above) — this
+ * function does not re-check access.
+ */
+export async function getOrganizationUsageRollup(
+  context: ConsoleRequestContext,
+  organizationId: string,
+  period?: { since?: Date; until?: Date },
+): Promise<ConsoleOrganizationUsageRollup> {
+  const database = getPlatformDb();
+  if (!database) throw new ConsoleRequestError("平台数据库尚未配置。", 503, "platform_not_configured");
+
+  const now = new Date();
+  const since = period?.since ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const until = period?.until ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+
+  const rows = await database
+    .select({
+      apiKeyId: usageEvents.apiKeyId,
+      requests: sql<string>`count(*) filter (where ${usageEvents.status} = 'settled')`,
+      settled: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'settled' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
+      reserved: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'reserved' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
+    })
+    .from(usageEvents)
+    .where(
+      and(
+        eq(usageEvents.organizationId, organizationId),
+        gte(usageEvents.occurredAt, since),
+        lt(usageEvents.occurredAt, until),
+        isNotNull(usageEvents.apiKeyId),
+      ),
+    )
+    .groupBy(usageEvents.apiKeyId);
+
+  const result: ConsoleOrganizationUsageRollup = {
+    periodStart: since.toISOString(),
+    periodEnd: until.toISOString(),
+    totalRequests: 0,
+    totalSettledCredits: 0,
+    totalReservedCredits: 0,
+    byKey: [],
+  };
+
+  const apiKeyIds = rows.map((row) => row.apiKeyId).filter((id): id is string => Boolean(id));
+  if (apiKeyIds.length === 0) return result;
+
+  // Reuse the org's key listing so name/prefix/owner labels stay consistent
+  // with ConsoleKeysContent and getConsoleUsageByKey.
+  const keyRecords = await context.repositories.apiKeys.listForOrganization(organizationId);
+  const keysById = new Map(keyRecords.map((record) => [record.id, record]));
+  const uniqueOwnerIds = [...new Set(keyRecords.map((record) => record.userId))];
+  const owners = await Promise.all(uniqueOwnerIds.map((id) => context.repositories.users.findById(id)));
+  const ownerNames = new Map(
+    owners
+      .filter((owner): owner is NonNullable<typeof owner> => Boolean(owner))
+      .map((owner) => [owner.id, owner.displayName]),
+  );
+
+  result.byKey = rows
+    .filter((row): row is typeof row & { apiKeyId: string } => Boolean(row.apiKeyId))
+    .map((row) => {
+      const record = keysById.get(row.apiKeyId);
+      const requests = Number(row.requests);
+      const settledCredits = microcreditsToCredits(BigInt(row.settled));
+      const reservedCredits = microcreditsToCredits(BigInt(row.reserved));
+      result.totalRequests += requests;
+      result.totalSettledCredits += settledCredits;
+      result.totalReservedCredits += reservedCredits;
+      return {
+        apiKeyId: row.apiKeyId,
+        keyName: record?.name ?? "未知 Key",
+        keyPrefix: record?.keyPrefix ?? "--",
+        ownerName: record ? ownerNames.get(record.userId) ?? null : null,
+        requests,
+        settledCredits,
+        reservedCredits,
+      };
+    })
+    .sort((left, right) => right.settledCredits - left.settledCredits);
+
+  return result;
 }
 
 /** Same permission tier team.ts uses for member management (owner/admin), scoped to API keys. */

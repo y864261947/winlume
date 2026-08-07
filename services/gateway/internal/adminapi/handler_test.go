@@ -39,6 +39,12 @@ type fakeStore struct {
 	lastUpdateChannel storage.ChannelInput
 	lastUpdateID      uuid.UUID
 	lastDeleteID      uuid.UUID
+
+	modelAvailability             []storage.ModelAvailabilityRecord
+	listModelAvailabilityErr      error
+	updateModelAvailabilityErr    error
+	lastUpdateModelAvailability   storage.ModelAvailabilityUpdateInput
+	lastUpdateModelAvailabilityID uuid.UUID
 }
 
 func (f *fakeStore) ListServiceAccounts(context.Context) ([]storage.ServiceAccount, error) {
@@ -167,6 +173,32 @@ func (f *fakeStore) DeleteChannel(_ context.Context, id uuid.UUID) error {
 	}
 	f.lastDeleteID = id
 	return nil
+}
+
+func (f *fakeStore) ListModelAvailability(context.Context) ([]storage.ModelAvailabilityRecord, error) {
+	if f.listModelAvailabilityErr != nil {
+		return nil, f.listModelAvailabilityErr
+	}
+	return f.modelAvailability, nil
+}
+
+func (f *fakeStore) UpdateModelAvailability(_ context.Context, id uuid.UUID, input storage.ModelAvailabilityUpdateInput) (storage.ModelAvailabilityRecord, error) {
+	if f.updateModelAvailabilityErr != nil {
+		return storage.ModelAvailabilityRecord{}, f.updateModelAvailabilityErr
+	}
+	f.lastUpdateModelAvailabilityID = id
+	f.lastUpdateModelAvailability = input
+	record := storage.ModelAvailabilityRecord{ID: id}
+	if input.Enabled != nil {
+		record.Enabled = *input.Enabled
+	}
+	if input.Priority != nil {
+		record.Priority = *input.Priority
+	}
+	if input.Weight != nil {
+		record.Weight = *input.Weight
+	}
+	return record, nil
 }
 
 func TestListServiceAccounts(t *testing.T) {

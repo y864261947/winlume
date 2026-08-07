@@ -7,6 +7,7 @@ import {
   ChevronRight,
   KeyRound,
   LayoutGrid,
+  ListChecks,
   LucideIcon,
   Receipt,
   ScrollText,
@@ -59,6 +60,12 @@ const navItems: NavItem[] = [
     label: "Channels",
     description: "上游渠道配置",
     icon: Waypoints,
+  },
+  {
+    href: "/gateway-admin/model-availability",
+    label: "Model Availability",
+    description: "模型可用性配置",
+    icon: ListChecks,
   },
 ];
 

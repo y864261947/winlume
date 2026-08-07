@@ -142,9 +142,15 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 		_ = listener.Close()
 		return err
 	}
+	// activeSelector is what relayClient actually routes with. It starts as
+	// the static selector and, when a database-backed store is available
+	// (billing shadow/authoritative mode), is upgraded below to a DBSelector
+	// that consults the admin-managed channels table first and falls back to
+	// this same static selector whenever a protocol family has no enabled
+	// channels rows.
+	var activeSelector relay.ChannelSelector = selector
 	logger := observability.NewLogger(os.Stdout)
 	metrics := observability.NewMetrics()
-	relayClient := relay.NewClient(selector, relay.ClientOptions{})
 	var lookup identity.APIKeyLookup = configuredAPIKeyLookup{hashes: cfg.APIKeyHashes, allowUnverified: cfg.AllowUnverifiedAPIKeys}
 	var lifecycle billing.Lifecycle
 	var billingReady httpapi.ReadinessProbe
@@ -162,6 +168,11 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 		if enricher, ok := store.(identityBillingEnricher); ok {
 			enrichIdentity = enricher.EnrichIdentityBilling
 		}
+		// Live channel routing: prefer admin-managed channels-table rows,
+		// falling back to the static selector per protocol family whenever
+		// none are enabled for it. See relay.DBSelector for the safety
+		// contract.
+		activeSelector = relay.NewDBSelector(store, selector, 0)
 
 		// background collects every long-running goroutine started for this
 		// billing mode (the recovery worker, its metrics poller) so shutdown
@@ -206,11 +217,13 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 		}
 	}
 
+	relayClient := relay.NewClient(activeSelector, relay.ClientOptions{})
+
 	serverHandler := httpapi.NewServer(httpapi.Dependencies{
 		Config: cfg,
 		RelayReady: func(probeCtx context.Context) error {
 			for family := range cfg.Upstreams {
-				_, selectErr := selector.Select(probeCtx, relay.Request{Family: string(family)}, nil)
+				_, selectErr := activeSelector.Select(probeCtx, relay.Request{Family: string(family)}, nil)
 				return selectErr
 			}
 			return relay.ErrNoChannel

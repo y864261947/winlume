@@ -70,6 +70,13 @@ WINLUME_GATEWAY_REQUEST_COST_MICROCREDITS=1000
 # in production before any authoritative cutover. Only Task 23/24-authorized
 # cutover work may change this to "authoritative".
 WINLUME_GATEWAY_BILLING_MODE=shadow
+# Required whenever this process opens its database-backed store - i.e. in
+# shadow (the default, above) or authoritative mode; only BILLING_MODE=off
+# can start without it. AES-256 key (64 hex chars, or base64) encrypting the
+# channels table's api_key column at rest. Generate with: openssl rand -hex 32
+# Losing this key makes every stored channel api_key permanently unreadable -
+# back it up like any other production secret.
+WINLUME_CHANNEL_ENCRYPTION_KEY=replace-with-openssl-rand--hex-32-output
 # Required (must be "go") only when WINLUME_GATEWAY_BILLING_MODE=authoritative.
 # WINLUME_GATEWAY_BILLING_OWNER=go
 # Required for authoritative billing: "provider" for a directly-billed

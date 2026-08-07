@@ -2,12 +2,11 @@ package storage
 
 // channels.go owns CRUD for the channels table: connection-level relay
 // configuration (name, protocol family, base URL, api key, and selection
-// weighting) managed through the gateway admin API. This is config
-// management only - nothing here is consumed by relay.StaticSelector or any
-// other live-request routing path yet. See
-// services/gateway/internal/relay/static_selector.go for the (separate,
-// unrelated) env-var-driven code path that actually selects an upstream for
-// a live request today.
+// weighting) managed through the gateway admin API. Enabled rows here are
+// read by relay.DBSelector (services/gateway/internal/relay/db_selector.go)
+// for live-request routing, with relay.StaticSelector
+// (services/gateway/internal/relay/static_selector.go, the env-var-driven
+// path) as its fallback for any protocol family with no enabled channels.
 //
 // api_key is stored and returned in plaintext by this package; adminapi is
 // responsible for redacting it before it reaches an HTTP response. This

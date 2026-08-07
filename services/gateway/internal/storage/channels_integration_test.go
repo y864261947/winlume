@@ -75,6 +75,54 @@ func TestChannelCreateListUpdateDeleteRoundTrip(t *testing.T) {
 	require.ErrorIs(t, err, ErrChannelNotFound)
 }
 
+// TestChannelAPIKeyEncryptedAtRest confirms encryption-at-rest end to end:
+// the column actually persisted in Postgres is ciphertext (never the
+// plaintext api_key), and a plain Store.ListChannels/Get-equivalent read
+// (through the same decrypt path GetChannel-less callers all share) recovers
+// the exact original plaintext.
+func TestChannelAPIKeyEncryptedAtRest(t *testing.T) {
+	store := billingTestStore(t)
+	ctx := context.Background()
+
+	const plaintextAPIKey = "sk-integration-round-trip-secret"
+	created, err := store.CreateChannel(ctx, ChannelInput{
+		Name:           strPtr(uuid.New().String()),
+		ProtocolFamily: strPtr("openai"),
+		BaseURL:        strPtr("https://api.openai.example/v1"),
+		APIKey:         strPtr(plaintextAPIKey),
+	})
+	require.NoError(t, err)
+	require.Equal(t, plaintextAPIKey, created.APIKey, "Create must return decrypted plaintext in memory")
+
+	var storedRaw string
+	require.NoError(t, store.pool.QueryRow(ctx, `SELECT api_key FROM channels WHERE id = $1`, created.ID).Scan(&storedRaw))
+	require.NotEqual(t, plaintextAPIKey, storedRaw, "the raw column value must never be the plaintext api_key")
+	require.Contains(t, storedRaw, channelEncryptedPrefix)
+
+	list, err := store.ListChannels(ctx)
+	require.NoError(t, err)
+	found := false
+	for _, record := range list {
+		if record.ID == created.ID {
+			found = true
+			require.Equal(t, plaintextAPIKey, record.APIKey, "a fresh read back must decrypt to the original plaintext")
+		}
+	}
+	require.True(t, found)
+
+	// Re-saving through UpdateChannel re-encrypts with a fresh nonce, so the
+	// stored ciphertext changes even though the plaintext key is unchanged.
+	updated, err := store.UpdateChannel(ctx, created.ID, ChannelInput{APIKey: strPtr(plaintextAPIKey)})
+	require.NoError(t, err)
+	require.Equal(t, plaintextAPIKey, updated.APIKey)
+	var storedRawAfterUpdate string
+	require.NoError(t, store.pool.QueryRow(ctx, `SELECT api_key FROM channels WHERE id = $1`, created.ID).Scan(&storedRawAfterUpdate))
+	require.NotEqual(t, plaintextAPIKey, storedRawAfterUpdate)
+	require.NotEqual(t, storedRaw, storedRawAfterUpdate, "re-encrypting must use a fresh nonce, producing different ciphertext")
+
+	require.NoError(t, store.DeleteChannel(ctx, created.ID))
+}
+
 func TestChannelCreateRejectsUnknownProtocolFamily(t *testing.T) {
 	store := billingTestStore(t)
 	ctx := context.Background()

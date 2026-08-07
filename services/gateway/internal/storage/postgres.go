@@ -13,11 +13,26 @@ import (
 
 var ErrUnavailable = errors.New("gateway storage unavailable")
 
-type Store struct{ pool *pgxpool.Pool }
+// ErrChannelEncryptionKeyRequired is returned by Open when channelEncryptionKey
+// is not a valid 32-byte AES-256 key. Open refuses to start a database-backed
+// store without it, because that store owns the channels table and its
+// api_key column must never be persisted in plaintext (see channel_crypto.go
+// and config.Config.ChannelEncryptionKey). Set WINLUME_CHANNEL_ENCRYPTION_KEY
+// before starting the gateway in shadow or authoritative billing mode.
+var ErrChannelEncryptionKeyRequired = errors.New("WINLUME_CHANNEL_ENCRYPTION_KEY is required: it must decode to a 32-byte AES-256 key")
 
-func Open(ctx context.Context, databaseURL string) (*Store, error) {
+type Store struct {
+	pool          *pgxpool.Pool
+	channelCipher *channelCipher
+}
+
+func Open(ctx context.Context, databaseURL string, channelEncryptionKey []byte) (*Store, error) {
 	if strings.TrimSpace(databaseURL) == "" {
 		return nil, ErrUnavailable
+	}
+	cipher, err := newChannelCipher(channelEncryptionKey)
+	if err != nil {
+		return nil, ErrChannelEncryptionKeyRequired
 	}
 	configuration, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
@@ -38,7 +53,7 @@ func Open(ctx context.Context, databaseURL string) (*Store, error) {
 		pool.Close()
 		return nil, ErrUnavailable
 	}
-	return &Store{pool: pool}, nil
+	return &Store{pool: pool, channelCipher: cipher}, nil
 }
 
 func (store *Store) Close() {

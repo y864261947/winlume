@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/base64"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,6 +29,7 @@ var gatewayEnvironmentNames = func() []string {
 		"WINLUME_GATEWAY_BILLING_OWNER",
 		"WINLUME_GATEWAY_UPSTREAM_OWNERSHIP",
 		"WINLUME_GATEWAY_RECOVERY_DIR",
+		"WINLUME_CHANNEL_ENCRYPTION_KEY",
 		"WINLUME_GATEWAY_UPSTREAM_URL",
 		"WINLUME_GATEWAY_BASE_URL",
 		"WINLUME_GATEWAY_UPSTREAM_AUTHORIZATION",
@@ -380,4 +383,43 @@ func TestLoadReadsGatewayAdminToken(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 	require.Equal(t, "admin-secret", cfg.GatewayAdminToken)
+}
+
+func TestLoadChannelEncryptionKeyUnsetIsNil(t *testing.T) {
+	clearGatewayEnvironment(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Nil(t, cfg.ChannelEncryptionKey)
+}
+
+func TestLoadChannelEncryptionKeyAcceptsHex(t *testing.T) {
+	clearGatewayEnvironment(t)
+	key := strings.Repeat("ab", ChannelEncryptionKeySize)
+	t.Setenv("WINLUME_CHANNEL_ENCRYPTION_KEY", key)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Len(t, cfg.ChannelEncryptionKey, ChannelEncryptionKeySize)
+}
+
+func TestLoadChannelEncryptionKeyAcceptsBase64(t *testing.T) {
+	clearGatewayEnvironment(t)
+	raw := make([]byte, ChannelEncryptionKeySize)
+	for i := range raw {
+		raw[i] = byte(i)
+	}
+	t.Setenv("WINLUME_CHANNEL_ENCRYPTION_KEY", base64.StdEncoding.EncodeToString(raw))
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, raw, cfg.ChannelEncryptionKey)
+}
+
+func TestLoadChannelEncryptionKeyRejectsWrongLength(t *testing.T) {
+	clearGatewayEnvironment(t)
+	t.Setenv("WINLUME_CHANNEL_ENCRYPTION_KEY", "too-short")
+
+	_, err := Load()
+	require.ErrorContains(t, err, "WINLUME_CHANNEL_ENCRYPTION_KEY")
 }

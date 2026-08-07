@@ -164,6 +164,14 @@ func (f *fakeGatewayStore) UpdateChannel(context.Context, uuid.UUID, storage.Cha
 
 func (f *fakeGatewayStore) DeleteChannel(context.Context, uuid.UUID) error { return nil }
 
+func (f *fakeGatewayStore) ListModelAvailability(context.Context) ([]storage.ModelAvailabilityRecord, error) {
+	return nil, nil
+}
+
+func (f *fakeGatewayStore) UpdateModelAvailability(context.Context, uuid.UUID, storage.ModelAvailabilityUpdateInput) (storage.ModelAvailabilityRecord, error) {
+	return storage.ModelAvailabilityRecord{}, nil
+}
+
 func (f *fakeGatewayStore) Close() { f.closed.Store(true) }
 
 func withFakeOpenStore(t *testing.T, store gatewayStore, storeErr error) {
