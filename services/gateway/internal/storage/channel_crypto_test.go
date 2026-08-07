@@ -78,10 +78,29 @@ func TestChannelCipherDecryptRejectsTamperedCiphertext(t *testing.T) {
 
 	ciphertext, err := cipher.Encrypt("sk-test")
 	require.NoError(t, err)
-	tampered := ciphertext[:len(ciphertext)-1] + "x"
+	// Flip a bit well inside the encoded payload (not the last character):
+	// unpadded base64's final character can carry unused low-order "don't
+	// care" bits, so mutating only that character occasionally decodes to
+	// the exact same underlying bytes and the tamper goes undetected. A
+	// middle byte is always significant.
+	payload := []byte(ciphertext)
+	encodedStart := len(channelEncryptedPrefix)
+	mutateAt := encodedStart + (len(payload)-encodedStart)/2
+	payload[mutateAt] = flipBase64URLChar(payload[mutateAt])
+	tampered := string(payload)
 
 	_, err = cipher.Decrypt(tampered)
 	require.Error(t, err)
+}
+
+// flipBase64URLChar returns a different character from the base64 URL
+// alphabet than c, so substituting it into an encoded string always changes
+// the decoded bytes.
+func flipBase64URLChar(c byte) byte {
+	if c == 'A' {
+		return 'B'
+	}
+	return 'A'
 }
 
 func TestChannelCipherDecryptRejectsDifferentKey(t *testing.T) {

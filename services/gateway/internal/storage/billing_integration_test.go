@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -104,15 +105,24 @@ func applyBillingTestMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 	if _, err := pool.Exec(ctx, `CREATE SCHEMA `+billingTestSchema); err != nil {
 		return fmt.Errorf("create schema: %w", err)
 	}
-	migrations := []string{
-		"0000_fair_bedlam.sql",
-		"0001_yellow_silver_sable.sql",
-		"0002_lovely_nightmare.sql",
-		"0003_go_gateway_billing.sql",
-		"0004_lovely_brood.sql",
+	// Glob every drizzle/NNNN_*.sql file instead of hard-coding a list: a
+	// hard-coded list here previously stopped at 0004 and silently skipped
+	// 0005/0006 (enterprise_billing_requests, channels) once those were
+	// added, so every integration test touching a newer table failed with
+	// an opaque "gateway storage unavailable" (the real "relation ... does
+	// not exist" error gets wrapped by Store's error handling). Sorting the
+	// glob keeps migrations applied in numeric order.
+	drizzleDir := filepath.Join("..", "..", "..", "..", "drizzle")
+	matches, err := filepath.Glob(filepath.Join(drizzleDir, "[0-9][0-9][0-9][0-9]_*.sql"))
+	if err != nil {
+		return fmt.Errorf("glob migrations: %w", err)
 	}
-	for _, name := range migrations {
-		path := filepath.Join("..", "..", "..", "..", "drizzle", name)
+	sort.Strings(matches)
+	if len(matches) == 0 {
+		return fmt.Errorf("no migration files found in %s", drizzleDir)
+	}
+	for _, path := range matches {
+		name := filepath.Base(path)
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("read %s: %w", name, err)
