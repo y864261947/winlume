@@ -8,10 +8,12 @@ package storage
 // (services/gateway/internal/relay/static_selector.go, the env-var-driven
 // path) as its fallback for any protocol family with no enabled channels.
 //
-// api_key is stored and returned in plaintext by this package; adminapi is
-// responsible for redacting it before it reaches an HTTP response. This
-// codebase has no secrets-encryption layer, matching the trust model of the
-// existing env-var-sourced upstream keys.
+// api_key is encrypted at rest (AES-256-GCM, see channel_crypto.go) and
+// decrypted transparently by this package on read, so every other layer -
+// adminapi, and relay.DBSelector - continues to see plaintext in memory
+// exactly as before this column was encrypted. adminapi is responsible for
+// redacting the (already plaintext-in-memory) value before it reaches an
+// HTTP response.
 
 import (
 	"context"
@@ -106,7 +108,11 @@ func validateChannelInputCommon(input ChannelInput) error {
 const channelSelectColumns = `
 	id, name, protocol_family, base_url, api_key, enabled, priority, weight, metadata, created_at, updated_at`
 
-func scanChannel(row pgx.Row) (ChannelRecord, error) {
+// scanChannel reads one channels row and decrypts its api_key column back to
+// plaintext (channelCipher.Decrypt is a no-op passthrough for pre-existing
+// unencrypted rows - see channel_crypto.go), so every caller of scanChannel
+// sees plaintext exactly as it did before this column was encrypted.
+func (store *Store) scanChannel(row pgx.Row) (ChannelRecord, error) {
 	var record ChannelRecord
 	if err := row.Scan(
 		&record.ID, &record.Name, &record.ProtocolFamily, &record.BaseURL, &record.APIKey,
@@ -115,6 +121,11 @@ func scanChannel(row pgx.Row) (ChannelRecord, error) {
 	); err != nil {
 		return ChannelRecord{}, err
 	}
+	plaintext, err := store.channelCipher.Decrypt(record.APIKey)
+	if err != nil {
+		return ChannelRecord{}, fmt.Errorf("decrypt channel api_key: %w", err)
+	}
+	record.APIKey = plaintext
 	return record, nil
 }
 
@@ -131,7 +142,7 @@ func (store *Store) ListChannels(ctx context.Context) ([]ChannelRecord, error) {
 
 	records := make([]ChannelRecord, 0)
 	for rows.Next() {
-		record, scanErr := scanChannel(rows)
+		record, scanErr := store.scanChannel(rows)
 		if scanErr != nil {
 			return nil, ErrUnavailable
 		}
@@ -167,13 +178,17 @@ func (store *Store) CreateChannel(ctx context.Context, input ChannelInput) (Chan
 	if input.Weight != nil {
 		weight = *input.Weight
 	}
+	encryptedAPIKey, err := store.channelCipher.Encrypt(*input.APIKey)
+	if err != nil {
+		return ChannelRecord{}, fmt.Errorf("encrypt channel api_key: %w", err)
+	}
 
 	row := store.pool.QueryRow(ctx, `
 		INSERT INTO channels (name, protocol_family, base_url, api_key, enabled, priority, weight, metadata)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING `+channelSelectColumns,
-		*input.Name, *input.ProtocolFamily, *input.BaseURL, *input.APIKey, enabled, priority, weight, metadata)
-	record, err := scanChannel(row)
+		*input.Name, *input.ProtocolFamily, *input.BaseURL, encryptedAPIKey, enabled, priority, weight, metadata)
+	record, err := store.scanChannel(row)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return ChannelRecord{}, fmt.Errorf("%w: a channel named %q already exists", ErrInvalidChannelInput, *input.Name)
@@ -193,6 +208,17 @@ func (store *Store) UpdateChannel(ctx context.Context, id uuid.UUID, input Chann
 	if err := validateChannelInputCommon(input); err != nil {
 		return ChannelRecord{}, err
 	}
+	// encryptedAPIKey stays nil (so COALESCE keeps the existing, already
+	// encrypted column value) unless the caller actually included a new
+	// api_key in this patch.
+	var encryptedAPIKey *string
+	if input.APIKey != nil {
+		encrypted, err := store.channelCipher.Encrypt(*input.APIKey)
+		if err != nil {
+			return ChannelRecord{}, fmt.Errorf("encrypt channel api_key: %w", err)
+		}
+		encryptedAPIKey = &encrypted
+	}
 
 	row := store.pool.QueryRow(ctx, `
 		UPDATE channels SET
@@ -207,9 +233,9 @@ func (store *Store) UpdateChannel(ctx context.Context, id uuid.UUID, input Chann
 			updated_at = now()
 		WHERE id = $1
 		RETURNING `+channelSelectColumns,
-		id, input.Name, input.ProtocolFamily, input.BaseURL, input.APIKey,
+		id, input.Name, input.ProtocolFamily, input.BaseURL, encryptedAPIKey,
 		input.Enabled, input.Priority, input.Weight, channelMetadataParam(input.Metadata))
-	record, err := scanChannel(row)
+	record, err := store.scanChannel(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ChannelRecord{}, ErrChannelNotFound
 	}

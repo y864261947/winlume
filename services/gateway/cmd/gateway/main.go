@@ -91,8 +91,8 @@ type gatewayStore interface {
 // without a live database connection. Production code never reassigns it.
 var openStore = defaultOpenStore
 
-func defaultOpenStore(ctx context.Context, databaseURL string) (gatewayStore, error) {
-	store, err := storage.Open(ctx, databaseURL)
+func defaultOpenStore(ctx context.Context, databaseURL string, channelEncryptionKey []byte) (gatewayStore, error) {
+	store, err := storage.Open(ctx, databaseURL, channelEncryptionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func run(ctx context.Context, cfg config.Config, listener net.Listener) error {
 	var enrichIdentity func(context.Context, identity.Identity) (identity.Identity, error)
 
 	if cfg.BillingMode == config.BillingShadow || cfg.BillingMode == config.BillingAuthoritative {
-		store, storageErr := openStore(ctx, cfg.DatabaseURL)
+		store, storageErr := openStore(ctx, cfg.DatabaseURL, cfg.ChannelEncryptionKey)
 		if storageErr != nil {
 			_ = listener.Close()
 			return storageErr

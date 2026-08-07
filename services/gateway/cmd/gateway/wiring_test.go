@@ -177,7 +177,7 @@ func (f *fakeGatewayStore) Close() { f.closed.Store(true) }
 func withFakeOpenStore(t *testing.T, store gatewayStore, storeErr error) {
 	t.Helper()
 	original := openStore
-	openStore = func(context.Context, string) (gatewayStore, error) { return store, storeErr }
+	openStore = func(context.Context, string, []byte) (gatewayStore, error) { return store, storeErr }
 	t.Cleanup(func() { openStore = original })
 }
 
