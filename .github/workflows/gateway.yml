@@ -3,8 +3,9 @@
 # Three independent jobs:
 #   - go-checks:        fmt/vet/unit/race/build, no database required.
 #   - go-integration:   spins up a throwaway PostgreSQL 16 service container,
-#                       applies drizzle/0000..0003, and runs the
-#                       `-tags=integration` suite in services/gateway.
+#                       applies every drizzle/NNNN_*.sql migration in order,
+#                       and runs the `-tags=integration` suite in
+#                       services/gateway.
 #   - node-contract:    runs the Next.js-side tests that assert the caller
 #                       contract with the gateway (request/response shapes,
 #                       schema) so a gateway change that breaks the Next.js
@@ -111,7 +112,13 @@ jobs:
       - name: Apply migrations
         run: |
           set -euo pipefail
-          for f in drizzle/0000_*.sql drizzle/0001_*.sql drizzle/0002_*.sql drizzle/0003_*.sql; do
+          # Apply every drizzle/NNNN_*.sql file in numeric order. This used to
+          # be a hardcoded 0000-0003 list; new migrations (0004+) were added
+          # over time and silently never ran in CI, so every integration test
+          # touching a table introduced after 0003 failed with "relation ...
+          # does not exist" until this was noticed. Glob + sort avoids this
+          # class of bug recurring for future migrations.
+          for f in $(ls drizzle/[0-9][0-9][0-9][0-9]_*.sql | sort); do
             echo "Applying $f"
             psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f" --quiet
           done
@@ -125,9 +132,9 @@ jobs:
           # `ALTER TYPE ... ADD VALUE` outside its own transaction, but did
           # not COMMIT). Query a fresh psql connection for tables introduced
           # by each migration so a silently-rolled-back file fails CI here.
-          expected="users wallets pricing_catalog_versions billing_shadow_events gateway_relay_attempts"
+          expected="users wallets pricing_catalog_versions billing_shadow_events gateway_relay_attempts enterprise_billing_requests channels model_availability"
           found=$(psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 --quiet --tuples-only --no-align -c \
-            "SELECT string_agg(table_name, ',') FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users','wallets','pricing_catalog_versions','billing_shadow_events','gateway_relay_attempts');")
+            "SELECT string_agg(table_name, ',') FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users','wallets','pricing_catalog_versions','billing_shadow_events','gateway_relay_attempts','enterprise_billing_requests','channels','model_availability');")
           for table in $expected; do
             case ",$found," in
               *,"$table",*) ;;
