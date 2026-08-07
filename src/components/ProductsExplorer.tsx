@@ -142,22 +142,20 @@ export default function ProductsExplorer({
                 href="/products?cate=app"
                 className={mode === "apps" ? "is-current" : undefined}
               >
-                AI 应用
+                应用工具
               </Link>
-              <Link href="/studio">智能体</Link>
               <Link
                 href="/products?cate=api"
                 className={mode === "models" ? "is-current" : undefined}
               >
-                API
+                模型
               </Link>
               <Link href="/docs">文档</Link>
-              <Link href="/business">企业服务</Link>
             </nav>
             <div className="portal-user-links">
               <Link href="/studio">
                 <LayoutGrid aria-hidden />
-                工作台
+                Agent
               </Link>
               <button type="button" onClick={() => setNotice("暂无新的通知")}>
                 <Bell aria-hidden />
