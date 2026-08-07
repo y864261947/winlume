@@ -685,14 +685,12 @@ export default function ModelMarket() {
             </div>
             <nav className="portal-main-links" aria-label="页面导航">
               <PortalLink href="/" className="is-current">首页</PortalLink>
-              <PortalLink href="/products?cate=app">AI 应用</PortalLink>
-              <PortalLink href="/studio">智能体</PortalLink>
-              <PortalLink href="/products?cate=api">API</PortalLink>
+              <PortalLink href="/products?cate=app">应用工具</PortalLink>
+              <PortalLink href="/products?cate=api">模型</PortalLink>
               <PortalLink href="/docs">文档</PortalLink>
-              <PortalLink href="/business">企业服务</PortalLink>
             </nav>
             <div className="portal-user-links">
-              <PortalLink href="/studio"><LayoutGrid aria-hidden />工作台</PortalLink>
+              <PortalLink href="/studio"><LayoutGrid aria-hidden />Agent</PortalLink>
               <button type="button" onClick={() => setNotice("暂无新的通知")}><Bell aria-hidden />通知</button>
               {account ? (
                 <PortalLink href="/account" className="portal-account"><span>{(account.display_name || account.username).slice(0, 1).toUpperCase()}</span>{account.display_name || account.username}<ChevronRight aria-hidden /></PortalLink>
@@ -723,14 +721,13 @@ export default function ModelMarket() {
             <ArrowLink href="/products">查看热门搜索</ArrowLink>
           </section>
 
-          <section className="portal-usage-card" aria-labelledby="portal-usage-title">
-            <div className="portal-card-heading"><Image src="/figma-home/usage-icon.svg" alt="" width={20} height={20} /><h2 id="portal-usage-title">账户用量</h2></div>
-            <div className="portal-usage-stats">
-              <div><span>余额</span><strong>{balance === "余额同步中" ? "¥168.20" : balance}</strong></div>
-              <div><span>Token</span><strong>1.24M</strong></div>
-            </div>
-            <ArrowLink href="/account/usage">用量明细</ArrowLink>
-          </section>
+          <article className="portal-enterprise-card portal-search-aside" aria-labelledby="portal-enterprise-title">
+            <SectionLabel>ENTERPRISE</SectionLabel>
+            <h2 id="portal-enterprise-title">企业 AI 部署</h2>
+            <p>私有化部署、系统集成与专属服务。</p>
+            <ArrowLink href="/business">查看方案</ArrowLink>
+            <Image src="/figma-home/building.svg" alt="" width={145} height={116} />
+          </article>
         </div>
 
         {submittedQuery && <p className="portal-search-result" role="status">已为你准备“{submittedQuery}”相关能力，先从下面的工具分类开始。</p>}
@@ -831,7 +828,14 @@ export default function ModelMarket() {
           </article>
 
           <div className="portal-side-cards">
-            <article className="portal-side-card portal-enterprise-card"><SectionLabel>ENTERPRISE</SectionLabel><h2>企业 AI 部署</h2><p>私有化部署、系统集成与专属服务。</p><ArrowLink href="/business">查看方案</ArrowLink><Image src="/figma-home/building.svg" alt="" width={145} height={116} /></article>
+            <section className="portal-side-card portal-usage-card" aria-labelledby="portal-usage-title">
+              <div className="portal-card-heading"><Image src="/figma-home/usage-icon.svg" alt="" width={20} height={20} /><h2 id="portal-usage-title">账户用量</h2></div>
+              <div className="portal-usage-stats">
+                <div><span>余额</span><strong>{balance === "余额同步中" ? "¥168.20" : balance}</strong></div>
+                <div><span>Token</span><strong>1.24M</strong></div>
+              </div>
+              <ArrowLink href="/account/usage">用量明细</ArrowLink>
+            </section>
             <article className="portal-side-card portal-pricing-card"><h2>计费标准</h2><p>按实际使用量灵活结算，清晰可见。</p><ArrowLink href="/pricing">查看价格</ArrowLink><Image src="/figma-home/price.svg" alt="" width={118} height={108} /></article>
           </div>
         </div>
