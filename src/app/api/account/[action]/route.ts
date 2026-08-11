@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, sql } from "drizzle-orm";
 import { getCurrentAuthContext } from "@/lib/auth/session";
 import { getAuthMode, hashPassword, passwordWouldBeTruncatedByBcrypt } from "@/lib/platform/auth";
 import {
   getPlatformDb,
   getPlatformRepositories,
-  usageEvents,
 } from "@/lib/platform";
 import { provisionPlatformUser } from "@/lib/platform/provision";
 
@@ -113,15 +111,16 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/acc
   if (!repositories || !database) {
     return NextResponse.json({ success: false, message: "平台数据库尚未配置。" }, { status: 503 });
   }
-  const wallet = await repositories.wallets.ensureForUser(user.userId);
-  const [balance, totals] = await Promise.all([
-    repositories.wallets.getBalance(wallet.id),
-    database.select({
-      used: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'settled' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
-      requestCount: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'settled' then 1 else 0 end), 0)`,
-    }).from(usageEvents).where(and(eq(usageEvents.userId, user.userId), eq(usageEvents.status, "settled"))),
-  ]);
-  const total = totals[0];
+  const platformUser = await repositories.users.findById(user.userId);
+  if (!platformUser?.currentOrganizationId) {
+    return NextResponse.json({ success: false, message: "账户尚未关联工作区。" }, { status: 409 });
+  }
+  const mapping = await repositories.teamNewApiMapping.findByOrganizationId(platformUser.currentOrganizationId);
+  if (!mapping) {
+    return NextResponse.json({ success: false, message: "工作区未关联额度账户。" }, { status: 409 });
+  }
+  const { getNewApiUserQuota } = await import("@/lib/newapi/admin-client");
+  const { quota, usedQuota } = await getNewApiUserQuota(mapping.newApiUserId);
 
   return NextResponse.json({
     success: true,
@@ -130,9 +129,8 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/acc
       username: user.username,
       display_name: user.displayName,
       email: user.email ?? "",
-      quota: Number(balance),
-      used_quota: Number(total?.used ?? "0"),
-      request_count: Number(total?.requestCount ?? "0"),
+      quota,
+      used_quota: usedQuota,
       group: "personal",
     },
   }, { headers: { "cache-control": "no-store" } });
