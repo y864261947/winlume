@@ -1,33 +1,43 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Coins, Receipt, Wallet } from "lucide-react";
-import { categoriesByCate, categoryTint } from "@/data/taxonomy";
-import { productsByCategory } from "@/data/products";
+import {
+  ArrowRight,
+  BadgeCheck,
+  CircleDollarSign,
+  KeyRound,
+  ReceiptText,
+  WalletCards,
+} from "lucide-react";
+import { categoriesByCate } from "@/data/taxonomy";
+import { productsByCategory, type Pricing } from "@/data/products";
 
 export const metadata: Metadata = {
-  title: "定价 - Reizo",
+  title: "计费标准 - Reizo",
 };
 
 const principles = [
   {
-    icon: Coins,
-    title: "0 月费",
-    desc: "没有订阅与最低消费，注册即可使用全部资源。",
-    tone: "bg-primary-50 text-primary-500",
+    icon: CircleDollarSign,
+    title: "按实际用量结算",
+    desc: "模型按 Token、工具按调用量计费；没有席位费与最低消费。",
   },
   {
-    icon: Receipt,
-    title: "按用量付费",
-    desc: "模型按 token 用量计价，工具类接口按调用次数计价。",
-    tone: "bg-teal-50 text-teal-600",
+    icon: WalletCards,
+    title: "一个余额，全站通用",
+    desc: "模型 API、AI 应用和工作台共用一个账户余额，明细集中查看。",
   },
   {
-    icon: Wallet,
-    title: "统一结算",
-    desc: "先充值后扣费，一个余额账户通行全站 API 与应用。",
-    tone: "bg-amber-50 text-amber-600",
+    icon: ReceiptText,
+    title: "调用记录可追溯",
+    desc: "每次扣费都能在用量明细中查询，便于个人和团队核对成本。",
   },
 ];
+
+function pricingLabel(pricing: Pricing) {
+  if (pricing.kind === "token") return `输入 ${pricing.input} · 输出 ${pricing.output} / 1M Token`;
+  if (pricing.kind === "unit") return pricing.price;
+  return pricing.label;
+}
 
 export default function PricingPage() {
   const apiCats = categoriesByCate("api");
@@ -35,117 +45,118 @@ export default function PricingPage() {
   const sections = appCat ? [...apiCats, appCat] : apiCats;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-12">
-      <div className="text-center">
-        <p className="font-mono text-[11px] uppercase tracking-widest text-ink-400">
-          Pricing
-        </p>
-        <h1 className="mt-2 text-3xl font-bold text-ink-950">价格表</h1>
-        <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-ink-500">
-          先充值，后扣费，按实际用量结算。以下价格均为演示占位数据。
-        </p>
-      </div>
-
-      <div className="mt-10 grid gap-4 sm:grid-cols-3">
-        {principles.map((p) => (
-          <div
-            key={p.title}
-            className="rounded-xl border border-line bg-surface p-6 text-center"
-          >
-            <span className={`mx-auto flex h-10 w-10 items-center justify-center rounded-lg ${p.tone}`}>
-              <p.icon className="h-5 w-5" />
-            </span>
-            <p className="mt-3 font-semibold text-ink-900">{p.title}</p>
-            <p className="mt-1.5 text-sm leading-6 text-ink-500">{p.desc}</p>
+    <div className="portal-pricing-page">
+      <section className="portal-pricing-hero" aria-labelledby="pricing-title">
+        <div className="portal-pricing-hero-copy">
+          <p className="portal-eyebrow">BILLING / PRICING</p>
+          <h1 id="pricing-title">价格透明，<br />每次使用都有数。</h1>
+          <p>
+            用同一份余额连接模型、应用与工作台。先体验，再按真实调用量结算；
+            成本、余额与记录都在账户里清楚可见。
+          </p>
+          <div className="portal-pricing-hero-actions">
+            <Link href="/account/wallet" className="portal-pricing-primary-action">
+              <WalletCards aria-hidden />充值余额
+            </Link>
+            <Link href="/account/usage" className="portal-pricing-secondary-action">
+              查看用量明细<ArrowRight aria-hidden />
+            </Link>
           </div>
-        ))}
-      </div>
+        </div>
+        <div className="portal-pricing-orbit" aria-hidden>
+          <span className="portal-pricing-orbit-core">¥</span>
+          <span className="portal-pricing-orbit-ring portal-pricing-orbit-ring-one" />
+          <span className="portal-pricing-orbit-ring portal-pricing-orbit-ring-two" />
+          <span className="portal-pricing-orbit-dot portal-pricing-orbit-dot-one" />
+          <span className="portal-pricing-orbit-dot portal-pricing-orbit-dot-two" />
+        </div>
+      </section>
 
-      {/* 类目锚点 */}
-      <div className="mt-12 flex flex-wrap justify-center gap-2">
-        {sections.map((cat) => (
-          <a
-            key={cat.slug}
-            href={`#${cat.slug}`}
-            className="flex items-center gap-1.5 rounded-full bg-surface px-3.5 py-1.5 text-sm text-ink-600 ring-1 ring-line transition hover:text-primary-600 hover:ring-primary-200"
-          >
-            <span
-              className="h-1.5 w-1.5 rounded-full"
-              style={{ backgroundColor: cat.color }}
-            />
-            {cat.name}
-          </a>
-        ))}
-      </div>
-
-      {/* 分类定价表 */}
-      {sections.map((cat) => {
-        const list = productsByCategory(cat.slug);
-        if (list.length === 0) return null;
-        return (
-          <section key={cat.slug} id={cat.slug} className="mt-12 scroll-mt-24">
-            <h2 className="flex items-center gap-2.5 text-lg font-semibold text-ink-900">
-              <span
-                className="flex h-8 w-8 items-center justify-center rounded-lg"
-                style={categoryTint(cat.color)}
-              >
-                <cat.icon className="h-4 w-4" />
-              </span>
-              {cat.name}
-              <span className="rounded-full bg-canvas px-2 py-0.5 font-mono text-xs font-normal text-ink-500 ring-1 ring-line">
-                {list.length}
-              </span>
-            </h2>
-            <div className="mt-4 overflow-x-auto rounded-xl border border-line bg-surface">
-              <table className="w-full min-w-[560px] text-sm">
-                <thead>
-                  <tr className="border-b border-line bg-canvas text-left text-xs text-ink-500">
-                    <th className="px-5 py-3.5 font-medium">产品</th>
-                    <th className="px-5 py-3.5 font-medium">品牌</th>
-                    <th className="px-5 py-3.5 font-medium">输入 /1M tokens</th>
-                    <th className="px-5 py-3.5 font-medium">输出 / 次价</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {list.map((p) => (
-                    <tr key={p.id} className="transition hover:bg-primary-50/40">
-                      <td className="px-5 py-3.5">
-                        <Link
-                          href={`/products/${p.id}`}
-                          className="break-all font-mono font-medium text-ink-900 transition hover:text-primary-600"
-                        >
-                          {p.name}
-                        </Link>
-                      </td>
-                      <td className="px-5 py-3.5 text-ink-500">{p.brand}</td>
-                      {p.pricing.kind === "token" && (
-                        <>
-                          <td className="px-5 py-3.5 font-mono text-ink-800">{p.pricing.input}</td>
-                          <td className="px-5 py-3.5 font-mono text-ink-800">
-                            {p.pricing.output}
-                            <span className="text-xs text-ink-400"> /1M tokens</span>
-                          </td>
-                        </>
-                      )}
-                      {p.pricing.kind === "unit" && (
-                        <>
-                          <td className="px-5 py-3.5 text-ink-300">—</td>
-                          <td className="px-5 py-3.5 font-mono text-ink-800">{p.pricing.price}</td>
-                        </>
-                      )}
-                      {p.pricing.kind === "custom" && (
-                        <td colSpan={2} className="px-5 py-3.5 text-ink-500">
-                          {p.pricing.label}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      <section className="portal-pricing-principles" aria-label="计费原则">
+        {principles.map((item) => (
+          <article key={item.title}>
+            <item.icon aria-hidden />
+            <div>
+              <h2>{item.title}</h2>
+              <p>{item.desc}</p>
             </div>
-          </section>
-        );
-      })}
+          </article>
+        ))}
+      </section>
+
+      <section className="portal-pricing-catalog" aria-labelledby="pricing-catalog-title">
+        <div className="portal-pricing-section-head">
+          <div>
+            <p className="portal-eyebrow">PRICE CATALOG</p>
+            <h2 id="pricing-catalog-title">按能力选择，再看价格</h2>
+            <p>目录展示价格仅作产品选型参考，实际结算以账户用量与网关实时规则为准。</p>
+          </div>
+          <Link href="/account/keys" className="portal-pricing-key-link"><KeyRound aria-hidden />管理 API Key</Link>
+        </div>
+
+        <nav className="portal-pricing-anchors" aria-label="价格分类">
+          {sections.map((category) => (
+            <a key={category.slug} href={`#${category.slug}`}>
+              <span style={{ backgroundColor: category.color }} />
+              {category.name}
+            </a>
+          ))}
+        </nav>
+
+        <div className="portal-pricing-tables">
+          {sections.map((category) => {
+            const list = productsByCategory(category.slug);
+            if (list.length === 0) return null;
+            return (
+              <section key={category.slug} id={category.slug} className="portal-pricing-group">
+                <div className="portal-pricing-group-head">
+                  <span style={{ color: category.color, backgroundColor: `${category.color}18` }}>
+                    <category.icon aria-hidden />
+                  </span>
+                  <div>
+                    <h3>{category.name}</h3>
+                    <p>{list.length} 项可用能力</p>
+                  </div>
+                </div>
+                <div className="portal-pricing-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>能力</th>
+                        <th>提供方</th>
+                        <th>参考计费</th>
+                        <th><span className="sr-only">查看详情</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {list.map((product) => (
+                        <tr key={product.id}>
+                          <td>
+                            <Link href={`/products/${product.id}`}>{product.name}</Link>
+                            <p>{product.tagline}</p>
+                          </td>
+                          <td>{product.brand}</td>
+                          <td className="portal-pricing-value">{pricingLabel(product.pricing)}</td>
+                          <td><Link href={`/products/${product.id}`} aria-label={`查看 ${product.name} 详情`}><ArrowRight aria-hidden /></Link></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="portal-pricing-bottom" aria-label="开始使用">
+        <BadgeCheck aria-hidden />
+        <div>
+          <p>需要先试一试？</p>
+          <h2>从工作台开始，不必先决定套餐。</h2>
+        </div>
+        <Link href="/studio">进入工作台<ArrowRight aria-hidden /></Link>
+      </section>
     </div>
   );
 }
