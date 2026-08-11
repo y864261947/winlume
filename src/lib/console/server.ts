@@ -94,7 +94,8 @@ export function mapConsoleApiKey(
     createdAt: record.createdAt.toISOString(),
     lastUsedAt: record.lastUsedAt?.toISOString() ?? null,
     expiresAt: record.expiresAt?.toISOString() ?? null,
-    quotaLimit: record.quotaLimitMicrocredits === null ? null : microcreditsToCredits(record.quotaLimitMicrocredits),
+    // Per-key quota column was removed in the new-api cutover; balance lives on the team account.
+    quotaLimit: null,
     usedQuota: microcreditsToCredits(usedQuotaMicrocredits),
     modelScopes: record.allowedModels,
     ipAllowList: record.ipAllowlist,
@@ -489,9 +490,8 @@ export async function getConsoleOverview(context: ConsoleRequestContext): Promis
 
 export function parseConsoleKeyInput(value: unknown): {
   name: string;
-  organizationId: string | null;
+  organizationId: string;
   expiresAt: Date | null;
-  quotaLimitMicrocredits: bigint | null;
   allowedModels: string[];
   ipAllowlist: string[];
 } {
@@ -503,13 +503,10 @@ export function parseConsoleKeyInput(value: unknown): {
   if (!name || name.length > 120) {
     throw new ConsoleRequestError("密钥名称必须为 1 到 120 个字符。", 400, "invalid_key_name");
   }
-  let organizationId: string | null = null;
-  if (input.organizationId !== undefined && input.organizationId !== null && input.organizationId !== "") {
-    if (typeof input.organizationId !== "string") {
-      throw new ConsoleRequestError("工作区标识无效。", 400, "invalid_organization_id");
-    }
-    organizationId = input.organizationId;
+  if (typeof input.organizationId !== "string" || !input.organizationId.trim()) {
+    throw new ConsoleRequestError("创建 API Key 需要指定工作区。", 400, "organization_id_required");
   }
+  const organizationId = input.organizationId.trim();
   let expiresAt: Date | null = null;
   if (input.expiresAt !== undefined && input.expiresAt !== null && input.expiresAt !== "") {
     if (typeof input.expiresAt !== "string") throw new ConsoleRequestError("过期时间无效。", 400, "invalid_expiry");
@@ -525,14 +522,10 @@ export function parseConsoleKeyInput(value: unknown): {
     }
     return [...new Set(raw.map((entry) => entry.trim()).filter(Boolean))].slice(0, 100);
   };
-  const quotaLimitMicrocredits = input.quotaLimit === undefined || input.quotaLimit === null || input.quotaLimit === ""
-    ? null
-    : creditsToMicrocredits(typeof input.quotaLimit === "number" ? input.quotaLimit : Number.NaN);
   return {
     name,
     organizationId,
     expiresAt,
-    quotaLimitMicrocredits,
     allowedModels: asStringList(input.modelScopes, "invalid_model_scopes"),
     ipAllowlist: asStringList(input.ipAllowList, "invalid_ip_allowlist"),
   };
