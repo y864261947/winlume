@@ -46,7 +46,19 @@ function requireData<T>(data: T | undefined, status: number): T {
   return data;
 }
 
-/** Logs in as the team's new-api user, then mints and returns a fresh PAT for it. */
+/**
+ * Logs in as the team's new-api user, then mints and returns a fresh PAT for it.
+ *
+ * Corrected against live production behavior (2026-08-11): `POST /api/user/login`
+ * does NOT authenticate follow-up calls via its `Set-Cookie` (that cookie is scoped
+ * to `/api/user/auth` — session refresh only, confirmed 401 when replayed as a
+ * bearer-equivalent). The actual dashboard session credential is the JWT in the
+ * login response body's `data.access_token`, sent as `Authorization: Bearer <jwt>`.
+ * The PAT-mint endpoint is also `GET /api/user/token`, not `/api/user/self/token`
+ * (router/api-router.go: `selfRoute := userRoute.Group("/")` has no "/self" prefix
+ * of its own — individual routes spell out "self" only where their own path needs
+ * it, e.g. `/self/groups`; `GenerateAccessToken` is registered at plain `/token`).
+ */
 export async function loginAndMintPat(username: string, password: string): Promise<string> {
   const loginResponse = await fetch(`${baseUrl()}/api/user/login`, {
     method: "POST",
@@ -54,14 +66,17 @@ export async function loginAndMintPat(username: string, password: string): Promi
     body: JSON.stringify({ username, password }),
     cache: "no-store",
   });
-  const setCookie = loginResponse.headers.get("set-cookie");
-  await parseEnvelope(loginResponse);
-  if (!setCookie) throw new NewApiTeamError("new-api login did not return a session cookie", loginResponse.status);
-  const sessionCookie = setCookie.split(";")[0];
+  const loginData = requireData(
+    await parseEnvelope<{ access_token?: string }>(loginResponse),
+    loginResponse.status,
+  );
+  if (!loginData.access_token) {
+    throw new NewApiTeamError("new-api login did not return an access token", loginResponse.status);
+  }
 
-  const patResponse = await fetch(`${baseUrl()}/api/user/self/token`, {
+  const patResponse = await fetch(`${baseUrl()}/api/user/token`, {
     method: "GET",
-    headers: { Cookie: sessionCookie },
+    headers: { Authorization: `Bearer ${loginData.access_token}` },
     cache: "no-store",
   });
   return requireData(await parseEnvelope<string>(patResponse), patResponse.status);

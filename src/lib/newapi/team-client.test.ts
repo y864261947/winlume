@@ -21,15 +21,12 @@ afterEach(() => {
 });
 
 describe("loginAndMintPat", () => {
-  it("logs in, carries the session cookie into the PAT-mint call, and returns the PAT", async () => {
+  it("logs in, carries the JWT access_token into the PAT-mint call at /api/user/token, and returns the PAT", async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url.endsWith("/api/user/login")) {
-        return new Response(JSON.stringify({ success: true }), {
-          status: 200,
-          headers: { "set-cookie": "session=abc123; Path=/; HttpOnly" },
-        });
+        return new Response(JSON.stringify({ success: true, data: { access_token: "jwt-abc123" } }), { status: 200 });
       }
-      if (url.endsWith("/api/user/self/token")) {
+      if (url.endsWith("/api/user/token")) {
         return new Response(JSON.stringify({ success: true, data: "pat-xyz" }), { status: 200 });
       }
       throw new Error(`unexpected url ${url}`);
@@ -38,8 +35,9 @@ describe("loginAndMintPat", () => {
 
     await expect(loginAndMintPat("team-abc", "s3cret!!")).resolves.toBe("pat-xyz");
 
-    const [, patCallInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect((patCallInit.headers as Record<string, string>).Cookie).toContain("session=abc123");
+    const [patCallUrl, patCallInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(patCallUrl).toBe("https://v2api.top/api/user/token");
+    expect((patCallInit.headers as Record<string, string>).Authorization).toBe("Bearer jwt-abc123");
   });
 
   it("throws NewApiTeamError on login failure", async () => {
@@ -48,6 +46,14 @@ describe("loginAndMintPat", () => {
       vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: false, message: "bad password" }), { status: 200 })),
     );
     await expect(loginAndMintPat("team-abc", "wrong")).rejects.toThrow(NewApiTeamError);
+  });
+
+  it("throws NewApiTeamError if the login response has no access_token", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true, data: {} }), { status: 200 })),
+    );
+    await expect(loginAndMintPat("team-abc", "s3cret!!")).rejects.toThrow(NewApiTeamError);
   });
 });
 
