@@ -35,7 +35,24 @@ export async function proxyRequest(request: Request, path: string[]): Promise<Re
 
   const forwardHeaders = new Headers(request.headers);
   forwardHeaders.set("Authorization", `Bearer ${newApiKey}`);
-  forwardHeaders.delete("host");
+  // Hop-by-hop headers (RFC 7230 §6.1) must not be forwarded to a new
+  // connection — undici's fetch rejects a manually-set Connection header
+  // outright ("invalid connection header", UND_ERR_INVALID_ARG), which broke
+  // every proxied request in production until this was caught by a live
+  // smoke test.
+  for (const header of [
+    "host",
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+  ]) {
+    forwardHeaders.delete(header);
+  }
 
   const upstream = await fetch(targetUrl, {
     method: request.method,
