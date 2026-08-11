@@ -77,6 +77,14 @@ jobs:
 
   go-integration:
     name: Go integration tests (PostgreSQL)
+    # Retired as part of the new-api integration cutover
+    # (docs/superpowers/specs/2026-08-11-reizo-new-api-integration-design.md):
+    # migration 0007 drops the wallet/billing-engine tables this suite
+    # exercises, and the gateway is stopped in production. Re-enable only if
+    # services/gateway billing logic becomes load-bearing again; otherwise
+    # this job (and the rest of services/gateway) should be deleted together
+    # once the decommission's soak period (design doc §9) is complete.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -130,17 +138,37 @@ jobs:
           # every statement successfully but never commits its transaction
           # (drizzle/0003 historically opened a BEGIN, required to run
           # `ALTER TYPE ... ADD VALUE` outside its own transaction, but did
-          # not COMMIT). Query a fresh psql connection for tables introduced
+          # not COMMIT). Query a fresh psql connection for tables affected
           # by each migration so a silently-rolled-back file fails CI here.
-          expected="users wallets pricing_catalog_versions billing_shadow_events gateway_relay_attempts enterprise_billing_requests channels model_availability"
+          #
+          # 0007 (new-api integration) DROPs the wallet/billing-engine tables
+          # 0003 introduced and this check used to assert existed — presence
+          # of `wallets` etc. now would itself mean 0007 rolled back silently.
+          # So this checks two things: the new-api tables/columns exist
+          # (0007 committed its CREATE/ALTER), and the dropped billing tables
+          # are actually gone (0007 committed its DROP, not just ran it).
+          present_expected="users organizations api_keys team_new_api_mapping"
+          absent_expected="wallets pricing_catalog_versions billing_shadow_events gateway_relay_attempts enterprise_billing_requests channels model_availability"
           found=$(psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 --quiet --tuples-only --no-align -c \
-            "SELECT string_agg(table_name, ',') FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users','wallets','pricing_catalog_versions','billing_shadow_events','gateway_relay_attempts','enterprise_billing_requests','channels','model_availability');")
-          for table in $expected; do
+            "SELECT string_agg(table_name, ',') FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users','organizations','api_keys','team_new_api_mapping','wallets','pricing_catalog_versions','billing_shadow_events','gateway_relay_attempts','enterprise_billing_requests','channels','model_availability');")
+          for table in $present_expected; do
             case ",$found," in
               *,"$table",*) ;;
               *) echo "Missing expected table after migrations: $table" >&2; exit 1 ;;
             esac
           done
+          for table in $absent_expected; do
+            case ",$found," in
+              *,"$table",*) echo "Table should have been dropped by migration 0007 but still exists: $table" >&2; exit 1 ;;
+              *) ;;
+            esac
+          done
+          has_new_api_columns=$(psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 --quiet --tuples-only --no-align -c \
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_keys' AND column_name IN ('new_api_token_id','new_api_key_ciphertext','is_studio_hidden');")
+          if [ "$has_new_api_columns" != "3" ]; then
+            echo "Expected api_keys to have new_api_token_id, new_api_key_ciphertext, is_studio_hidden after migrations" >&2
+            exit 1
+          fi
 
       - name: go test -tags=integration
         working-directory: services/gateway
