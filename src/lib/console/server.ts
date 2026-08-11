@@ -253,8 +253,11 @@ export function parseConsoleKeyInput(value: unknown): {
   }
   const input = value as Record<string, unknown>;
   const name = typeof input.name === "string" ? input.name.trim() : "";
-  if (!name || name.length > 120) {
-    throw new ConsoleRequestError("密钥名称必须为 1 到 120 个字符。", 400, "invalid_key_name");
+  // Capped at 50, not 120: new-api's AddToken rejects any token name over 50
+  // chars (controller/token.go), and every virtual key is backed by a
+  // new-api token 1:1 — a longer name here would fail key creation upstream.
+  if (!name || name.length > 50) {
+    throw new ConsoleRequestError("密钥名称必须为 1 到 50 个字符。", 400, "invalid_key_name");
   }
   if (typeof input.organizationId !== "string" || !input.organizationId.trim()) {
     throw new ConsoleRequestError("创建 API Key 需要指定工作区。", 400, "organization_id_required");

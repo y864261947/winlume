@@ -23,8 +23,17 @@ export interface ProvisionPlatformUserInput {
 
 const STUDIO_TOKEN_NAME = "studio";
 
+// new-api's model.User enforces `validate:"max=20"` on Username and
+// `validate:"min=8,max=20"` on Password (E:\CodeCode\new-api\model\user.go) —
+// these must fit within that limit regardless of the Reizo username's own
+// (much longer) length, so they're generated independently of it rather than
+// derived from user input.
+function generateNewApiUsername(): string {
+  return `reizo-${randomBytes(6).toString("hex")}`; // "reizo-" (6) + 12 hex chars = 18
+}
+
 function generateNewApiPassword(): string {
-  return randomBytes(24).toString("base64url");
+  return randomBytes(9).toString("hex"); // 18 hex chars, within min=8/max=20
 }
 
 /**
@@ -42,7 +51,7 @@ export async function provisionPlatformUser(
   if (!username) throw new Error("A username is required.");
   const displayName = input.displayName?.trim() || username;
 
-  const newApiUsername = `reizo-${username}`;
+  const newApiUsername = generateNewApiUsername();
   const newApiPassword = generateNewApiPassword();
 
   await createNewApiUser({ username: newApiUsername, password: newApiPassword, displayName });

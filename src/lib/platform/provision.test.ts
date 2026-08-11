@@ -50,8 +50,23 @@ describe("provisionPlatformUser", () => {
     const database = fakeDatabase();
     await provisionPlatformUser(database, { username: "team-abc", displayName: "Team ABC", passwordHash: "hash" });
     expect(createNewApiUser).toHaveBeenCalledWith(
-      expect.objectContaining({ username: "reizo-team-abc", displayName: "Team ABC" }),
+      expect.objectContaining({ username: expect.stringMatching(/^reizo-[0-9a-f]{12}$/), displayName: "Team ABC" }),
     );
+  });
+
+  it("keeps the generated new-api username/password within new-api's max=20 field limits regardless of Reizo username length", async () => {
+    // new-api's model.User enforces validate:"max=20" on Username and
+    // validate:"min=8,max=20" on Password (model/user.go) — a naive
+    // `reizo-${username}` derivation (or a long random password) blows past
+    // this for any real-world username/password and fails registration
+    // 100% of the time in production. Regression test for that.
+    const database = fakeDatabase();
+    const longUsername = "a-very-long-reizo-username-well-past-twenty-chars";
+    await provisionPlatformUser(database, { username: longUsername, displayName: "Long Name", passwordHash: "hash" });
+    const call = vi.mocked(createNewApiUser).mock.calls[0][0];
+    expect(call.username.length).toBeLessThanOrEqual(20);
+    expect(call.password.length).toBeGreaterThanOrEqual(8);
+    expect(call.password.length).toBeLessThanOrEqual(20);
   });
 
   it("attempts to disable the new-api user if the local transaction fails", async () => {
