@@ -14,7 +14,7 @@ describe("loadCapabilityCatalog", () => {
 
     const catalog = await loadCapabilityCatalog({
       baseUrl: "http://gateway.test",
-      internalToken: "test-internal-token",
+      authToken: "test-admin-token",
       fetchImpl: fetchImpl as typeof fetch,
     });
 
@@ -30,7 +30,7 @@ describe("loadCapabilityCatalog", () => {
       2,
       "http://gateway.test/v1/models",
       expect.objectContaining({
-        headers: { "x-reizo-internal-token": "test-internal-token" },
+        headers: { Authorization: "Bearer test-admin-token" },
       }),
     );
   });
@@ -50,21 +50,40 @@ describe("loadCapabilityCatalog", () => {
     ).toBe("degraded");
   });
 
-  it("does not call the protected model endpoint without an internal token", async () => {
+  it("does not call the protected model endpoint without an auth token when capabilities lists openai", async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValue(Response.json({ configured: [{ family: "openai" }] }));
+      .mockResolvedValueOnce(Response.json({ configured: [{ family: "openai" }] }))
+      .mockResolvedValueOnce(Response.json({ data: [] }));
 
     const catalog = await loadCapabilityCatalog({
       baseUrl: "http://gateway.test",
-      internalToken: "",
+      authToken: "",
       fetchImpl: fetchImpl as typeof fetch,
     });
 
-    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(catalog.models).toEqual([]);
     expect(
       catalog.capabilities.find((entry) => entry.id === "chat")?.availability,
     ).toBe("degraded");
+  });
+
+  it("falls back to /v1/models when /capabilities is unavailable (new-api)", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(Response.json({ data: [{ id: "gpt-new-api" }] }));
+
+    const catalog = await loadCapabilityCatalog({
+      baseUrl: "https://v2api.top",
+      authToken: "admin-pat",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    expect(catalog.models).toEqual(["gpt-new-api"]);
+    expect(
+      catalog.capabilities.find((entry) => entry.id === "chat")?.availability,
+    ).toBe("available");
   });
 });

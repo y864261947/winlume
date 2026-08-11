@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { getGatewayBaseUrl } from "@/lib/agent/provider/gateway";
 import { getAuthMode } from "@/lib/platform/auth";
-import { loadPlazaFromPricingCatalog } from "@/lib/catalog/pricing-plaza";
 import { inferVendorFromModel, PLAZA_VENDORS } from "@/lib/catalog/vendors";
 import type { PlazaModel } from "@/lib/catalog";
 
@@ -42,17 +42,21 @@ async function legacyPlaza(): Promise<Response> {
   }
 }
 
-/** Fallback when no active pricing catalog is loaded: list gateway models without native prices. */
-async function gatewayModelsPlaza(): Promise<Response> {
-  const gatewayUrl = trimUrl(process.env.REIZO_GATEWAY_URL ?? "http://127.0.0.1:4010");
-  const internalToken = process.env.REIZO_GATEWAY_INTERNAL_TOKEN?.trim();
-  if (!internalToken) {
-    return NextResponse.json({ success: false, message: "Reizo 模型目录尚未配置。" }, { status: 503 });
+/**
+ * List models from new-api (via getGatewayBaseUrl: REIZO_GATEWAY_URL → NEW_API_URL → localhost).
+ * Pricing-catalog tables were dropped with the billing engine; prices come from new-api when available.
+ */
+async function modelsPlaza(): Promise<Response> {
+  const gatewayUrl = getGatewayBaseUrl();
+  const adminToken = process.env.NEW_API_ADMIN_TOKEN?.trim();
+  const headers: Record<string, string> = {};
+  if (adminToken) {
+    headers.Authorization = `Bearer ${adminToken}`;
   }
 
   try {
     const upstream = await fetch(`${gatewayUrl}/v1/models`, {
-      headers: { "x-reizo-internal-token": internalToken },
+      headers,
       cache: "no-store",
     });
     if (!upstream.ok) {
@@ -93,18 +97,6 @@ async function gatewayModelsPlaza(): Promise<Response> {
   }
 }
 
-async function nativePlaza(): Promise<Response> {
-  try {
-    const fromCatalog = await loadPlazaFromPricingCatalog();
-    if (fromCatalog && fromCatalog.models.length > 0) {
-      return plazaResponse(fromCatalog.models, fromCatalog.vendors);
-    }
-  } catch {
-    // Fall through to gateway model list when the catalog query fails.
-  }
-  return gatewayModelsPlaza();
-}
-
 export async function GET() {
-  return getAuthMode() === "legacy" ? legacyPlaza() : nativePlaza();
+  return getAuthMode() === "legacy" ? legacyPlaza() : modelsPlaza();
 }
