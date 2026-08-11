@@ -89,7 +89,7 @@ func TestLoadBillingModes(t *testing.T) {
 			name: "shadow",
 			environment: map[string]string{
 				"REIZO_GATEWAY_BILLING_MODE":   "shadow",
-				"DATABASE_URL":                   "postgres://db",
+				"DATABASE_URL":                 "postgres://db",
 				"REIZO_GATEWAY_INTERNAL_TOKEN": "secret",
 			},
 			mode: BillingShadow,
@@ -98,7 +98,7 @@ func TestLoadBillingModes(t *testing.T) {
 			name: "authoritative",
 			environment: map[string]string{
 				"REIZO_GATEWAY_BILLING_MODE":       "authoritative",
-				"DATABASE_URL":                       "postgres://db",
+				"DATABASE_URL":                     "postgres://db",
 				"REIZO_GATEWAY_INTERNAL_TOKEN":     "secret",
 				"REIZO_GATEWAY_BILLING_OWNER":      "go",
 				"REIZO_GATEWAY_UPSTREAM_OWNERSHIP": "non_charging_new_api",
