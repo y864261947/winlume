@@ -23,9 +23,14 @@ export interface CreateApiKeyInput {
 }
 
 export class ApiKeyRepository {
-  private readonly teamMappings = new TeamNewApiMappingRepository(this.database);
+  private readonly teamMappings: TeamNewApiMappingRepository;
 
-  constructor(private readonly database: PlatformDatabase) {}
+  constructor(private readonly database: PlatformDatabase) {
+    // Must construct after `database` is assigned — field initializers run before
+    // parameter properties, so `new TeamNewApiMappingRepository(this.database)` at
+    // field-init time would pass undefined.
+    this.teamMappings = new TeamNewApiMappingRepository(database);
+  }
 
   async create(input: CreateApiKeyInput): Promise<{ record: ApiKeyRecord; plaintext: string }> {
     const name = input.name.trim();
@@ -120,13 +125,13 @@ export class ApiKeyRepository {
   async revoke(id: string): Promise<ApiKeyRecord | null> {
     const record = await this.setStatus(id, "revoked");
     if (record?.newApiTokenId && record.organizationId) {
-      const mapping = await this.teamMappings.findByOrganizationId(record.organizationId);
-      if (mapping) {
-        try {
+      try {
+        const mapping = await this.teamMappings.findByOrganizationId(record.organizationId);
+        if (mapping) {
           await revokeTeamToken(decryptSecret(mapping.newApiPatCiphertext), record.newApiTokenId);
-        } catch (error) {
-          console.error("Failed to revoke underlying new-api token", { keyId: id, error });
         }
+      } catch (error) {
+        console.error("Failed to revoke underlying new-api token", { keyId: id, error });
       }
     }
     return record;
