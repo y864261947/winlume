@@ -58,7 +58,8 @@ describe("loginAndMintPat", () => {
 });
 
 describe("createTeamToken / findTeamTokenIdByName / fetchTeamTokenKey", () => {
-  it("creates a token with group=default and unlimited quota", async () => {
+  it("creates a token with the configured default group (gpt-pro) and unlimited quota", async () => {
+    delete process.env.NEW_API_TOKEN_GROUP;
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await createTeamToken("pat-xyz", "studio");
@@ -67,11 +68,21 @@ describe("createTeamToken / findTeamTokenIdByName / fetchTeamTokenKey", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer pat-xyz");
     expect(JSON.parse(init.body as string)).toEqual({
       name: "studio",
-      group: "default",
+      group: "gpt-pro",
       remain_quota: 0,
       unlimited_quota: true,
       expired_time: -1,
     });
+  });
+
+  it("honors NEW_API_TOKEN_GROUP when set", async () => {
+    process.env.NEW_API_TOKEN_GROUP = "claude-max";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await createTeamToken("pat-xyz", "studio");
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string).group).toBe("claude-max");
+    delete process.env.NEW_API_TOKEN_GROUP;
   });
 
   it("finds a token id by exact name match", async () => {
