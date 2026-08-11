@@ -32,7 +32,8 @@ vi.mock("@/lib/newapi/crypto", () => ({
   decryptSecret: mocks.decryptSecret,
 }));
 
-import { cachedTokenUsage, clearTokenUsageCache, GET } from "./route";
+import { GET } from "./route";
+import { cachedTokenUsage, clearTokenUsageCache } from "./token-usage-cache";
 
 describe("cachedTokenUsage", () => {
   beforeEach(() => {
