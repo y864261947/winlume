@@ -4,6 +4,7 @@ import { AuthIdentityRepository } from "./auth-identities";
 import { BillingRepository } from "./billing";
 import { OrganizationRepository } from "./organizations";
 import { PresetRepository } from "./presets";
+import { TeamNewApiMappingRepository } from "./team-new-api-mapping";
 import { UserRepository } from "./users";
 import { WalletRepository } from "./wallet";
 
@@ -15,6 +16,7 @@ export class PlatformRepositories {
   readonly billing: BillingRepository;
   readonly wallets: WalletRepository;
   readonly presets: PresetRepository;
+  readonly teamNewApiMapping: TeamNewApiMappingRepository;
 
   constructor(database: PlatformDatabase) {
     this.users = new UserRepository(database);
@@ -24,6 +26,7 @@ export class PlatformRepositories {
     this.billing = new BillingRepository(database);
     this.wallets = new WalletRepository(database);
     this.presets = new PresetRepository(database);
+    this.teamNewApiMapping = new TeamNewApiMappingRepository(database);
   }
 }
 
@@ -37,5 +40,6 @@ export * from "./auth-identities";
 export * from "./billing";
 export * from "./organizations";
 export * from "./presets";
+export * from "./team-new-api-mapping";
 export * from "./users";
 export * from "./wallet";
