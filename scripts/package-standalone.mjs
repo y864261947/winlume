@@ -144,7 +144,8 @@ writeFileSync(
   join(stage, ".env.production.example"),
   [
     "# This environment file is for the Next.js web/control-plane process.",
-    "# Deploy the Go gateway binary separately; see docs/DEPLOY.md.",
+    "# new-api (v2api.top) is the model inference/quota/usage backend; see",
+    "# docs/superpowers/specs/2026-08-11-reizo-new-api-integration-design.md.",
     "NODE_ENV=production",
     "PORT=3001",
     "HOSTNAME=127.0.0.1",
@@ -152,10 +153,9 @@ writeFileSync(
     "AUTH_SECRET=",
     "DATABASE_URL=",
     "REIZO_AUTH_MODE=reizo",
-    "REIZO_GATEWAY_URL=http://127.0.0.1:4010",
-    "REIZO_GATEWAY_INTERNAL_TOKEN=",
-    "REIZO_SERVICE_KEY=",
-    "# NEW_API_URL=  # legacy compatibility only; leave unset after cutover",
+    "NEW_API_URL=https://v2api.top",
+    "NEW_API_ADMIN_TOKEN=",
+    "REIZO_TOKEN_ENCRYPTION_KEY=",
     "",
   ].join("\n"),
 );
