@@ -2530,6 +2530,7 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-arrow-link { display: inline-flex; align-items: center; gap: 2px; color: var(--portal-blue); font-size: 14px; font-weight: 700; line-height: 19px; white-space: nowrap; }
 .portal-arrow-link svg { width: 14px; height: 14px; }
 .portal-search-card > .portal-arrow-link { position: absolute; right: 20px; bottom: 9px; z-index: 1; }
+.portal-search-actions { position: absolute; right: 20px; bottom: 10px; z-index: 2; display: flex; align-items: center; gap: 12px; }.portal-workbench-button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 11px; border-radius: 8px; color: #fff; background: var(--portal-blue); box-shadow: 0 7px 15px -10px rgba(13,79,201,.8); font-size: 13px; font-weight: 700; }.portal-workbench-button:hover { background: #0b45b0; }.portal-workbench-button svg { width: 14px; height: 14px; }
 /* Enterprise card (top-right spotlight): soft blue emphasis, not loud */
 .portal-enterprise-card {
   height: 227px;
@@ -3926,6 +3927,9 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   font-size: 15px;
   line-height: 24px;
 }
+.portal-catalog-modebar { display: flex; gap: 8px; margin-top: 18px; }
+.portal-catalog-modebar button { display: grid; min-width: 164px; gap: 2px; padding: 10px 13px; border: 1px solid rgba(174, 202, 226, .84); border-radius: 10px; color: var(--portal-muted); background: rgba(255, 255, 255, .62); font: inherit; text-align: left; cursor: pointer; transition: border-color .16s ease, background-color .16s ease, transform .16s ease; }
+.portal-catalog-modebar button:hover { border-color: rgba(13, 79, 201, .5); transform: translateY(-1px); }.portal-catalog-modebar button.is-active { border-color: rgba(13, 79, 201, .58); color: var(--portal-blue); background: rgba(235, 245, 255, .92); box-shadow: 0 6px 16px -13px rgba(13, 79, 201, .55); }.portal-catalog-modebar strong { font-size: 14px; line-height: 20px; }.portal-catalog-modebar span { font-size: 12px; line-height: 17px; }
 .portal-catalog-search {
   display: flex;
   height: 52px;
@@ -4093,6 +4097,8 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   color: var(--portal-muted);
   text-align: center;
 }
+.portal-product-card { border: 1px solid rgba(178, 205, 226, .8); border-radius: 12px; background: linear-gradient(145deg, rgba(255,255,255,.92), rgba(241,248,255,.76)); box-shadow: 0 10px 24px -20px rgba(13, 55, 94, .5); transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }.portal-product-card:hover { border-color: rgba(13, 79, 201, .44); box-shadow: 0 16px 28px -20px rgba(13, 79, 201, .35); transform: translateY(-2px); }.portal-product-card-title { color: var(--portal-ink); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; font-weight: 700; }.portal-product-card-copy { color: var(--portal-muted); font-size: 13px; line-height: 20px; }.portal-product-card-price { border: 1px solid rgba(190, 211, 228, .72); border-radius: 8px; color: #3c5670; background: rgba(255,255,255,.68); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }.portal-product-card-detail,.portal-product-card-launch { border-radius: 8px; font-size: 12px; font-weight: 700; transition: background-color .16s ease, border-color .16s ease; }.portal-product-card-detail { border: 1px solid rgba(126, 168, 218, .8); color: var(--portal-blue); background: rgba(255,255,255,.72); }.portal-product-card-detail:hover { border-color: var(--portal-blue); background: rgba(235,245,255,.9); }.portal-product-card-launch { color: #fff; background: var(--portal-blue); }.portal-product-card-launch:hover { background: #0b45b0; }
+.portal-model-plaza-card { border: 1px solid rgba(178, 205, 226, .8); border-radius: 14px; background: rgba(255,255,255,.9); box-shadow: 0 10px 24px -20px rgba(13,55,94,.5); transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }.portal-model-plaza-card:hover { border-color: rgba(13,79,201,.44); box-shadow: 0 17px 29px -20px rgba(13,79,201,.38); transform: translateY(-2px); }
 @media (max-width: 760px) {
   .portal-catalog-hero { padding: 20px 16px 16px; }
   .portal-catalog-hero h1 { font-size: 26px; line-height: 34px; }
@@ -4105,6 +4111,7 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
     padding: 0 10px;
     font-size: 13px;
   }
+  .portal-catalog-modebar { overflow-x: auto; padding-bottom: 2px; }.portal-catalog-modebar button { min-width: 150px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

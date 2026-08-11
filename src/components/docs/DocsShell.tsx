@@ -15,7 +15,6 @@ import {
 import { useMemo, useState, type ReactNode } from "react";
 import { useModals } from "@/components/providers";
 import { apiCategories } from "@/data/docs/api-catalog";
-import type { Audience } from "@/data/audience";
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -23,8 +22,7 @@ function isActive(pathname: string, href: string) {
 
 export default function DocsShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { account, audience, openLogin, selectAudience } = useModals();
-  const personalActive = audience !== "business";
+  const { account, openLogin } = useModals();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
@@ -39,12 +37,6 @@ export default function DocsShell({ children }: { children: ReactNode }) {
 
   const accountName = account ? account.display_name || account.username : null;
   const accountInitial = accountName ? accountName.slice(0, 1).toUpperCase() : "登";
-
-  function changeAudience(next: Audience) {
-    selectAudience(next);
-    setNotice(next === "personal" ? "已切换到个人版" : "已切换到企业版");
-    window.setTimeout(() => setNotice(""), 1800);
-  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -158,22 +150,6 @@ export default function DocsShell({ children }: { children: ReactNode }) {
             <Link href="/" className="portal-brand">
               Winlume
             </Link>
-            <div className="portal-switcher" role="group" aria-label="版本选择">
-              <Link
-                href="/"
-                className={personalActive ? "is-active" : ""}
-                onClick={() => changeAudience("personal")}
-              >
-                个人版
-              </Link>
-              <Link
-                href="/business"
-                className={!personalActive ? "is-active" : ""}
-                onClick={() => changeAudience("business")}
-              >
-                企业版
-              </Link>
-            </div>
             <nav className="portal-main-links" aria-label="页面导航">
               <Link href="/">首页</Link>
               <Link href="/products?cate=app">应用工具</Link>
