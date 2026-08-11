@@ -1,5 +1,11 @@
 # Go Gateway — Outstanding Work After Authoritative Cutover
 
+> **Superseded 2026-08-11**: the Go gateway described here was decommissioned
+> as part of the new-api integration cutover — stopped in production and its
+> source deleted. See
+> [docs/superpowers/specs/2026-08-11-reizo-new-api-integration-design.md](../superpowers/specs/2026-08-11-reizo-new-api-integration-design.md).
+> Kept below as historical record only; none of this is actionable anymore.
+
 Status as of 2026-08-06: all 24 plan tasks (`docs/superpowers/plans/2026-08-04-go-gateway-billing.md`)
 are implemented and committed. The Go Gateway is live in production on
 `176.122.164.148` in `REIZO_GATEWAY_BILLING_MODE=authoritative`, replacing

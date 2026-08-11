@@ -1,7 +1,0 @@
-data: {"id":"chatcmpl_sanitized","object":"chat.completion.chunk","model":"gpt-4o-mini","choices":[{"index":0,"delta":{"role":"assistant","content":"A local "}}]}
-
-data: {"id":"chatcmpl_sanitized","object":"chat.completion.chunk","model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":"answer","reasoning_content":" with reasoning","tool_calls":[{"index":0,"function":{"name":"lookup","arguments":"{\"city\":\"Paris\"}"}}]}}]}
-
-data: [DONE]
-
-: keep-alive

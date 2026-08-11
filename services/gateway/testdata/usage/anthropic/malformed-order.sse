@@ -1,4 +1,0 @@
-event: message_delta
-data: {"type":"message_delta","usage":{"output_tokens":3}}
-
-: fixture end

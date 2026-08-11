@@ -1,32 +1,25 @@
-# CI for the go-gateway-billing service and its Next.js caller contract.
+# CI for the shared LLM-gateway-caller client (src/lib/agent/provider/gateway.ts).
 #
-# Three independent jobs:
-#   - go-checks:        fmt/vet/unit/race/build, no database required.
-#   - go-integration:   spins up a throwaway PostgreSQL 16 service container,
-#                       applies every drizzle/NNNN_*.sql migration in order,
-#                       and runs the `-tags=integration` suite in
-#                       services/gateway.
-#   - node-contract:    runs the Next.js-side tests that assert the caller
-#                       contract with the gateway (request/response shapes,
-#                       schema) so a gateway change that breaks the Next.js
-#                       side fails CI here, not in production.
-name: Gateway CI
+# The Go gateway service (services/gateway) this workflow used to build and
+# integration-test was decommissioned as part of the new-api integration
+# (docs/superpowers/specs/2026-08-11-reizo-new-api-integration-design.md):
+# stopped in production and its source deleted. gateway.ts survives — it's a
+# plain OpenAI-compatible streaming client, now pointed at new-api instead of
+# the old gateway — so this workflow keeps the one job that still tests real,
+# load-bearing code.
+name: Gateway Caller Contract CI
 
 on:
   push:
     branches: [master]
     paths:
-      - "services/gateway/**"
-      - "drizzle/**"
+      - "src/lib/agent/provider/gateway.ts"
       - "src/lib/agent/provider/gateway.test.ts"
-      - "src/lib/platform/db/gateway-schema.test.ts"
       - ".github/workflows/gateway.yml"
   pull_request:
     paths:
-      - "services/gateway/**"
-      - "drizzle/**"
+      - "src/lib/agent/provider/gateway.ts"
       - "src/lib/agent/provider/gateway.test.ts"
-      - "src/lib/platform/db/gateway-schema.test.ts"
       - ".github/workflows/gateway.yml"
   workflow_dispatch:
 
@@ -35,145 +28,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  go-checks:
-    name: Go fmt / vet / test / build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: services/gateway
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: services/gateway/go.mod
-
-      - name: gofmt cleanliness
-        run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "The following files are not gofmt-clean:" >&2
-            echo "$unformatted" >&2
-            exit 1
-          fi
-
-      - name: go vet
-        run: go vet ./...
-
-      - name: go test
-        run: go test ./...
-
-      - name: go test -race
-        run: go test -race ./...
-
-      - name: Build cmd/gateway
-        run: go build -o /dev/null ./cmd/gateway
-
-      - name: Build cmd/pricing-import
-        run: go build -o /dev/null ./cmd/pricing-import
-
-  go-integration:
-    name: Go integration tests (PostgreSQL)
-    # Retired as part of the new-api integration cutover
-    # (docs/superpowers/specs/2026-08-11-reizo-new-api-integration-design.md):
-    # migration 0007 drops the wallet/billing-engine tables this suite
-    # exercises, and the gateway is stopped in production. Re-enable only if
-    # services/gateway billing logic becomes load-bearing again; otherwise
-    # this job (and the rest of services/gateway) should be deleted together
-    # once the decommission's soak period (design doc §9) is complete.
-    if: false
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: gateway_test
-          POSTGRES_PASSWORD: gateway_test
-          POSTGRES_DB: reizo_gateway_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U gateway_test -d reizo_gateway_test"
-          --health-interval 2s
-          --health-timeout 3s
-          --health-retries 30
-    env:
-      TEST_DATABASE_URL: postgres://gateway_test:gateway_test@localhost:5432/reizo_gateway_test?sslmode=disable
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: services/gateway/go.mod
-
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends postgresql-client
-
-      - name: Apply migrations
-        run: |
-          set -euo pipefail
-          # Apply every drizzle/NNNN_*.sql file in numeric order. This used to
-          # be a hardcoded 0000-0003 list; new migrations (0004+) were added
-          # over time and silently never ran in CI, so every integration test
-          # touching a table introduced after 0003 failed with "relation ...
-          # does not exist" until this was noticed. Glob + sort avoids this
-          # class of bug recurring for future migrations.
-          for f in $(ls drizzle/[0-9][0-9][0-9][0-9]_*.sql | sort); do
-            echo "Applying $f"
-            psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f" --quiet
-          done
-
-      - name: Verify migrations committed
-        run: |
-          set -euo pipefail
-          # ON_ERROR_STOP alone does not catch a migration file that runs
-          # every statement successfully but never commits its transaction
-          # (drizzle/0003 historically opened a BEGIN, required to run
-          # `ALTER TYPE ... ADD VALUE` outside its own transaction, but did
-          # not COMMIT). Query a fresh psql connection for tables affected
-          # by each migration so a silently-rolled-back file fails CI here.
-          #
-          # 0007 (new-api integration) DROPs the wallet/billing-engine tables
-          # 0003 introduced and this check used to assert existed — presence
-          # of `wallets` etc. now would itself mean 0007 rolled back silently.
-          # So this checks two things: the new-api tables/columns exist
-          # (0007 committed its CREATE/ALTER), and the dropped billing tables
-          # are actually gone (0007 committed its DROP, not just ran it).
-          present_expected="users organizations api_keys team_new_api_mapping"
-          absent_expected="wallets pricing_catalog_versions billing_shadow_events gateway_relay_attempts enterprise_billing_requests channels model_availability"
-          found=$(psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 --quiet --tuples-only --no-align -c \
-            "SELECT string_agg(table_name, ',') FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users','organizations','api_keys','team_new_api_mapping','wallets','pricing_catalog_versions','billing_shadow_events','gateway_relay_attempts','enterprise_billing_requests','channels','model_availability');")
-          for table in $present_expected; do
-            case ",$found," in
-              *,"$table",*) ;;
-              *) echo "Missing expected table after migrations: $table" >&2; exit 1 ;;
-            esac
-          done
-          for table in $absent_expected; do
-            case ",$found," in
-              *,"$table",*) echo "Table should have been dropped by migration 0007 but still exists: $table" >&2; exit 1 ;;
-              *) ;;
-            esac
-          done
-          has_new_api_columns=$(psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 --quiet --tuples-only --no-align -c \
-            "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_keys' AND column_name IN ('new_api_token_id','new_api_key_ciphertext','is_studio_hidden');")
-          if [ "$has_new_api_columns" != "3" ]; then
-            echo "Expected api_keys to have new_api_token_id, new_api_key_ciphertext, is_studio_hidden after migrations" >&2
-            exit 1
-          fi
-
-      - name: go test -tags=integration
-        working-directory: services/gateway
-        run: go test -tags=integration ./...
-
   node-contract:
     name: Next.js gateway caller contract
     runs-on: ubuntu-latest
@@ -192,4 +46,4 @@ jobs:
         run: npm ci
 
       - name: Run gateway caller contract tests
-        run: npm test -- src/lib/agent/provider/gateway.test.ts src/lib/platform/db/gateway-schema.test.ts
+        run: npm test -- src/lib/agent/provider/gateway.test.ts

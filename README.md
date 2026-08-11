@@ -1,27 +1,34 @@
 # Reizo Studio
 
 Web-first AI workbench for Reizo: free-agent chat, skill injection,
-artifacts, native account management, and gateway-backed billing.
+artifacts, and native account management. Reizo is a thin BFF in front of
+**new-api** (v2api.top) — new-api is the sole authority for model inference,
+quota, and usage logging; Reizo owns no self-built billing engine.
 
 Primary UI lives at **`/studio`**. Marketing pages remain under `/products`, `/pricing`, etc.
 
-## Native platform architecture
+## Platform architecture
 
-Reizo runs as two cooperating services backed by one PostgreSQL database:
+Reizo is a single Next.js process backed by one PostgreSQL database, sitting
+in front of new-api:
 
 - **Next.js web/control plane**: Auth.js credentials sessions, account and
-  console UI, organizations, API keys, wallets, and settings.
-- **Fastify protocol gateway**: OpenAI-compatible API proxying, external
-  API-key verification, streaming, and wallet reservation/settlement.
-- **PostgreSQL**: the source of truth for credentials, keys, organizations,
-  immutable wallet ledger entries, usage, subscriptions, and payment records.
+  console UI, organizations, virtual API keys, and settings.
+- **new-api** (external, `NEW_API_URL`): model inference, per-team quota, and
+  usage logs. Every Reizo team maps 1:1 to a new-api user
+  (`team_new_api_mapping`); every virtual `sk-...` key maps 1:1 to a new-api
+  token.
+- **PostgreSQL**: Reizo's own source of truth for credentials, organizations,
+  memberships, and the encrypted new-api credential/token mappings. No wallet
+  or usage-ledger tables — new-api owns that data.
 
-In native mode, the web service reaches the gateway through
-`REIZO_GATEWAY_URL` (default `http://127.0.0.1:4010`) using a shared internal
-token. The gateway is deliberately a separate process, not a Next Route
-Handler. `NEW_API_URL` is retained only for an explicit legacy compatibility
-window and the one-time migration; native authentication and the standalone
-gateway do not use it.
+`src/app/api/v1/[...path]/route.ts` is the only public model-inference
+surface: it authenticates a virtual key, decrypts the new-api token behind
+it, and streams the request through to new-api. Studio's own LLM calls use
+the same decrypt-and-forward path via a hidden, non-user-visible token per
+team. See
+[docs/superpowers/specs/2026-08-11-reizo-new-api-integration-design.md](docs/superpowers/specs/2026-08-11-reizo-new-api-integration-design.md)
+for the full design.
 
 ## Requirements
 
@@ -34,17 +41,14 @@ Copy `.env.example` to `.env.local` (or export vars in your shell):
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | Yes in native production | PostgreSQL connection for Auth.js credentials, console data, API keys, wallets, and gateway verification/accounting. |
+| `DATABASE_URL` | Yes in production | PostgreSQL connection for Auth.js credentials, console data, organizations, and new-api credential mappings. |
 | `AUTH_SECRET` | Yes in production | Auth.js signing secret; use a distinct random value per environment. |
 | `NEXTAUTH_URL` | Yes in production | Canonical public web origin. |
-| `REIZO_AUTH_MODE` | No | `reizo` by default. Set `legacy` only for a tightly bounded new-api compatibility period. |
-| `REIZO_GATEWAY_URL` | No | Native gateway origin for server-side Studio calls. Default: `http://127.0.0.1:4010`. |
-| `REIZO_GATEWAY_INTERNAL_TOKEN` | For ops endpoints | Shared server-to-server token for the gateway's ops-only surface (`/internal/billing/shadow-events`, `/metrics`) and the Go server's Studio-token auth path. Not used by Reizo's own chat/image traffic anymore — see `REIZO_SERVICE_KEY`. Never expose it to the browser. |
-| `REIZO_SERVICE_KEY` | Yes for native Studio | Service-account Bearer token Reizo's own chat and image calls send to the gateway (`Authorization: Bearer <key>`). Provision one with `create-service-account`. |
-| `REIZO_GATEWAY_ADMIN_TOKEN` | Only if `/gateway-admin` is deployed | Shared secret the `/gateway-admin` Next.js routes use to call the Go gateway's `/internal/admin/*` service-account management API. Server-only; never expose it to the browser. |
-| `NEW_API_URL` | Legacy only | Old NewAPI origin. Leave unset after cutover; it is not a native gateway upstream. |
-| `REIZO_GATEWAY_TOKEN` | Legacy only | Server-side Bearer token for the legacy chat transport. Leave unset in native mode. |
-| `REIZO_IMAGE_GATEWAY_TOKEN` | Legacy only | Separate server-side Bearer token for the legacy image transport. Native Studio uses `REIZO_SERVICE_KEY`; leave unset after cutover. |
+| `REIZO_AUTH_MODE` | No | `reizo` by default. Set `legacy` only for a tightly bounded compatibility period. |
+| `NEW_API_URL` | Yes in production | new-api origin (e.g. `https://v2api.top`) — the model inference/quota/usage backend. Required, not legacy. |
+| `NEW_API_ADMIN_TOKEN` | Yes in production | Personal Access Token of a dedicated new-api admin/root account. Used server-only for user creation and quota management (`POST /api/user/`, `POST /api/user/manage`). Never expose to the browser. |
+| `REIZO_TOKEN_ENCRYPTION_KEY` | Yes in production | 32-byte AES-256-GCM key (hex or base64) used to encrypt every stored new-api password/PAT/token secret. No rotation mechanism — losing or changing this breaks every stored ciphertext. |
+| `NEW_API_TOKEN_GROUP` | No | new-api token group used when creating team/Studio tokens. Deployment-specific — new-api's own "default" group is not guaranteed to be a live routable group; check `GET /api/user/groups` on the target new-api instance. Default: `gpt-pro`. |
 | `REIZO_IMAGE_MODEL` | No | Default image model id when a tool call omits `model`. Default: `gpt-image-2` |
 | `REIZO_DATA_DIR` | No | Override local data root (default: `./data`) |
 | `REIZO_CHAT_PATH` | No | Override chat path (default: `/v1/chat/completions`) |
@@ -67,15 +71,10 @@ Copy `.env.example` to `.env.local` (or export vars in your shell):
 DATABASE_URL=postgres://reizo:...
 AUTH_SECRET=replace-with-a-random-secret
 REIZO_AUTH_MODE=reizo
-REIZO_GATEWAY_URL=http://127.0.0.1:4010
-REIZO_GATEWAY_INTERNAL_TOKEN=replace-with-a-separate-random-secret
-REIZO_SERVICE_KEY=wl_replace-with-a-service-account-key
-REIZO_GATEWAY_OPENAI_UPSTREAM_URL=https://provider.example/v1
-REIZO_GATEWAY_OPENAI_UPSTREAM_API_KEY=provider-service-key
+NEW_API_URL=https://v2api.top
+NEW_API_ADMIN_TOKEN=replace-with-a-new-api-admin-pat
+REIZO_TOKEN_ENCRYPTION_KEY=replace-with-a-32-byte-hex-or-base64-key
 ```
-
-Gateway-specific configuration, including database API-key verification and
-wallet accounting, is documented in [services/gateway/README.md](services/gateway/README.md).
 
 ## Agent runtimes
 
@@ -83,7 +82,7 @@ Reizo keeps one control plane for authentication, sessions, cancellation,
 tools, artifacts, and SSE events. The selected executor supplies the model or
 coding runtime behind that contract:
 
-- `studio` keeps the original OpenAI-compatible gateway transport and is the default.
+- `studio` keeps the original OpenAI-compatible transport (now pointed at new-api) and is the default.
 - `ai-sdk` uses Vercel AI SDK for model streaming while the existing Reizo runtime still executes and persists tools.
 - `codex` runs the OpenAI Codex SDK as a server-side coding specialist with a resumable thread per Reizo session.
 
@@ -149,7 +148,6 @@ configuration.
 npm install
 npm run db:migrate
 npm run dev
-npm run gateway:dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) — the app redirects into Studio (`/studio`).
@@ -159,26 +157,18 @@ Open [http://localhost:3000](http://localhost:3000) — the app redirects into S
 | `npm run dev` | Next.js dev server |
 | `npm run build` | Production build |
 | `npm start` | Serve production build |
-| `npm run gateway:dev` | Watch and run the standalone Fastify gateway |
-| `npm run gateway:start` | Run the standalone Fastify gateway without watch mode |
 | `npm run db:migrate` | Apply Reizo PostgreSQL migrations (drizzle-kit) |
 | `npm run db:migrate:prod` | Apply migrations with the standalone-safe runner (used in production deploy) |
-| `npm run migration:new-api:dry-run` | Validate a new-api migration without writing data |
-| `npm run migration:new-api -- --apply ...` | Apply a reviewed new-api migration explicitly |
 | `npm test` | Vitest unit tests |
-| `npm run test:gateway` | Gateway-specific tests |
 | `npm run lint` | ESLint |
 
-## new-api cutover
+## Deployment
 
-Before stopping old new-api, deploy the Reizo schema, import a reviewed
-snapshot, configure the standalone gateway upstreams/channels, and reconcile
-users, keys, balances, usage, subscriptions, and payment records. Old
-sessions, OAuth credentials, MFA, and passkeys are intentionally not imported;
-users enroll those again in Reizo. The migration is dry-run by default and
-requires `--apply` for writes. See [docs/MIGRATE_NEW_API.md](docs/MIGRATE_NEW_API.md)
-for the controlled procedure and [docs/DEPLOY.md](docs/DEPLOY.md) for the
-dual-process deployment and shutdown checklist.
+Production deploys automatically on push to `master` via
+`.github/workflows/deploy.yml`: build, package the standalone Next.js
+artifact, ship it to the host, run pending Postgres migrations, then restart
+`reizo.service`. See [docs/DEPLOY.md](docs/DEPLOY.md) for the current
+production layout and manual-release fallback.
 
 ## Skills import
 
@@ -224,13 +214,13 @@ data/
 ## Stack
 
 - Next.js App Router + React
-- Fastify standalone OpenAI-compatible protocol gateway
+- new-api (external) as the model inference/quota/usage backend
 - PostgreSQL + Drizzle platform data layer
 - Vercel AI SDK model transport
 - OpenAI Codex SDK coding executor
 - Vitest
 - Tailwind CSS v4
-- OpenAI-compatible streaming via the Reizo gateway
+- OpenAI-compatible streaming, proxied through Reizo to new-api
 
 ## License
 

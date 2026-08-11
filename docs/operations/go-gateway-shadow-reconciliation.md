@@ -1,5 +1,11 @@
 # Go Gateway Shadow Deployment — Reconciliation Runbook
 
+> **Superseded 2026-08-11**: the Go gateway described here was decommissioned
+> as part of the new-api integration cutover — stopped in production and its
+> source deleted. See
+> [docs/superpowers/specs/2026-08-11-reizo-new-api-integration-design.md](../superpowers/specs/2026-08-11-reizo-new-api-integration-design.md).
+> Kept below as historical record only; none of this is actionable anymore.
+
 ## Status: shadow mode live on production (2026-08-05, ~17:06 UTC)
 
 ## Step 1: Catalog activation
