@@ -33,17 +33,15 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await requireConsoleContext();
+    // organizationId is required (design §5.3/§5.4): only org-scoped virtual keys exist.
     const input = parseConsoleKeyInput(await request.json());
-    if (input.organizationId) {
-      const selected = await requireConsoleOrganization(context, input.organizationId);
-      ensureOrganizationKeyManager(selected.membership.role);
-    }
+    const selected = await requireConsoleOrganization(context, input.organizationId);
+    ensureOrganizationKeyManager(selected.membership.role);
     const { record, plaintext } = await context.repositories.apiKeys.create({
       userId: context.userId,
       organizationId: input.organizationId,
       name: input.name,
       expiresAt: input.expiresAt,
-      quotaLimitMicrocredits: input.quotaLimitMicrocredits,
       allowedModels: input.allowedModels,
       ipAllowlist: input.ipAllowlist,
     });

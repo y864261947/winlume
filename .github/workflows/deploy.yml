@@ -119,9 +119,12 @@ jobs:
             sed -i 's/^REIZO_AUTH_MODE=winlume$/REIZO_AUTH_MODE=reizo/' /etc/reizo/web.env || true
           fi
 
-          # Native releases must not inherit the retired new-api compatibility
-          # settings from a previous standalone package.
-          sed -i -E '/^[[:space:]]*(NEW_API_URL|AUTH_V2API_ID|AUTH_V2API_SECRET|REIZO_GATEWAY_TOKEN|REIZO_IMAGE_GATEWAY_TOKEN)[[:space:]]*=/d' /opt/reizo/.env
+          # Native releases must not inherit the retired legacy-auth-mode
+          # compatibility settings from a previous standalone package.
+          # NEW_API_URL is NOT stripped here: since the new-api integration
+          # (docs/superpowers/specs/2026-08-11-reizo-new-api-integration-design.md),
+          # it is a required runtime variable again, not a legacy leftover.
+          sed -i -E '/^[[:space:]]*(AUTH_V2API_ID|AUTH_V2API_SECRET|REIZO_GATEWAY_TOKEN|REIZO_IMAGE_GATEWAY_TOKEN)[[:space:]]*=/d' /opt/reizo/.env
           grep -q '^NODE_ENV=' /opt/reizo/.env || echo 'NODE_ENV=production' >> /opt/reizo/.env
           grep -q '^PORT=' /opt/reizo/.env || echo 'PORT=3001' >> /opt/reizo/.env
           grep -q '^HOSTNAME=' /opt/reizo/.env || echo 'HOSTNAME=127.0.0.1' >> /opt/reizo/.env

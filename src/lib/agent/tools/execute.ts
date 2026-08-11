@@ -20,6 +20,7 @@ import {
 import { artifactOutputIdSchema } from "@/lib/agent/skills/contracts";
 import type { ArtifactStore } from "@/lib/host/ports";
 import { generateImage } from "@/lib/agent/provider/gateway";
+import { resolveStudioToken } from "@/lib/agent/provider/studio-token";
 import { publishArtifactEvent } from "@/lib/agent/artifact-events";
 import {
   applyMerge,
@@ -302,7 +303,16 @@ export interface ImageGenerationJob {
 export async function runImageGenerationJob(job: ImageGenerationJob): Promise<void> {
   const { artifact, ctx, prompt, model, size, sourceImages } = job;
   try {
-    const [image] = await generateImage({ prompt, model, size, n: 1, sourceImages, userId: ctx.userId });
+    const token = await resolveStudioToken(ctx.userId);
+    const [image] = await generateImage({
+      prompt,
+      model,
+      size,
+      n: 1,
+      sourceImages,
+      userId: ctx.userId,
+      token,
+    });
     if (!image) throw new Error("Image API returned no results");
     await ctx.artifacts.write(
       { ...artifact, mimeType: image.mimeType, status: "ready", error: undefined },

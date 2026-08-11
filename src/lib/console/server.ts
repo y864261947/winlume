@@ -1,20 +1,14 @@
-import { and, desc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { getCurrentUserId } from "@/lib/auth/session";
 import {
   canManageOrganizationResources,
-  enterpriseBillingRequests,
-  getPlatformDb,
   getPlatformRepositories,
-  usageEvents,
 } from "@/lib/platform";
 import type { OrganizationRole } from "@/lib/platform";
 import type { ApiKeyRecord } from "@/lib/platform/repositories";
 import type {
   ConsoleApiKey,
-  ConsoleLedgerEntry,
   ConsoleOrganizationUsageRollup,
   ConsoleOverview,
-  ConsolePaymentOrder,
   ConsoleUsageByKey,
   ConsoleUsagePoint,
   ConsoleWalletDetails,
@@ -94,7 +88,8 @@ export function mapConsoleApiKey(
     createdAt: record.createdAt.toISOString(),
     lastUsedAt: record.lastUsedAt?.toISOString() ?? null,
     expiresAt: record.expiresAt?.toISOString() ?? null,
-    quotaLimit: record.quotaLimitMicrocredits === null ? null : microcreditsToCredits(record.quotaLimitMicrocredits),
+    // Per-key quota column was removed in the new-api cutover; balance lives on the team account.
+    quotaLimit: null,
     usedQuota: microcreditsToCredits(usedQuotaMicrocredits),
     modelScopes: record.allowedModels,
     ipAllowList: record.ipAllowlist,
@@ -104,28 +99,14 @@ export function mapConsoleApiKey(
   };
 }
 
-/** Sums settled usage cost per API key, regardless of which user owns the key. */
-async function usedQuotaForApiKeys(apiKeyIds: string[]): Promise<Map<string, bigint>> {
-  if (apiKeyIds.length === 0) return new Map();
-  const database = getPlatformDb();
-  if (!database) return new Map();
-  const rows = await database
-    .select({ apiKeyId: usageEvents.apiKeyId, cost: usageEvents.costMicrocredits })
-    .from(usageEvents)
-    .where(and(inArray(usageEvents.apiKeyId, apiKeyIds), eq(usageEvents.status, "settled")));
-  const result = new Map<string, bigint>();
-  for (const row of rows) {
-    if (!row.apiKeyId) continue;
-    result.set(row.apiKeyId, (result.get(row.apiKeyId) ?? BigInt(0)) + row.cost);
-  }
-  return result;
-}
-
 /**
  * Lists keys for the caller's personal workspace (organizationId omitted) or
  * for a whole organization workspace (organizationId provided). Callers must
  * verify the caller's membership/permissions in that organization before
  * passing organizationId — this function does not re-check access.
+ *
+ * usedQuota is always 0 here: local usage_events were dropped; per-key usage
+ * is served by GET /api/console/usage (new-api, Task 11).
  */
 export async function listConsoleApiKeys(
   context: ConsoleRequestContext,
@@ -134,7 +115,6 @@ export async function listConsoleApiKeys(
   const records = organizationId
     ? await context.repositories.apiKeys.listForOrganization(organizationId)
     : await context.repositories.apiKeys.listForUser(context.userId);
-  const usedByKey = await usedQuotaForApiKeys(records.map((record) => record.id));
   let ownerNames: Map<string, string> | null = null;
   if (organizationId) {
     const uniqueOwnerIds = [...new Set(records.map((record) => record.userId))];
@@ -146,147 +126,35 @@ export async function listConsoleApiKeys(
     );
   }
   return records
-    .map((record) => mapConsoleApiKey(record, usedByKey.get(record.id) ?? BigInt(0), ownerNames?.get(record.userId) ?? null))
+    .map((record) => mapConsoleApiKey(record, BigInt(0), ownerNames?.get(record.userId) ?? null))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
 /**
- * Breaks down usage (requests, settled/reserved credits) by API key over the
- * trailing `sinceDays` days.
- *
- * Personal view (organizationId omitted): scopes to usageEvents.userId ===
- * context.userId, same rows getConsoleOverview already sums, just grouped by
- * apiKeyId instead of by day.
- *
- * Organization view (organizationId provided): scopes to
- * usageEvents.organizationId. That column is populated by the Go gateway at
- * write time from the resolved caller identity's organization (see
- * services/gateway/internal/billing/service.go, which sets
- * `OrganizationID: operation.Identity.OrganizationID` on the insert in
- * services/gateway/internal/storage/billing.go) — not derived after the
- * fact from the key's current organizationId — so it reliably reflects every
- * member's usage under the org's keys, not just the caller's own keys, and we
- * scope directly on usageEvents.organizationId rather than joining through
- * apiKeys.organizationId.
- *
- * Callers must verify the caller's membership/permissions in that
- * organization before passing organizationId — this function does not
- * re-check access (mirrors listConsoleApiKeys above).
+ * Legacy local usage_events breakdown — tables dropped in Task 3.
+ * Prefer GET /api/console/usage (new-api). Kept as empty so old clients do not 500.
  */
 export async function getConsoleUsageByKey(
-  context: ConsoleRequestContext,
-  organizationId?: string | null,
-  sinceDays = 14,
+  _context: ConsoleRequestContext,
+  _organizationId?: string | null,
+  _sinceDays = 14,
 ): Promise<ConsoleUsageByKey[]> {
-  const database = getPlatformDb();
-  if (!database) throw new ConsoleRequestError("平台数据库尚未配置。", 503, "platform_not_configured");
-
-  const since = new Date();
-  since.setUTCDate(since.getUTCDate() - (sinceDays - 1));
-  since.setUTCHours(0, 0, 0, 0);
-
-  const scopeCondition = organizationId
-    ? eq(usageEvents.organizationId, organizationId)
-    : eq(usageEvents.userId, context.userId);
-
-  const rows = await database
-    .select({
-      apiKeyId: usageEvents.apiKeyId,
-      requests: sql<string>`count(*) filter (where ${usageEvents.status} = 'settled')`,
-      settled: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'settled' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
-      reserved: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'reserved' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
-    })
-    .from(usageEvents)
-    .where(and(scopeCondition, gte(usageEvents.occurredAt, since), isNotNull(usageEvents.apiKeyId)))
-    .groupBy(usageEvents.apiKeyId);
-
-  const apiKeyIds = rows.map((row) => row.apiKeyId).filter((id): id is string => Boolean(id));
-  if (apiKeyIds.length === 0) return [];
-
-  // Reuse the same key listing the keys feature uses per workspace, so key
-  // name/prefix labels stay consistent with what ConsoleKeysContent shows.
-  const keyRecords = organizationId
-    ? await context.repositories.apiKeys.listForOrganization(organizationId)
-    : await context.repositories.apiKeys.listForUser(context.userId);
-  const keysById = new Map(keyRecords.map((record) => [record.id, record]));
-
-  let ownerNames: Map<string, string> | null = null;
-  if (organizationId) {
-    const uniqueOwnerIds = [...new Set(keyRecords.map((record) => record.userId))];
-    const owners = await Promise.all(uniqueOwnerIds.map((id) => context.repositories.users.findById(id)));
-    ownerNames = new Map(
-      owners
-        .filter((owner): owner is NonNullable<typeof owner> => Boolean(owner))
-        .map((owner) => [owner.id, owner.displayName]),
-    );
-  }
-
-  return rows
-    .filter((row): row is typeof row & { apiKeyId: string } => Boolean(row.apiKeyId))
-    .map((row) => {
-      const record = keysById.get(row.apiKeyId);
-      return {
-        apiKeyId: row.apiKeyId,
-        keyName: record?.name ?? "未知 Key",
-        keyPrefix: record?.keyPrefix ?? "--",
-        ownerName: organizationId && record ? ownerNames?.get(record.userId) ?? null : null,
-        requests: Number(row.requests),
-        settledCredits: microcreditsToCredits(BigInt(row.settled)),
-        reservedCredits: microcreditsToCredits(BigInt(row.reserved)),
-      };
-    })
-    .sort((left, right) => right.settledCredits - left.settledCredits);
+  return [];
 }
 
 /**
- * Aggregates usage across every API key belonging to an organization for a
- * given period (defaults to the current UTC calendar month, i.e. the
- * "current billing period"): total requests, total settled/reserved
- * credits, plus the same per-key breakdown rows getConsoleUsageByKey
- * produces so the UI can reuse one row shape for both the trailing-window
- * and rollup views.
- *
- * Scopes on usageEvents.organizationId, same as getConsoleUsageByKey's
- * organization branch — see that function's comment for why we scope
- * directly on the usage event's recorded organizationId rather than joining
- * through apiKeys.organizationId (a key's current org can drift after the
- * fact; the usage event's org is fixed at write time by the gateway).
- *
- * Callers must verify the caller's membership in this organization before
- * calling (mirrors getConsoleUsageByKey/listConsoleApiKeys above) — this
- * function does not re-check access.
+ * Legacy org rollup over local usage_events — tables dropped in Task 3.
+ * Prefer GET /api/console/usage (new-api).
  */
 export async function getOrganizationUsageRollup(
-  context: ConsoleRequestContext,
-  organizationId: string,
+  _context: ConsoleRequestContext,
+  _organizationId: string,
   period?: { since?: Date; until?: Date },
 ): Promise<ConsoleOrganizationUsageRollup> {
-  const database = getPlatformDb();
-  if (!database) throw new ConsoleRequestError("平台数据库尚未配置。", 503, "platform_not_configured");
-
   const now = new Date();
   const since = period?.since ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const until = period?.until ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-
-  const rows = await database
-    .select({
-      apiKeyId: usageEvents.apiKeyId,
-      requests: sql<string>`count(*) filter (where ${usageEvents.status} = 'settled')`,
-      settled: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'settled' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
-      reserved: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'reserved' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
-    })
-    .from(usageEvents)
-    .where(
-      and(
-        eq(usageEvents.organizationId, organizationId),
-        gte(usageEvents.occurredAt, since),
-        lt(usageEvents.occurredAt, until),
-        isNotNull(usageEvents.apiKeyId),
-      ),
-    )
-    .groupBy(usageEvents.apiKeyId);
-
-  const result: ConsoleOrganizationUsageRollup = {
+  return {
     periodStart: since.toISOString(),
     periodEnd: until.toISOString(),
     totalRequests: 0,
@@ -294,45 +162,6 @@ export async function getOrganizationUsageRollup(
     totalReservedCredits: 0,
     byKey: [],
   };
-
-  const apiKeyIds = rows.map((row) => row.apiKeyId).filter((id): id is string => Boolean(id));
-  if (apiKeyIds.length === 0) return result;
-
-  // Reuse the org's key listing so name/prefix/owner labels stay consistent
-  // with ConsoleKeysContent and getConsoleUsageByKey.
-  const keyRecords = await context.repositories.apiKeys.listForOrganization(organizationId);
-  const keysById = new Map(keyRecords.map((record) => [record.id, record]));
-  const uniqueOwnerIds = [...new Set(keyRecords.map((record) => record.userId))];
-  const owners = await Promise.all(uniqueOwnerIds.map((id) => context.repositories.users.findById(id)));
-  const ownerNames = new Map(
-    owners
-      .filter((owner): owner is NonNullable<typeof owner> => Boolean(owner))
-      .map((owner) => [owner.id, owner.displayName]),
-  );
-
-  result.byKey = rows
-    .filter((row): row is typeof row & { apiKeyId: string } => Boolean(row.apiKeyId))
-    .map((row) => {
-      const record = keysById.get(row.apiKeyId);
-      const requests = Number(row.requests);
-      const settledCredits = microcreditsToCredits(BigInt(row.settled));
-      const reservedCredits = microcreditsToCredits(BigInt(row.reserved));
-      result.totalRequests += requests;
-      result.totalSettledCredits += settledCredits;
-      result.totalReservedCredits += reservedCredits;
-      return {
-        apiKeyId: row.apiKeyId,
-        keyName: record?.name ?? "未知 Key",
-        keyPrefix: record?.keyPrefix ?? "--",
-        ownerName: record ? ownerNames.get(record.userId) ?? null : null,
-        requests,
-        settledCredits,
-        reservedCredits,
-      };
-    })
-    .sort((left, right) => right.settledCredits - left.settledCredits);
-
-  return result;
 }
 
 /** Same permission tier team.ts uses for member management (owner/admin), scoped to API keys. */
@@ -363,135 +192,59 @@ function lastUsageDays(days: number): ConsoleUsagePoint[] {
   return points;
 }
 
-async function subscriptionSummary(context: ConsoleRequestContext): Promise<ConsoleOverview["wallet"]["subscription"]> {
-  const subscription = await context.repositories.billing.findActiveSubscription(context.userId);
-  if (!subscription) return { name: "按量计费", status: "none", renewsAt: null };
-  const plan = await context.repositories.billing.findPlanById(subscription.planId);
-  return {
-    name: plan?.name ?? "已订阅方案",
-    status: subscription.status === "active" || subscription.status === "trialing" ? "active" : "inactive",
-    renewsAt: subscription.currentPeriodEnd?.toISOString() ?? null,
-  };
-}
+const EMPTY_WALLET = {
+  availableCredits: 0,
+  reservedCredits: 0,
+  usedCredits: 0,
+  currency: "CNY",
+  subscription: {
+    name: "按量计费",
+    status: "none" as const,
+    renewsAt: null,
+  },
+};
 
-function mapLedgerEntry(entry: Awaited<ReturnType<ConsoleRequestContext["repositories"]["wallets"]["listLedgerEntries"]>>[number]): ConsoleLedgerEntry {
+/**
+ * Local wallet/ledger tables were dropped; team quota lives on new-api
+ * (see GET /api/account/self and GET /api/console/usage). Returns an empty
+ * shell so the account wallet page still loads.
+ */
+export async function getConsoleWalletDetails(
+  _context: ConsoleRequestContext,
+): Promise<ConsoleWalletDetails> {
   return {
-    id: entry.id,
-    type: entry.entryType,
-    amountCredits: microcreditsToCredits(entry.amountMicrocredits),
-    reference: entry.reference,
-    createdAt: entry.createdAt.toISOString(),
-  };
-}
-
-function mapPaymentOrder(
-  order: Awaited<ReturnType<ConsoleRequestContext["repositories"]["billing"]["listPaymentOrders"]>>[number],
-  providerName: string,
-): ConsolePaymentOrder {
-  return {
-    id: order.id,
-    reference: order.orderReference,
-    status: order.status,
-    amount: Number(order.amountMinor) / 100,
-    currency: order.currency,
-    credits: microcreditsToCredits(order.creditsMicrocredits),
-    provider: providerName,
-    createdAt: order.createdAt.toISOString(),
-    paidAt: order.paidAt?.toISOString() ?? null,
-  };
-}
-
-export async function getConsoleWalletDetails(context: ConsoleRequestContext): Promise<ConsoleWalletDetails> {
-  const wallet = await context.repositories.wallets.ensureForUser(context.userId);
-  const database = getPlatformDb();
-  if (!database) throw new ConsoleRequestError("平台数据库尚未配置。", 503, "platform_not_configured");
-  const [balance, ledger, orders, providers, subscription, usageTotals] = await Promise.all([
-    context.repositories.wallets.getBalance(wallet.id),
-    context.repositories.wallets.listLedgerEntries(wallet.id, 50),
-    context.repositories.billing.listPaymentOrders(context.userId, 50),
-    context.repositories.billing.listPaymentProviders("active"),
-    subscriptionSummary(context),
-    database.select({
-      settled: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'settled' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
-      reserved: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'reserved' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
-    }).from(usageEvents).where(eq(usageEvents.userId, context.userId)),
-  ]);
-  const providerNames = new Map(providers.map((provider) => [provider.id, provider.name]));
-  return {
-    wallet: {
-      availableCredits: microcreditsToCredits(balance),
-      reservedCredits: microcreditsToCredits(BigInt(usageTotals[0]?.reserved ?? "0")),
-      usedCredits: microcreditsToCredits(BigInt(usageTotals[0]?.settled ?? "0")),
-      currency: wallet.currency,
-      subscription,
-    },
-    ledger: ledger.map(mapLedgerEntry),
-    paymentOrders: orders.map((order) => mapPaymentOrder(order, providerNames.get(order.paymentProviderId) ?? "支付渠道")),
+    wallet: { ...EMPTY_WALLET },
+    ledger: [],
+    paymentOrders: [],
   };
 }
 
 export async function getConsoleOverview(context: ConsoleRequestContext): Promise<ConsoleOverview> {
-  const database = getPlatformDb();
-  if (!database) throw new ConsoleRequestError("平台数据库尚未配置。", 503, "platform_not_configured");
-  const wallet = await context.repositories.wallets.ensureForUser(context.userId);
-  const since = new Date();
-  since.setUTCDate(since.getUTCDate() - 13);
-  since.setUTCHours(0, 0, 0, 0);
-
-  const [balance, memberships, keys, usageRows, usageTotals, subscription] = await Promise.all([
-    context.repositories.wallets.getBalance(wallet.id),
+  const [memberships, keys] = await Promise.all([
     context.repositories.organizations.listMembershipsForUser(context.userId),
     context.repositories.apiKeys.listForUser(context.userId),
-    database
-      .select({ occurredAt: usageEvents.occurredAt, cost: usageEvents.costMicrocredits, status: usageEvents.status })
-      .from(usageEvents)
-      .where(and(eq(usageEvents.userId, context.userId), gte(usageEvents.occurredAt, since))),
-    database
-      .select({
-        settled: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'settled' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
-        reserved: sql<string>`coalesce(sum(case when ${usageEvents.status} = 'reserved' then ${usageEvents.costMicrocredits} else 0 end), 0)`,
-      })
-      .from(usageEvents)
-      .where(eq(usageEvents.userId, context.userId)),
-    subscriptionSummary(context),
   ]);
 
   const organizationMembership = memberships[0] ?? null;
   const organization = organizationMembership
     ? await context.repositories.organizations.findById(organizationMembership.organizationId)
     : null;
-  const usage = lastUsageDays(14);
-  const byDay = new Map(usage.map((point) => [point.date, point]));
-  for (const row of usageRows) {
-    if (row.status !== "settled") continue;
-    const point = byDay.get(dayKey(row.occurredAt));
-    if (!point) continue;
-    point.requests += 1;
-    point.credits += microcreditsToCredits(row.cost);
-  }
-  const totals = usageTotals[0];
+
   return {
-    wallet: {
-      availableCredits: microcreditsToCredits(balance),
-      reservedCredits: microcreditsToCredits(BigInt(totals?.reserved ?? "0")),
-      usedCredits: microcreditsToCredits(BigInt(totals?.settled ?? "0")),
-      currency: wallet.currency,
-      subscription,
-    },
+    wallet: { ...EMPTY_WALLET },
     apiKeyCount: keys.filter((key) => key.status === "active" && (!key.expiresAt || key.expiresAt.getTime() > Date.now())).length,
     activeOrganization: organization && organizationMembership
       ? { id: organization.id, name: organization.name, role: organizationMembership.role }
       : null,
-    usage,
+    usage: lastUsageDays(14),
     platformReady: true,
   };
 }
 
 export function parseConsoleKeyInput(value: unknown): {
   name: string;
-  organizationId: string | null;
+  organizationId: string;
   expiresAt: Date | null;
-  quotaLimitMicrocredits: bigint | null;
   allowedModels: string[];
   ipAllowlist: string[];
 } {
@@ -503,13 +256,10 @@ export function parseConsoleKeyInput(value: unknown): {
   if (!name || name.length > 120) {
     throw new ConsoleRequestError("密钥名称必须为 1 到 120 个字符。", 400, "invalid_key_name");
   }
-  let organizationId: string | null = null;
-  if (input.organizationId !== undefined && input.organizationId !== null && input.organizationId !== "") {
-    if (typeof input.organizationId !== "string") {
-      throw new ConsoleRequestError("工作区标识无效。", 400, "invalid_organization_id");
-    }
-    organizationId = input.organizationId;
+  if (typeof input.organizationId !== "string" || !input.organizationId.trim()) {
+    throw new ConsoleRequestError("创建 API Key 需要指定工作区。", 400, "organization_id_required");
   }
+  const organizationId = input.organizationId.trim();
   let expiresAt: Date | null = null;
   if (input.expiresAt !== undefined && input.expiresAt !== null && input.expiresAt !== "") {
     if (typeof input.expiresAt !== "string") throw new ConsoleRequestError("过期时间无效。", 400, "invalid_expiry");
@@ -525,14 +275,10 @@ export function parseConsoleKeyInput(value: unknown): {
     }
     return [...new Set(raw.map((entry) => entry.trim()).filter(Boolean))].slice(0, 100);
   };
-  const quotaLimitMicrocredits = input.quotaLimit === undefined || input.quotaLimit === null || input.quotaLimit === ""
-    ? null
-    : creditsToMicrocredits(typeof input.quotaLimit === "number" ? input.quotaLimit : Number.NaN);
   return {
     name,
     organizationId,
     expiresAt,
-    quotaLimitMicrocredits,
     allowedModels: asStringList(input.modelScopes, "invalid_model_scopes"),
     ipAllowlist: asStringList(input.ipAllowList, "invalid_ip_allowlist"),
   };
@@ -553,27 +299,6 @@ export type ConsoleEnterpriseBillingRequest = {
   createdAt: string;
   updatedAt: string;
 };
-
-function mapEnterpriseBillingRequest(
-  record: typeof enterpriseBillingRequests.$inferSelect,
-): ConsoleEnterpriseBillingRequest {
-  return {
-    id: record.id,
-    organizationId: record.organizationId,
-    companyName: record.companyName,
-    taxId: record.taxId,
-    contactName: record.contactName,
-    contactEmail: record.contactEmail,
-    contactPhone: record.contactPhone,
-    estimatedMonthlySpendCredits:
-      record.estimatedMonthlySpendCredits === null ? null : Number(record.estimatedMonthlySpendCredits),
-    notes: record.notes,
-    status: record.status,
-    reviewNotes: record.reviewNotes,
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt.toISOString(),
-  };
-}
 
 /** Same permission tier as ensureOrganizationKeyManager (owner/admin), scoped to enterprise billing requests. */
 export function ensureOrganizationBillingManager(role: OrganizationRole): void {
@@ -641,83 +366,26 @@ export function parseEnterpriseBillingRequestInput(value: unknown): {
 }
 
 /**
- * v1 enterprise billing is a lead-capture + manual review flow (see the
- * schema.ts comment on enterpriseBillingRequests) — submitting a request does
- * not create an invoice or touch the wallet; it only records the request for
- * gateway-admin review. Enforces one open (pending) request per organization
- * at a time: if the org already has a pending request, this throws rather
- * than silently upserting — callers should show the existing pending request
- * instead of calling this again (see getEnterpriseBillingRequestForOrg). A
- * partial unique index on the table backs this up at the data layer in case
- * of a race between concurrent submissions.
+ * enterprise_billing_requests table was dropped with the billing engine.
+ * Route retained so UI gets a clear 410 instead of a 500.
  */
 export async function submitEnterpriseBillingRequest(
-  context: ConsoleRequestContext,
-  organizationId: string,
-  value: unknown,
+  _context: ConsoleRequestContext,
+  _organizationId: string,
+  _value: unknown,
 ): Promise<ConsoleEnterpriseBillingRequest> {
-  const membership = await context.repositories.organizations.getMembership(organizationId, context.userId);
-  if (!membership) throw new ConsoleRequestError("你无权访问该工作区。", 403, "organization_forbidden");
-  ensureOrganizationBillingManager(membership.role);
-
-  const database = getPlatformDb();
-  if (!database) throw new ConsoleRequestError("平台数据库尚未配置。", 503, "platform_not_configured");
-
-  const existingPending = await database
-    .select({ id: enterpriseBillingRequests.id })
-    .from(enterpriseBillingRequests)
-    .where(
-      and(eq(enterpriseBillingRequests.organizationId, organizationId), eq(enterpriseBillingRequests.status, "pending")),
-    )
-    .limit(1);
-  if (existingPending.length > 0) {
-    throw new ConsoleRequestError(
-      "该工作区已有一个待审核的对公结算申请，请等待审核结果。",
-      409,
-      "enterprise_billing_request_pending",
-    );
-  }
-
-  const input = parseEnterpriseBillingRequestInput(value);
-  const [record] = await database
-    .insert(enterpriseBillingRequests)
-    .values({
-      organizationId,
-      submittedByUserId: context.userId,
-      companyName: input.companyName,
-      taxId: input.taxId,
-      contactName: input.contactName,
-      contactEmail: input.contactEmail,
-      contactPhone: input.contactPhone,
-      estimatedMonthlySpendCredits:
-        input.estimatedMonthlySpendCredits === null ? null : String(input.estimatedMonthlySpendCredits),
-      notes: input.notes,
-    })
-    .returning();
-  if (!record) throw new ConsoleRequestError("提交对公结算申请失败，请稍后重试。", 500, "enterprise_billing_request_failed");
-  return mapEnterpriseBillingRequest(record);
+  throw new ConsoleRequestError(
+    "对公结算已下线，请联系运营人工处理配额。",
+    410,
+    "enterprise_billing_retired",
+  );
 }
 
-/**
- * Returns the most recent enterprise billing request for the org (if any),
- * for display on /account/enterprise. Any member of the org may view the
- * status; only owner/admin may submit (see submitEnterpriseBillingRequest).
- */
 export async function getEnterpriseBillingRequestForOrg(
   context: ConsoleRequestContext,
   organizationId: string,
 ): Promise<ConsoleEnterpriseBillingRequest | null> {
   const membership = await context.repositories.organizations.getMembership(organizationId, context.userId);
   if (!membership) throw new ConsoleRequestError("你无权访问该工作区。", 403, "organization_forbidden");
-
-  const database = getPlatformDb();
-  if (!database) throw new ConsoleRequestError("平台数据库尚未配置。", 503, "platform_not_configured");
-
-  const [record] = await database
-    .select()
-    .from(enterpriseBillingRequests)
-    .where(eq(enterpriseBillingRequests.organizationId, organizationId))
-    .orderBy(desc(enterpriseBillingRequests.createdAt))
-    .limit(1);
-  return record ? mapEnterpriseBillingRequest(record) : null;
+  return null;
 }

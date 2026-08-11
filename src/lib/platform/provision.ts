@@ -1,5 +1,11 @@
+import { randomBytes } from "node:crypto";
+import { eq } from "drizzle-orm";
+import { generateApiKey } from "./api-keys";
 import type { PlatformDatabase } from "./db/client";
-import { organizationMemberships, organizations, users, wallets } from "./db/schema";
+import { apiKeys, organizationMemberships, organizations, users } from "./db/schema";
+import { encryptSecret } from "../newapi/crypto";
+import { createNewApiUser, disableNewApiUser, findNewApiUserIdByUsername } from "../newapi/admin-client";
+import { createTeamToken, fetchTeamTokenKey, findTeamTokenIdByName, loginAndMintPat } from "../newapi/team-client";
 import { normalizeEmail, normalizeUsername, type PlatformUserRecord } from "./repositories/users";
 import type { PlatformRole, UserStatus } from "./types";
 
@@ -15,9 +21,18 @@ export interface ProvisionPlatformUserInput {
   legacyNewApiUserId?: number | null;
 }
 
+const STUDIO_TOKEN_NAME = "studio";
+
+function generateNewApiPassword(): string {
+  return randomBytes(24).toString("base64url");
+}
+
 /**
- * Create a platform user with a personal wallet and default owner workspace.
- * Used by password registration and OAuth first-login provisioning.
+ * Create a platform user with a default owner workspace backed by a dedicated new-api
+ * account. New-api is provisioned first; the local transaction only runs once it
+ * succeeds, and a local failure triggers a best-effort new-api compensation call
+ * (design doc §5.1 — an orphaned new-api account on double failure is an accepted,
+ * rare outcome, not something this function retries indefinitely).
  */
 export async function provisionPlatformUser(
   database: PlatformDatabase,
@@ -25,39 +40,96 @@ export async function provisionPlatformUser(
 ): Promise<PlatformUserRecord> {
   const username = normalizeUsername(input.username);
   if (!username) throw new Error("A username is required.");
+  const displayName = input.displayName?.trim() || username;
 
-  return database.transaction(async (tx) => {
-    const [createdUser] = await tx
-      .insert(users)
-      .values({
-        username,
-        displayName: input.displayName?.trim() || username,
-        email: normalizeEmail(input.email),
-        passwordHash: input.passwordHash ?? null,
-        image: input.image ?? null,
-        emailVerifiedAt: input.emailVerifiedAt ?? null,
-        platformRole: input.platformRole ?? "user",
-        status: input.status ?? "active",
-        legacyNewApiUserId: input.legacyNewApiUserId ?? null,
-      })
-      .returning();
-    if (!createdUser) throw new Error("账户创建未返回记录。");
+  const newApiUsername = `reizo-${username}`;
+  const newApiPassword = generateNewApiPassword();
 
-    await tx.insert(wallets).values({ userId: createdUser.id });
-    const [organization] = await tx
-      .insert(organizations)
-      .values({
-        name: `${createdUser.displayName} 的工作区`,
-        slug: `${username}-${createdUser.id.slice(0, 8)}`,
-        createdByUserId: createdUser.id,
-      })
-      .returning();
-    if (!organization) throw new Error("工作区创建未返回记录。");
-    await tx.insert(organizationMemberships).values({
-      organizationId: organization.id,
-      userId: createdUser.id,
-      role: "owner",
+  await createNewApiUser({ username: newApiUsername, password: newApiPassword, displayName });
+  const newApiUserId = await findNewApiUserIdByUsername(newApiUsername);
+  if (newApiUserId === null) {
+    throw new Error("new-api user was created but could not be found afterward.");
+  }
+
+  try {
+    const pat = await loginAndMintPat(newApiUsername, newApiPassword);
+    await createTeamToken(pat, STUDIO_TOKEN_NAME);
+    const studioTokenId = await findTeamTokenIdByName(pat, STUDIO_TOKEN_NAME);
+    if (studioTokenId === null) {
+      throw new Error("Studio token was created but could not be found afterward.");
+    }
+    const studioTokenKey = await fetchTeamTokenKey(pat, studioTokenId);
+
+    return await database.transaction(async (tx) => {
+      const [createdUser] = await tx
+        .insert(users)
+        .values({
+          username,
+          displayName,
+          email: normalizeEmail(input.email),
+          passwordHash: input.passwordHash ?? null,
+          image: input.image ?? null,
+          emailVerifiedAt: input.emailVerifiedAt ?? null,
+          platformRole: input.platformRole ?? "user",
+          status: input.status ?? "active",
+          legacyNewApiUserId: input.legacyNewApiUserId ?? null,
+        })
+        .returning();
+      if (!createdUser) throw new Error("账户创建未返回记录。");
+
+      const [organization] = await tx
+        .insert(organizations)
+        .values({
+          name: `${createdUser.displayName} 的工作区`,
+          slug: `${username}-${createdUser.id.slice(0, 8)}`,
+          createdByUserId: createdUser.id,
+        })
+        .returning();
+      if (!organization) throw new Error("工作区创建未返回记录。");
+
+      await tx.insert(organizationMemberships).values({
+        organizationId: organization.id,
+        userId: createdUser.id,
+        role: "owner",
+      });
+
+      const { TeamNewApiMappingRepository } = await import("./repositories/team-new-api-mapping");
+      await new TeamNewApiMappingRepository().create(tx, {
+        organizationId: organization.id,
+        newApiUserId,
+        newApiUsername,
+        newApiPasswordCiphertext: encryptSecret(newApiPassword),
+        newApiPatCiphertext: encryptSecret(pat),
+      });
+
+      const studioKey = generateApiKey();
+      await tx.insert(apiKeys).values({
+        userId: createdUser.id,
+        organizationId: organization.id,
+        name: "Studio",
+        keyPrefix: studioKey.prefix,
+        keyHash: studioKey.hash,
+        newApiTokenId: studioTokenId,
+        newApiKeyCiphertext: encryptSecret(studioTokenKey),
+        isStudioHidden: true,
+      });
+
+      await tx
+        .update(users)
+        .set({ currentOrganizationId: organization.id })
+        .where(eq(users.id, createdUser.id));
+
+      return createdUser;
     });
-    return createdUser;
-  });
+  } catch (error) {
+    try {
+      await disableNewApiUser(newApiUserId);
+    } catch (compensationError) {
+      console.error(
+        "Failed to compensate for orphaned new-api user after local registration failure",
+        { newApiUserId, newApiUsername, compensationError },
+      );
+    }
+    throw error;
+  }
 }

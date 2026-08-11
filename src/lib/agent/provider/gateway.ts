@@ -55,8 +55,7 @@ const DEFAULT_BASE = "http://127.0.0.1:4010";
 const DEFAULT_CHAT_PATH = "/v1/chat/completions";
 
 export function getGatewayBaseUrl(override?: string): string {
-  const legacy = process.env.REIZO_AUTH_MODE?.trim().toLowerCase() === "legacy";
-  const raw = override ?? process.env.REIZO_GATEWAY_URL ?? (legacy ? process.env.NEW_API_URL : undefined) ?? DEFAULT_BASE;
+  const raw = override ?? process.env.REIZO_GATEWAY_URL ?? process.env.NEW_API_URL ?? DEFAULT_BASE;
   return raw.replace(/\/+$/, "");
 }
 

@@ -50,6 +50,13 @@
       "when": 1786034953871,
       "tag": "0006_nice_captain_universe",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786457155682,
+      "tag": "0007_reizo_new_api_integration",
+      "breakpoints": true
     }
   ]
 }

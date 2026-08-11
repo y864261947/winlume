@@ -3,35 +3,54 @@ import type { InferSelectModel } from "drizzle-orm";
 import type { PlatformDatabase } from "../db/client";
 import { apiKeys } from "../db/schema";
 import { generateApiKey, hashApiKey } from "../api-keys";
+import { decryptSecret, encryptSecret } from "../../newapi/crypto";
+import { createTeamToken, fetchTeamTokenKey, findTeamTokenIdByName, revokeTeamToken } from "../../newapi/team-client";
+import { TeamNewApiMappingRepository } from "./team-new-api-mapping";
 import type { ApiKeyStatus } from "../types";
 
 export type ApiKeyRecord = InferSelectModel<typeof apiKeys>;
 
 export interface CreateApiKeyInput {
   userId: string;
-  organizationId?: string | null;
+  organizationId: string;
   name: string;
   scopes?: string[];
   allowedModels?: string[];
   allowedGroups?: string[];
   ipAllowlist?: string[];
-  quotaLimitMicrocredits?: bigint | null;
   expiresAt?: Date | null;
   metadata?: Record<string, unknown>;
 }
 
 export class ApiKeyRepository {
-  constructor(private readonly database: PlatformDatabase) {}
+  private readonly teamMappings: TeamNewApiMappingRepository;
+
+  constructor(private readonly database: PlatformDatabase) {
+    // Must construct after `database` is assigned — field initializers run before
+    // parameter properties, so `new TeamNewApiMappingRepository(this.database)` at
+    // field-init time would pass undefined.
+    this.teamMappings = new TeamNewApiMappingRepository(database);
+  }
 
   async create(input: CreateApiKeyInput): Promise<{ record: ApiKeyRecord; plaintext: string }> {
     const name = input.name.trim();
     if (!name) throw new Error("An API key name is required.");
+
+    const mapping = await this.teamMappings.findByOrganizationId(input.organizationId);
+    if (!mapping) throw new Error("This organization has no linked new-api team account.");
+    const pat = decryptSecret(mapping.newApiPatCiphertext);
+
+    await createTeamToken(pat, name);
+    const newApiTokenId = await findTeamTokenIdByName(pat, name);
+    if (newApiTokenId === null) throw new Error("new-api token was created but could not be found afterward.");
+    const newApiKey = await fetchTeamTokenKey(pat, newApiTokenId);
+
     const generated = generateApiKey();
     const [record] = await this.database
       .insert(apiKeys)
       .values({
         userId: input.userId,
-        organizationId: input.organizationId ?? null,
+        organizationId: input.organizationId,
         name,
         keyPrefix: generated.prefix,
         keyHash: generated.hash,
@@ -39,7 +58,8 @@ export class ApiKeyRepository {
         allowedModels: input.allowedModels ?? [],
         allowedGroups: input.allowedGroups ?? [],
         ipAllowlist: input.ipAllowlist ?? [],
-        quotaLimitMicrocredits: input.quotaLimitMicrocredits ?? null,
+        newApiTokenId,
+        newApiKeyCiphertext: encryptSecret(newApiKey),
         expiresAt: input.expiresAt ?? null,
         metadata: input.metadata ?? {},
       })
@@ -99,8 +119,22 @@ export class ApiKeyRepository {
     return record ?? null;
   }
 
+  /** Marks the key revoked locally, then best-effort revokes the new-api token behind it —
+   * a revoked local key stops working at the proxy regardless of new-api-side state, so a
+   * failure here is logged, not thrown (design doc §5.3). */
   async revoke(id: string): Promise<ApiKeyRecord | null> {
-    return this.setStatus(id, "revoked");
+    const record = await this.setStatus(id, "revoked");
+    if (record?.newApiTokenId && record.organizationId) {
+      try {
+        const mapping = await this.teamMappings.findByOrganizationId(record.organizationId);
+        if (mapping) {
+          await revokeTeamToken(decryptSecret(mapping.newApiPatCiphertext), record.newApiTokenId);
+        }
+      } catch (error) {
+        console.error("Failed to revoke underlying new-api token", { keyId: id, error });
+      }
+    }
+    return record;
   }
 
   async touchLastUsed(id: string): Promise<void> {
