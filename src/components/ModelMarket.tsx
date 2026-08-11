@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Bell, ChevronLeft, ChevronRight, CircleHelp, LayoutGrid, Search, ArrowUp } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
-import { type Audience } from "@/data/audience";
 import { formatBalance } from "@/lib/account";
 import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
 
@@ -556,7 +555,7 @@ function swipeDirection(fromId: ProductPath["id"], toId: ProductPath["id"]): "le
 }
 
 export default function ModelMarket() {
-  const { account, balanceConfig, audience, openLogin, selectAudience } = useModals();
+  const { account, balanceConfig, openLogin } = useModals();
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [featuredIndex, setFeaturedIndex] = useState(0);
@@ -571,7 +570,6 @@ export default function ModelMarket() {
   const pendingPathRef = useRef<ProductPath["id"] | null>(null);
   const cooldownTimerRef = useRef<number | null>(null);
   const [notice, setNotice] = useState("");
-  const personalActive = audience !== "business";
   const balance = formatBalance(account?.quota, balanceConfig);
   const activePath = productPaths.find((path) => path.id === activePathId) ?? productPaths[0];
   const stackPaths = stackOrderFrom(activePath.id).slice(0, STACK_VISIBLE);
@@ -659,12 +657,6 @@ export default function ModelMarket() {
     commitPathSwipe(nextId);
   }
 
-  function changeAudience(next: Audience) {
-    selectAudience(next);
-    setNotice(next === "personal" ? "已切换到个人版" : "已切换到企业版");
-    window.setTimeout(() => setNotice(""), 1800);
-  }
-
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmittedQuery(query.trim());
@@ -679,10 +671,6 @@ export default function ModelMarket() {
           <div className="portal-nav-shell-fill" aria-hidden />
           <header className="portal-nav" aria-label="主导航">
             <PortalLink href="/" className="portal-brand">Reizo</PortalLink>
-            <div className="portal-switcher" role="group" aria-label="版本选择">
-              <PortalLink href="/" className={personalActive ? "is-active" : ""} onClick={() => changeAudience("personal")}>个人版</PortalLink>
-              <PortalLink href="/business" className={!personalActive ? "is-active" : ""} onClick={() => changeAudience("business")}>企业版</PortalLink>
-            </div>
             <nav className="portal-main-links" aria-label="页面导航">
               <PortalLink href="/" className="is-current">首页</PortalLink>
               <PortalLink href="/products?cate=app">应用工具</PortalLink>
@@ -718,7 +706,10 @@ export default function ModelMarket() {
                 ))}
               </div>
             </div>
-            <ArrowLink href="/products">查看热门搜索</ArrowLink>
+            <div className="portal-search-actions">
+              <PortalLink href="/studio" className="portal-workbench-button"><LayoutGrid aria-hidden />进入工作台</PortalLink>
+              <ArrowLink href="/products">查看热门搜索</ArrowLink>
+            </div>
           </section>
 
           <article className="portal-enterprise-card portal-search-aside" aria-labelledby="portal-enterprise-title">
@@ -1010,27 +1001,6 @@ export default function ModelMarket() {
                   );
                 })}
               </div>
-            </div>
-          </section>
-
-          <section className="portal-ed-close" aria-labelledby="portal-close-title">
-            <div className="portal-ed-close-glow" aria-hidden />
-            <div className="portal-ed-close-copy">
-              <p className="portal-ed-kicker portal-ed-kicker-light">Start now</p>
-              <h2 id="portal-close-title">先跑通一次，再决定怎么规模化</h2>
-              <p>从工作台开始体验，或直接接入模型 API。企业需求可走方案评估。</p>
-            </div>
-            <div className="portal-ed-close-actions">
-              <PortalLink href="/studio" className="portal-ed-btn-primary">
-                进入工作台
-              </PortalLink>
-              <PortalLink href="/products?cate=api" className="portal-ed-btn-secondary">
-                浏览模型 API
-              </PortalLink>
-              <PortalLink href="/business" className="portal-ed-btn-ghost">
-                企业方案
-                <ChevronRight aria-hidden />
-              </PortalLink>
             </div>
           </section>
 

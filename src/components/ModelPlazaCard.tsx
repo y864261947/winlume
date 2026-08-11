@@ -39,7 +39,7 @@ export function ModelPlazaCard({ model, docsHref }: Props) {
   const [logoFailed, setLogoFailed] = useState(false);
 
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/8">
+    <article className="portal-model-plaza-card group relative flex h-full flex-col overflow-hidden">
       {/* Hero */}
       <div
         className="relative flex h-36 items-center justify-center px-4 sm:h-40"
@@ -67,20 +67,20 @@ export function ModelPlazaCard({ model, docsHref }: Props) {
 
         {/* Hover actions — marketplace style */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex translate-y-1 opacity-0 transition duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100">
-          <div className="flex w-full overflow-hidden rounded-t-lg bg-violet-600/95 text-center text-xs font-medium text-white backdrop-blur-sm">
+          <div className="flex w-full overflow-hidden rounded-t-lg bg-[#0d4fc9]/95 text-center text-xs font-medium text-white backdrop-blur-sm">
             {docsHref ? (
               <a
                 href={docsHref}
                 target="_blank"
                 rel="noreferrer"
-                className="flex-1 border-r border-white/20 px-2 py-2.5 transition hover:bg-violet-500"
+                className="flex-1 border-r border-white/20 px-2 py-2.5 transition hover:bg-[#0b45b0]"
               >
                 查看文档
               </a>
             ) : null}
             <Link
               href={studioHref}
-              className={`px-2 py-2.5 transition hover:bg-violet-500 ${docsHref ? "flex-1" : "w-full"}`}
+              className={`px-2 py-2.5 transition hover:bg-[#0b45b0] ${docsHref ? "flex-1" : "w-full"}`}
             >
               立即体验
             </Link>
@@ -116,7 +116,7 @@ export function ModelPlazaCard({ model, docsHref }: Props) {
           ))}
         </div>
 
-        <div className="mt-auto pt-3 text-xs font-medium text-violet-600">
+        <div className="mt-auto pt-3 text-xs font-medium text-[#0d4fc9]">
           {price.kind === "fixed" || price.kind === "tiered" ? (
             <p>{price.text}</p>
           ) : (

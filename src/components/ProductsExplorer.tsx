@@ -17,7 +17,6 @@ import { useModals } from "@/components/providers";
 import { categoriesByCate, type CateSlug } from "@/data/taxonomy";
 import { filterProducts } from "@/data/products";
 import { formatBalance } from "@/lib/account";
-import type { Audience } from "@/data/audience";
 import {
   PLAZA_CAPABILITY_FILTERS,
   type PlazaCapabilityFilter,
@@ -44,8 +43,7 @@ export default function ProductsExplorer({
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const { account, balanceConfig, audience, openLogin, selectAudience } = useModals();
-  const personalActive = audience !== "business";
+  const { account, balanceConfig, openLogin } = useModals();
 
   const [mode, setMode] = useState<ViewMode>(() => resolveMode(initialCate));
   const [appTag, setAppTag] = useState<string | undefined>(
@@ -96,10 +94,15 @@ export default function ProductsExplorer({
 
   const hasModelFilters = Boolean(query || vendorKey || capability !== "all");
 
-  function changeAudience(next: Audience) {
-    selectAudience(next);
-    setNotice(next === "personal" ? "已切换到个人版" : "已切换到企业版");
-    window.setTimeout(() => setNotice(""), 1800);
+  function selectMode(next: ViewMode) {
+    setMode(next);
+    setQuery("");
+    if (next === "models") {
+      setVendorKey(undefined);
+      setCapability("all");
+    } else {
+      setAppTag(undefined);
+    }
   }
 
   const navCurrent = (href: string) => {
@@ -118,22 +121,6 @@ export default function ProductsExplorer({
             <Link href="/" className="portal-brand">
               Reizo
             </Link>
-            <div className="portal-switcher" role="group" aria-label="版本选择">
-              <Link
-                href="/"
-                className={personalActive ? "is-active" : ""}
-                onClick={() => changeAudience("personal")}
-              >
-                个人版
-              </Link>
-              <Link
-                href="/business"
-                className={!personalActive ? "is-active" : ""}
-                onClick={() => changeAudience("business")}
-              >
-                企业版
-              </Link>
-            </div>
             <nav className="portal-main-links" aria-label="页面导航">
               <Link href="/" className={navCurrent("/") ? "is-current" : undefined}>
                 首页
@@ -198,6 +185,26 @@ export default function ProductsExplorer({
               ? "统一查看已导入定价目录中的模型，价格与 Gateway 计费同源。"
               : "精选应用与工具，按场景挑选可直接打开的工作流。"}
           </p>
+          <div className="portal-catalog-modebar" role="tablist" aria-label="目录子菜单">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "apps"}
+              className={mode === "apps" ? "is-active" : undefined}
+              onClick={() => selectMode("apps")}
+            >
+              <strong>应用工具</strong><span>按工作场景挑选</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "models"}
+              className={mode === "models" ? "is-active" : undefined}
+              onClick={() => selectMode("models")}
+            >
+              <strong>模型 API</strong><span>按能力与厂商筛选</span>
+            </button>
+          </div>
 
           <form
             className="portal-catalog-search"

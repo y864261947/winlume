@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useModals } from "@/components/providers";
-import type { Audience } from "@/data/audience";
 
 const navigation = [
   { href: "/account", label: "账户信息", mobileLabel: "账户", icon: LayoutDashboard, exact: true },
@@ -41,15 +40,8 @@ function selected(pathname: string, item: (typeof navigation)[number]) {
 
 export default function AccountShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { account, audience, openLogin, selectAudience } = useModals();
-  const personalActive = audience !== "business";
+  const { account, openLogin } = useModals();
   const [notice, setNotice] = useState("");
-
-  function changeAudience(next: Audience) {
-    selectAudience(next);
-    setNotice(next === "personal" ? "已切换到个人版" : "已切换到企业版");
-    window.setTimeout(() => setNotice(""), 1800);
-  }
 
   const accountName = account
     ? account.display_name || account.username
@@ -65,22 +57,6 @@ export default function AccountShell({ children }: { children: ReactNode }) {
             <Link href="/" className="portal-brand">
               Reizo
             </Link>
-            <div className="portal-switcher" role="group" aria-label="版本选择">
-              <Link
-                href="/"
-                className={personalActive ? "is-active" : ""}
-                onClick={() => changeAudience("personal")}
-              >
-                个人版
-              </Link>
-              <Link
-                href="/business"
-                className={!personalActive ? "is-active" : ""}
-                onClick={() => changeAudience("business")}
-              >
-                企业版
-              </Link>
-            </div>
             <nav className="portal-main-links" aria-label="页面导航">
               <Link href="/">首页</Link>
               <Link href="/products?cate=app">应用工具</Link>

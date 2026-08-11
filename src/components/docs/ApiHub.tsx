@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowRight, KeyRound } from "lucide-react";
 import {
   apiCategories,
   DOCS_API_KEY_ENV,
@@ -35,11 +36,19 @@ const quickLinks = [
 export function ApiHub() {
   return (
     <div className="docs-page">
-      <header className="docs-page-head">
-        <h1>API 参考</h1>
+      <header className="docs-page-head docs-home-hero">
+        <div className="docs-home-hero-copy">
+        <p className="docs-eyebrow">WINLUME DEVELOPER HUB</p>
+        <h1>从模型到 API，一处接入</h1>
         <p className="docs-lead">
           OpenAI 兼容的 HTTP 接口。鉴权使用 Bearer Token，经 Reizo 网关做校验、路由与计费。
         </p>
+        <div className="docs-home-actions">
+          <Link href="/account/keys" className="docs-btn primary"><KeyRound aria-hidden />创建 API Key</Link>
+          <Link href="/products?cate=api" className="docs-btn">查看模型目录<ArrowRight aria-hidden /></Link>
+        </div>
+        </div>
+        <div className="docs-home-hero-orbits" aria-hidden><i /><i /><i /></div>
       </header>
 
       <section className="docs-section docs-section-tight">
