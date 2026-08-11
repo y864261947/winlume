@@ -363,6 +363,10 @@ vi.mock("../provider/gateway", async (importOriginal) => {
   return { ...actual, generateImage: vi.fn() };
 });
 
+vi.mock("../provider/studio-token", () => ({
+  resolveStudioToken: vi.fn(async () => "sk-test-studio"),
+}));
+
 describe("executeGenerateImage", () => {
   const dirs: string[] = [];
   afterEach(() => {

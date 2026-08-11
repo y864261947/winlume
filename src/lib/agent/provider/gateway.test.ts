@@ -4,6 +4,7 @@ import {
   parseSseBody,
   createSseLineParser,
   streamGatewayChat,
+  getGatewayBaseUrl,
   type ChatChunk,
 } from "./gateway";
 
@@ -381,6 +382,23 @@ describe("streamGatewayChat auth", () => {
       expect(headers.Authorization).toBe("Bearer wl_service_test");
     } finally {
       process.env.REIZO_SERVICE_KEY = originalKey;
+    }
+  });
+});
+
+describe("getGatewayBaseUrl", () => {
+  it("falls back to NEW_API_URL when REIZO_GATEWAY_URL is unset", () => {
+    const originalGateway = process.env.REIZO_GATEWAY_URL;
+    const originalNewApi = process.env.NEW_API_URL;
+    try {
+      delete process.env.REIZO_GATEWAY_URL;
+      process.env.NEW_API_URL = "https://v2api.top";
+      expect(getGatewayBaseUrl()).toBe("https://v2api.top");
+    } finally {
+      if (originalGateway === undefined) delete process.env.REIZO_GATEWAY_URL;
+      else process.env.REIZO_GATEWAY_URL = originalGateway;
+      if (originalNewApi === undefined) delete process.env.NEW_API_URL;
+      else process.env.NEW_API_URL = originalNewApi;
     }
   });
 });

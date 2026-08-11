@@ -20,6 +20,7 @@ import {
   type GatewayChatMessage,
   type GatewayToolCall,
 } from "@/lib/agent/provider/gateway";
+import { resolveStudioToken } from "@/lib/agent/provider/studio-token";
 import {
   buildSystemPrompt,
   mergeSkillIds,
@@ -476,6 +477,8 @@ export async function* runAgentTurn(
   let lastAssistantText = "";
   let lastAssistantMessageId: string | undefined;
 
+  const studioToken = await resolveStudioToken(opts.gatewayUserId ?? userId);
+
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (signal?.aborted) {
       cancelled = true;
@@ -497,6 +500,7 @@ export async function* runAgentTurn(
         model,
         messages: gatewayMessages,
         tools,
+        token: studioToken,
         userId: opts.gatewayUserId ?? userId,
         signal,
       })) {

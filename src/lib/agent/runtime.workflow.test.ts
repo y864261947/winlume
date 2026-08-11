@@ -1,10 +1,14 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWebFileStore } from "@/lib/host/web/file-store";
 import type { GatewayChatStream } from "./provider/gateway";
 import { runAgentTurn } from "./runtime";
+
+vi.mock("@/lib/agent/provider/studio-token", () => ({
+  resolveStudioToken: vi.fn(async () => "sk-test-studio"),
+}));
 
 describe("Workflow runtime", () => {
   const directories: string[] = [];
