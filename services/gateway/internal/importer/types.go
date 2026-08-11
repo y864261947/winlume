@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"winlume/services/gateway/internal/pricing"
+	"reizo/services/gateway/internal/pricing"
 )
 
 const (

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import ProductsExplorer from "@/components/ProductsExplorer";
 
 export const metadata: Metadata = {
-  title: "模型与应用目录 - WinLume",
+  title: "模型与应用目录 - Reizo",
 };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;

@@ -8,7 +8,7 @@ export type SkillSelectionMode = "merge" | "replace";
 export const CODEX_EXECUTION_TOOL_NAMES = [
   "codex_command",
   "codex_file_change",
-  // WinLume launches Codex with MCP disabled. Keep this sentinel in the
+  // Reizo launches Codex with MCP disabled. Keep this sentinel in the
   // preflight set so a future explicit MCP integration cannot bypass policy.
   "codex_mcp:*",
 ] as const;

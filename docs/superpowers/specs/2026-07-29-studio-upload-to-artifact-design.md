@@ -6,7 +6,7 @@
 
 ## 1. Background
 
-The `@` mention picker (shipped in [PR #12](https://github.com/y864261947/winlume/pull/12)) only lists `kind: "image"` artifacts already saved server-side — which today only happens via `generate_image`. A user who drags a photo into the composer gets a local, client-only `ImageAttachment` (base64 `dataUrl`, never persisted as an `Artifact`), so `@` shows "还没有可引用的图片作品" even with images visibly attached. This was surfaced directly by the user testing the shipped feature.
+The `@` mention picker (shipped in [PR #12](https://github.com/y864261947/reizo/pull/12)) only lists `kind: "image"` artifacts already saved server-side — which today only happens via `generate_image`. A user who drags a photo into the composer gets a local, client-only `ImageAttachment` (base64 `dataUrl`, never persisted as an `Artifact`), so `@` shows "还没有可引用的图片作品" even with images visibly attached. This was surfaced directly by the user testing the shipped feature.
 
 This design closes that gap: uploading an image now also creates a real `Artifact` immediately, so it's referenceable in the same composer session, before the message is even sent.
 

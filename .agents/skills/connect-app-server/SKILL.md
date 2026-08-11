@@ -1,9 +1,9 @@
 ---
 name: connect-app-server
-description: Connect to and operate the production app server (38.76.188.156) for WinLume — SSH, deploy standalone builds, systemd/nginx status, logs, one-off diagnostics. Use when the user asks to "上服务器"/"连接服务器"/"部署"/"重启"/"看日志"/"SSH 38.76" or operate this box. For the LLM relay (104.160.47.89 / new-api), use connect-newapi-server instead.
+description: Connect to and operate the production app server (38.76.188.156) for Reizo — SSH, deploy standalone builds, systemd/nginx status, logs, one-off diagnostics. Use when the user asks to "上服务器"/"连接服务器"/"部署"/"重启"/"看日志"/"SSH 38.76" or operate this box. For the LLM relay (104.160.47.89 / new-api), use connect-newapi-server instead.
 ---
 
-# Connecting to the app server (WinLume)
+# Connecting to the app server (Reizo)
 
 ## Credentials (never commit)
 
@@ -45,7 +45,7 @@ These are the real failure modes when agents call SSH from Windows:
    export NVM_DIR="$HOME/.nvm"
    . "$NVM_DIR/nvm.sh"
    nvm use 22 >/dev/null
-   systemctl status winlume --no-pager
+   systemctl status reizo --no-pager
    '@
    python .agents/skills/connect-app-server/scripts/ssh_run.py 38.76.188.156 root '<password>' $cmd
    ```
@@ -53,34 +53,34 @@ These are the real failure modes when agents call SSH from Windows:
 2. **One `exec_command` per call** — `cd` does not persist. Chain with `&&` / `;` in one string.
 
 3. **Node / nvm** — system node may be 18; Node 22 is via nvm. Source nvm **before** any `node`/`npm`/`pm2` that needs 22.  
-   **WinLume production does NOT use nvm for the running process** — it uses systemd + `/usr/local/bin/node`. Prefer `systemctl` for WinLume.
+   **Reizo production does NOT use nvm for the running process** — it uses systemd + `/usr/local/bin/node`. Prefer `systemctl` for Reizo.
 
 4. **pm2 vs systemd**  
-   - WinLume: **`systemctl status|restart winlume`**, logs `/var/log/winlume.log`, unit `/etc/systemd/system/winlume.service`  
+   - Reizo: **`systemctl status|restart reizo`**, logs `/var/log/reizo.log`, unit `/etc/systemd/system/reizo.service`  
    - Historical by-your-side may still appear in `pm2 list` as **stopped** — this box is no longer the by-your-side host of record; do not restart by-your-side unless the user asks.
 
 5. **nginx is aaPanel** — only `/www/server/nginx/conf/` is live. Edit there, then:
    ```bash
    /www/server/nginx/sbin/nginx -t && /www/server/nginx/sbin/nginx -s reload
    ```
-   WinLume vhost: `/www/server/nginx/conf/winlume.v2api.top.conf` (must be `include`d from `nginx.conf`).
+   Reizo vhost: `/www/server/nginx/conf/winlume.v2api.top.conf` (must be `include`d from `nginx.conf`; domain still winlume until cutover).
 
 6. **Default server catch-all** — `nginx.conf` has a `default_server` for `v2api.top` / `_` that can swallow unknown hostnames. New public hostnames **must** have an explicit vhost + DNS A record.
 
 7. **Timeouts** — long deploys / large SFTP: expect 30–120s; do not assume hang at 15s.
 
-## WinLume layout (production)
+## Reizo layout (production)
 
 | Item | Path / value |
 |------|----------------|
-| App dir | `/opt/winlume` (standalone Next.js) |
-| Previous | `/opt/winlume.previous` (one generation backup) |
+| App dir | `/opt/reizo` (standalone Next.js) |
+| Previous | `/opt/reizo.previous` (one generation backup) |
 | Port | `127.0.0.1:3001` |
-| Process | `winlume.service` |
-| Env | `/opt/winlume/.env` (+ unit `EnvironmentFile=-/opt/winlume/.env`) |
-| Skills | `/opt/winlume/content/skills` |
-| Data | `/opt/winlume/data` |
-| Public name | `winlume.v2api.top` (DNS A → `38.76.188.156`; HTTPS after certbot) |
+| Process | `reizo.service` |
+| Env | `/opt/reizo/.env` (+ unit `EnvironmentFile=-/opt/reizo/.env`) |
+| Skills | `/opt/reizo/content/skills` |
+| Data | `/opt/reizo/data` |
+| Public name | `winlume.v2api.top` (DNS A → `38.76.188.156`; HTTPS after certbot; domain kept until reizo is ready) |
 
 Required env keys:
 
@@ -89,7 +89,7 @@ NODE_ENV=production
 PORT=3001
 HOSTNAME=127.0.0.1
 NEW_API_URL=https://v2api.top
-WINLUME_GATEWAY_TOKEN=   # server-side chat bearer
+REIZO_GATEWAY_TOKEN=   # server-side chat bearer
 ```
 
 ## Deploy playbook (manual / agent)
@@ -97,20 +97,20 @@ WINLUME_GATEWAY_TOKEN=   # server-side chat bearer
 ```bash
 # 1) Upload artifact built locally (or by CI)
 python .agents/skills/connect-app-server/scripts/ssh_run.py 38.76.188.156 root '<pw>' \
-  --put ./winlume-deploy.tar.gz /tmp/winlume-deploy.tar.gz
+  --put ./reizo-deploy.tar.gz /tmp/reizo-deploy.tar.gz
 
 # 2) Swap on server (remote single script)
-systemctl stop winlume
-rm -rf /opt/winlume.previous
-mv /opt/winlume /opt/winlume.previous
-mkdir -p /opt/winlume
-tar -xzf /tmp/winlume-deploy.tar.gz -C /opt/winlume
+systemctl stop reizo
+rm -rf /opt/reizo.previous
+mv /opt/reizo /opt/reizo.previous
+mkdir -p /opt/reizo
+tar -xzf /tmp/reizo-deploy.tar.gz -C /opt/reizo
 # keep secrets
-test -f /opt/winlume.previous/.env && cp /opt/winlume.previous/.env /opt/winlume/.env
+test -f /opt/reizo.previous/.env && cp /opt/reizo.previous/.env /opt/reizo/.env
 systemctl daemon-reload
-systemctl restart winlume
+systemctl restart reizo
 sleep 2
-systemctl is-active winlume
+systemctl is-active reizo
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3001/studio
 ```
 
@@ -125,17 +125,17 @@ Prefer the GitHub Actions workflow (`.github/workflows/deploy.yml`) which builds
 ## Health checks
 
 ```bash
-systemctl is-active winlume
+systemctl is-active reizo
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3001/studio
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3001/api/skills
-tail -40 /var/log/winlume.log
+tail -40 /var/log/reizo.log
 ```
 
 ## After changes
 
 Confirm before claiming success:
 
-1. `systemctl is-active winlume` → `active`
+1. `systemctl is-active reizo` → `active`
 2. Local curl `/studio` and `/api/skills` → `200`
-3. Restart count not climbing in `systemctl status winlume`
+3. Restart count not climbing in `systemctl status reizo`
 4. For nginx: `nginx -t` ok + reload; public URL only after Cloudflare DNS exists

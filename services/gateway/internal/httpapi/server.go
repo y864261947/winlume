@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"winlume/services/gateway/internal/config"
+	"reizo/services/gateway/internal/config"
 )
 
 type requestIDContextKey struct{}
@@ -196,20 +196,20 @@ func (server *Server) serveHTTP(response http.ResponseWriter, request *http.Requ
 
 func (server *Server) authorizeInternal(request *http.Request) bool {
 	expected := []byte(server.config.InternalToken)
-	received := []byte(request.Header.Get("x-winlume-internal-token"))
+	received := []byte(request.Header.Get("x-reizo-internal-token"))
 	return len(expected) > 0 && len(expected) == len(received) && subtle.ConstantTimeCompare(expected, received) == 1
 }
 
 func (server *Server) authorizeAdmin(request *http.Request) bool {
 	expected := []byte(server.config.GatewayAdminToken)
-	received := []byte(request.Header.Get("x-winlume-gateway-admin-token"))
+	received := []byte(request.Header.Get("x-reizo-gateway-admin-token"))
 	return len(expected) > 0 && len(expected) == len(received) && subtle.ConstantTimeCompare(expected, received) == 1
 }
 
 func (server *Server) writeHealth(response http.ResponseWriter, request *http.Request) {
 	writeJSON(response, http.StatusOK, healthBody{
 		Status:    "ok",
-		Service:   "winlume-gateway",
+		Service:   "reizo-gateway",
 		RequestID: requestID(request),
 	})
 }
@@ -232,7 +232,7 @@ func (server *Server) writeReadiness(response http.ResponseWriter, request *http
 	}
 	writeJSON(response, http.StatusOK, readinessBody{
 		Status:    "ready",
-		Service:   "winlume-gateway",
+		Service:   "reizo-gateway",
 		Adapters:  configured,
 		RequestID: requestID(request),
 	})

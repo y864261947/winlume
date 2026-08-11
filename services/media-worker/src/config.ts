@@ -55,33 +55,33 @@ function absoluteHttpUrl(value: string | undefined, name: string): string {
 export function readMediaWorkerConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): MediaWorkerConfig {
-  const workerToken = env.WINLUME_MEDIA_WORKER_TOKEN?.trim();
-  if (!workerToken) throw new Error("WINLUME_MEDIA_WORKER_TOKEN is required");
+  const workerToken = env.REIZO_MEDIA_WORKER_TOKEN?.trim();
+  if (!workerToken) throw new Error("REIZO_MEDIA_WORKER_TOKEN is required");
 
   return {
-    host: env.WINLUME_MEDIA_WORKER_HOST?.trim() || "127.0.0.1",
-    port: positiveInteger(env.WINLUME_MEDIA_WORKER_PORT, 4020),
+    host: env.REIZO_MEDIA_WORKER_HOST?.trim() || "127.0.0.1",
+    port: positiveInteger(env.REIZO_MEDIA_WORKER_PORT, 4020),
     workerToken,
-    studioUrl: absoluteHttpUrl(env.WINLUME_MEDIA_APP_URL, "WINLUME_MEDIA_APP_URL"),
-    tempRoot: env.WINLUME_MEDIA_TEMP_DIR?.trim() || join(tmpdir(), "winlume-media-worker"),
-    ffprobePath: env.WINLUME_FFPROBE_PATH?.trim() || "ffprobe",
-    ffmpegPath: env.WINLUME_FFMPEG_PATH?.trim() || "ffmpeg",
+    studioUrl: absoluteHttpUrl(env.REIZO_MEDIA_APP_URL, "REIZO_MEDIA_APP_URL"),
+    tempRoot: env.REIZO_MEDIA_TEMP_DIR?.trim() || join(tmpdir(), "reizo-media-worker"),
+    ffprobePath: env.REIZO_FFPROBE_PATH?.trim() || "ffprobe",
+    ffmpegPath: env.REIZO_FFMPEG_PATH?.trim() || "ffmpeg",
     maxSourceBytes: positiveInteger(
-      env.WINLUME_MEDIA_MAX_SOURCE_BYTES,
+      env.REIZO_MEDIA_MAX_SOURCE_BYTES,
       MAX_REFERENCE_VIDEO_BYTES,
     ),
-    maxDurationSeconds: positiveInteger(env.WINLUME_MEDIA_MAX_DURATION_SECONDS, 600),
+    maxDurationSeconds: positiveInteger(env.REIZO_MEDIA_MAX_DURATION_SECONDS, 600),
     sceneThreshold: boundedNumber(
-      env.WINLUME_MEDIA_SCENE_THRESHOLD,
+      env.REIZO_MEDIA_SCENE_THRESHOLD,
       0.35,
       0.01,
       0.99,
     ),
-    maxScenes: Math.min(120, positiveInteger(env.WINLUME_MEDIA_MAX_SCENES, 30)),
+    maxScenes: Math.min(120, positiveInteger(env.REIZO_MEDIA_MAX_SCENES, 30)),
     commandTimeoutMs: positiveInteger(
-      env.WINLUME_MEDIA_COMMAND_TIMEOUT_MS,
+      env.REIZO_MEDIA_COMMAND_TIMEOUT_MS,
       120_000,
     ),
-    concurrency: Math.min(4, positiveInteger(env.WINLUME_MEDIA_CONCURRENCY, 1)),
+    concurrency: Math.min(4, positiveInteger(env.REIZO_MEDIA_CONCURRENCY, 1)),
   };
 }

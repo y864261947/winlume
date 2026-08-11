@@ -10,8 +10,8 @@ let cache: { skills: Skill[]; loadedAt: number } | null = null;
 const CACHE_TTL_MS = 5_000;
 
 export function skillsRootDir(): string {
-  if (process.env.WINLUME_SKILLS_DIR?.trim()) {
-    return process.env.WINLUME_SKILLS_DIR.trim();
+  if (process.env.REIZO_SKILLS_DIR?.trim()) {
+    return process.env.REIZO_SKILLS_DIR.trim();
   }
   // Statically scoped under content/ so bundler NFT does not trace the whole repo
   return join(/* turbopackIgnore: true */ process.cwd(), "content", "skills");

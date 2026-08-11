@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/shopspring/decimal"
 
-	"winlume/services/gateway/internal/pricing"
+	"reizo/services/gateway/internal/pricing"
 )
 
 var ErrNoActiveCatalog = errors.New("no active pricing catalog")

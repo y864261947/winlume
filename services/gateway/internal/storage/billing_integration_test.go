@@ -96,7 +96,7 @@ func openBillingTestStore(databaseURL string) (*Store, error) {
 // billingTestChannelKey is a fixed 32-byte AES-256 key used only by this test
 // suite; it is not read from any environment variable and must never be used
 // outside tests.
-var billingTestChannelKey = []byte("winlume-test-channel-key-32bytes")
+var billingTestChannelKey = []byte("reizo-test-channel-key-32bytes")
 
 func applyBillingTestMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 	if _, err := pool.Exec(ctx, `DROP SCHEMA IF EXISTS `+billingTestSchema+` CASCADE`); err != nil {

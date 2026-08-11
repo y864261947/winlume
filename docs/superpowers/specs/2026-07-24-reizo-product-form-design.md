@@ -1,15 +1,15 @@
-# WinLume Studio — Product Form Design
+# Reizo Studio — Product Form Design
 
 **Date:** 2026-07-24  
 **Status:** Implemented  
-**Supplements:** [2026-07-24-winlume-studio-design.md](./2026-07-24-winlume-studio-design.md)  
+**Supplements:** [2026-07-24-reizo-studio-design.md](./2026-07-24-reizo-studio-design.md)  
 **Scope:** Product morphology, Skill discovery (`/`), content strategy, Composer behavior — not implementation tasks.
 
 ---
 
 ## 1. Goal
 
-Define how WinLume presents itself as a product so that:
+Define how Reizo presents itself as a product so that:
 
 1. Users understand it as an **Artifact-first Agent Studio**, not a bare multi-model chat shell.
 2. The content moat — **agency-agents-zh scenario skills** — is discoverable without becoming a junk drawer.
@@ -39,7 +39,7 @@ Define how WinLume presents itself as a product so that:
 
 ### 2.2 Competitive position
 
-| Competitor type | Their strength | WinLume wedge |
+| Competitor type | Their strength | Reizo wedge |
 |-----------------|----------------|---------------|
 | Gateway / bare chat | Models & price | Weak scene depth |
 | Manus / Genspark / MiniMax Agent | Autonomous long tasks | Opaque skills; hard to self-host scene packs |
@@ -253,7 +253,7 @@ Slash is an **intent compressor**, not a kitchen-sink command menu.
 | Skill protocol spirit (SKILL.md) | Plugin marketplace complexity in MVP |
 | Scenario as **tag/featured** language | Replacing agency departments |
 
-WinLume Web = free-agent Studio + **role content depth**; OD = design-template + local agent engine depth.
+Reizo Web = free-agent Studio + **role content depth**; OD = design-template + local agent engine depth.
 
 ---
 

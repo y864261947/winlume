@@ -1,4 +1,4 @@
-# WinLume Artifact Runtime Design
+# Reizo Artifact Runtime Design
 
 **Date:** 2026-07-25  
 **Status:** Proposed - user-approved design, pending written-spec review  
@@ -6,7 +6,7 @@
 
 ## 1. Product Thesis
 
-WinLume is not a generic multi-model chat application and not a collection of fixed vertical SaaS screens.
+Reizo is not a generic multi-model chat application and not a collection of fixed vertical SaaS screens.
 
 > Conversation is the universal intent and control surface. Artifacts are the place where users do the actual work.
 
@@ -14,7 +14,7 @@ The main workbench uses a stable two-pane layout: AI conversation on the left an
 
 ## 2. Competitive Position
 
-Claude, Codex, and Open Design validate the chat-plus-artifact shape. WinLume differentiates through its deep built-in professional scenarios and its ability to turn them into suitable, high-utility artifact interactions.
+Claude, Codex, and Open Design validate the chat-plus-artifact shape. Reizo differentiates through its deep built-in professional scenarios and its ability to turn them into suitable, high-utility artifact interactions.
 
 The product promise is:
 
@@ -110,7 +110,7 @@ Artifact-first work needs explicit provenance:
 - Preserve raw content and version history for recovery and audit.
 - Render HTML and web artifacts in a sandboxed iframe with a restrictive CSP. Previews must not access host sessions, local storage, or project data directly.
 
-The existing header-based identity mechanism is insufficient for production. Before external sharing, team workspaces, or quota-bearing usage, WinLume must derive user identity from a server-validated session or token.
+The existing header-based identity mechanism is insufficient for production. Before external sharing, team workspaces, or quota-bearing usage, Reizo must derive user identity from a server-validated session or token.
 
 ## 8. MVP Scope
 

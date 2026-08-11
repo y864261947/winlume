@@ -25,7 +25,7 @@ export type {
   ProductionWorkflowProjection,
 };
 
-const PENDING_FIRST_MESSAGE_KEY = "winlume:pending-first-message";
+const PENDING_FIRST_MESSAGE_KEY = "reizo:pending-first-message";
 
 export function withUserHeaders(headers?: HeadersInit): Headers {
   const next = new Headers(headers);
@@ -636,9 +636,9 @@ export async function uploadVideoArtifact(input: {
     method: "POST",
     headers: {
       "content-type": referenceVideoMimeType(input.file),
-      "x-winlume-session-id": input.sessionId,
-      "x-winlume-artifact-name": encodeURIComponent(input.file.name || "参考视频.mp4"),
-      "x-winlume-video-authorized": String(input.authorized),
+      "x-reizo-session-id": input.sessionId,
+      "x-reizo-artifact-name": encodeURIComponent(input.file.name || "参考视频.mp4"),
+      "x-reizo-video-authorized": String(input.authorized),
     },
     body: input.file,
     credentials: "same-origin",

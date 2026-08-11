@@ -62,7 +62,7 @@ export function pageToMarkdown(page: ApiDocPage, pageUrl?: string): string {
     "Authorization: Bearer sk-xxxxx",
     "```",
     "",
-    "建议将密钥写入环境变量 `WINLUME_API_KEY`。",
+    "建议将密钥写入环境变量 `REIZO_API_KEY`。",
   );
 
   if (page.notes?.length) {
@@ -91,7 +91,7 @@ export function pageToMarkdown(page: ApiDocPage, pageUrl?: string): string {
     "",
     "---",
     "",
-    "以上内容来自 WinLume API 文档。请基于此文档帮我理解接口用法、构造正确请求，并回答我的问题。",
+    "以上内容来自 Reizo API 文档。请基于此文档帮我理解接口用法、构造正确请求，并回答我的问题。",
   );
 
   return parts.filter((line, i, arr) => !(line === "" && arr[i - 1] === "")).join("\n").trim() + "\n";
@@ -100,8 +100,8 @@ export function pageToMarkdown(page: ApiDocPage, pageUrl?: string): string {
 /** Prompt used when opening third-party chat UIs. */
 export function buildAiOpenPrompt(markdown: string, pageUrl?: string): string {
   const intro = pageUrl
-    ? `请阅读以下 WinLume API 文档（来源：${pageUrl}），帮我理解并回答问题。\n\n`
-    : `请阅读以下 WinLume API 文档，帮我理解并回答问题。\n\n`;
+    ? `请阅读以下 Reizo API 文档（来源：${pageUrl}），帮我理解并回答问题。\n\n`
+    : `请阅读以下 Reizo API 文档，帮我理解并回答问题。\n\n`;
   // Chat product URL query length is limited; keep a safe budget.
   const budget = 12_000;
   const body = intro + markdown;

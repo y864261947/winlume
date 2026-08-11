@@ -1,22 +1,22 @@
-# 从 new-api 迁移到 WinLume
+# 从 new-api 迁移到 Reizo
 
 `scripts/migrate-new-api.ts` 是一次性、受控的数据迁移工具。它默认只做
 `dry-run`，正式写入必须显式带上 `--apply`。它不会连接旧服务 HTTP API，也不会让旧服务
-继续作为 WinLume 的运行时依赖。
+继续作为 Reizo 的运行时依赖。
 
 ## 迁移范围
 
-| old new-api | WinLume | 处理方式 |
+| old new-api | Reizo | 处理方式 |
 | --- | --- | --- |
 | `users` | `users` | 保留 legacy user id、bcrypt 密码哈希、状态、管理员角色和时间戳。非 bcrypt 密码不导入。 |
 | `tokens` | `api_keys` | 旧 key 只在进程内做 SHA-256 后写入 `key_hash`；不写入任何明文。 |
 | `users.quota`、充值、消费日志 | `wallets`、`wallet_ledger_entries`、`usage_events` | 以当前 quota 加历史充值/消费推导期初账目，最终余额应回到旧系统当前 quota。 |
 | 套餐、用户订阅 | `subscription_plans`、`subscriptions` | 不可映射的套餐会创建停用占位套餐，避免丢失订阅历史。 |
 | 充值/订阅订单、provider | `payment_orders`、`payment_providers` | provider 的 `*_ciphertext` 可按原样保留；旧明文 provider 密钥不写入目标表。 |
-| `channels` | 加密交接产物 | 当前 WinLume schema 尚无旧 channel 的直接目标表。渠道记录会以 AES-256-GCM 产物交给 operator 配置 gateway，明文永不进入报告。 |
+| `channels` | 加密交接产物 | 当前 Reizo schema 尚无旧 channel 的直接目标表。渠道记录会以 AES-256-GCM 产物交给 operator 配置 gateway，明文永不进入报告。 |
 
 旧 Auth.js/new-api 会话、管理 access token、OAuth access/refresh token、MFA 与
-passkey 都不会迁移。用户在 WinLume 重新登录并重新绑定 OAuth/MFA/passkey。
+passkey 都不会迁移。用户在 Reizo 重新登录并重新绑定 OAuth/MFA/passkey。
 
 ## 前置检查
 
@@ -49,7 +49,7 @@ camelCase 或 snake_case；也可以放到 `tables` 对象中。支持的集合�
 先检查，不会写数据库或渠道产物：
 
 ```bash
-DATABASE_URL='postgres://winlume:...' \
+DATABASE_URL='postgres://reizo:...' \
 NEW_API_MIGRATION_SOURCE_FILE=/secure/new-api-export.json \
 npm run migration:new-api -- --report=/secure/new-api-dry-run.json
 ```
@@ -57,9 +57,9 @@ npm run migration:new-api -- --report=/secure/new-api-dry-run.json
 正式导入必须同时提供加密渠道交接文件的目标和密钥：
 
 ```bash
-DATABASE_URL='postgres://winlume:...' \
+DATABASE_URL='postgres://reizo:...' \
 NEW_API_MIGRATION_SOURCE_FILE=/secure/new-api-export.json \
-WINLUME_MIGRATION_CHANNEL_ENCRYPTION_KEY='a separately managed 32-byte key or passphrase' \
+REIZO_MIGRATION_CHANNEL_ENCRYPTION_KEY='a separately managed 32-byte key or passphrase' \
 npm run migration:new-api -- \
   --apply \
   --report=/secure/new-api-apply-report.json \
@@ -74,7 +74,7 @@ npm run migration:new-api -- \
 `NEW_API_MIGRATION_SOURCE_LOG_DATABASE_URL`：
 
 ```bash
-DATABASE_URL='postgres://winlume:...' \
+DATABASE_URL='postgres://reizo:...' \
 NEW_API_MIGRATION_SOURCE_DATABASE_URL='postgres://readonly:...' \
 NEW_API_MIGRATION_SOURCE_LOG_DATABASE_URL='postgres://readonly-log:...' \
 npm run migration:new-api -- --max-rows=500000 --report=/secure/report.json
@@ -132,7 +132,7 @@ NEW_API_MIGRATION_CHANNEL_ARTIFACT_FILE=/secure/channels.enc.json
 NEW_API_MIGRATION_SNAPSHOT_OUT=/secure/raw-source-snapshot.json
 
 # 只有命令行显式带 --apply 才会写入
-WINLUME_MIGRATION_CHANNEL_ENCRYPTION_KEY=
+REIZO_MIGRATION_CHANNEL_ENCRYPTION_KEY=
 
 # 设为 0 可禁止原有 *_ciphertext 写入 payment_providers
 NEW_API_MIGRATION_PRESERVE_CIPHERTEXT=1

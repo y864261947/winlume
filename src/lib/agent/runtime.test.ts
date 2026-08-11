@@ -17,7 +17,7 @@ describe("runAgentTurn chunk mapping", () => {
   });
 
   it("surfaces reasoning/thinking chunks as thinking events, kept out of the final answer text", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-runtime-thinking-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-runtime-thinking-"));
     directories.push(root);
     const store = createWebFileStore(root);
     await store.sessions.createSession({

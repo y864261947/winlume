@@ -20,10 +20,10 @@ func TestHeadersFilterCallerControlledSensitiveRequestValues(t *testing.T) {
 		"X-Api-Key":                         {"caller-key"},
 		"Api-Key":                           {"caller-legacy-key"},
 		"New-Api-User":                      {"browser-spoof"},
-		"X-Winlume-User":                    {"browser-spoof"},
-		"X-Winlume-User-Id":                 {"browser-spoof"},
-		"X-Winlume-Internal-Token":          {"internal-secret"},
-		"X-Winlume-Internal-Custom":         {"internal-secret"},
+		"X-Reizo-User":                      {"browser-spoof"},
+		"X-Reizo-User-Id":                   {"browser-spoof"},
+		"X-Reizo-Internal-Token":            {"internal-secret"},
+		"X-Reizo-Internal-Custom":           {"internal-secret"},
 		"X-Forwarded-For":                   {"198.51.100.10"},
 		"Forwarded":                         {"for=198.51.100.10"},
 		"Via":                               {"proxy"},
@@ -53,8 +53,8 @@ func TestHeadersFilterCallerControlledSensitiveRequestValues(t *testing.T) {
 
 	for _, name := range []string{
 		"Authorization", "Cookie", "Set-Cookie", "Host", "Content-Length", "Accept-Encoding",
-		"X-Api-Key", "Api-Key", "New-Api-User", "X-Winlume-User",
-		"X-Winlume-User-Id", "X-Winlume-Internal-Token", "X-Winlume-Internal-Custom",
+		"X-Api-Key", "Api-Key", "New-Api-User", "X-Reizo-User",
+		"X-Reizo-User-Id", "X-Reizo-Internal-Token", "X-Reizo-Internal-Custom",
 		"X-Forwarded-For", "Forwarded", "Via", "Origin", "Referer", "Connection",
 		"X-Hop-By-Hop", "X-Lowercase-Hop", "Keep-Alive", "X-Oversized",
 	} {

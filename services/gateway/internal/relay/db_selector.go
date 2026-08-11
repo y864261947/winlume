@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"winlume/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/storage"
 )
 
 // ChannelLister is the storage surface DBSelector depends on. It is

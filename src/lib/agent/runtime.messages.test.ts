@@ -253,7 +253,7 @@ describe("buildCanvasReferenceReminder", () => {
         sessionId: "s1",
         name: "上线流程",
         kind: "canvas",
-        mimeType: "application/vnd.winlume.canvas+json",
+        mimeType: "application/vnd.reizo.canvas+json",
         storageKey: "",
         status: "ready",
         createdAt: new Date().toISOString(),
@@ -281,7 +281,7 @@ describe("buildCanvasReferenceReminder", () => {
       sessionId: "s1",
       name: "损坏画布",
       kind: "canvas",
-      mimeType: "application/vnd.winlume.canvas+json",
+      mimeType: "application/vnd.reizo.canvas+json",
       storageKey: "",
       createdAt: new Date().toISOString(),
     };

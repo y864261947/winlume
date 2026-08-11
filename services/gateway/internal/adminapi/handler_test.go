@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"winlume/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/storage"
 )
 
 type fakeStore struct {

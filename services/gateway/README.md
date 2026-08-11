@@ -1,4 +1,4 @@
-# WinLume Gateway
+# Reizo Gateway
 
 The gateway is a standalone Go process, separate from the Next.js application.
 It provides authenticated, bounded streaming relay for OpenAI-compatible and
@@ -15,13 +15,13 @@ public.
 From the repository root:
 
 ```bash
-$env:WINLUME_GATEWAY_BILLING_MODE="off"
+$env:REIZO_GATEWAY_BILLING_MODE="off"
 npm run gateway:dev
 curl http://127.0.0.1:4010/healthz
 ```
 
 Run the Next application separately. In native mode it uses
-`WINLUME_GATEWAY_URL` (default `http://127.0.0.1:4010`) for Studio requests.
+`REIZO_GATEWAY_URL` (default `http://127.0.0.1:4010`) for Studio requests.
 
 ```bash
 npm run dev
@@ -45,7 +45,7 @@ npm run gateway:build
 ```
 
 Copy the resulting `services/gateway/gateway` binary to the production host,
-for example `/opt/winlume-gateway/winlume-gateway`, and point systemd's
+for example `/opt/reizo-gateway/reizo-gateway`, and point systemd's
 `ExecStart` at that path directly (no Node, no `tsx`, no `npm ci` on the
 gateway host). See [docs/DEPLOY.md](../../docs/DEPLOY.md) for the full unit
 file and environment layout.
@@ -55,25 +55,25 @@ file and environment layout.
 At least one upstream is required for `/readyz` to return `200`:
 
 ```bash
-WINLUME_GATEWAY_OPENAI_UPSTREAM_URL=https://provider.example/v1
-WINLUME_GATEWAY_OPENAI_UPSTREAM_API_KEY=provider-service-key
-WINLUME_GATEWAY_BILLING_MODE=shadow
+REIZO_GATEWAY_OPENAI_UPSTREAM_URL=https://provider.example/v1
+REIZO_GATEWAY_OPENAI_UPSTREAM_API_KEY=provider-service-key
+REIZO_GATEWAY_BILLING_MODE=shadow
 
-# The WinLume web process and gateway must share this secret. It is a
+# The Reizo web process and gateway must share this secret. It is a
 # server-to-server credential, never a browser value.
-WINLUME_GATEWAY_INTERNAL_TOKEN=replace-with-a-distinct-random-secret
+REIZO_GATEWAY_INTERNAL_TOKEN=replace-with-a-distinct-random-secret
 
 # Keep browser origins explicit when a browser must call the public API.
-WINLUME_GATEWAY_CORS_ORIGINS=https://app.winlume.example
+REIZO_GATEWAY_CORS_ORIGINS=https://app.winlume.example
 
 # The default trusts a same-host nginx proxy (127.0.0.1 and ::1). When the
 # proxy runs elsewhere, list only its fixed IPs or CIDRs.
-WINLUME_GATEWAY_TRUSTED_PROXY_IPS=127.0.0.1,::1
+REIZO_GATEWAY_TRUSTED_PROXY_IPS=127.0.0.1,::1
 ```
 
-`WINLUME_GATEWAY_<FAMILY>_UPSTREAM_URL` selects a family-specific upstream,
-for example `WINLUME_GATEWAY_CLAUDE_UPSTREAM_URL` or
-`WINLUME_GATEWAY_GEMINI_UPSTREAM_URL`. The matching
+`REIZO_GATEWAY_<FAMILY>_UPSTREAM_URL` selects a family-specific upstream,
+for example `REIZO_GATEWAY_CLAUDE_UPSTREAM_URL` or
+`REIZO_GATEWAY_GEMINI_UPSTREAM_URL`. The matching
 `..._UPSTREAM_API_KEY` may contain either a raw API key or a complete
 authorization value. Images, audio, embeddings, and realtime use the OpenAI
 upstream unless overridden.
@@ -81,49 +81,49 @@ upstream unless overridden.
 ## API-key verification
 
 Studio requests use the internal token and UUID user ID. External requests
-verify against PostgreSQL-backed API keys (`WINLUME_GATEWAY_USE_PLATFORM_DATABASE`,
+verify against PostgreSQL-backed API keys (`REIZO_GATEWAY_USE_PLATFORM_DATABASE`,
 default true whenever `DATABASE_URL` is set) or, as a fallback/test mode,
 a static SHA-256 hash list:
 
 ```bash
 # SHA-256 hexadecimal values, comma separated
-WINLUME_GATEWAY_API_KEY_HASHES=
+REIZO_GATEWAY_API_KEY_HASHES=
 ```
 
 If no verifier is configured, API-key requests fail closed with `503`.
-`WINLUME_GATEWAY_ALLOW_UNVERIFIED_KEYS=true` remains a local diagnostic escape
+`REIZO_GATEWAY_ALLOW_UNVERIFIED_KEYS=true` remains a local diagnostic escape
 hatch and must not be enabled in production.
 
-Studio authenticates to the gateway with `x-winlume-internal-token` and
-`x-winlume-internal-user-id`. The legacy-compatible
-`x-winlume-internal-identity` and `x-winlume-internal-user` aliases are
+Studio authenticates to the gateway with `x-reizo-internal-token` and
+`x-reizo-internal-user-id`. The legacy-compatible
+`x-reizo-internal-identity` and `x-reizo-internal-user` aliases are
 accepted only with the same token. Browser-supplied `New-Api-User` and
-`x-winlume-user` are never trusted or forwarded.
+`x-reizo-user` are never trusted or forwarded.
 
 ## Billing safety
 
-`WINLUME_GATEWAY_BILLING_MODE` gates what the process is allowed to do at
+`REIZO_GATEWAY_BILLING_MODE` gates what the process is allowed to do at
 startup (`Validate` refuses to start if the mode's requirements are unmet):
 
 - `off` — no billing transaction, shadow event, quota reservation, or wallet
   mutation. Useful for local development only.
 - `shadow` (default) — writes usage/ledger rows alongside the existing
   billing owner, without enforcing quota. Requires `DATABASE_URL` and
-  `WINLUME_GATEWAY_INTERNAL_TOKEN`. This is the safe default for running the
+  `REIZO_GATEWAY_INTERNAL_TOKEN`. This is the safe default for running the
   Go gateway in production before cutover: it observes real traffic without
   becoming the system of record.
 - `authoritative` — the Go gateway is the sole quota/ledger owner for the
   requests it serves. In addition to the `shadow` requirements it also
   requires:
-  - `WINLUME_GATEWAY_BILLING_OWNER=go`
-  - `WINLUME_GATEWAY_UPSTREAM_OWNERSHIP` set to `provider` (a directly billed
+  - `REIZO_GATEWAY_BILLING_OWNER=go`
+  - `REIZO_GATEWAY_UPSTREAM_OWNERSHIP` set to `provider` (a directly billed
     upstream) or `non_charging_new_api` (a new-api upstream that never bills)
-  - `WINLUME_GATEWAY_RECOVERY_DIR`, an absolute path to a directory the
+  - `REIZO_GATEWAY_RECOVERY_DIR`, an absolute path to a directory the
     gateway process exclusively owns (see below)
 
 ## Channel encryption
 
-`WINLUME_CHANNEL_ENCRYPTION_KEY` is the AES-256 key used to encrypt the
+`REIZO_CHANNEL_ENCRYPTION_KEY` is the AES-256 key used to encrypt the
 `channels` table's `api_key` column at rest
 (`internal/storage/channels.go`, `internal/storage/channel_crypto.go`). It is
 required whenever the gateway opens its database-backed store — that is, in
@@ -146,7 +146,7 @@ it up like any other production secret, and never commit it or log it.
 
 ## Recovery directory
 
-`WINLUME_GATEWAY_RECOVERY_DIR` is a crash-recovery journal directory used only
+`REIZO_GATEWAY_RECOVERY_DIR` is a crash-recovery journal directory used only
 in `authoritative` billing mode (see `internal/billing/recovery.go`). It must:
 
 - be an absolute path

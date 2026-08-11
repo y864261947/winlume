@@ -7,14 +7,14 @@ export type PlatformDatabase = NodePgDatabase<typeof schema>;
 
 export class DatabaseNotConfiguredError extends Error {
   constructor() {
-    super("DATABASE_URL is required for WinLume platform data access.");
+    super("DATABASE_URL is required for Reizo platform data access.");
     this.name = "DatabaseNotConfiguredError";
   }
 }
 
 type DatabaseGlobal = {
-  winlumePlatformDb?: PlatformDatabase;
-  winlumePlatformPool?: Pool;
+  reizoPlatformDb?: PlatformDatabase;
+  reizoPlatformPool?: Pool;
 };
 
 const databaseConfig = getDatabaseConfig();
@@ -23,16 +23,16 @@ const databaseGlobal = globalThis as typeof globalThis & DatabaseGlobal;
 function createDatabase(): PlatformDatabase | null {
   if (!databaseConfig.url) return null;
 
-  if (!databaseGlobal.winlumePlatformPool) {
-    databaseGlobal.winlumePlatformPool = new Pool({ connectionString: databaseConfig.url });
+  if (!databaseGlobal.reizoPlatformPool) {
+    databaseGlobal.reizoPlatformPool = new Pool({ connectionString: databaseConfig.url });
   }
-  if (!databaseGlobal.winlumePlatformDb) {
-    databaseGlobal.winlumePlatformDb = drizzle({
-      client: databaseGlobal.winlumePlatformPool,
+  if (!databaseGlobal.reizoPlatformDb) {
+    databaseGlobal.reizoPlatformDb = drizzle({
+      client: databaseGlobal.reizoPlatformPool,
       schema,
     });
   }
-  return databaseGlobal.winlumePlatformDb;
+  return databaseGlobal.reizoPlatformDb;
 }
 
 const platformDb = createDatabase();

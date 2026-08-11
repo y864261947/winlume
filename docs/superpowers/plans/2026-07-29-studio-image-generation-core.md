@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - No new dependencies (no `ws`/`socket.io`/Redis) — push notification reuses the existing SSE pattern already used by `/api/chat`.
-- No client-held API keys — image generation calls the gateway server-side with `WINLUME_IMAGE_GATEWAY_TOKEN`, a separate token/channel from chat's `WINLUME_GATEWAY_TOKEN` (confirmed by a live test on 2026-07-29: the chat token has no image-model access, and the two tokens hash differently). Default model id is `gpt-image-2` (the only model verified reachable on the image token), overridable via `WINLUME_IMAGE_MODEL` or the tool's `model` argument.
+- No client-held API keys — image generation calls the gateway server-side with `REIZO_IMAGE_GATEWAY_TOKEN`, a separate token/channel from chat's `REIZO_GATEWAY_TOKEN` (confirmed by a live test on 2026-07-29: the chat token has no image-model access, and the two tokens hash differently). Default model id is `gpt-image-2` (the only model verified reachable on the image token), overridable via `REIZO_IMAGE_MODEL` or the tool's `model` argument.
 - One artifact per generated image (never one artifact holding multiple images).
 - `generate_image` is the only new tool — image-edit is the same tool with `sourceArtifactId` set, not a second tool.
 - Existing artifact kinds must keep working unmodified — new `status`/`error` fields on `Artifact` are optional and additive.
@@ -361,7 +361,7 @@ const DEFAULT_IMAGE_MODEL = "gpt-image-2";
 
 /**
  * Image generation uses a separate gateway token/channel from chat
- * (`WINLUME_IMAGE_GATEWAY_TOKEN`, not `WINLUME_GATEWAY_TOKEN`) — confirmed by
+ * (`REIZO_IMAGE_GATEWAY_TOKEN`, not `REIZO_GATEWAY_TOKEN`) — confirmed by
  * a live call: the chat token has no access to any image model, and hashing
  * both tokens shows they are different secrets, not just different env names.
  */
@@ -369,8 +369,8 @@ export async function generateImage(
   params: GenerateImageParams,
 ): Promise<GeneratedImage[]> {
   const baseUrl = getGatewayBaseUrl(params.baseUrl);
-  const token = params.token ?? process.env.WINLUME_IMAGE_GATEWAY_TOKEN ?? "";
-  const model = params.model ?? process.env.WINLUME_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL;
+  const token = params.token ?? process.env.REIZO_IMAGE_GATEWAY_TOKEN ?? "";
+  const model = params.model ?? process.env.REIZO_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL;
   const fetchImpl = params.fetchImpl ?? fetch;
   const isEdit = Boolean(params.sourceImage);
   const path = isEdit ? "/v1/images/edits" : "/v1/images/generations";
@@ -648,7 +648,7 @@ describe("executeGenerateImage", () => {
   });
 
   function makeStore() {
-    const dir = mkdtempSync(join(tmpdir(), "winlume-imagegen-"));
+    const dir = mkdtempSync(join(tmpdir(), "reizo-imagegen-"));
     dirs.push(dir);
     return createWebFileStore(dir).artifacts;
   }
@@ -693,7 +693,7 @@ describe("runImageGenerationJob", () => {
   });
 
   function makeStore() {
-    const dir = mkdtempSync(join(tmpdir(), "winlume-imagegen-job-"));
+    const dir = mkdtempSync(join(tmpdir(), "reizo-imagegen-job-"));
     dirs.push(dir);
     return createWebFileStore(dir).artifacts;
   }

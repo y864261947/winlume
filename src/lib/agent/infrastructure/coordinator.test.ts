@@ -53,7 +53,7 @@ describe("RunCoordinator", () => {
     }),
     store: RunStore = createMemoryRunStore(),
   ) {
-    const root = mkdtempSync(join(tmpdir(), "winlume-coordinator-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-coordinator-"));
     directories.push(root);
     const host = createWebFileStore(root);
     await host.sessions.createSession({
@@ -179,7 +179,7 @@ describe("RunCoordinator", () => {
   });
 
   it("completes Workflow production state before marking the durable Run completed", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-coordinator-workflow-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-coordinator-workflow-"));
     directories.push(root);
     const host = createWebFileStore(root);
     await host.sessions.createSession({

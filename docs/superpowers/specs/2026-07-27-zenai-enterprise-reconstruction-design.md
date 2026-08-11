@@ -2,7 +2,7 @@
 
 ## Goal
 
-Replace WinLume's current `/business` page with an editable, high-fidelity React reconstruction of the current `https://zenaicorp.com/zh` homepage. It is a visual and interaction baseline: the initial version retains the reference site's public Chinese copy, content ordering, and public media, then permits later replacement with WinLume branding and content without changing page structure.
+Replace Reizo's current `/business` page with an editable, high-fidelity React reconstruction of the current `https://zenaicorp.com/zh` homepage. It is a visual and interaction baseline: the initial version retains the reference site's public Chinese copy, content ordering, and public media, then permits later replacement with Reizo branding and content without changing page structure.
 
 ## Scope
 
@@ -15,7 +15,7 @@ No iframe or copied site source code is permitted. The page is implemented with 
 - `src/app/business/page.tsx` remains the metadata route entry.
 - The current single `EnterpriseLanding` component is split into focused presentational sections: navigation, hero, capability cards, challenge narrative, foundation, voice-agent presentation, case/impact content, assessment, FAQ, and footer.
 - Public reference media is represented through a replaceable local asset manifest. The source URLs and local asset paths are isolated from layout components.
-- The `/business` route owns its dark navigation and footer so reference geometry is not constrained by the general WinLume marketing chrome.
+- The `/business` route owns its dark navigation and footer so reference geometry is not constrained by the general Reizo marketing chrome.
 
 ## Visual Fidelity
 
@@ -28,7 +28,7 @@ No iframe or copied site source code is permitted. The page is implemented with 
 
 - Preserve the reference interaction pattern: one choice per screen, progress signal, previous-answer navigation, and visible completion state.
 - Expand from the reference's short flow to an eight-question, branch-aware assessment that captures desired outcome, owning team, current workflow, data sources, maturity, constraints, urgency, and desired delivery.
-- Persist the in-progress answers in `localStorage` under a versioned WinLume key so a refresh does not discard the interview.
+- Persist the in-progress answers in `localStorage` under a versioned Reizo key so a refresh does not discard the interview.
 - Completion renders a local report preview instead of navigating to `/studio` or claiming that a lead was submitted. The report contains a readiness score, recommended starting scenario, observed constraints, required inputs, a phased recommendation, and a concise answer recap.
 - Users can navigate back to revise answers, regenerate the preview, and restart the assessment.
 

@@ -13,29 +13,29 @@ catalog confirmed (`c4966c6e-7b03-4b1d-aad7-c24b673c3ad6`, hash
 
 - Binary: `services/gateway/cmd/gateway`, built
   `CGO_ENABLED=0 GOOS=linux GOARCH=amd64`, installed at
-  `/opt/winlume-gateway/winlume-gateway` on `176.122.164.148`.
-- `winlume-gateway.service` rewritten to `ExecStart=/opt/winlume-gateway/winlume-gateway`
+  `/opt/reizo-gateway/reizo-gateway` on `176.122.164.148`.
+- `reizo-gateway.service` rewritten to `ExecStart=/opt/reizo-gateway/reizo-gateway`
   directly (no Node/npm/tsx). Runs as the same user as before (root, matching
   the prior Fastify deployment's operational pattern — not yet moved to a
-  dedicated `winlume-gateway` system user; that hardening is a candidate
+  dedicated `reizo-gateway` system user; that hardening is a candidate
   follow-up, not required for this cutover).
-- `/etc/winlume/gateway.env` gained `DATABASE_URL` (same production database
-  the migration above targeted) and an explicit `WINLUME_GATEWAY_BILLING_MODE=shadow`
+- `/etc/reizo/gateway.env` gained `DATABASE_URL` (same production database
+  the migration above targeted) and an explicit `REIZO_GATEWAY_BILLING_MODE=shadow`
   (was already the config default, set explicitly for operational clarity).
   All previously-configured upstream/CORS/internal-token values were reused
   unchanged — the Go config reads the identical env var names as the old
   Fastify gateway for those.
-- **Rollback preserved:** `/opt/winlume-gateway.previous-fastify` (full prior
-  deployment directory), `/etc/systemd/system/winlume-gateway.service.pre-go-bak`,
-  and `/etc/winlume/gateway.env.pre-go-bak` all left in place on the host.
+- **Rollback preserved:** `/opt/reizo-gateway.previous-fastify` (full prior
+  deployment directory), `/etc/systemd/system/reizo-gateway.service.pre-go-bak`,
+  and `/etc/reizo/gateway.env.pre-go-bak` all left in place on the host.
   Rollback is: stop the service, restore the two backed-up files, `systemctl
   daemon-reload`, restart.
 - Verified after cutover: `systemctl is-active` → `active` for both
-  `winlume-gateway.service` and `winlume.service`; `/healthz` → 200; `/readyz`
+  `reizo-gateway.service` and `reizo.service`; `/healthz` → 200; `/readyz`
   → 200 (confirms DB reachable + active catalog present, the shadow-mode
   readiness requirement); `/capabilities` → valid JSON route catalog.
 - New-api remains the sole billing owner. Go is authoritative for nothing yet
-  — `WINLUME_GATEWAY_BILLING_MODE=shadow` only ever writes
+  — `REIZO_GATEWAY_BILLING_MODE=shadow` only ever writes
   `billing_shadow_events`, never mutates a wallet/API-key/subscription ledger.
 
 ## Step 3: Correlated-request reconciliation
@@ -104,17 +104,17 @@ funds regardless of outcome).
       the Task 17 recovery integration tests (`storage/recovery_integration_test.go`,
       5/5 passing).
 - [x] Direct-provider or non-charging-new-api upstream ownership — **confirmed**
-      by direct inspection of new-api's database: WinLume's token
+      by direct inspection of new-api's database: Reizo's token
       (`tokens.id=162`, group `gpt-pro`) has `unlimited_quota=true`. New-api
       records `used_quota` for observability but never enforces or meaningfully
       bills against this token — it is not a real, funded, metered account on
-      new-api's side. `WINLUME_GATEWAY_UPSTREAM_OWNERSHIP=non_charging_new_api`
+      new-api's side. `REIZO_GATEWAY_UPSTREAM_OWNERSHIP=non_charging_new_api`
       is the correct and now-verified setting.
 - [~] Tested rollback to shadow/off — the mechanism (edit
-      `/etc/winlume/gateway.env`'s `WINLUME_GATEWAY_BILLING_MODE` back to
+      `/etc/reizo/gateway.env`'s `REIZO_GATEWAY_BILLING_MODE` back to
       `shadow`, or restore `gateway.env.pre-authoritative-bak` /
       `gateway.env.pre-go-bak` + the corresponding `.service.pre-go-bak` unit,
-      then `systemctl restart winlume-gateway`) was **not dry-run** before
+      then `systemctl restart reizo-gateway`) was **not dry-run** before
       cutover. Low risk: it's the same binary, a config-only change, and the
       backup files are confirmed present on `176.122.164.148`.
 - [x] Recorded approval: user explicitly authorized proceeding ("可以切") on
@@ -127,14 +127,14 @@ Per explicit user authorization, proceeded without waiting for a
 representative-period shadow reconciliation window. What was verified instead,
 as the strongest available substitute:
 
-- `WINLUME_GATEWAY_BILLING_OWNER=go`, `WINLUME_GATEWAY_UPSTREAM_OWNERSHIP=non_charging_new_api`
+- `REIZO_GATEWAY_BILLING_OWNER=go`, `REIZO_GATEWAY_UPSTREAM_OWNERSHIP=non_charging_new_api`
   (empirically confirmed, not assumed — see above), and
-  `WINLUME_GATEWAY_RECOVERY_DIR=/opt/winlume-gateway/recovery` (created,
-  `0700`) added to `/etc/winlume/gateway.env`.
-  `/etc/winlume/gateway.env.pre-authoritative-bak` preserved as a
+  `REIZO_GATEWAY_RECOVERY_DIR=/opt/reizo-gateway/recovery` (created,
+  `0700`) added to `/etc/reizo/gateway.env`.
+  `/etc/reizo/gateway.env.pre-authoritative-bak` preserved as a
   mode-only rollback point (in addition to the full `.pre-go-bak` Fastify
   rollback from Step 2).
-- `WINLUME_GATEWAY_BILLING_MODE` flipped to `authoritative`, service
+- `REIZO_GATEWAY_BILLING_MODE` flipped to `authoritative`, service
   restarted. **`/readyz` returned 200**, which is meaningful automated proof:
   it only returns 200 after `runStartupGates` (Task 19) passes DB
   connectivity, the complete required-table list (including the funding-path
@@ -146,7 +146,7 @@ as the strongest available substitute:
   testing: request correctly rejected with `503 billing_error/billing_unavailable`
   **before any upstream relay call was made** — no cost incurred, no crash,
   fails closed for an unknown identity exactly as designed.
-- `winlume.service` (the main app) confirmed unaffected: `active`, `/studio`
+- `reizo.service` (the main app) confirmed unaffected: `active`, `/studio`
   returns 200 throughout.
 
 **Accepted risk, explicitly not closed by this cutover:** no real, funded
@@ -160,10 +160,10 @@ should be performed as soon as practical after cutover (compare the first
 handful of real `usage_events` rows against new-api's logs for the same
 request IDs) rather than treated as optional follow-up.
 
-**Rollback, if needed:** `WINLUME_GATEWAY_BILLING_MODE=shadow` in
-`/etc/winlume/gateway.env` (or restore `.pre-authoritative-bak`), then
-`systemctl restart winlume-gateway`. Full revert to the old Fastify gateway:
-restore `/etc/systemd/system/winlume-gateway.service.pre-go-bak` and
-`/etc/winlume/gateway.env.pre-go-bak`, `systemctl daemon-reload`, restart —
-`/opt/winlume-gateway.previous-fastify` still holds the complete prior
+**Rollback, if needed:** `REIZO_GATEWAY_BILLING_MODE=shadow` in
+`/etc/reizo/gateway.env` (or restore `.pre-authoritative-bak`), then
+`systemctl restart reizo-gateway`. Full revert to the old Fastify gateway:
+restore `/etc/systemd/system/reizo-gateway.service.pre-go-bak` and
+`/etc/reizo/gateway.env.pre-go-bak`, `systemctl daemon-reload`, restart —
+`/opt/reizo-gateway.previous-fastify` still holds the complete prior
 deployment.

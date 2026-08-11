@@ -396,7 +396,7 @@ button:not(:disabled) {
   .market-model-card { height: 174px; }
 }
 
-/* ── WinLume Studio：冷调工作台（非 Claude 橙 / 非 AI 紫） ──
+/* ── Reizo Studio：冷调工作台（非 Claude 橙 / 非 AI 紫） ──
  * 气质对齐模型市场首页：浅灰画布 + 深海军/石板强调 + 淡青氛围光
  */
 @theme {
@@ -3757,7 +3757,7 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-notice { position: fixed; z-index: 50; right: 25px; bottom: 25px; padding: 11px 15px; border-radius: 7px; color: #fff; background: #081221; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity 180ms ease, transform 180ms ease; }
 .portal-notice.is-visible { opacity: 1; transform: translateY(0); }
 
-/* Material treatment from the Winlume Portal / Personal reference. Layout remains owned by the rules above. */
+/* Material treatment from the Reizo Portal / Personal reference. Layout remains owned by the rules above. */
 .portal-home {
   --portal-ink: #172033;
   --portal-muted: #687482;

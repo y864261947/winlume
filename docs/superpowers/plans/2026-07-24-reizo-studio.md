@@ -1,14 +1,14 @@
-# WinLume Studio Implementation Plan
+# Reizo Studio Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Rebuild WinLume into a Web free-agent Studio (Open Design–inspired layout, real gateway chat, skills, artifacts) while keeping host ports open for a future desktop shell.
+**Goal:** Rebuild Reizo into a Web free-agent Studio (Open Design–inspired layout, real gateway chat, skills, artifacts) while keeping host ports open for a future desktop shell.
 
 **Architecture:** Platform-agnostic domain + agent runtime on the server; Next.js App Router UI under `/studio`; sessions/artifacts/skills stored via a Web host adapter (file/JSON first); chat streams OpenAI-compatible completions through the existing NewAPI gateway; skills inject per user message; tools write first-class artifacts for preview.
 
 **Tech Stack:** Next.js 16 (App Router), React 19, TypeScript, Tailwind 4, existing gateway proxy routes, Node `fs` file store (SQLite optional later), SSE for chat, curated skills from `agency-agents-zh`.
 
-**Spec:** `docs/superpowers/specs/2026-07-24-winlume-studio-design.md`
+**Spec:** `docs/superpowers/specs/2026-07-24-reizo-studio-design.md`
 
 ## Global Constraints
 
@@ -18,7 +18,7 @@
 - **Primary UI reference:** Open Design Studio (chat + artifacts + preview); NewMax only for free-agent UX habits.
 - **Default entry:** `/` → `/studio` (marketing not default).
 - **Gateway:** reuse `NEW_API_URL` (default `https://v2api.top`); chat via OpenAI-compatible `POST {gateway}/v1/chat/completions`.
-- **Auth headers:** forward cookies + `New-Api-User` / `x-winlume-user` as existing auth routes do; chat may also use `WINLUME_GATEWAY_TOKEN` (server env Bearer) when user session alone is insufficient — document in `.env.example`.
+- **Auth headers:** forward cookies + `New-Api-User` / `x-reizo-user` as existing auth routes do; chat may also use `REIZO_GATEWAY_TOKEN` (server env Bearer) when user session alone is insufficient — document in `.env.example`.
 - **Chinese UI copy** for product chrome.
 - **Desktop-ready:** all storage/tools behind ports in `src/lib/host/*`.
 - **Frequent commits** after each task; do not commit `_tmp_*` or secrets.
@@ -55,7 +55,7 @@
 | `content/skills/**` | Bundled skill markdown |
 | `scripts/import-agency-agents.mjs` | Import curated agents |
 | `data/.gitkeep` + `.gitignore` | Runtime data dir |
-| `.env.example` | `NEW_API_URL`, `WINLUME_GATEWAY_TOKEN` |
+| `.env.example` | `NEW_API_URL`, `REIZO_GATEWAY_TOKEN` |
 | `src/lib/agent/**/*.test.ts` | Unit tests (add vitest if missing) |
 
 ---
@@ -267,16 +267,16 @@ import { cookies, headers } from "next/headers";
 /** Gateway user id for storage partitioning. Returns null if logged out. */
 export async function requireUserId(): Promise<string | null> {
   const h = await headers();
-  const fromHeader = h.get("x-winlume-user")?.trim();
+  const fromHeader = h.get("x-reizo-user")?.trim();
   if (fromHeader) return fromHeader;
-  // Client should send x-winlume-user; also accept cookie if you store it server-side later.
+  // Client should send x-reizo-user; also accept cookie if you store it server-side later.
   const jar = await cookies();
-  const fromCookie = jar.get("winlume_uid")?.value;
+  const fromCookie = jar.get("reizo_uid")?.value;
   return fromCookie ?? null;
 }
 ```
 
-Client continues using `localStorage` `winlume:gateway-user-id` and sends `x-winlume-user` on Studio API fetches (same as account.ts).
+Client continues using `localStorage` `reizo:gateway-user-id` and sends `x-reizo-user` on Studio API fetches (same as account.ts).
 
 - [ ] **Step 2: Split root layout**
 
@@ -336,13 +336,13 @@ git commit -m "feat(studio): shell layout and default redirect to workbench"
 import path from "node:path";
 import { createWebFileStore } from "./file-store";
 
-const root = process.env.WINLUME_DATA_DIR ?? path.join(process.cwd(), "data");
+const root = process.env.REIZO_DATA_DIR ?? path.join(process.cwd(), "data");
 export const webStore = createWebFileStore(root);
 ```
 
 - [ ] **Step 2: Routes**
 
-`GET /api/sessions` — list for user (`x-winlume-user` required → 401 if missing)  
+`GET /api/sessions` — list for user (`x-reizo-user` required → 401 if missing)  
 `POST /api/sessions` — body `{ model?: string, title?: string }` → create  
 `GET /api/sessions/[id]` — `{ session, messages }`  
 `DELETE /api/sessions/[id]`  
@@ -353,8 +353,8 @@ Always scope by `userId` from header; never trust body userId.
 - [ ] **Step 3: Smoke with curl / fetch**
 
 ```bash
-# after login in browser, copy user id from localStorage winlume:gateway-user-id
-curl -s -H "x-winlume-user: 1" -H "content-type: application/json" -d "{\"title\":\"t\",\"model\":\"gpt-4o-mini\"}" http://localhost:3000/api/sessions
+# after login in browser, copy user id from localStorage reizo:gateway-user-id
+curl -s -H "x-reizo-user: 1" -H "content-type: application/json" -d "{\"title\":\"t\",\"model\":\"gpt-4o-mini\"}" http://localhost:3000/api/sessions
 ```
 
 Expected: JSON session with id.
@@ -390,7 +390,7 @@ export type ChatChunk =
 ```ts
 // POST `${NEW_API_URL}/v1/chat/completions`
 // headers:
-//   Authorization: Bearer ${WINLUME_GATEWAY_TOKEN or userToken}
+//   Authorization: Bearer ${REIZO_GATEWAY_TOKEN or userToken}
 //   Content-Type: application/json
 //   New-Api-User: userId  (if required by gateway)
 // body: { model, messages, stream: true, tools?, tool_choice? }
@@ -404,9 +404,9 @@ Parse `data: {...}` lines; accumulate `delta.content`; on `finish_reason` end; h
 
 ```env
 NEW_API_URL=https://v2api.top
-WINLUME_GATEWAY_TOKEN=
+REIZO_GATEWAY_TOKEN=
 # optional override for chat path
-# WINLUME_CHAT_PATH=/v1/chat/completions
+# REIZO_CHAT_PATH=/v1/chat/completions
 ```
 
 - [ ] **Step 4: Commit**
@@ -426,7 +426,7 @@ git commit -m "feat(studio): OpenAI-compatible gateway stream provider"
 - Create: `src/components/studio/Composer.tsx`
 - Create: `src/components/studio/useStudioChat.ts`
 - Create: `src/app/studio/c/[sessionId]/page.tsx`
-- Create: `src/lib/studio/api.ts` — browser fetch helpers with `x-winlume-user`
+- Create: `src/lib/studio/api.ts` — browser fetch helpers with `x-reizo-user`
 
 **Interfaces:**
 - Consumes: SessionStore, streamGatewayChat, injectSkills (stub empty until Task 7)
@@ -449,7 +449,7 @@ export async function* runAgentTurn(opts: {
 }
 ```
 
-BASE_POLICY (zh/en short): you are WinLume Studio agent; prefer structured helpful answers; when tools exist use write_artifact for long docs.
+BASE_POLICY (zh/en short): you are Reizo Studio agent; prefer structured helpful answers; when tools exist use write_artifact for long docs.
 
 - [ ] **Step 2: `POST /api/chat`**
 
@@ -461,7 +461,7 @@ Response: `text/event-stream`, each event `data: ${JSON.stringify(AgentSseEvent)
 - [ ] **Step 3: Client chat hook**
 
 - Read user id from localStorage  
-- `fetch('/api/chat', { method:'POST', headers:{'x-winlume-user', 'content-type'}, body, signal })`  
+- `fetch('/api/chat', { method:'POST', headers:{'x-reizo-user', 'content-type'}, body, signal })`  
 - Parse SSE, update messages state  
 - On `session` event navigate to `/studio/c/{id}` if new  
 - Stop button aborts fetch
@@ -473,7 +473,7 @@ Load `GET /api/sessions/[id]` on mount; render ChatThread + Composer; model sele
 - [ ] **Step 5: Manual E2E**
 
 1. Login via existing modal  
-2. Set `WINLUME_GATEWAY_TOKEN` if needed  
+2. Set `REIZO_GATEWAY_TOKEN` if needed  
 3. Send “用一句话介绍你自己”  
 4. Expect streamed tokens and persisted history on refresh  
 
@@ -700,7 +700,7 @@ git commit -m "feat(studio): artifact panel and markdown/html preview"
 - Modify: `src/app/studio/settings/page.tsx` — balance, logout, model default in `localStorage`
 - Modify: remove or neutralize `ExperienceModal` entry points that fake runs
 - Delete or stop using `src/lib/experience.ts` from Studio paths
-- Add: `README.md` section “WinLume Studio” (dev env, import skills, data dir)
+- Add: `README.md` section “Reizo Studio” (dev env, import skills, data dir)
 
 - [ ] **Step 1: Gate chat** — client + server 401
 
@@ -768,7 +768,7 @@ Use only: `Session`, `Message`, `Skill`, `Artifact`, `AgentSseEvent`, `SessionSt
 
 ## Execution handoff
 
-Plan saved to `docs/superpowers/plans/2026-07-24-winlume-studio.md`.
+Plan saved to `docs/superpowers/plans/2026-07-24-reizo-studio.md`.
 
 **Two execution options:**
 

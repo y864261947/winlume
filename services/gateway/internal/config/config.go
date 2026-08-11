@@ -103,7 +103,7 @@ type Config struct {
 	RecoveryDir             string
 	Upstreams               map[ProtocolFamily]UpstreamConfig
 	// ChannelEncryptionKey is the decoded AES-256 key (exactly
-	// ChannelEncryptionKeySize bytes) sourced from WINLUME_CHANNEL_ENCRYPTION_KEY,
+	// ChannelEncryptionKeySize bytes) sourced from REIZO_CHANNEL_ENCRYPTION_KEY,
 	// or nil if that variable is unset. storage.Open requires a non-nil key
 	// before it will open a database-backed store (which owns the channels
 	// table), so any deployment that reaches shadow/authoritative billing
@@ -115,45 +115,45 @@ type Config struct {
 // reads NEW_API_URL because new-api may be retired after the migration.
 func Load() (Config, error) {
 	databaseURL := firstNonEmpty("DATABASE_URL")
-	port, err := positiveInt("WINLUME_GATEWAY_PORT", firstNonEmpty("WINLUME_GATEWAY_PORT"), defaultPort)
+	port, err := positiveInt("REIZO_GATEWAY_PORT", firstNonEmpty("REIZO_GATEWAY_PORT"), defaultPort)
 	if err != nil {
 		return Config{}, err
 	}
 	bodyLimitBytes, err := positiveInt64(
-		"WINLUME_GATEWAY_BODY_LIMIT_BYTES",
-		firstNonEmpty("WINLUME_GATEWAY_BODY_LIMIT_BYTES"),
+		"REIZO_GATEWAY_BODY_LIMIT_BYTES",
+		firstNonEmpty("REIZO_GATEWAY_BODY_LIMIT_BYTES"),
 		defaultBodyLimitBytes,
 	)
 	if err != nil {
 		return Config{}, err
 	}
 	allowUnverifiedAPIKeys, err := booleanValue(
-		"WINLUME_GATEWAY_ALLOW_UNVERIFIED_KEYS",
-		firstNonEmpty("WINLUME_GATEWAY_ALLOW_UNVERIFIED_KEYS"),
+		"REIZO_GATEWAY_ALLOW_UNVERIFIED_KEYS",
+		firstNonEmpty("REIZO_GATEWAY_ALLOW_UNVERIFIED_KEYS"),
 		false,
 	)
 	if err != nil {
 		return Config{}, err
 	}
 	usePlatformDatabase, err := booleanValue(
-		"WINLUME_GATEWAY_USE_PLATFORM_DATABASE",
-		firstNonEmpty("WINLUME_GATEWAY_USE_PLATFORM_DATABASE"),
+		"REIZO_GATEWAY_USE_PLATFORM_DATABASE",
+		firstNonEmpty("REIZO_GATEWAY_USE_PLATFORM_DATABASE"),
 		databaseURL != "",
 	)
 	if err != nil {
 		return Config{}, err
 	}
 	reservationMicrocredits, err := nonNegativeInt64(
-		"WINLUME_GATEWAY_RESERVATION_MICROCREDITS",
-		firstNonEmpty("WINLUME_GATEWAY_RESERVATION_MICROCREDITS"),
+		"REIZO_GATEWAY_RESERVATION_MICROCREDITS",
+		firstNonEmpty("REIZO_GATEWAY_RESERVATION_MICROCREDITS"),
 		0,
 	)
 	if err != nil {
 		return Config{}, err
 	}
 	requestCostMicrocredits, err := nonNegativeInt64(
-		"WINLUME_GATEWAY_REQUEST_COST_MICROCREDITS",
-		firstNonEmpty("WINLUME_GATEWAY_REQUEST_COST_MICROCREDITS"),
+		"REIZO_GATEWAY_REQUEST_COST_MICROCREDITS",
+		firstNonEmpty("REIZO_GATEWAY_REQUEST_COST_MICROCREDITS"),
 		0,
 	)
 	if err != nil {
@@ -163,40 +163,40 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	channelEncryptionKey, err := decodeChannelEncryptionKey(firstNonEmpty("WINLUME_CHANNEL_ENCRYPTION_KEY"))
+	channelEncryptionKey, err := decodeChannelEncryptionKey(firstNonEmpty("REIZO_CHANNEL_ENCRYPTION_KEY"))
 	if err != nil {
 		return Config{}, err
 	}
 
-	trustedProxyIPs := parseList(firstNonEmpty("WINLUME_GATEWAY_TRUSTED_PROXY_IPS"))
+	trustedProxyIPs := parseList(firstNonEmpty("REIZO_GATEWAY_TRUSTED_PROXY_IPS"))
 	if len(trustedProxyIPs) == 0 {
 		trustedProxyIPs = append([]string(nil), defaultTrustedProxyIPs...)
 	}
 
 	return Config{
-		Host:                    firstNonEmptyOr(defaultHost, "WINLUME_GATEWAY_HOST"),
+		Host:                    firstNonEmptyOr(defaultHost, "REIZO_GATEWAY_HOST"),
 		Port:                    port,
 		TrustedProxyIPs:         trustedProxyIPs,
 		BodyLimitBytes:          bodyLimitBytes,
-		CORSOrigins:             parseList(firstNonEmpty("WINLUME_GATEWAY_CORS_ORIGINS")),
-		InternalToken:           firstNonEmpty("WINLUME_GATEWAY_INTERNAL_TOKEN", "WINLUME_GATEWAY_STUDIO_TOKEN"),
-		GatewayAdminToken:       firstNonEmpty("WINLUME_GATEWAY_ADMIN_TOKEN"),
+		CORSOrigins:             parseList(firstNonEmpty("REIZO_GATEWAY_CORS_ORIGINS")),
+		InternalToken:           firstNonEmpty("REIZO_GATEWAY_INTERNAL_TOKEN", "REIZO_GATEWAY_STUDIO_TOKEN"),
+		GatewayAdminToken:       firstNonEmpty("REIZO_GATEWAY_ADMIN_TOKEN"),
 		DatabaseURL:             databaseURL,
-		APIKeyHashes:            parseList(firstNonEmpty("WINLUME_GATEWAY_API_KEY_HASHES")),
+		APIKeyHashes:            parseList(firstNonEmpty("REIZO_GATEWAY_API_KEY_HASHES")),
 		AllowUnverifiedAPIKeys:  allowUnverifiedAPIKeys,
 		UsePlatformDatabase:     usePlatformDatabase,
 		ReservationMicrocredits: reservationMicrocredits,
 		RequestCostMicrocredits: requestCostMicrocredits,
-		BillingMode:             BillingMode(firstNonEmptyOr(string(BillingShadow), "WINLUME_GATEWAY_BILLING_MODE")),
-		BillingOwner:            firstNonEmpty("WINLUME_GATEWAY_BILLING_OWNER"),
-		UpstreamOwnership:       UpstreamOwnership(firstNonEmpty("WINLUME_GATEWAY_UPSTREAM_OWNERSHIP")),
-		RecoveryDir:             firstNonEmpty("WINLUME_GATEWAY_RECOVERY_DIR"),
+		BillingMode:             BillingMode(firstNonEmptyOr(string(BillingShadow), "REIZO_GATEWAY_BILLING_MODE")),
+		BillingOwner:            firstNonEmpty("REIZO_GATEWAY_BILLING_OWNER"),
+		UpstreamOwnership:       UpstreamOwnership(firstNonEmpty("REIZO_GATEWAY_UPSTREAM_OWNERSHIP")),
+		RecoveryDir:             firstNonEmpty("REIZO_GATEWAY_RECOVERY_DIR"),
 		Upstreams:               upstreams,
 		ChannelEncryptionKey:    channelEncryptionKey,
 	}, nil
 }
 
-// decodeChannelEncryptionKey parses WINLUME_CHANNEL_ENCRYPTION_KEY. An empty
+// decodeChannelEncryptionKey parses REIZO_CHANNEL_ENCRYPTION_KEY. An empty
 // value returns (nil, nil): the variable is optional at Load time and only
 // required later, by storage.Open, when a database-backed store is actually
 // opened (see the ChannelEncryptionKey field doc comment). A non-empty value
@@ -217,7 +217,7 @@ func decodeChannelEncryptionKey(value string) ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf(
-		"WINLUME_CHANNEL_ENCRYPTION_KEY must decode (as 64 hex characters, or base64) to exactly %d bytes",
+		"REIZO_CHANNEL_ENCRYPTION_KEY must decode (as 64 hex characters, or base64) to exactly %d bytes",
 		ChannelEncryptionKeySize,
 	)
 }
@@ -230,7 +230,7 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.UpstreamOwnership != "" && !isAllowedUpstreamOwnership(cfg.UpstreamOwnership) {
 		return fmt.Errorf(
-			"WINLUME_GATEWAY_UPSTREAM_OWNERSHIP must be %q or %q",
+			"REIZO_GATEWAY_UPSTREAM_OWNERSHIP must be %q or %q",
 			OwnershipProvider,
 			OwnershipNonChargingNewAPI,
 		)
@@ -246,21 +246,21 @@ func (cfg Config) Validate() error {
 			return err
 		}
 		if cfg.BillingOwner != "go" {
-			return fmt.Errorf("authoritative billing requires WINLUME_GATEWAY_BILLING_OWNER=go")
+			return fmt.Errorf("authoritative billing requires REIZO_GATEWAY_BILLING_OWNER=go")
 		}
 		if !isAllowedUpstreamOwnership(cfg.UpstreamOwnership) {
 			return fmt.Errorf(
-				"authoritative billing requires WINLUME_GATEWAY_UPSTREAM_OWNERSHIP=%q or %q",
+				"authoritative billing requires REIZO_GATEWAY_UPSTREAM_OWNERSHIP=%q or %q",
 				OwnershipProvider,
 				OwnershipNonChargingNewAPI,
 			)
 		}
 		if strings.TrimSpace(cfg.RecoveryDir) == "" {
-			return fmt.Errorf("authoritative billing requires WINLUME_GATEWAY_RECOVERY_DIR")
+			return fmt.Errorf("authoritative billing requires REIZO_GATEWAY_RECOVERY_DIR")
 		}
 		return nil
 	default:
-		return fmt.Errorf("WINLUME_GATEWAY_BILLING_MODE must be %q, %q, or %q", BillingOff, BillingShadow, BillingAuthoritative)
+		return fmt.Errorf("REIZO_GATEWAY_BILLING_MODE must be %q, %q, or %q", BillingOff, BillingShadow, BillingAuthoritative)
 	}
 }
 
@@ -269,7 +269,7 @@ func validateDatabaseAndInternalToken(cfg Config) error {
 		return fmt.Errorf("%s billing requires DATABASE_URL", cfg.BillingMode)
 	}
 	if strings.TrimSpace(cfg.InternalToken) == "" {
-		return fmt.Errorf("%s billing requires WINLUME_GATEWAY_INTERNAL_TOKEN", cfg.BillingMode)
+		return fmt.Errorf("%s billing requires REIZO_GATEWAY_INTERNAL_TOKEN", cfg.BillingMode)
 	}
 	return nil
 }
@@ -288,10 +288,10 @@ func validateUpstreams(upstreams map[ProtocolFamily]UpstreamConfig) error {
 
 func loadUpstreams() (map[ProtocolFamily]UpstreamConfig, error) {
 	sharedOpenAIURL, sharedOpenAIURLName := firstNonEmptyNamed(
-		"WINLUME_GATEWAY_OPENAI_UPSTREAM_URL",
-		"WINLUME_GATEWAY_OPENAI_BASE_URL",
-		"WINLUME_GATEWAY_UPSTREAM_URL",
-		"WINLUME_GATEWAY_BASE_URL",
+		"REIZO_GATEWAY_OPENAI_UPSTREAM_URL",
+		"REIZO_GATEWAY_OPENAI_BASE_URL",
+		"REIZO_GATEWAY_UPSTREAM_URL",
+		"REIZO_GATEWAY_BASE_URL",
 	)
 	upstreams := make(map[ProtocolFamily]UpstreamConfig)
 	for _, family := range protocolFamilies {
@@ -309,8 +309,8 @@ func loadUpstreams() (map[ProtocolFamily]UpstreamConfig, error) {
 func upstreamFor(family ProtocolFamily, sharedOpenAIURL, sharedOpenAIURLName string) (UpstreamConfig, bool, error) {
 	suffix := familyEnvironmentSuffix(family)
 	baseURL, envName := firstNonEmptyNamed(
-		"WINLUME_GATEWAY_"+suffix+"_UPSTREAM_URL",
-		"WINLUME_GATEWAY_"+suffix+"_BASE_URL",
+		"REIZO_GATEWAY_"+suffix+"_UPSTREAM_URL",
+		"REIZO_GATEWAY_"+suffix+"_BASE_URL",
 	)
 	if baseURL == "" && usesOpenAIURLFallback(family) {
 		baseURL, envName = sharedOpenAIURL, sharedOpenAIURLName
@@ -331,11 +331,11 @@ func upstreamFor(family ProtocolFamily, sharedOpenAIURL, sharedOpenAIURLName str
 func authorizationForFamily(family ProtocolFamily) string {
 	suffix := familyEnvironmentSuffix(family)
 	return firstNonEmpty(
-		"WINLUME_GATEWAY_"+suffix+"_UPSTREAM_AUTHORIZATION",
-		"WINLUME_GATEWAY_"+suffix+"_UPSTREAM_API_KEY",
-		"WINLUME_GATEWAY_UPSTREAM_AUTHORIZATION",
-		"WINLUME_GATEWAY_UPSTREAM_API_KEY",
-		"WINLUME_GATEWAY_UPSTREAM_TOKEN",
+		"REIZO_GATEWAY_"+suffix+"_UPSTREAM_AUTHORIZATION",
+		"REIZO_GATEWAY_"+suffix+"_UPSTREAM_API_KEY",
+		"REIZO_GATEWAY_UPSTREAM_AUTHORIZATION",
+		"REIZO_GATEWAY_UPSTREAM_API_KEY",
+		"REIZO_GATEWAY_UPSTREAM_TOKEN",
 	)
 }
 

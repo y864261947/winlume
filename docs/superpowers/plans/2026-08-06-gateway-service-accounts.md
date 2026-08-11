@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give internal applications (starting with WinLume itself) their own revocable service-account API keys instead of the shared `x-winlume-internal-token` impersonation secret, and add a `/gateway-admin` surface to view/quota-limit/revoke them.
+**Goal:** Give internal applications (starting with Reizo itself) their own revocable service-account API keys instead of the shared `x-reizo-internal-token` impersonation secret, and add a `/gateway-admin` surface to view/quota-limit/revoke them.
 
-**Architecture:** A service account is a `users` row flagged `is_service_account = true` carrying a normal `api_keys` row — no new tables, no change to the hot request-auth path (`LookupAPIKey` already handles it). A new, narrowly scoped Go admin HTTP API (`/internal/admin/service-accounts*`, gated by a new `WINLUME_GATEWAY_ADMIN_TOKEN` shared secret) exposes list/quota-edit/revoke. The existing WinLume Next.js app gets a `/gateway-admin` route group (gated by the existing `platform_role = 'admin'` flag) that proxies to that API. WinLume's own three legacy gateway tokens collapse into one `WINLUME_SERVICE_KEY`.
+**Architecture:** A service account is a `users` row flagged `is_service_account = true` carrying a normal `api_keys` row — no new tables, no change to the hot request-auth path (`LookupAPIKey` already handles it). A new, narrowly scoped Go admin HTTP API (`/internal/admin/service-accounts*`, gated by a new `REIZO_GATEWAY_ADMIN_TOKEN` shared secret) exposes list/quota-edit/revoke. The existing Reizo Next.js app gets a `/gateway-admin` route group (gated by the existing `platform_role = 'admin'` flag) that proxies to that API. Reizo's own three legacy gateway tokens collapse into one `REIZO_SERVICE_KEY`.
 
 **Tech Stack:** Go 1.25 (`services/gateway`, `net/http`, `pgx/v5`), Next.js/TypeScript (App Router, Drizzle ORM), Postgres.
 
@@ -13,8 +13,8 @@
 - No model/route access-control enforcement is added — isolation is `quota_limit` + `billing_group` only (design doc §3, §4.4).
 - No self-service creation of service accounts in the admin UI — creation is a one-time seed command (design doc §4.5).
 - One service-account key per app, not one per capability (design doc §4.6).
-- `/gateway-admin` auth is `platformRole === "admin"` only — no organization-role or other WinLume business-state check (design doc §4.8).
-- The Go gateway's admin API trusts the shared `WINLUME_GATEWAY_ADMIN_TOKEN` only; it performs no user-identity check of its own (design doc §4.9).
+- `/gateway-admin` auth is `platformRole === "admin"` only — no organization-role or other Reizo business-state check (design doc §4.8).
+- The Go gateway's admin API trusts the shared `REIZO_GATEWAY_ADMIN_TOKEN` only; it performs no user-identity check of its own (design doc §4.9).
 - Reference design doc: [docs/superpowers/specs/2026-08-06-gateway-service-accounts-design.md](../specs/2026-08-06-gateway-service-accounts-design.md).
 
 ---
@@ -78,7 +78,7 @@ Append to `services/gateway/internal/config/config_test.go`:
 ```go
 func TestLoadReadsGatewayAdminToken(t *testing.T) {
 	clearGatewayEnvironment(t)
-	t.Setenv("WINLUME_GATEWAY_ADMIN_TOKEN", "admin-secret")
+	t.Setenv("REIZO_GATEWAY_ADMIN_TOKEN", "admin-secret")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ Expected: FAIL — `cfg.GatewayAdminToken undefined (type config.Config has no f
 
 - [ ] **Step 3: Add the field and env var to `clearGatewayEnvironment`**
 
-In `services/gateway/internal/config/config_test.go`, add `"WINLUME_GATEWAY_ADMIN_TOKEN",` to the `gatewayEnvironmentNames` slice (after `"WINLUME_GATEWAY_STUDIO_TOKEN",`).
+In `services/gateway/internal/config/config_test.go`, add `"REIZO_GATEWAY_ADMIN_TOKEN",` to the `gatewayEnvironmentNames` slice (after `"REIZO_GATEWAY_STUDIO_TOKEN",`).
 
 In `services/gateway/internal/config/config.go`, add the field to `Config` (after `InternalToken string`):
 
@@ -105,8 +105,8 @@ In `services/gateway/internal/config/config.go`, add the field to `Config` (afte
 In `Load()`, add to the returned `Config{...}` literal (after `InternalToken: ...`):
 
 ```go
-		InternalToken:           firstNonEmpty("WINLUME_GATEWAY_INTERNAL_TOKEN", "WINLUME_GATEWAY_STUDIO_TOKEN"),
-		GatewayAdminToken:       firstNonEmpty("WINLUME_GATEWAY_ADMIN_TOKEN"),
+		InternalToken:           firstNonEmpty("REIZO_GATEWAY_INTERNAL_TOKEN", "REIZO_GATEWAY_STUDIO_TOKEN"),
+		GatewayAdminToken:       firstNonEmpty("REIZO_GATEWAY_ADMIN_TOKEN"),
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
@@ -123,7 +123,7 @@ Expected: all PASS (confirms `clearGatewayEnvironment` change didn't break `Test
 
 ```bash
 git add services/gateway/internal/config/config.go services/gateway/internal/config/config_test.go
-git commit -m "feat(gateway): add WINLUME_GATEWAY_ADMIN_TOKEN config"
+git commit -m "feat(gateway): add REIZO_GATEWAY_ADMIN_TOKEN config"
 ```
 
 ---
@@ -433,7 +433,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"winlume/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/storage"
 )
 
 type fakeStore struct {
@@ -544,7 +544,7 @@ Create `services/gateway/internal/adminapi/handler.go`:
 // Package adminapi implements the gateway's operator-only HTTP surface for
 // listing, quota-editing, and revoking internal-application service-account
 // keys. It is mounted behind a separate shared-secret gate
-// (WINLUME_GATEWAY_ADMIN_TOKEN) by httpapi.Server, never on the public route
+// (REIZO_GATEWAY_ADMIN_TOKEN) by httpapi.Server, never on the public route
 // surface. See docs/superpowers/specs/2026-08-06-gateway-service-accounts-design.md.
 package adminapi
 
@@ -556,8 +556,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"winlume/services/gateway/internal/httpapi"
-	"winlume/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/httpapi"
+	"reizo/services/gateway/internal/storage"
 )
 
 // Store is the narrow storage surface this package depends on, satisfied by
@@ -708,7 +708,7 @@ func TestAdminRoutesRequireAdminToken(t *testing.T) {
 	unauthorized := serve(server, http.MethodGet, "/internal/admin/service-accounts", nil)
 	require.Equal(t, http.StatusUnauthorized, unauthorized.Code)
 
-	authorized := serveWithHeaders(server, http.MethodGet, "/internal/admin/service-accounts", nil, map[string]string{"x-winlume-gateway-admin-token": "admin-secret"})
+	authorized := serveWithHeaders(server, http.MethodGet, "/internal/admin/service-accounts", nil, map[string]string{"x-reizo-gateway-admin-token": "admin-secret"})
 	require.Equal(t, http.StatusOK, authorized.Code)
 }
 ```
@@ -767,7 +767,7 @@ Add the auth check next to `authorizeInternal`:
 ```go
 func (server *Server) authorizeAdmin(request *http.Request) bool {
 	expected := []byte(server.config.GatewayAdminToken)
-	received := []byte(request.Header.Get("x-winlume-gateway-admin-token"))
+	received := []byte(request.Header.Get("x-reizo-gateway-admin-token"))
 	return len(expected) > 0 && len(expected) == len(received) && subtle.ConstantTimeCompare(expected, received) == 1
 }
 ```
@@ -793,7 +793,7 @@ git commit -m "feat(gateway): gate /internal/admin/* behind a dedicated admin to
 
 - [ ] **Step 13: Add the dependency**
 
-In `services/gateway/cmd/gateway/main.go`, add the import `"winlume/services/gateway/internal/adminapi"`.
+In `services/gateway/cmd/gateway/main.go`, add the import `"reizo/services/gateway/internal/adminapi"`.
 
 In `run()`, after the `if cfg.BillingMode == config.BillingShadow || cfg.BillingMode == config.BillingAuthoritative { ... }` block (after `lookup = store`, still inside that `if`, near where `internalHandler` is set for shadow mode), add:
 
@@ -865,7 +865,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"winlume/services/gateway/internal/identity"
+	"reizo/services/gateway/internal/identity"
 )
 
 func main() {
@@ -889,8 +889,8 @@ func execute(ctx context.Context, arguments []string, getenv func(string) string
 	flags := flag.NewFlagSet("create-service-account", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	var username, displayName, billingGroup string
-	flags.StringVar(&username, "username", "", "required unique username, e.g. svc-winlume-app")
-	flags.StringVar(&displayName, "display-name", "", "required human-readable name, e.g. \"WinLume App\"")
+	flags.StringVar(&username, "username", "", "required unique username, e.g. svc-reizo-app")
+	flags.StringVar(&displayName, "display-name", "", "required human-readable name, e.g. \"Reizo App\"")
 	flags.StringVar(&billingGroup, "billing-group", "default", "billing group for pricing/accounting separation")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
@@ -987,7 +987,7 @@ git commit -m "feat(gateway): add create-service-account seed command"
 
 ---
 
-## Task 6: Consolidate WinLume's own gateway token
+## Task 6: Consolidate Reizo's own gateway token
 
 **Files:**
 - Modify: `src/lib/agent/provider/gateway.ts`
@@ -1006,9 +1006,9 @@ import { describe, expect, it, vi } from "vitest";
 import { streamGatewayChat } from "./gateway";
 
 describe("streamGatewayChat auth", () => {
-  it("sends WINLUME_SERVICE_KEY as a Bearer token when no explicit token is passed", async () => {
-    const originalKey = process.env.WINLUME_SERVICE_KEY;
-    process.env.WINLUME_SERVICE_KEY = "wl_service_test";
+  it("sends REIZO_SERVICE_KEY as a Bearer token when no explicit token is passed", async () => {
+    const originalKey = process.env.REIZO_SERVICE_KEY;
+    process.env.REIZO_SERVICE_KEY = "wl_service_test";
     const fetchImpl = vi.fn(async () =>
       new Response("data: [DONE]\n\n", { headers: { "content-type": "text/event-stream" } }),
     );
@@ -1020,7 +1020,7 @@ describe("streamGatewayChat auth", () => {
       const headers = fetchImpl.mock.calls[0][1]?.headers as Record<string, string>;
       expect(headers.Authorization).toBe("Bearer wl_service_test");
     } finally {
-      process.env.WINLUME_SERVICE_KEY = originalKey;
+      process.env.REIZO_SERVICE_KEY = originalKey;
     }
   });
 });
@@ -1039,7 +1039,7 @@ In `src/lib/agent/provider/gateway.ts`, replace the token/header-selection logic
   const baseUrl = getGatewayBaseUrl(params.baseUrl);
   const chatPath = getChatPath(params.chatPath);
   const url = `${baseUrl}${chatPath}`;
-  const token = params.token ?? process.env.WINLUME_SERVICE_KEY ?? "";
+  const token = params.token ?? process.env.REIZO_SERVICE_KEY ?? "";
   const fetchImpl = params.fetchImpl ?? fetch;
 
   const headers: Record<string, string> = {
@@ -1051,14 +1051,14 @@ In `src/lib/agent/provider/gateway.ts`, replace the token/header-selection logic
   }
 ```
 
-Remove the `useLegacyTransport`/`legacyTransport(params)` call and the `if (params.userId) { ... }` block that sets `New-Api-User`/`x-winlume-internal-token`/`x-winlume-internal-user-id` in `streamGatewayChat`.
+Remove the `useLegacyTransport`/`legacyTransport(params)` call and the `if (params.userId) { ... }` block that sets `New-Api-User`/`x-reizo-internal-token`/`x-reizo-internal-user-id` in `streamGatewayChat`.
 
 Apply the equivalent change to `generateImage` (around [gateway.ts:525-546](../../../src/lib/agent/provider/gateway.ts:525)):
 
 ```ts
   const baseUrl = getGatewayBaseUrl(params.baseUrl);
-  const token = params.token ?? process.env.WINLUME_SERVICE_KEY ?? "";
-  const model = params.model ?? process.env.WINLUME_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL;
+  const token = params.token ?? process.env.REIZO_SERVICE_KEY ?? "";
+  const model = params.model ?? process.env.REIZO_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL;
   const fetchImpl = params.fetchImpl ?? fetch;
   const isEdit = Boolean(params.sourceImages?.length);
   const path = isEdit ? "/v1/images/edits" : "/v1/images/generations";
@@ -1082,21 +1082,21 @@ Expected: all existing tests in the file still PASS (in particular, any test tha
 
 - [ ] **Step 6: Update `.env.example`**
 
-In `.env.example`, replace lines 29-35 (the `WINLUME_GATEWAY_TOKEN`/`WINLUME_IMAGE_GATEWAY_TOKEN` block):
+In `.env.example`, replace lines 29-35 (the `REIZO_GATEWAY_TOKEN`/`REIZO_IMAGE_GATEWAY_TOKEN` block):
 
 ```
-# Single service-account Bearer token for all WinLume-to-gateway traffic
+# Single service-account Bearer token for all Reizo-to-gateway traffic
 # (chat and image). Issued once via:
-#   go run ./services/gateway/cmd/create-service-account -username svc-winlume-app -display-name "WinLume App"
+#   go run ./services/gateway/cmd/create-service-account -username svc-reizo-app -display-name "Reizo App"
 # Never expose it to the browser.
-WINLUME_SERVICE_KEY=
+REIZO_SERVICE_KEY=
 ```
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add src/lib/agent/provider/gateway.ts src/lib/agent/provider/gateway.test.ts .env.example
-git commit -m "feat(gateway-client): send a single WINLUME_SERVICE_KEY bearer token"
+git commit -m "feat(gateway-client): send a single REIZO_SERVICE_KEY bearer token"
 ```
 
 ---
@@ -1173,7 +1173,7 @@ export class GatewayAdminError extends Error {
 }
 
 /** Throws unless the signed-in session has platformRole === "admin". No
- * other WinLume business state (organization role, account status beyond
+ * other Reizo business state (organization role, account status beyond
  * "active") participates in this check — see design doc §4.8. */
 export async function requireGatewayAdminContext(): Promise<void> {
   const context = await getCurrentAuthContext();
@@ -1184,13 +1184,13 @@ export async function requireGatewayAdminContext(): Promise<void> {
 }
 
 function gatewayAdminToken(): string {
-  const token = process.env.WINLUME_GATEWAY_ADMIN_TOKEN?.trim();
+  const token = process.env.REIZO_GATEWAY_ADMIN_TOKEN?.trim();
   if (!token) throw new GatewayAdminError("网关管理接口尚未配置。", 503, "admin_token_not_configured");
   return token;
 }
 
 function gatewayBaseUrl(): string {
-  return (process.env.WINLUME_GATEWAY_URL ?? "http://127.0.0.1:4010").replace(/\/+$/, "");
+  return (process.env.REIZO_GATEWAY_URL ?? "http://127.0.0.1:4010").replace(/\/+$/, "");
 }
 
 /** Proxies one request to the Go gateway's /internal/admin/* API using the
@@ -1201,7 +1201,7 @@ export async function gatewayAdminFetch(path: string, init?: RequestInit): Promi
     ...init,
     headers: {
       ...(init?.headers ?? {}),
-      "x-winlume-gateway-admin-token": gatewayAdminToken(),
+      "x-reizo-gateway-admin-token": gatewayAdminToken(),
     },
     cache: "no-store",
   });
@@ -1295,14 +1295,14 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
 
 - [ ] **Step 6: Add the env var to `.env.example`**
 
-Append after the `WINLUME_SERVICE_KEY` block added in Task 6:
+Append after the `REIZO_SERVICE_KEY` block added in Task 6:
 
 ```
 # Shared secret between this Next.js server and the gateway's
 # /internal/admin/* API (services/gateway). Must match
-# WINLUME_GATEWAY_ADMIN_TOKEN on the gateway process. Never expose it to
+# REIZO_GATEWAY_ADMIN_TOKEN on the gateway process. Never expose it to
 # the browser.
-WINLUME_GATEWAY_ADMIN_TOKEN=
+REIZO_GATEWAY_ADMIN_TOKEN=
 ```
 
 - [ ] **Step 7: Commit**
@@ -1510,7 +1510,7 @@ export default function GatewayAdminPage() {
 
 - [ ] **Step 5: Manual verification in the browser**
 
-Run: `npm run dev`, then start the Go gateway locally with `WINLUME_GATEWAY_ADMIN_TOKEN` set and `WINLUME_GATEWAY_ADMIN_TOKEN` set to the same value in `.env` for Next.js. Set one user's `platform_role` to `admin` directly in the dev database. Sign in as that user, visit `/gateway-admin`, confirm the table loads (empty state is fine if no service account has been seeded yet), then run `create-service-account` from Task 5 and refresh to see it appear.
+Run: `npm run dev`, then start the Go gateway locally with `REIZO_GATEWAY_ADMIN_TOKEN` set and `REIZO_GATEWAY_ADMIN_TOKEN` set to the same value in `.env` for Next.js. Set one user's `platform_role` to `admin` directly in the dev database. Sign in as that user, visit `/gateway-admin`, confirm the table loads (empty state is fine if no service account has been seeded yet), then run `create-service-account` from Task 5 and refresh to see it appear.
 
 Also verify: signing in as a non-admin user and visiting `/gateway-admin` redirects to `/`.
 
@@ -1525,45 +1525,45 @@ git commit -m "feat(gateway-admin): add service accounts admin page"
 
 ## Task 9: Rollout runbook (manual, no code)
 
-This task has no automated steps — it is the checklist for cutting WinLume's own traffic over to its service-account key in a real environment. Perform it after Tasks 1-8 are merged and deployed.
+This task has no automated steps — it is the checklist for cutting Reizo's own traffic over to its service-account key in a real environment. Perform it after Tasks 1-8 are merged and deployed.
 
 - [ ] **Step 1: Apply the migration in staging**
 
 Run `npm run db:migrate` against the staging `DATABASE_URL` (or however this repo's deploy pipeline already runs Drizzle migrations — check `services/gateway/README.md` and any deploy scripts before assuming this project runs migrations manually).
 
-- [ ] **Step 2: Seed WinLume's own service account in staging**
+- [ ] **Step 2: Seed Reizo's own service account in staging**
 
-Using the ops access documented in `E:\CodeCode\winlume\.agents\skills\connect-winlume-server`, run:
+Using the ops access documented in `E:\CodeCode\reizo\.agents\skills\connect-reizo-server`, run:
 
 ```bash
-DATABASE_URL=<staging DATABASE_URL> go -C services/gateway run ./cmd/create-service-account -username svc-winlume-app -display-name "WinLume App" -billing-group default
+DATABASE_URL=<staging DATABASE_URL> go -C services/gateway run ./cmd/create-service-account -username svc-reizo-app -display-name "Reizo App" -billing-group default
 ```
 
 Record the printed plaintext key in the project's secret store (not in a file in this repo).
 
 - [ ] **Step 3: Raise the quota**
 
-Via `/gateway-admin` (staging), set `svc-winlume-app`'s quota to whatever WinLume's real traffic needs (the seed command intentionally sets `quota_limit = 0`, per its own printed reminder).
+Via `/gateway-admin` (staging), set `svc-reizo-app`'s quota to whatever Reizo's real traffic needs (the seed command intentionally sets `quota_limit = 0`, per its own printed reminder).
 
 - [ ] **Step 4: Set new env vars in staging**
 
-Set `WINLUME_SERVICE_KEY` (the printed plaintext key) and `WINLUME_GATEWAY_ADMIN_TOKEN` (a freshly generated secret, matching what the gateway process is configured with) in the WinLume Next.js deployment's environment. Set `WINLUME_GATEWAY_ADMIN_TOKEN` on the Go gateway process too.
+Set `REIZO_SERVICE_KEY` (the printed plaintext key) and `REIZO_GATEWAY_ADMIN_TOKEN` (a freshly generated secret, matching what the gateway process is configured with) in the Reizo Next.js deployment's environment. Set `REIZO_GATEWAY_ADMIN_TOKEN` on the Go gateway process too.
 
 - [ ] **Step 5: Verify staging traffic**
 
-Exercise a chat completion and an image generation through the WinLume app in staging; confirm both succeed and that `last_used_at` on the new service-account key advances (check via `/gateway-admin`).
+Exercise a chat completion and an image generation through the Reizo app in staging; confirm both succeed and that `last_used_at` on the new service-account key advances (check via `/gateway-admin`).
 
 - [ ] **Step 6: Repeat for production, then remove the legacy env vars**
 
-Once staging is verified, repeat Steps 2-5 against production (using `E:\CodeCode\new-api\.claude\skills\connect-new-api-server-15-204-82-213` / the winlume server skill as appropriate for whichever machine hosts each process). Only after production traffic is confirmed flowing through `WINLUME_SERVICE_KEY`, remove `WINLUME_GATEWAY_TOKEN`, `WINLUME_IMAGE_GATEWAY_TOKEN`, and `WINLUME_GATEWAY_INTERNAL_TOKEN` from the production environment.
+Once staging is verified, repeat Steps 2-5 against production (using `E:\CodeCode\new-api\.claude\skills\connect-new-api-server-15-204-82-213` / the reizo server skill as appropriate for whichever machine hosts each process). Only after production traffic is confirmed flowing through `REIZO_SERVICE_KEY`, remove `REIZO_GATEWAY_TOKEN`, `REIZO_IMAGE_GATEWAY_TOKEN`, and `REIZO_GATEWAY_INTERNAL_TOKEN` from the production environment.
 
 - [ ] **Step 7: Leave `identity.AuthenticateStudio` server-side code in place**
 
-Do not delete `identity.AuthenticateStudio` or the `x-winlume-internal-token` handling in `services/gateway/internal/identity/service.go` / `handlePublicRequest` as part of this rollout. Per the design doc §5.4, removing it touches the `IncludeNewAPICompatibility` new-api shadow-billing compatibility path (gated on `resolved.Source == identity.SourceStudio`, see [main.go:541](../../../services/gateway/cmd/gateway/main.go:541)), which is a separate, higher-risk change that needs its own investigation into whether `WINLUME_GATEWAY_UPSTREAM_OWNERSHIP=non_charging_new_api` is still active in production. File that as a follow-up, not part of this rollout.
+Do not delete `identity.AuthenticateStudio` or the `x-reizo-internal-token` handling in `services/gateway/internal/identity/service.go` / `handlePublicRequest` as part of this rollout. Per the design doc §5.4, removing it touches the `IncludeNewAPICompatibility` new-api shadow-billing compatibility path (gated on `resolved.Source == identity.SourceStudio`, see [main.go:541](../../../services/gateway/cmd/gateway/main.go:541)), which is a separate, higher-risk change that needs its own investigation into whether `REIZO_GATEWAY_UPSTREAM_OWNERSHIP=non_charging_new_api` is still active in production. File that as a follow-up, not part of this rollout.
 
 ---
 
 ## Self-Review Notes
 
-- **Spec coverage**: design doc §4.1 → Tasks 1, 3, 5. §4.2 (`x-winlume-user-ref`, logging-only) is **not implemented** in this plan — it was a non-blocking nice-to-have in the design and no task currently threads it through `relay.Request`/logging; if wanted, it needs its own task touching `services/gateway/internal/relay` and `observability`, added as a follow-up rather than silently assumed done here. §4.3 → Task 6. §4.4 → enforced by construction (no task adds scope/model checks). §4.5 → Task 5 (no create endpoint in `adminapi`). §4.6 → Task 6 (single `WINLUME_SERVICE_KEY`). §4.7-4.9 → Tasks 4, 7, 8.
+- **Spec coverage**: design doc §4.1 → Tasks 1, 3, 5. §4.2 (`x-reizo-user-ref`, logging-only) is **not implemented** in this plan — it was a non-blocking nice-to-have in the design and no task currently threads it through `relay.Request`/logging; if wanted, it needs its own task touching `services/gateway/internal/relay` and `observability`, added as a follow-up rather than silently assumed done here. §4.3 → Task 6. §4.4 → enforced by construction (no task adds scope/model checks). §4.5 → Task 5 (no create endpoint in `adminapi`). §4.6 → Task 6 (single `REIZO_SERVICE_KEY`). §4.7-4.9 → Tasks 4, 7, 8.
 - **Known gap flagged, not silently fixed**: Task 9 Step 7 explicitly defers removing server-side Studio-token support, because doing so interacts with the new-api shadow-billing compatibility header in a way this plan did not scope or verify.

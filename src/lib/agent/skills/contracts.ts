@@ -128,7 +128,7 @@ export const skillContractSchema = z
     stability: z.enum(["experimental", "stable"]),
     provenance: z
       .object({
-        owner: z.literal("winlume"),
+        owner: z.literal("reizo"),
         source: z.enum(["first-party", "reviewed-import"]),
       })
       .strict(),

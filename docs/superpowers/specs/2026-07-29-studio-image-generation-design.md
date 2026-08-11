@@ -15,7 +15,7 @@ Two sibling projects were surveyed for prior art before settling on this design:
 
 ## 2. Trigger Model
 
-Image generation is triggered by the agent calling a new `generate_image` tool, the same pattern as `write_artifact`. The user stays in the conversation; no separate "image mode" screen. This matches the product thesis in `2026-07-25-winlume-artifact-runtime-design.md` — conversation is the control surface, the artifact pane is the work surface.
+Image generation is triggered by the agent calling a new `generate_image` tool, the same pattern as `write_artifact`. The user stays in the conversation; no separate "image mode" screen. This matches the product thesis in `2026-07-25-reizo-artifact-runtime-design.md` — conversation is the control surface, the artifact pane is the work surface.
 
 ## 3. Tool Schema
 
@@ -51,7 +51,7 @@ Flow inside `executeStudioTool` / a new `executeGenerateImage`:
 1. For each requested image, immediately `ArtifactStore.write` a `status: "pending"` artifact with empty content and return the artifact id(s) in the tool result. The tool call returns right away — the agent is not blocked on generation and can finish its turn (e.g. "图片正在生成,完成后会在右侧显示").
 2. Fire-and-forget a background async function per image. It calls a new `generateImage()` in `gateway.ts` (mirrors `streamGatewayChat`'s auth/host handling but posts to `/v1/images/generations` or `/v1/images/edits`), downloads the resulting bytes, and calls `ArtifactStore.write` again with the same `id`, `status: "ready"` and the real content. On failure, writes `status: "failed"` with an error message instead.
 
-   **Verified 2026-07-29 against the real gateway:** the response shape is OpenAI-compatible (`{ data: [{ url, b64_json, revised_prompt }], created }`), and decoding `b64_json` yields a valid PNG. Image generation uses its own gateway token, `WINLUME_IMAGE_GATEWAY_TOKEN` — **not** the chat token (`WINLUME_GATEWAY_TOKEN`); the two are different secrets on different channels, and the chat token has no access to any image model. The image token is currently scoped to exactly one model, `gpt-image-2`, which is the default when a tool call omits `model`.
+   **Verified 2026-07-29 against the real gateway:** the response shape is OpenAI-compatible (`{ data: [{ url, b64_json, revised_prompt }], created }`), and decoding `b64_json` yields a valid PNG. Image generation uses its own gateway token, `REIZO_IMAGE_GATEWAY_TOKEN` — **not** the chat token (`REIZO_GATEWAY_TOKEN`); the two are different secrets on different channels, and the chat token has no access to any image model. The image token is currently scoped to exactly one model, `gpt-image-2`, which is the default when a tool call omits `model`.
 3. No new storage abstraction is needed — `ArtifactStore.write` already overwrites by id, so "update after the fact" is just calling it twice.
 
 This deliberately decouples generation from the chat turn's SSE lifecycle: a slow generation (or one that outlives the browser tab) still lands in storage and is visible on reconnect.

@@ -71,7 +71,7 @@ func NewBodyStore(source io.Reader, options BodyStoreOptions) (*BodyStore, error
 			}
 			if spill == nil && store.size+int64(count) > threshold {
 				var err error
-				spill, err = os.CreateTemp(options.TempDir, "winlume-gateway-body-*")
+				spill, err = os.CreateTemp(options.TempDir, "reizo-gateway-body-*")
 				if err != nil {
 					return nil, fmt.Errorf("create request body spill file: %w", err)
 				}

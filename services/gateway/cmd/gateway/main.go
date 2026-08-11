@@ -20,16 +20,16 @@ import (
 
 	"github.com/google/uuid"
 
-	"winlume/services/gateway/internal/adminapi"
-	"winlume/services/gateway/internal/billing"
-	"winlume/services/gateway/internal/config"
-	"winlume/services/gateway/internal/httpapi"
-	"winlume/services/gateway/internal/identity"
-	"winlume/services/gateway/internal/observability"
-	"winlume/services/gateway/internal/pricing"
-	"winlume/services/gateway/internal/relay"
-	"winlume/services/gateway/internal/storage"
-	"winlume/services/gateway/internal/usage"
+	"reizo/services/gateway/internal/adminapi"
+	"reizo/services/gateway/internal/billing"
+	"reizo/services/gateway/internal/config"
+	"reizo/services/gateway/internal/httpapi"
+	"reizo/services/gateway/internal/identity"
+	"reizo/services/gateway/internal/observability"
+	"reizo/services/gateway/internal/pricing"
+	"reizo/services/gateway/internal/relay"
+	"reizo/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/usage"
 )
 
 const shutdownTimeout = 15 * time.Second
@@ -315,7 +315,7 @@ func pollRecoveryStats(ctx context.Context, worker *billing.RecoveryWorker, metr
 // failure returns an error and the caller must never fall back to a less
 // strict billing mode. Shadow mode requires database connectivity, required
 // tables, and an active catalog, but - unlike authoritative - never requires
-// ownership transfer (WINLUME_GATEWAY_BILLING_OWNER, upstream ownership, or
+// ownership transfer (REIZO_GATEWAY_BILLING_OWNER, upstream ownership, or
 // the recovery directory) because it never mutates customer funding.
 func runStartupGates(ctx context.Context, cfg config.Config, store gatewayStore) error {
 	if cfg.BillingMode != config.BillingShadow && cfg.BillingMode != config.BillingAuthoritative {
@@ -354,7 +354,7 @@ func runStartupGates(ctx context.Context, cfg config.Config, store gatewayStore)
 	}
 
 	if cfg.BillingOwner != "go" {
-		return fmt.Errorf("billing startup gate: authoritative billing requires WINLUME_GATEWAY_BILLING_OWNER=go")
+		return fmt.Errorf("billing startup gate: authoritative billing requires REIZO_GATEWAY_BILLING_OWNER=go")
 	}
 	if cfg.UpstreamOwnership != config.OwnershipProvider && cfg.UpstreamOwnership != config.OwnershipNonChargingNewAPI {
 		return fmt.Errorf("billing startup gate: authoritative billing requires an allowed upstream ownership")

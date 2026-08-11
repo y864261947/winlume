@@ -10,7 +10,7 @@ import type { AgentSseEvent, Artifact, Message, Session } from "@/lib/agent/type
 import type { AgentExecutionInput, AgentExecutor } from "./types";
 
 function codexEnabled(): boolean {
-  return process.env.WINLUME_CODEX_ENABLED === "true";
+  return process.env.REIZO_CODEX_ENABLED === "true";
 }
 
 interface CodexConfiguration {
@@ -21,13 +21,13 @@ interface CodexConfiguration {
 function codexConfiguration(): CodexConfiguration {
   // Never accept a workspace path from the browser or silently use the app's
   // deployment directory. The operator must choose the writable boundary.
-  const workspace = process.env.WINLUME_CODEX_WORKSPACE_DIR?.trim();
-  const home = process.env.WINLUME_CODEX_HOME?.trim();
+  const workspace = process.env.REIZO_CODEX_WORKSPACE_DIR?.trim();
+  const home = process.env.REIZO_CODEX_HOME?.trim();
   if (!workspace || !isAbsolute(workspace)) {
-    throw new Error("WINLUME_CODEX_WORKSPACE_DIR must be an absolute path");
+    throw new Error("REIZO_CODEX_WORKSPACE_DIR must be an absolute path");
   }
   if (!home || !isAbsolute(home)) {
-    throw new Error("WINLUME_CODEX_HOME must be an absolute path");
+    throw new Error("REIZO_CODEX_HOME must be an absolute path");
   }
   return { workspace, home };
 }
@@ -153,7 +153,7 @@ export class CodexExecutor implements AgentExecutor {
       yield {
         type: "error",
         code: "codex_disabled",
-        message: "Codex execution is disabled. Set WINLUME_CODEX_ENABLED=true on the worker.",
+        message: "Codex execution is disabled. Set REIZO_CODEX_ENABLED=true on the worker.",
       };
       yield { type: "done", reason: "error" };
       return;
@@ -225,7 +225,7 @@ export class CodexExecutor implements AgentExecutor {
     const threadOptions = {
       // Studio model selection belongs to the chat transport. Codex has its own
       // allowlisted operator setting and otherwise uses the SDK default.
-      model: process.env.WINLUME_CODEX_MODEL?.trim() || undefined,
+      model: process.env.REIZO_CODEX_MODEL?.trim() || undefined,
       workingDirectory: configuration.workspace,
       sandboxMode: "workspace-write" as const,
       // There is no approval-response channel in the current web protocol, so
@@ -240,7 +240,7 @@ export class CodexExecutor implements AgentExecutor {
       : codex.startThread(threadOptions);
 
     const prompt = [
-      "You are WinLume's coding specialist.",
+      "You are Reizo's coding specialist.",
       "Work only inside the configured workspace. Inspect existing code before editing.",
       "Implement the user's request, run focused verification, and report changed files and test evidence.",
       "Do not expose secrets or modify files outside the workspace.",

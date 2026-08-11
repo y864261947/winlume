@@ -11,7 +11,7 @@ export class GatewayAdminError extends Error {
 }
 
 /** Throws unless the signed-in session has platformRole === "admin". No
- * other WinLume business state (organization role, account status beyond
+ * other Reizo business state (organization role, account status beyond
  * "active") participates in this check — see design doc §4.8. */
 export async function requireGatewayAdminContext(): Promise<void> {
   const context = await getCurrentAuthContext();
@@ -22,13 +22,13 @@ export async function requireGatewayAdminContext(): Promise<void> {
 }
 
 function gatewayAdminToken(): string {
-  const token = process.env.WINLUME_GATEWAY_ADMIN_TOKEN?.trim();
+  const token = process.env.REIZO_GATEWAY_ADMIN_TOKEN?.trim();
   if (!token) throw new GatewayAdminError("网关管理接口尚未配置。", 503, "admin_token_not_configured");
   return token;
 }
 
 function gatewayBaseUrl(): string {
-  return (process.env.WINLUME_GATEWAY_URL ?? "http://127.0.0.1:4010").replace(/\/+$/, "");
+  return (process.env.REIZO_GATEWAY_URL ?? "http://127.0.0.1:4010").replace(/\/+$/, "");
 }
 
 /** Proxies one request to the Go gateway's /internal/admin/* API using the
@@ -39,7 +39,7 @@ export async function gatewayAdminFetch(path: string, init?: RequestInit): Promi
     ...init,
     headers: {
       ...(init?.headers ?? {}),
-      "x-winlume-gateway-admin-token": gatewayAdminToken(),
+      "x-reizo-gateway-admin-token": gatewayAdminToken(),
     },
     cache: "no-store",
   });

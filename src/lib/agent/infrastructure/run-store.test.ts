@@ -135,7 +135,7 @@ describe("run store", () => {
   });
 
   it("survives a store instance restart", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-runs-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-runs-"));
     directories.push(root);
     const first = createFileRunStore(root);
     const created = await first.createRun(input());
@@ -155,7 +155,7 @@ describe("run store", () => {
   });
 
   it("does not silently reset an unsupported durable store version", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-runs-version-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-runs-version-"));
     directories.push(root);
     writeFileSync(join(root, "index.json"), JSON.stringify({ version: 999 }));
     await expect(createFileRunStore(root).listRuns()).rejects.toMatchObject({
@@ -164,7 +164,7 @@ describe("run store", () => {
   });
 
   it("partitions storage per run so one run's event volume never touches another run's file", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-runs-partition-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-runs-partition-"));
     directories.push(root);
     const store = createFileRunStore(root);
     const a = await store.createRun(input());

@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
       ? body.capabilityPresetId.trim()
       : undefined;
   const executionMode = normalizeExecutionMode(
-    body.executionMode ?? process.env.WINLUME_AGENT_EXECUTION_MODE,
+    body.executionMode ?? process.env.REIZO_AGENT_EXECUTION_MODE,
   );
   let skillIds = Array.isArray(body.skillIds)
     ? body.skillIds

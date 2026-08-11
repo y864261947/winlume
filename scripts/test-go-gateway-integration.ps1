@@ -6,7 +6,7 @@
 .DESCRIPTION
     1. Starts *only* the `postgres` service defined in
        services/gateway/compose.test.yml, under the dedicated compose
-       project `winlume-gateway-test`.
+       project `reizo-gateway-test`.
     2. Waits for it to report healthy (pg_isready).
     3. Builds a TEST_DATABASE_URL pointing at it (never printed).
     4. Applies drizzle/0000 .. drizzle/0003 in order with
@@ -16,7 +16,7 @@
        statement successfully but never commits its transaction.
     5. Runs `go test -tags=integration ./...` in services/gateway.
     6. In a finally block, verifies that the compose project actually
-       running under the `winlume-gateway-test` name is the one this script
+       running under the `reizo-gateway-test` name is the one this script
        started, then tears it down (including its volume). This script must
        never remove a compose project/volume it did not first verify.
 
@@ -38,13 +38,13 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $ComposeFile = Join-Path $RepoRoot "services/gateway/compose.test.yml"
 $GatewayDir = Join-Path $RepoRoot "services/gateway"
 $DrizzleDir = Join-Path $RepoRoot "drizzle"
-$ComposeProject = "winlume-gateway-test"
+$ComposeProject = "reizo-gateway-test"
 
 $PgHost = "127.0.0.1"
 $PgPort = 55432
 $PgUser = "gateway_test"
 $PgPassword = "gateway_test"
-$PgDatabase = "winlume_gateway_test"
+$PgDatabase = "reizo_gateway_test"
 
 # Tables introduced by (or already present before) drizzle/0003 that would
 # not exist if 0003's transaction was opened but never committed. This is a

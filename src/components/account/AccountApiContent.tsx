@@ -3,11 +3,11 @@ import { ArrowUpRight, BookOpen, ExternalLink } from "lucide-react";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const curlExample = "curl https://api.winlume.com/v1/chat/completions -H \"Authorization: Bearer $WINLUME_API_KEY\" -H \"Content-Type: application/json\" -d '{\"model\":\"gpt-4.1-mini\",\"messages\":[...]}'";
+const curlExample = "curl https://api.winlume.com/v1/chat/completions -H \"Authorization: Bearer $REIZO_API_KEY\" -H \"Content-Type: application/json\" -d '{\"model\":\"gpt-4.1-mini\",\"messages\":[...]}'";
 
 export default function AccountApiContent() {
   return (
-    <ConsolePage title="API 文档" description="WinLume Gateway 兼容 OpenAI 风格请求格式。使用 API Key 作为 Bearer Token。">
+    <ConsolePage title="API 文档" description="Reizo Gateway 兼容 OpenAI 风格请求格式。使用 API Key 作为 Bearer Token。">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <section className="space-y-5">
           <Card>
@@ -16,7 +16,7 @@ export default function AccountApiContent() {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto border border-line bg-canvas p-3 font-mono text-xs leading-6 text-ink-800"><p>POST /v1/chat/completions</p><p>POST /v1/responses</p><p>POST /v1/images/generations</p><p>GET /v1/models</p></div>
-              <p className="mt-4 text-sm leading-6 text-ink-600">请求会通过 WinLume Gateway 做密钥校验、余额预留、模型路由和最终结算。请不要在浏览器或客户端包内嵌入密钥。</p>
+              <p className="mt-4 text-sm leading-6 text-ink-600">请求会通过 Reizo Gateway 做密钥校验、余额预留、模型路由和最终结算。请不要在浏览器或客户端包内嵌入密钥。</p>
             </CardContent>
           </Card>
           <Card>

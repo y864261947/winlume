@@ -225,7 +225,7 @@ function RequestForm({
         />
       </label>
       <p className="mt-3 text-xs leading-5 text-ink-500">
-        提交后由 WinLume 团队人工审核，通过后我们会通过联系邮箱与你对接线下签约与对公结算事宜（当前不支持自动开票）。
+        提交后由 Reizo 团队人工审核，通过后我们会通过联系邮箱与你对接线下签约与对公结算事宜（当前不支持自动开票）。
       </p>
       {error ? (
         <p role="alert" className="mt-3 text-sm text-rose-700">
@@ -297,7 +297,7 @@ export default function AccountEnterpriseContent() {
   return (
     <ConsolePage
       title="对公结算"
-      description="面向企业客户的额度合作：提交企业信息与预估用量，由 WinLume 团队人工审核，通过后走线下签约（暂不支持自动开票）。"
+      description="面向企业客户的额度合作：提交企业信息与预估用量，由 Reizo 团队人工审核，通过后走线下签约（暂不支持自动开票）。"
     >
       {loading && organizations === null ? (
         <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-ink-500">

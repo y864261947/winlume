@@ -12,38 +12,38 @@ var gatewayEnvironmentNames = func() []string {
 	names := []string{
 		"NEW_API_URL",
 		"DATABASE_URL",
-		"WINLUME_GATEWAY_HOST",
-		"WINLUME_GATEWAY_PORT",
-		"WINLUME_GATEWAY_TRUSTED_PROXY_IPS",
-		"WINLUME_GATEWAY_BODY_LIMIT_BYTES",
-		"WINLUME_GATEWAY_CORS_ORIGINS",
-		"WINLUME_GATEWAY_INTERNAL_TOKEN",
-		"WINLUME_GATEWAY_STUDIO_TOKEN",
-		"WINLUME_GATEWAY_ADMIN_TOKEN",
-		"WINLUME_GATEWAY_API_KEY_HASHES",
-		"WINLUME_GATEWAY_ALLOW_UNVERIFIED_KEYS",
-		"WINLUME_GATEWAY_USE_PLATFORM_DATABASE",
-		"WINLUME_GATEWAY_RESERVATION_MICROCREDITS",
-		"WINLUME_GATEWAY_REQUEST_COST_MICROCREDITS",
-		"WINLUME_GATEWAY_BILLING_MODE",
-		"WINLUME_GATEWAY_BILLING_OWNER",
-		"WINLUME_GATEWAY_UPSTREAM_OWNERSHIP",
-		"WINLUME_GATEWAY_RECOVERY_DIR",
-		"WINLUME_CHANNEL_ENCRYPTION_KEY",
-		"WINLUME_GATEWAY_UPSTREAM_URL",
-		"WINLUME_GATEWAY_BASE_URL",
-		"WINLUME_GATEWAY_UPSTREAM_AUTHORIZATION",
-		"WINLUME_GATEWAY_UPSTREAM_API_KEY",
-		"WINLUME_GATEWAY_UPSTREAM_TOKEN",
+		"REIZO_GATEWAY_HOST",
+		"REIZO_GATEWAY_PORT",
+		"REIZO_GATEWAY_TRUSTED_PROXY_IPS",
+		"REIZO_GATEWAY_BODY_LIMIT_BYTES",
+		"REIZO_GATEWAY_CORS_ORIGINS",
+		"REIZO_GATEWAY_INTERNAL_TOKEN",
+		"REIZO_GATEWAY_STUDIO_TOKEN",
+		"REIZO_GATEWAY_ADMIN_TOKEN",
+		"REIZO_GATEWAY_API_KEY_HASHES",
+		"REIZO_GATEWAY_ALLOW_UNVERIFIED_KEYS",
+		"REIZO_GATEWAY_USE_PLATFORM_DATABASE",
+		"REIZO_GATEWAY_RESERVATION_MICROCREDITS",
+		"REIZO_GATEWAY_REQUEST_COST_MICROCREDITS",
+		"REIZO_GATEWAY_BILLING_MODE",
+		"REIZO_GATEWAY_BILLING_OWNER",
+		"REIZO_GATEWAY_UPSTREAM_OWNERSHIP",
+		"REIZO_GATEWAY_RECOVERY_DIR",
+		"REIZO_CHANNEL_ENCRYPTION_KEY",
+		"REIZO_GATEWAY_UPSTREAM_URL",
+		"REIZO_GATEWAY_BASE_URL",
+		"REIZO_GATEWAY_UPSTREAM_AUTHORIZATION",
+		"REIZO_GATEWAY_UPSTREAM_API_KEY",
+		"REIZO_GATEWAY_UPSTREAM_TOKEN",
 	}
 
 	for _, family := range protocolFamilies {
 		suffix := familyEnvironmentSuffix(family)
 		names = append(names,
-			"WINLUME_GATEWAY_"+suffix+"_UPSTREAM_URL",
-			"WINLUME_GATEWAY_"+suffix+"_BASE_URL",
-			"WINLUME_GATEWAY_"+suffix+"_UPSTREAM_AUTHORIZATION",
-			"WINLUME_GATEWAY_"+suffix+"_UPSTREAM_API_KEY",
+			"REIZO_GATEWAY_"+suffix+"_UPSTREAM_URL",
+			"REIZO_GATEWAY_"+suffix+"_BASE_URL",
+			"REIZO_GATEWAY_"+suffix+"_UPSTREAM_AUTHORIZATION",
+			"REIZO_GATEWAY_"+suffix+"_UPSTREAM_API_KEY",
 		)
 	}
 
@@ -82,27 +82,27 @@ func TestLoadBillingModes(t *testing.T) {
 	}{
 		{
 			name:        "off",
-			environment: map[string]string{"WINLUME_GATEWAY_BILLING_MODE": "off"},
+			environment: map[string]string{"REIZO_GATEWAY_BILLING_MODE": "off"},
 			mode:        BillingOff,
 		},
 		{
 			name: "shadow",
 			environment: map[string]string{
-				"WINLUME_GATEWAY_BILLING_MODE":   "shadow",
-				"DATABASE_URL":                   "postgres://db",
-				"WINLUME_GATEWAY_INTERNAL_TOKEN": "secret",
+				"REIZO_GATEWAY_BILLING_MODE":   "shadow",
+				"DATABASE_URL":                 "postgres://db",
+				"REIZO_GATEWAY_INTERNAL_TOKEN": "secret",
 			},
 			mode: BillingShadow,
 		},
 		{
 			name: "authoritative",
 			environment: map[string]string{
-				"WINLUME_GATEWAY_BILLING_MODE":       "authoritative",
-				"DATABASE_URL":                       "postgres://db",
-				"WINLUME_GATEWAY_INTERNAL_TOKEN":     "secret",
-				"WINLUME_GATEWAY_BILLING_OWNER":      "go",
-				"WINLUME_GATEWAY_UPSTREAM_OWNERSHIP": "non_charging_new_api",
-				"WINLUME_GATEWAY_RECOVERY_DIR":       "C:/secure/gateway-recovery",
+				"REIZO_GATEWAY_BILLING_MODE":       "authoritative",
+				"DATABASE_URL":                     "postgres://db",
+				"REIZO_GATEWAY_INTERNAL_TOKEN":     "secret",
+				"REIZO_GATEWAY_BILLING_OWNER":      "go",
+				"REIZO_GATEWAY_UPSTREAM_OWNERSHIP": "non_charging_new_api",
+				"REIZO_GATEWAY_RECOVERY_DIR":       "C:/secure/gateway-recovery",
 			},
 			mode:      BillingAuthoritative,
 			ownership: OwnershipNonChargingNewAPI,
@@ -130,21 +130,21 @@ func TestLoadBillingModes(t *testing.T) {
 
 func TestLoadConfiguredGatewayEnvironment(t *testing.T) {
 	clearGatewayEnvironment(t)
-	t.Setenv("WINLUME_GATEWAY_HOST", "0.0.0.0")
-	t.Setenv("WINLUME_GATEWAY_PORT", "5010")
-	t.Setenv("WINLUME_GATEWAY_BODY_LIMIT_BYTES", "1048576")
-	t.Setenv("WINLUME_GATEWAY_TRUSTED_PROXY_IPS", "127.0.0.1, 10.0.0.0/8")
-	t.Setenv("WINLUME_GATEWAY_CORS_ORIGINS", "https://studio.example, https://console.example")
-	t.Setenv("WINLUME_GATEWAY_STUDIO_TOKEN", "studio-token")
-	t.Setenv("DATABASE_URL", "postgres://gateway:secret@db.example/winlume")
-	t.Setenv("WINLUME_GATEWAY_USE_PLATFORM_DATABASE", "false")
-	t.Setenv("WINLUME_GATEWAY_API_KEY_HASHES", "hash-one, hash-two")
-	t.Setenv("WINLUME_GATEWAY_ALLOW_UNVERIFIED_KEYS", "yes")
-	t.Setenv("WINLUME_GATEWAY_BILLING_MODE", "off")
-	t.Setenv("WINLUME_GATEWAY_OPENAI_BASE_URL", "https://provider.example/v1/#fragment")
-	t.Setenv("WINLUME_GATEWAY_OPENAI_UPSTREAM_API_KEY", "openai-key")
-	t.Setenv("WINLUME_GATEWAY_CLAUDE_UPSTREAM_URL", "https://claude.example/v1/")
-	t.Setenv("WINLUME_GATEWAY_CLAUDE_UPSTREAM_AUTHORIZATION", "Bearer claude-token")
+	t.Setenv("REIZO_GATEWAY_HOST", "0.0.0.0")
+	t.Setenv("REIZO_GATEWAY_PORT", "5010")
+	t.Setenv("REIZO_GATEWAY_BODY_LIMIT_BYTES", "1048576")
+	t.Setenv("REIZO_GATEWAY_TRUSTED_PROXY_IPS", "127.0.0.1, 10.0.0.0/8")
+	t.Setenv("REIZO_GATEWAY_CORS_ORIGINS", "https://studio.example, https://console.example")
+	t.Setenv("REIZO_GATEWAY_STUDIO_TOKEN", "studio-token")
+	t.Setenv("DATABASE_URL", "postgres://gateway:secret@db.example/reizo")
+	t.Setenv("REIZO_GATEWAY_USE_PLATFORM_DATABASE", "false")
+	t.Setenv("REIZO_GATEWAY_API_KEY_HASHES", "hash-one, hash-two")
+	t.Setenv("REIZO_GATEWAY_ALLOW_UNVERIFIED_KEYS", "yes")
+	t.Setenv("REIZO_GATEWAY_BILLING_MODE", "off")
+	t.Setenv("REIZO_GATEWAY_OPENAI_BASE_URL", "https://provider.example/v1/#fragment")
+	t.Setenv("REIZO_GATEWAY_OPENAI_UPSTREAM_API_KEY", "openai-key")
+	t.Setenv("REIZO_GATEWAY_CLAUDE_UPSTREAM_URL", "https://claude.example/v1/")
+	t.Setenv("REIZO_GATEWAY_CLAUDE_UPSTREAM_AUTHORIZATION", "Bearer claude-token")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -154,7 +154,7 @@ func TestLoadConfiguredGatewayEnvironment(t *testing.T) {
 	require.Equal(t, []string{"127.0.0.1", "10.0.0.0/8"}, cfg.TrustedProxyIPs)
 	require.Equal(t, []string{"https://studio.example", "https://console.example"}, cfg.CORSOrigins)
 	require.Equal(t, "studio-token", cfg.InternalToken)
-	require.Equal(t, "postgres://gateway:secret@db.example/winlume", cfg.DatabaseURL)
+	require.Equal(t, "postgres://gateway:secret@db.example/reizo", cfg.DatabaseURL)
 	require.False(t, cfg.UsePlatformDatabase)
 	require.Equal(t, []string{"hash-one", "hash-two"}, cfg.APIKeyHashes)
 	require.True(t, cfg.AllowUnverifiedAPIKeys)
@@ -189,8 +189,8 @@ func TestLoadFamilySpecificUpstreams(t *testing.T) {
 		{family: ProtocolVideo, suffix: "VIDEO"},
 	}
 	for _, family := range families {
-		t.Setenv("WINLUME_GATEWAY_"+family.suffix+"_UPSTREAM_URL", "https://"+string(family.family)+".example/v1/")
-		t.Setenv("WINLUME_GATEWAY_"+family.suffix+"_UPSTREAM_AUTHORIZATION", "Bearer "+string(family.family))
+		t.Setenv("REIZO_GATEWAY_"+family.suffix+"_UPSTREAM_URL", "https://"+string(family.family)+".example/v1/")
+		t.Setenv("REIZO_GATEWAY_"+family.suffix+"_UPSTREAM_AUTHORIZATION", "Bearer "+string(family.family))
 	}
 
 	cfg, err := Load()
@@ -220,9 +220,9 @@ func TestLoadRejectsInvalidExplicitValues(t *testing.T) {
 		value   string
 		want    string
 	}{
-		{name: "port is not positive", envName: "WINLUME_GATEWAY_PORT", value: "0", want: "WINLUME_GATEWAY_PORT must be a positive integer"},
-		{name: "body limit is not numeric", envName: "WINLUME_GATEWAY_BODY_LIMIT_BYTES", value: "many", want: "WINLUME_GATEWAY_BODY_LIMIT_BYTES must be a positive integer"},
-		{name: "boolean is unknown", envName: "WINLUME_GATEWAY_ALLOW_UNVERIFIED_KEYS", value: "sometimes", want: "WINLUME_GATEWAY_ALLOW_UNVERIFIED_KEYS must be a boolean"},
+		{name: "port is not positive", envName: "REIZO_GATEWAY_PORT", value: "0", want: "REIZO_GATEWAY_PORT must be a positive integer"},
+		{name: "body limit is not numeric", envName: "REIZO_GATEWAY_BODY_LIMIT_BYTES", value: "many", want: "REIZO_GATEWAY_BODY_LIMIT_BYTES must be a positive integer"},
+		{name: "boolean is unknown", envName: "REIZO_GATEWAY_ALLOW_UNVERIFIED_KEYS", value: "sometimes", want: "REIZO_GATEWAY_ALLOW_UNVERIFIED_KEYS must be a boolean"},
 	}
 
 	for _, testCase := range testCases {
@@ -249,10 +249,10 @@ func TestLoadRejectsInvalidUpstreamURLs(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			clearGatewayEnvironment(t)
-			t.Setenv("WINLUME_GATEWAY_OPENAI_UPSTREAM_URL", testCase.value)
+			t.Setenv("REIZO_GATEWAY_OPENAI_UPSTREAM_URL", testCase.value)
 
 			_, err := Load()
-			require.ErrorContains(t, err, "WINLUME_GATEWAY_OPENAI_UPSTREAM_URL")
+			require.ErrorContains(t, err, "REIZO_GATEWAY_OPENAI_UPSTREAM_URL")
 			require.ErrorContains(t, err, testCase.want)
 		})
 	}
@@ -310,7 +310,7 @@ func TestValidateRejectsUnsafeAuthoritativeMode(t *testing.T) {
 	cfg := Config{BillingMode: BillingAuthoritative, DatabaseURL: "postgres://db", InternalToken: "secret"}
 
 	err := cfg.Validate()
-	require.ErrorContains(t, err, "WINLUME_GATEWAY_BILLING_OWNER=go")
+	require.ErrorContains(t, err, "REIZO_GATEWAY_BILLING_OWNER=go")
 }
 
 func TestValidateRejectsIncompleteBillingConfiguration(t *testing.T) {
@@ -327,7 +327,7 @@ func TestValidateRejectsIncompleteBillingConfiguration(t *testing.T) {
 		{
 			name: "shadow without internal token",
 			cfg:  Config{BillingMode: BillingShadow, DatabaseURL: "postgres://db"},
-			want: "WINLUME_GATEWAY_INTERNAL_TOKEN",
+			want: "REIZO_GATEWAY_INTERNAL_TOKEN",
 		},
 		{
 			name: "authoritative with unsafe ownership",
@@ -339,7 +339,7 @@ func TestValidateRejectsIncompleteBillingConfiguration(t *testing.T) {
 				UpstreamOwnership: "new_api",
 				RecoveryDir:       "C:/secure/gateway-recovery",
 			},
-			want: "WINLUME_GATEWAY_UPSTREAM_OWNERSHIP",
+			want: "REIZO_GATEWAY_UPSTREAM_OWNERSHIP",
 		},
 		{
 			name: "authoritative without recovery directory",
@@ -350,12 +350,12 @@ func TestValidateRejectsIncompleteBillingConfiguration(t *testing.T) {
 				BillingOwner:      "go",
 				UpstreamOwnership: OwnershipProvider,
 			},
-			want: "WINLUME_GATEWAY_RECOVERY_DIR",
+			want: "REIZO_GATEWAY_RECOVERY_DIR",
 		},
 		{
 			name: "unknown billing mode",
 			cfg:  Config{BillingMode: "handoff"},
-			want: "WINLUME_GATEWAY_BILLING_MODE",
+			want: "REIZO_GATEWAY_BILLING_MODE",
 		},
 		{
 			name: "manual malformed upstream",
@@ -378,7 +378,7 @@ func TestValidateRejectsIncompleteBillingConfiguration(t *testing.T) {
 
 func TestLoadReadsGatewayAdminToken(t *testing.T) {
 	clearGatewayEnvironment(t)
-	t.Setenv("WINLUME_GATEWAY_ADMIN_TOKEN", "admin-secret")
+	t.Setenv("REIZO_GATEWAY_ADMIN_TOKEN", "admin-secret")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -396,7 +396,7 @@ func TestLoadChannelEncryptionKeyUnsetIsNil(t *testing.T) {
 func TestLoadChannelEncryptionKeyAcceptsHex(t *testing.T) {
 	clearGatewayEnvironment(t)
 	key := strings.Repeat("ab", ChannelEncryptionKeySize)
-	t.Setenv("WINLUME_CHANNEL_ENCRYPTION_KEY", key)
+	t.Setenv("REIZO_CHANNEL_ENCRYPTION_KEY", key)
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -409,7 +409,7 @@ func TestLoadChannelEncryptionKeyAcceptsBase64(t *testing.T) {
 	for i := range raw {
 		raw[i] = byte(i)
 	}
-	t.Setenv("WINLUME_CHANNEL_ENCRYPTION_KEY", base64.StdEncoding.EncodeToString(raw))
+	t.Setenv("REIZO_CHANNEL_ENCRYPTION_KEY", base64.StdEncoding.EncodeToString(raw))
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -418,8 +418,8 @@ func TestLoadChannelEncryptionKeyAcceptsBase64(t *testing.T) {
 
 func TestLoadChannelEncryptionKeyRejectsWrongLength(t *testing.T) {
 	clearGatewayEnvironment(t)
-	t.Setenv("WINLUME_CHANNEL_ENCRYPTION_KEY", "too-short")
+	t.Setenv("REIZO_CHANNEL_ENCRYPTION_KEY", "too-short")
 
 	_, err := Load()
-	require.ErrorContains(t, err, "WINLUME_CHANNEL_ENCRYPTION_KEY")
+	require.ErrorContains(t, err, "REIZO_CHANNEL_ENCRYPTION_KEY")
 }

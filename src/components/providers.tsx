@@ -37,10 +37,10 @@ interface ModalContextValue {
 }
 
 const ModalContext = createContext<ModalContextValue | null>(null);
-const favoriteStorageKey = "winlume:favorites-v1";
-const audienceStorageKey = "winlume:audience-v1";
+const favoriteStorageKey = "reizo:favorites-v1";
+const audienceStorageKey = "reizo:audience-v1";
 // proxy.ts 依据此 cookie 做首页重定向，改动时需两边同步
-const audienceCookieKey = "winlume_audience";
+const audienceCookieKey = "reizo_audience";
 
 function readFavorites(): string[] {
   if (typeof window === "undefined") return [];

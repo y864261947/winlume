@@ -17,7 +17,7 @@ describe("Workflow runtime", () => {
   });
 
   it("passes the server-owned output contract through to Artifact tools", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-workflow-runtime-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-workflow-runtime-"));
     directories.push(root);
     const store = createWebFileStore(root);
     await store.sessions.createSession({

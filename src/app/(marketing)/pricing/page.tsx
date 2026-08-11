@@ -5,7 +5,7 @@ import { categoriesByCate, categoryTint } from "@/data/taxonomy";
 import { productsByCategory } from "@/data/products";
 
 export const metadata: Metadata = {
-  title: "定价 - WinLume",
+  title: "定价 - Reizo",
 };
 
 const principles = [

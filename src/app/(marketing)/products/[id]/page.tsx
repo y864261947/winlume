@@ -18,7 +18,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const product = getProduct(id);
-  return { title: product ? `${product.name} - WinLume` : "产品不存在 - WinLume" };
+  return { title: product ? `${product.name} - Reizo` : "产品不存在 - Reizo" };
 }
 
 export default async function ProductDetailPage({

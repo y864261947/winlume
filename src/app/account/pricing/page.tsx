@@ -35,7 +35,7 @@ export default async function AccountPricingPage() {
     return <AccountPricingContent status="no_active_catalog" />;
   }
 
-  // WinLume does not yet model a canonical per-user billing_group: the
+  // Reizo does not yet model a canonical per-user billing_group: the
   // gateway's api_key_billing_policies table keys billing_group per API
   // key, not per user. We resolve it by looking at the policies attached
   // to the caller's own keys; if they don't agree on a single group (or

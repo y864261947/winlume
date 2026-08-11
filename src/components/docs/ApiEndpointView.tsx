@@ -171,7 +171,7 @@ export function ApiEndpointView({ page }: { page: ApiDocPage }) {
           <p className="docs-muted-inline">
             在{" "}
             <Link href="/account/keys">API Keys</Link> 创建密钥，建议写入环境变量{" "}
-            <code>WINLUME_API_KEY</code>。
+            <code>REIZO_API_KEY</code>。
           </p>
         </div>
       </section>
@@ -231,7 +231,7 @@ export function ApiEndpointView({ page }: { page: ApiDocPage }) {
       <p className="docs-brand-foot">
         <LogoMark size="sm" />
         <span>
-          WinLume Docs · Base URL <code>{DOCS_BASE_URL}</code>
+          Reizo Docs · Base URL <code>{DOCS_BASE_URL}</code>
         </span>
       </p>
     </article>

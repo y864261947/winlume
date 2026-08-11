@@ -10,11 +10,11 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	"winlume/services/gateway/internal/identity"
-	"winlume/services/gateway/internal/pricing"
-	"winlume/services/gateway/internal/relay"
-	"winlume/services/gateway/internal/storage"
-	"winlume/services/gateway/internal/usage"
+	"reizo/services/gateway/internal/identity"
+	"reizo/services/gateway/internal/pricing"
+	"reizo/services/gateway/internal/relay"
+	"reizo/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/usage"
 )
 
 type authoritativeStoreStub struct {

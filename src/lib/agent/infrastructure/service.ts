@@ -48,7 +48,7 @@ class LocalAgentRunService implements AgentRunService {
   private workerPromise: Promise<void> | null = null;
 
   constructor() {
-    const root = process.env.WINLUME_DATA_DIR ?? path.join(process.cwd(), "data");
+    const root = process.env.REIZO_DATA_DIR ?? path.join(process.cwd(), "data");
     this.store = createFileRunStore(path.join(root, "runs"));
     this.queue = createInProcessRunQueue();
     this.productionWorkflow = new ProductionWorkflowExecution({
@@ -82,7 +82,7 @@ class LocalAgentRunService implements AgentRunService {
       artifacts: webStore.artifacts,
       productionWorkflow: this.productionWorkflow,
       policy: createStaticRunPolicy(policyFromEnvironment()),
-      leaseTtlMs: readPositiveInteger("WINLUME_RUN_LEASE_MS", 30_000),
+      leaseTtlMs: readPositiveInteger("REIZO_RUN_LEASE_MS", 30_000),
       retryDelayMs: (attempt) => Math.min(30_000, 500 * 2 ** Math.max(0, attempt - 1)),
     });
   }
@@ -134,7 +134,7 @@ class LocalAgentRunService implements AgentRunService {
   }
 
   private async recoverAndRun(): Promise<void> {
-    const maxAttempts = readPositiveInteger("WINLUME_RUN_MAX_ATTEMPTS", 3);
+    const maxAttempts = readPositiveInteger("REIZO_RUN_MAX_ATTEMPTS", 3);
     await recoverLocalRunQueue({
       store: this.store,
       queue: this.queue,
@@ -215,7 +215,7 @@ function parseExecutionModes(value: string | undefined): AgentExecutionMode[] {
     );
   if (!requested.length) return DEFAULT_MODES;
   return [...new Set(requested)].filter(
-    (mode) => mode !== "codex" || process.env.WINLUME_CODEX_ENABLED === "true",
+    (mode) => mode !== "codex" || process.env.REIZO_CODEX_ENABLED === "true",
   );
 }
 
@@ -250,29 +250,29 @@ function parseApprovalMode(value: string | undefined): ToolApprovalMode | undefi
 
 function policyFromEnvironment(): StaticRunPolicyConfig {
   const approvalMode = parseApprovalMode(
-    process.env.WINLUME_RUN_TOOL_APPROVAL?.trim(),
+    process.env.REIZO_RUN_TOOL_APPROVAL?.trim(),
   );
-  const maxOutputTokens = readNonNegativeNumber("WINLUME_RUN_MAX_OUTPUT_TOKENS");
-  const maxCostUsd = readNonNegativeNumber("WINLUME_RUN_MAX_COST_USD");
+  const maxOutputTokens = readNonNegativeNumber("REIZO_RUN_MAX_OUTPUT_TOKENS");
+  const maxCostUsd = readNonNegativeNumber("REIZO_RUN_MAX_COST_USD");
   return {
     allowedExecutionModes: parseExecutionModes(
-      process.env.WINLUME_RUN_ALLOWED_EXECUTION_MODES,
+      process.env.REIZO_RUN_ALLOWED_EXECUTION_MODES,
     ),
-    allowedModels: parseList(process.env.WINLUME_RUN_ALLOWED_MODELS),
-    deniedTools: parseList(process.env.WINLUME_RUN_DENIED_TOOLS),
+    allowedModels: parseList(process.env.REIZO_RUN_ALLOWED_MODELS),
+    deniedTools: parseList(process.env.REIZO_RUN_DENIED_TOOLS),
     approvalRequiredTools: parseList(
-      process.env.WINLUME_RUN_APPROVAL_REQUIRED_TOOLS,
+      process.env.REIZO_RUN_APPROVAL_REQUIRED_TOOLS,
     ),
     // Codex currently has one server-configured workspace. Never allow it to
     // become a shared multi-user workspace before account/project isolation is
     // implemented. An empty value intentionally rejects every Codex request.
-    codexTrustedUserId: process.env.WINLUME_CODEX_TRUSTED_USER_ID?.trim() || "__none__",
+    codexTrustedUserId: process.env.REIZO_CODEX_TRUSTED_USER_ID?.trim() || "__none__",
     ...(approvalMode ? { toolApprovalMode: approvalMode } : {}),
     limits: {
-      maxDurationMs: readPositiveInteger("WINLUME_RUN_MAX_DURATION_MS", 600_000),
-      maxInputChars: readPositiveInteger("WINLUME_RUN_MAX_INPUT_CHARS", 100_000),
-      maxToolCalls: readPositiveInteger("WINLUME_RUN_MAX_TOOL_CALLS", 64),
-      maxAttempts: readPositiveInteger("WINLUME_RUN_MAX_ATTEMPTS", 3),
+      maxDurationMs: readPositiveInteger("REIZO_RUN_MAX_DURATION_MS", 600_000),
+      maxInputChars: readPositiveInteger("REIZO_RUN_MAX_INPUT_CHARS", 100_000),
+      maxToolCalls: readPositiveInteger("REIZO_RUN_MAX_TOOL_CALLS", 64),
+      maxAttempts: readPositiveInteger("REIZO_RUN_MAX_ATTEMPTS", 3),
       ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
       ...(maxCostUsd !== undefined ? { maxCostUsd } : {}),
     },
@@ -280,7 +280,7 @@ function policyFromEnvironment(): StaticRunPolicyConfig {
 }
 
 const globalForAgentRuns = globalThis as typeof globalThis & {
-  __winlumeAgentRunService?: AgentRunService;
+  __reizoAgentRunService?: AgentRunService;
 };
 
 /**
@@ -289,8 +289,8 @@ const globalForAgentRuns = globalThis as typeof globalThis & {
  * while keeping the route and executor contracts unchanged.
  */
 export function getAgentRunService(): AgentRunService {
-  if (!globalForAgentRuns.__winlumeAgentRunService) {
-    globalForAgentRuns.__winlumeAgentRunService = new LocalAgentRunService();
+  if (!globalForAgentRuns.__reizoAgentRunService) {
+    globalForAgentRuns.__reizoAgentRunService = new LocalAgentRunService();
   }
-  return globalForAgentRuns.__winlumeAgentRunService;
+  return globalForAgentRuns.__reizoAgentRunService;
 }

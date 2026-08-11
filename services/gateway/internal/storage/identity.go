@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"winlume/services/gateway/internal/identity"
+	"reizo/services/gateway/internal/identity"
 )
 
 // LookupAPIKey accepts only identity.HashAPIKey output. Database failures stay

@@ -9,7 +9,7 @@ const validContract = {
   id: "production-content-intake",
   version: "1.0.0",
   stability: "stable",
-  provenance: { owner: "winlume", source: "first-party" },
+  provenance: { owner: "reizo", source: "first-party" },
   requiredCapabilities: ["chat"],
   allowedTools: ["write_artifact"],
   inputs: [],

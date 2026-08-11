@@ -17,15 +17,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"winlume/services/gateway/internal/billing"
-	"winlume/services/gateway/internal/config"
-	"winlume/services/gateway/internal/httpapi"
-	"winlume/services/gateway/internal/identity"
-	"winlume/services/gateway/internal/observability"
-	"winlume/services/gateway/internal/pricing"
-	"winlume/services/gateway/internal/relay"
-	"winlume/services/gateway/internal/storage"
-	"winlume/services/gateway/internal/usage"
+	"reizo/services/gateway/internal/billing"
+	"reizo/services/gateway/internal/config"
+	"reizo/services/gateway/internal/httpapi"
+	"reizo/services/gateway/internal/identity"
+	"reizo/services/gateway/internal/observability"
+	"reizo/services/gateway/internal/pricing"
+	"reizo/services/gateway/internal/relay"
+	"reizo/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/usage"
 )
 
 // ---------------------------------------------------------------------------
@@ -523,8 +523,8 @@ func TestHandlePublicRequestRetriesAndRecordsAttemptHistory(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-test"}`))
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("x-winlume-internal-token", "studio-secret")
-	request.Header.Set("x-winlume-internal-user-id", uuid.NewString())
+	request.Header.Set("x-reizo-internal-token", "studio-secret")
+	request.Header.Set("x-reizo-internal-user-id", uuid.NewString())
 	response := httptest.NewRecorder()
 
 	handlePublicRequest(response, request, route, cfg, configuredAPIKeyLookup{}, nil, lifecycle, relayClient, logger, metrics)

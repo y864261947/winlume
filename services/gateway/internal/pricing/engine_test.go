@@ -11,7 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	"winlume/services/gateway/internal/usage"
+	"reizo/services/gateway/internal/usage"
 )
 
 type parityFixture struct {

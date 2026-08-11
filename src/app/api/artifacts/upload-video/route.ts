@@ -41,9 +41,9 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = request.body;
-  const sessionId = request.headers.get("x-winlume-session-id")?.trim() ?? "";
-  const name = parseName(request.headers.get("x-winlume-artifact-name"));
-  const confirmed = request.headers.get("x-winlume-video-authorized") === "true";
+  const sessionId = request.headers.get("x-reizo-session-id")?.trim() ?? "";
+  const name = parseName(request.headers.get("x-reizo-artifact-name"));
+  const confirmed = request.headers.get("x-reizo-video-authorized") === "true";
   const mimeType = request.headers.get("content-type")?.split(";", 1)[0]?.toLowerCase() ?? "";
   const length = contentLength(request);
 

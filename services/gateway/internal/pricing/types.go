@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"winlume/services/gateway/internal/usage"
+	"reizo/services/gateway/internal/usage"
 )
 
 // Mode identifies the pricing rule selected for a request.

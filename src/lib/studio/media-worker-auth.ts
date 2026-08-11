@@ -1,10 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 
-const MEDIA_WORKER_TOKEN_HEADER = "x-winlume-media-worker-token";
+const MEDIA_WORKER_TOKEN_HEADER = "x-reizo-media-worker-token";
 
 export function mediaWorkerToken(): string {
-  return process.env.WINLUME_MEDIA_WORKER_TOKEN?.trim() ?? "";
+  return process.env.REIZO_MEDIA_WORKER_TOKEN?.trim() ?? "";
 }
 
 export function isTrustedMediaWorker(request: NextRequest): boolean {

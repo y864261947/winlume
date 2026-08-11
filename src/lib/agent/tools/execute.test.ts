@@ -371,7 +371,7 @@ describe("executeGenerateImage", () => {
   });
 
   function makeStore() {
-    const dir = mkdtempSync(join(tmpdir(), "winlume-imagegen-"));
+    const dir = mkdtempSync(join(tmpdir(), "reizo-imagegen-"));
     dirs.push(dir);
     return createWebFileStore(dir).artifacts;
   }
@@ -611,7 +611,7 @@ describe("runImageGenerationJob", () => {
   });
 
   function makeStore() {
-    const dir = mkdtempSync(join(tmpdir(), "winlume-imagegen-job-"));
+    const dir = mkdtempSync(join(tmpdir(), "reizo-imagegen-job-"));
     dirs.push(dir);
     return createWebFileStore(dir).artifacts;
   }

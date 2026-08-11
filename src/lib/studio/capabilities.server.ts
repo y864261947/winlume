@@ -70,7 +70,7 @@ async function fetchGatewayModelIds(
 
   try {
     const response = await fetchImpl(joinGatewayPath(baseUrl, "/v1/models"), {
-      headers: { "x-winlume-internal-token": internalToken },
+      headers: { "x-reizo-internal-token": internalToken },
       cache: "no-store",
     });
     if (!response.ok) return [];
@@ -107,7 +107,7 @@ export async function loadCapabilityCatalog(
   }
 
   const internalToken =
-    deps.internalToken ?? process.env.WINLUME_GATEWAY_INTERNAL_TOKEN?.trim() ?? "";
+    deps.internalToken ?? process.env.REIZO_GATEWAY_INTERNAL_TOKEN?.trim() ?? "";
   const modelIds = familyProbe.families.has("openai")
     ? await fetchGatewayModelIds(baseUrl, internalToken, fetchImpl)
     : [];

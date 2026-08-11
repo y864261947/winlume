@@ -1,5 +1,5 @@
 /**
- * OpenAI-compatible chat completions client for the WinLume gateway.
+ * OpenAI-compatible chat completions client for the Reizo gateway.
  * Streams text (and optional tool-call deltas) via SSE. No tool execution here.
  */
 
@@ -30,7 +30,7 @@ export interface GatewayChatMessage {
 export interface StreamGatewayChatParams {
   model: string;
   messages: GatewayChatMessage[];
-  /** Bearer token override; defaults to WINLUME_SERVICE_KEY. Used mainly by tests. */
+  /** Bearer token override; defaults to REIZO_SERVICE_KEY. Used mainly by tests. */
   token?: string;
   /** @deprecated ignored — retained only for call-site compatibility, not read for auth. */
   userId?: string;
@@ -41,7 +41,7 @@ export interface StreamGatewayChatParams {
   signal?: AbortSignal;
   /** Override gateway origin (tests / multi-env) */
   baseUrl?: string;
-  /** Override chat path (defaults WINLUME_CHAT_PATH or /v1/chat/completions) */
+  /** Override chat path (defaults REIZO_CHAT_PATH or /v1/chat/completions) */
   chatPath?: string;
   /** Inject fetch (tests) */
   fetchImpl?: typeof fetch;
@@ -55,13 +55,13 @@ const DEFAULT_BASE = "http://127.0.0.1:4010";
 const DEFAULT_CHAT_PATH = "/v1/chat/completions";
 
 export function getGatewayBaseUrl(override?: string): string {
-  const legacy = process.env.WINLUME_AUTH_MODE?.trim().toLowerCase() === "legacy";
-  const raw = override ?? process.env.WINLUME_GATEWAY_URL ?? (legacy ? process.env.NEW_API_URL : undefined) ?? DEFAULT_BASE;
+  const legacy = process.env.REIZO_AUTH_MODE?.trim().toLowerCase() === "legacy";
+  const raw = override ?? process.env.REIZO_GATEWAY_URL ?? (legacy ? process.env.NEW_API_URL : undefined) ?? DEFAULT_BASE;
   return raw.replace(/\/+$/, "");
 }
 
 export function getChatPath(override?: string): string {
-  const raw = override ?? process.env.WINLUME_CHAT_PATH ?? DEFAULT_CHAT_PATH;
+  const raw = override ?? process.env.REIZO_CHAT_PATH ?? DEFAULT_CHAT_PATH;
   return raw.startsWith("/") ? raw : `/${raw}`;
 }
 
@@ -280,7 +280,7 @@ export async function* streamGatewayChat(
   const baseUrl = getGatewayBaseUrl(params.baseUrl);
   const chatPath = getChatPath(params.chatPath);
   const url = `${baseUrl}${chatPath}`;
-  const token = params.token ?? process.env.WINLUME_SERVICE_KEY ?? "";
+  const token = params.token ?? process.env.REIZO_SERVICE_KEY ?? "";
   const fetchImpl = params.fetchImpl ?? fetch;
 
   const headers: Record<string, string> = {
@@ -498,15 +498,15 @@ async function resolveGeneratedImage(
 const DEFAULT_IMAGE_MODEL = "gpt-image-2";
 
 /**
- * Image generation shares the same `WINLUME_SERVICE_KEY` service-account
+ * Image generation shares the same `REIZO_SERVICE_KEY` service-account
  * bearer token as chat completions.
  */
 export async function generateImage(
   params: GenerateImageParams,
 ): Promise<GeneratedImage[]> {
   const baseUrl = getGatewayBaseUrl(params.baseUrl);
-  const token = params.token ?? process.env.WINLUME_SERVICE_KEY ?? "";
-  const model = params.model ?? process.env.WINLUME_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL;
+  const token = params.token ?? process.env.REIZO_SERVICE_KEY ?? "";
+  const model = params.model ?? process.env.REIZO_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL;
   const fetchImpl = params.fetchImpl ?? fetch;
   const isEdit = Boolean(params.sourceImages?.length);
   const path = isEdit ? "/v1/images/edits" : "/v1/images/generations";

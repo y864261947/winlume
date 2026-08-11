@@ -436,7 +436,7 @@ export const products: Product[] = [
   {
     id: "lume-web-deploy",
     name: "lume-web-deploy",
-    brand: "WinLume 自营",
+    brand: "Reizo 自营",
     category: "tool-api",
     type: "API",
     pricing: { kind: "unit", price: "$0.001/次" },
@@ -450,7 +450,7 @@ export const products: Product[] = [
   {
     id: "lume-prompt-opt",
     name: "lume-prompt-opt",
-    brand: "WinLume 自营",
+    brand: "Reizo 自营",
     category: "tool-api",
     type: "API",
     pricing: { kind: "custom", label: "按优化消耗的 token 计费" },
@@ -478,7 +478,7 @@ export const products: Product[] = [
   {
     id: "lume-link2img",
     name: "lume-link2img",
-    brand: "WinLume 自营",
+    brand: "Reizo 自营",
     category: "tool-api",
     type: "API",
     pricing: { kind: "unit", price: "$0.001/次" },
@@ -494,7 +494,7 @@ export const products: Product[] = [
   {
     id: "app-doc-assistant",
     name: "Lume 文档助手",
-    brand: "WinLume 自营",
+    brand: "Reizo 自营",
     category: "apps",
     type: "应用",
     pricing: { kind: "custom", label: "按实际调用模型计费" },
@@ -508,7 +508,7 @@ export const products: Product[] = [
   {
     id: "app-image-studio",
     name: "Lume 图像工坊",
-    brand: "WinLume 自营",
+    brand: "Reizo 自营",
     category: "apps",
     type: "应用",
     pricing: { kind: "custom", label: "按实际调用模型计费" },
@@ -522,7 +522,7 @@ export const products: Product[] = [
   {
     id: "app-podcast",
     name: "Lume 播客工坊",
-    brand: "WinLume 自营",
+    brand: "Reizo 自营",
     category: "apps",
     type: "应用",
     pricing: { kind: "custom", label: "按实际调用模型计费" },
@@ -536,7 +536,7 @@ export const products: Product[] = [
   {
     id: "app-ppt",
     name: "Lume PPT 制作",
-    brand: "WinLume 自营",
+    brand: "Reizo 自营",
     category: "apps",
     type: "应用",
     pricing: { kind: "custom", label: "按实际调用模型计费" },
@@ -550,7 +550,7 @@ export const products: Product[] = [
   {
     id: "app-search-master",
     name: "Lume 搜索大师",
-    brand: "WinLume 自营",
+    brand: "Reizo 自营",
     category: "apps",
     type: "应用",
     pricing: { kind: "custom", label: "按实际调用模型计费" },
@@ -564,7 +564,7 @@ export const products: Product[] = [
   {
     id: "app-video-translate",
     name: "Lume 视频翻译",
-    brand: "WinLume 自营",
+    brand: "Reizo 自营",
     category: "apps",
     type: "应用",
     pricing: { kind: "custom", label: "按实际调用模型计费" },

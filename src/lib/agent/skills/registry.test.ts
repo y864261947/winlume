@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearSkillsCache, listSkills, listSkillsFiltered } from "./registry";
 
-const originalSkillsDir = process.env.WINLUME_SKILLS_DIR;
+const originalSkillsDir = process.env.REIZO_SKILLS_DIR;
 let fixtureRoot = "";
 
 const LEGACY_SKILL = `---
@@ -21,7 +21,7 @@ const VALID_V2_CONTRACT = {
   id: "v2-skill",
   version: "1.0.0",
   stability: "stable",
-  provenance: { owner: "winlume", source: "first-party" },
+  provenance: { owner: "reizo", source: "first-party" },
   requiredCapabilities: ["chat"],
   allowedTools: ["write_artifact"],
   inputs: [],
@@ -33,9 +33,9 @@ const VALID_V2_CONTRACT = {
 afterEach(async () => {
   clearSkillsCache();
   if (originalSkillsDir === undefined) {
-    delete process.env.WINLUME_SKILLS_DIR;
+    delete process.env.REIZO_SKILLS_DIR;
   } else {
-    process.env.WINLUME_SKILLS_DIR = originalSkillsDir;
+    process.env.REIZO_SKILLS_DIR = originalSkillsDir;
   }
   if (fixtureRoot) {
     await rm(fixtureRoot, { recursive: true, force: true });
@@ -46,14 +46,14 @@ afterEach(async () => {
 
 describe("Skill registry v2 compatibility", () => {
   it("loads a valid v2 contract without changing its prompt body", async () => {
-    fixtureRoot = await mkdtemp(join(tmpdir(), "winlume-skills-"));
+    fixtureRoot = await mkdtemp(join(tmpdir(), "reizo-skills-"));
     const skillDir = join(fixtureRoot, "v2-skill");
     await mkdir(skillDir);
     await Promise.all([
       writeFile(join(skillDir, "SKILL.md"), LEGACY_SKILL, "utf8"),
       writeFile(join(skillDir, "skill.json"), JSON.stringify(VALID_V2_CONTRACT), "utf8"),
     ]);
-    process.env.WINLUME_SKILLS_DIR = fixtureRoot;
+    process.env.REIZO_SKILLS_DIR = fixtureRoot;
 
     const [skill] = await listSkills();
 
@@ -66,7 +66,7 @@ describe("Skill registry v2 compatibility", () => {
   });
 
   it("keeps v1 Skills and excludes a package with malformed skill.json", async () => {
-    fixtureRoot = await mkdtemp(join(tmpdir(), "winlume-skills-"));
+    fixtureRoot = await mkdtemp(join(tmpdir(), "reizo-skills-"));
     const legacyDir = join(fixtureRoot, "legacy-skill");
     const invalidDir = join(fixtureRoot, "invalid-v2-skill");
     await Promise.all([mkdir(legacyDir), mkdir(invalidDir)]);
@@ -79,7 +79,7 @@ describe("Skill registry v2 compatibility", () => {
         "utf8",
       ),
     ]);
-    process.env.WINLUME_SKILLS_DIR = fixtureRoot;
+    process.env.REIZO_SKILLS_DIR = fixtureRoot;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     const skills = await listSkills();

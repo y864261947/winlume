@@ -1,10 +1,10 @@
-# WinLume multi-surface product design
+# Reizo multi-surface product design
 
 ## Decision
 
-WinLume keeps the personal homepage as a model-market-first entry point. It does not become a Studio landing page. The market guides discovery and trial; context-aware scene tools, templates, and a persistent “continue creating” path move users into Studio when they are ready to work.
+Reizo keeps the personal homepage as a model-market-first entry point. It does not become a Studio landing page. The market guides discovery and trial; context-aware scene tools, templates, and a persistent “continue creating” path move users into Studio when they are ready to work.
 
-The enterprise surface is a combined platform-and-delivery story: enterprise AI capabilities (model gateway, Agent, knowledge/MCP, workspace and governance) are credible because WinLume also assesses, co-designs, deploys and operates them. It is not a generic consulting brochure.
+The enterprise surface is a combined platform-and-delivery story: enterprise AI capabilities (model gateway, Agent, knowledge/MCP, workspace and governance) are credible because Reizo also assesses, co-designs, deploys and operates them. It is not a generic consulting brochure.
 
 The account and developer center is the shared control plane for identity, wallet, teams, API credentials, Agents, MCP and support.
 

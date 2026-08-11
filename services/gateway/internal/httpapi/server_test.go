@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"winlume/services/gateway/internal/config"
+	"reizo/services/gateway/internal/config"
 )
 
 func TestRouteCatalogUsesSpecificPrecedenceAndAllowedMethods(t *testing.T) {
@@ -60,7 +60,7 @@ func TestHealthAliasesAlwaysReportLiveness(t *testing.T) {
 			response := serve(server, http.MethodGet, path, nil)
 			require.Equal(t, http.StatusOK, response.Code)
 			require.NotEmpty(t, response.Header().Get("x-request-id"))
-			require.JSONEq(t, `{"status":"ok","service":"winlume-gateway","request_id":"`+response.Header().Get("x-request-id")+`"}`, response.Body.String())
+			require.JSONEq(t, `{"status":"ok","service":"reizo-gateway","request_id":"`+response.Header().Get("x-request-id")+`"}`, response.Body.String())
 		})
 	}
 }
@@ -268,11 +268,11 @@ func TestMetricsRouteRequiresInternalTokenAndIsNeverPublic(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, unauthorized.Code)
 	require.Equal(t, "internal_token_required", decodeError(t, unauthorized).Error.Code)
 
-	authorized := serveWithHeaders(server, http.MethodGet, "/metrics", nil, map[string]string{"x-winlume-internal-token": "internal-secret"})
+	authorized := serveWithHeaders(server, http.MethodGet, "/metrics", nil, map[string]string{"x-reizo-internal-token": "internal-secret"})
 	require.Equal(t, http.StatusOK, authorized.Code)
 	require.Equal(t, metricsBody, authorized.Body.String())
 
-	notAllowed := serveWithHeaders(server, http.MethodPost, "/metrics", nil, map[string]string{"x-winlume-internal-token": "internal-secret"})
+	notAllowed := serveWithHeaders(server, http.MethodPost, "/metrics", nil, map[string]string{"x-reizo-internal-token": "internal-secret"})
 	require.Equal(t, http.StatusMethodNotAllowed, notAllowed.Code)
 }
 
@@ -281,7 +281,7 @@ func TestMetricsRouteWithoutHandlerConfiguredReturns503(t *testing.T) {
 	cfg.InternalToken = "internal-secret"
 	server := NewServer(Dependencies{Config: cfg})
 
-	response := serveWithHeaders(server, http.MethodGet, "/metrics", nil, map[string]string{"x-winlume-internal-token": "internal-secret"})
+	response := serveWithHeaders(server, http.MethodGet, "/metrics", nil, map[string]string{"x-reizo-internal-token": "internal-secret"})
 	require.Equal(t, http.StatusServiceUnavailable, response.Code)
 	require.Equal(t, "metrics_unavailable", decodeError(t, response).Error.Code)
 }
@@ -297,7 +297,7 @@ func TestAdminRoutesRequireAdminToken(t *testing.T) {
 	unauthorized := serve(server, http.MethodGet, "/internal/admin/service-accounts", nil)
 	require.Equal(t, http.StatusUnauthorized, unauthorized.Code)
 
-	authorized := serveWithHeaders(server, http.MethodGet, "/internal/admin/service-accounts", nil, map[string]string{"x-winlume-gateway-admin-token": "admin-secret"})
+	authorized := serveWithHeaders(server, http.MethodGet, "/internal/admin/service-accounts", nil, map[string]string{"x-reizo-gateway-admin-token": "admin-secret"})
 	require.Equal(t, http.StatusOK, authorized.Code)
 }
 

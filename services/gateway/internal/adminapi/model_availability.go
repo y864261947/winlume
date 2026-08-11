@@ -16,7 +16,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"winlume/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/storage"
 )
 
 // ModelAvailabilityStore is the storage surface the model availability admin

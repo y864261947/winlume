@@ -17,9 +17,9 @@ var ErrUnavailable = errors.New("gateway storage unavailable")
 // is not a valid 32-byte AES-256 key. Open refuses to start a database-backed
 // store without it, because that store owns the channels table and its
 // api_key column must never be persisted in plaintext (see channel_crypto.go
-// and config.Config.ChannelEncryptionKey). Set WINLUME_CHANNEL_ENCRYPTION_KEY
+// and config.Config.ChannelEncryptionKey). Set REIZO_CHANNEL_ENCRYPTION_KEY
 // before starting the gateway in shadow or authoritative billing mode.
-var ErrChannelEncryptionKeyRequired = errors.New("WINLUME_CHANNEL_ENCRYPTION_KEY is required: it must decode to a 32-byte AES-256 key")
+var ErrChannelEncryptionKeyRequired = errors.New("REIZO_CHANNEL_ENCRYPTION_KEY is required: it must decode to a 32-byte AES-256 key")
 
 type Store struct {
 	pool          *pgxpool.Pool

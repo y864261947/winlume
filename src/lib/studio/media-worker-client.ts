@@ -7,7 +7,7 @@ export type MediaWorkerJobRequest = Pick<
 >;
 
 function workerUrl(): string | null {
-  const raw = process.env.WINLUME_MEDIA_WORKER_URL?.trim();
+  const raw = process.env.REIZO_MEDIA_WORKER_URL?.trim();
   if (!raw) return null;
   try {
     return new URL(raw).toString().replace(/\/$/, "");

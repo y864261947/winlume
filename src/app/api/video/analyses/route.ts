@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
         ...(source.projectId ? { projectId: source.projectId } : {}),
         name: `${source.name.replace(/\.[^.]+$/, "")} · 视频拆解`,
         kind: "video-analysis",
-        mimeType: "application/vnd.winlume.video-analysis+json; charset=utf-8",
+        mimeType: "application/vnd.reizo.video-analysis+json; charset=utf-8",
         storageKey: "",
         status: "pending",
         createdAt: now.toISOString(),

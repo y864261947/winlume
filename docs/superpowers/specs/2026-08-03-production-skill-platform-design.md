@@ -7,7 +7,7 @@ next Skill-platform release; it does not change the current Studio runtime.
 
 ## Context
 
-WinLume already has three independent product dimensions:
+Reizo already has three independent product dimensions:
 
 | Dimension | What it controls |
 | --- | --- |
@@ -26,7 +26,7 @@ workflows.
 The reference projects point to a stronger model: capability-aware,
 stage-specific instruction packs; declarative workflow definitions; canonical
 artifacts between stages; evidence-based review; and persistent run state.
-WinLume will recreate those mechanisms natively. It will not copy third-party
+Reizo will recreate those mechanisms natively. It will not copy third-party
 source, prompt text, or branded materials, and it will not execute unreviewed
 third-party Skills.
 
@@ -147,7 +147,7 @@ type ProductionSkillManifest = {
   stability: "experimental" | "stable";
   scenes: string[];
   provenance: {
-    owner: "winlume";
+    owner: "reizo";
     source: "first-party" | "reviewed-import";
     upstream?: { repository: string; revision: string; license: string };
   };
@@ -342,12 +342,12 @@ exists.
 
 ## Source and Ownership Policy
 
-The initially shipped Packs are first-party and versioned with WinLume.
+The initially shipped Packs are first-party and versioned with Reizo.
 External examples can inform a reviewed intake queue later, but they are not
 installed directly into production.
 
 Any future reviewed import must pin an upstream repository and revision,
-record its applicable license and checksum, identify a WinLume owner, declare
+record its applicable license and checksum, identify a Reizo owner, declare
 all requested capabilities/tools, pass static content review, and be converted
 into the native manifest/resource layout before enabling. No imported content
 can receive secrets, provider credentials, filesystem-wide authority, or a
