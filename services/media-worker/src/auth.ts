@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 
-export const MEDIA_WORKER_AUTH_HEADER = "x-winlume-media-worker-token";
+export const MEDIA_WORKER_AUTH_HEADER = "x-reizo-media-worker-token";
 
 export function hasValidWorkerToken(
   headers: IncomingHttpHeaders,

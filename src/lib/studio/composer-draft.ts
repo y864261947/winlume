@@ -2,7 +2,7 @@
  * Per-session / home composer draft persistence (localStorage).
  */
 
-const PREFIX = "winlume:composer-draft:";
+const PREFIX = "reizo:composer-draft:";
 
 export type ComposerDraftV1 = {
   v: 1;

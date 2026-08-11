@@ -1,4 +1,4 @@
-# WinLume Media Worker
+# Reizo Media Worker
 
 The media worker is the isolated execution boundary for the Studio **参考视频拆解** MVP. It is deliberately separate from the Next.js application process: media probing and scene detection can consume CPU, disk, and native binaries without competing with web requests.
 
@@ -17,26 +17,26 @@ The worker fetches only a job-specific source endpoint, never accepts user URLs,
 The worker uses the root dependency graph and can be started with:
 
 ```bash
-WINLUME_MEDIA_WORKER_TOKEN=... \
-WINLUME_MEDIA_APP_URL=http://127.0.0.1:3000 \
+REIZO_MEDIA_WORKER_TOKEN=... \
+REIZO_MEDIA_APP_URL=http://127.0.0.1:3000 \
 npm run media-worker:start
 ```
 
 Required environment variables:
 
-- `WINLUME_MEDIA_WORKER_TOKEN`: shared private token; must match Studio.
-- `WINLUME_MEDIA_APP_URL`: absolute internal URL of the Studio web service.
+- `REIZO_MEDIA_WORKER_TOKEN`: shared private token; must match Studio.
+- `REIZO_MEDIA_APP_URL`: absolute internal URL of the Studio web service.
 
 Useful optional variables:
 
-- `WINLUME_MEDIA_WORKER_HOST`, `WINLUME_MEDIA_WORKER_PORT` (default `127.0.0.1:4020`)
-- `WINLUME_FFPROBE_PATH`, `WINLUME_FFMPEG_PATH`
-- `WINLUME_MEDIA_MAX_DURATION_SECONDS` (default `600`)
-- `WINLUME_MEDIA_SCENE_THRESHOLD` (default `0.35`)
-- `WINLUME_MEDIA_MAX_SCENES` (default `30`)
-- `WINLUME_MEDIA_CONCURRENCY` (default `1`, capped at `4`)
+- `REIZO_MEDIA_WORKER_HOST`, `REIZO_MEDIA_WORKER_PORT` (default `127.0.0.1:4020`)
+- `REIZO_FFPROBE_PATH`, `REIZO_FFMPEG_PATH`
+- `REIZO_MEDIA_MAX_DURATION_SECONDS` (default `600`)
+- `REIZO_MEDIA_SCENE_THRESHOLD` (default `0.35`)
+- `REIZO_MEDIA_MAX_SCENES` (default `30`)
+- `REIZO_MEDIA_CONCURRENCY` (default `1`, capped at `4`)
 
-Studio needs `WINLUME_MEDIA_WORKER_URL=http://127.0.0.1:4020` plus the same token to dispatch jobs.
+Studio needs `REIZO_MEDIA_WORKER_URL=http://127.0.0.1:4020` plus the same token to dispatch jobs.
 
 ## MVP output
 

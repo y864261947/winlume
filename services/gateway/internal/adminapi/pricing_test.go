@@ -10,7 +10,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	"winlume/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/storage"
 )
 
 func TestGetPricingReturnsCurrentRules(t *testing.T) {

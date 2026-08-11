@@ -60,7 +60,7 @@ describe("CodexExecutor configuration", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("is disabled unless the worker opts in", async () => {
-    vi.stubEnv("WINLUME_CODEX_ENABLED", "false");
+    vi.stubEnv("REIZO_CODEX_ENABLED", "false");
 
     await expect(collect(new CodexExecutor())).resolves.toEqual([
       expect.objectContaining({ type: "error", code: "codex_disabled" }),
@@ -69,8 +69,8 @@ describe("CodexExecutor configuration", () => {
   });
 
   it("requires an explicit absolute workspace", async () => {
-    vi.stubEnv("WINLUME_CODEX_ENABLED", "true");
-    vi.stubEnv("WINLUME_CODEX_WORKSPACE_DIR", "relative/workspace");
+    vi.stubEnv("REIZO_CODEX_ENABLED", "true");
+    vi.stubEnv("REIZO_CODEX_WORKSPACE_DIR", "relative/workspace");
 
     await expect(collect(new CodexExecutor())).resolves.toEqual([
       expect.objectContaining({
@@ -82,9 +82,9 @@ describe("CodexExecutor configuration", () => {
   });
 
   it("requires an isolated Codex home", async () => {
-    vi.stubEnv("WINLUME_CODEX_ENABLED", "true");
-    vi.stubEnv("WINLUME_CODEX_WORKSPACE_DIR", "/tmp/winlume-codex-test");
-    vi.stubEnv("WINLUME_CODEX_HOME", "relative/codex-home");
+    vi.stubEnv("REIZO_CODEX_ENABLED", "true");
+    vi.stubEnv("REIZO_CODEX_WORKSPACE_DIR", "/tmp/reizo-codex-test");
+    vi.stubEnv("REIZO_CODEX_HOME", "relative/codex-home");
 
     await expect(collect(new CodexExecutor())).resolves.toEqual([
       expect.objectContaining({
@@ -96,9 +96,9 @@ describe("CodexExecutor configuration", () => {
   });
 
   it("adapts completed-only file changes and persists thread continuity", async () => {
-    vi.stubEnv("WINLUME_CODEX_ENABLED", "true");
-    vi.stubEnv("WINLUME_CODEX_WORKSPACE_DIR", "/tmp/winlume-codex-test");
-    vi.stubEnv("WINLUME_CODEX_HOME", "/tmp/winlume-codex-home");
+    vi.stubEnv("REIZO_CODEX_ENABLED", "true");
+    vi.stubEnv("REIZO_CODEX_WORKSPACE_DIR", "/tmp/reizo-codex-test");
+    vi.stubEnv("REIZO_CODEX_HOME", "/tmp/reizo-codex-home");
     async function* events() {
       yield { type: "thread.started", thread_id: "thread-123" };
       yield {
@@ -189,9 +189,9 @@ describe("CodexExecutor configuration", () => {
   });
 
   it("injects project instructions and shared artifact metadata", async () => {
-    vi.stubEnv("WINLUME_CODEX_ENABLED", "true");
-    vi.stubEnv("WINLUME_CODEX_WORKSPACE_DIR", "/tmp/winlume-codex-test");
-    vi.stubEnv("WINLUME_CODEX_HOME", "/tmp/winlume-codex-home");
+    vi.stubEnv("REIZO_CODEX_ENABLED", "true");
+    vi.stubEnv("REIZO_CODEX_WORKSPACE_DIR", "/tmp/reizo-codex-test");
+    vi.stubEnv("REIZO_CODEX_HOME", "/tmp/reizo-codex-home");
     const runStreamed = vi.fn().mockResolvedValue({
       events: (async function* () {
         yield { type: "thread.started", thread_id: "thread-123" };

@@ -58,7 +58,7 @@ interface CanvasArtifactContent {
 
 Elements produced by the Mermaid→Excalidraw conversion are tagged `customData: { source: "mermaid" }`. Elements the user draws or adds by hand in the Excalidraw editor carry no such tag. This tag is the mechanism for merging AI regeneration with user edits (§4).
 
-`mimeType` for `canvas` artifacts: `application/vnd.winlume.canvas+json`.
+`mimeType` for `canvas` artifacts: `application/vnd.reizo.canvas+json`.
 
 ## 4. Conversion & Regeneration Flow
 

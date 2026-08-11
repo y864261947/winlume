@@ -1,14 +1,14 @@
-# WinLume Studio — Design Spec
+# Reizo Studio — Design Spec
 
 **Date:** 2026-07-24  
 **Status:** Approved for planning (product decisions locked in design discussion)  
-**Product:** WinLume free-agent workbench (Web first, desktop-ready later)
+**Product:** Reizo free-agent workbench (Web first, desktop-ready later)
 
 ---
 
 ## 1. Goal
 
-Rebuild WinLume from a thin marketing/catalog site into a **Web Agent Studio**: multi-model free chat, skills, tool loop, and first-class artifacts — with a clear path to a **desktop shell** later without rewriting the core.
+Rebuild Reizo from a thin marketing/catalog site into a **Web Agent Studio**: multi-model free chat, skills, tool loop, and first-class artifacts — with a clear path to a **desktop shell** later without rewriting the core.
 
 **Primary user promise**
 
@@ -298,7 +298,7 @@ source: bundled
 |--------|-------------|--------|
 | Bundled curated | `content/skills/**` or `src/data/skills/**` | Generated/imported subset |
 | Import script | `scripts/import-agency-agents.mjs` | Reads `agency-agents-zh`, maps categories, writes frontmatter |
-| User skills (later) | upload / paste | Desktop: `~/.winlume/skills` |
+| User skills (later) | upload / paste | Desktop: `~/.reizo/skills` |
 
 **MVP volume:** 20–40 skills (marketing, design, product, writing). Not all 268 at once.
 
@@ -328,7 +328,7 @@ source: bundled
 
 **Preferred simple path for rebuild:**
 
-- **SQLite** (e.g. `better-sqlite3` or `libsql`) for sessions/messages/artifacts metadata under `data/winlume.db` (gitignored).
+- **SQLite** (e.g. `better-sqlite3` or `libsql`) for sessions/messages/artifacts metadata under `data/reizo.db` (gitignored).
 - **Filesystem** blob dir `data/blobs/{userId}/…` for artifact/attachment bytes.
 
 Alternative if SQLite native deps hurt deploy: JSON/file store for early P0 only, migrate to SQLite before multi-user.
@@ -364,7 +364,7 @@ src/
 scripts/
   import-agency-agents.mjs
 docs/superpowers/specs/
-  2026-07-24-winlume-studio-design.md
+  2026-07-24-reizo-studio-design.md
 ```
 
 ---

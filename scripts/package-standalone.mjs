@@ -2,7 +2,7 @@
  * Package Next.js standalone output for the web/control-plane deploy.
  * Run after: npm run build
  *
- * Output: winlume-deploy.tar.gz (gitignored)
+ * Output: reizo-deploy.tar.gz (gitignored)
  *
  * The Go gateway is intentionally not bundled here. It ships as its own
  * Linux binary and systemd unit; see docs/DEPLOY.md.
@@ -23,7 +23,7 @@ import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
 const stage = join(root, "_deploy_clean");
-const tarOut = join(root, "winlume-deploy.tar.gz");
+const tarOut = join(root, "reizo-deploy.tar.gz");
 const standalone = join(root, ".next", "standalone");
 
 function must(path, label) {
@@ -151,10 +151,10 @@ writeFileSync(
     "NEXTAUTH_URL=https://winlume.example",
     "AUTH_SECRET=",
     "DATABASE_URL=",
-    "WINLUME_AUTH_MODE=winlume",
-    "WINLUME_GATEWAY_URL=http://127.0.0.1:4010",
-    "WINLUME_GATEWAY_INTERNAL_TOKEN=",
-    "WINLUME_SERVICE_KEY=",
+    "REIZO_AUTH_MODE=reizo",
+    "REIZO_GATEWAY_URL=http://127.0.0.1:4010",
+    "REIZO_GATEWAY_INTERNAL_TOKEN=",
+    "REIZO_SERVICE_KEY=",
     "# NEW_API_URL=  # legacy compatibility only; leave unset after cutover",
     "",
   ].join("\n"),

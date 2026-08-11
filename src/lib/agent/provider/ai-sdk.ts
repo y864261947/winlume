@@ -86,7 +86,7 @@ function aiSdkTools(rawTools: unknown[] | undefined): ToolSet {
     const name = fn?.name?.trim();
     if (!name || !fn?.parameters || typeof fn.parameters !== "object") continue;
 
-    // No execute function is attached here. The existing WinLume runtime owns
+    // No execute function is attached here. The existing Reizo runtime owns
     // execution so it can persist tool calls and emit its established SSE events.
     tools[name] = {
       description: fn.description,
@@ -107,11 +107,11 @@ function modelFor(params: StreamGatewayChatParams) {
   }
   const base = `${getGatewayBaseUrl(params.baseUrl)}${chatPath.slice(0, -suffix.length)}`;
   const provider = createOpenAI({
-    name: "winlume-gateway",
+    name: "reizo-gateway",
     baseURL: base,
     // The gateway accepts a bearer token. A placeholder keeps AI SDK from
     // rejecting an intentionally unauthenticated local test gateway.
-    apiKey: params.token ?? process.env.WINLUME_SERVICE_KEY ?? "unused",
+    apiKey: params.token ?? process.env.REIZO_SERVICE_KEY ?? "unused",
     fetch: params.fetchImpl,
   });
   return provider.chat(params.model);

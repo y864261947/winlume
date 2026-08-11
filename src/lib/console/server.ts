@@ -63,7 +63,7 @@ export function consoleError(error: unknown): Response {
   return consoleJson({ error: "控制台请求未完成，请稍后重试。", code: "console_request_failed" }, { status: 500 });
 }
 
-/** Ensure the Auth.js identity has a local WinLume platform record. */
+/** Ensure the Auth.js identity has a local Reizo platform record. */
 export async function requireConsoleContext(): Promise<ConsoleRequestContext> {
   const userId = await getCurrentUserId();
   if (!userId) throw new ConsoleRequestError("请先登录。", 401, "authentication_required");

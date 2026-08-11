@@ -71,12 +71,12 @@ function AudiencePanel({ onComplete }: { onComplete: (audience: Audience, indust
         <div className="flex items-center gap-2">
           <LogoMark size="sm" />
           <span className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-500">
-            WinLume
+            Reizo
           </span>
         </div>
         {step === 1 ? (
           <>
-            <h2 className="mt-3 text-2xl font-semibold text-ink-950">欢迎使用 WinLume</h2>
+            <h2 className="mt-3 text-2xl font-semibold text-ink-950">欢迎使用 Reizo</h2>
             <p className="mt-2 text-sm text-ink-500">
               请选择你的使用身份，我们将为你展示更合适的布局与内容。
             </p>

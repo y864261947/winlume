@@ -1,5 +1,5 @@
 /**
- * Production-safe PostgreSQL migrator for WinLume.
+ * Production-safe PostgreSQL migrator for Reizo.
  *
  * Compatible with drizzle-kit's journal format and the
  * drizzle.__drizzle_migrations table, but depends only on `pg` so it can

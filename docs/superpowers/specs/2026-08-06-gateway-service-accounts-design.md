@@ -8,11 +8,11 @@ Date: 2026-08-06
 `services/gateway` currently authenticates two kinds of callers with two
 different mechanisms: real end users via `api_keys` rows looked up in
 Postgres (`LookupAPIKey`, [identity.go](../../../services/gateway/internal/storage/identity.go)),
-and the WinLume Next.js app via a shared-secret "trusted internal token"
-(`x-winlume-internal-token` + `x-winlume-internal-user-id`,
+and the Reizo Next.js app via a shared-secret "trusted internal token"
+(`x-reizo-internal-token` + `x-reizo-internal-user-id`,
 [gateway.ts](../../../src/lib/agent/provider/gateway.ts)) that lets it
-impersonate any user ID. WinLume also carries two separate static env-var
-tokens (`WINLUME_GATEWAY_TOKEN`, `WINLUME_IMAGE_GATEWAY_TOKEN`) left over from
+impersonate any user ID. Reizo also carries two separate static env-var
+tokens (`REIZO_GATEWAY_TOKEN`, `REIZO_IMAGE_GATEWAY_TOKEN`) left over from
 a pre-Go-gateway routing constraint that no longer applies.
 
 As more internal applications need to call the gateway, this design gives
@@ -25,18 +25,18 @@ env-var token split.
 
 ## 2. Goals
 
-- Give each internal application (WinLume app, and future internal apps) its
+- Give each internal application (Reizo app, and future internal apps) its
   own revocable, independently quota-limited API key.
-- Replace `x-winlume-internal-token` impersonation with standard
+- Replace `x-reizo-internal-token` impersonation with standard
   `Authorization: Bearer <service-account-key>` auth, reusing the existing
   `LookupAPIKey` path unchanged.
-- Consolidate WinLume's three current env-var tokens into one
+- Consolidate Reizo's three current env-var tokens into one
   service-account key.
 - Add a `/gateway-admin` surface for viewing service accounts, editing their
   quota, and revoking keys.
 - Keep the gateway's admin surface decoupled from `/account` (end-user
   self-service) and from organization-level roles, so adding future internal
-  apps never depends on WinLume's own customer-facing auth model.
+  apps never depends on Reizo's own customer-facing auth model.
 
 ## 3. Non-goals
 
@@ -46,7 +46,7 @@ env-var token split.
   introduces or fixes).
 - Self-service creation of new service accounts from the admin UI. Creating
   one is an infrequent, operator-run action.
-- A WinLume product-admin backend (managing WinLume's own end users, teams,
+- A Reizo product-admin backend (managing Reizo's own end users, teams,
   content). That is a separate, later effort; this design only covers the
   gateway's operational surface.
 - Changing how the gateway selects upstream provider channels
@@ -61,11 +61,11 @@ env-var token split.
    accounting, and billing-group pricing without any new code path.
 2. **No per-user attribution in the gateway.** The gateway does not track
    which end user inside an internal app triggered a call. A caller may
-   optionally send an opaque `x-winlume-user-ref` header that the gateway
+   optionally send an opaque `x-reizo-user-ref` header that the gateway
    logs verbatim for cross-referencing against the calling app's own user
-   data; it is never used for quota, billing, or access decisions. WinLume
+   data; it is never used for quota, billing, or access decisions. Reizo
    (or any other internal app) owns its own end-user-level tracking.
-3. **Auth mechanism**: `x-winlume-internal-token` / `x-winlume-internal-user-id`
+3. **Auth mechanism**: `x-reizo-internal-token` / `x-reizo-internal-user-id`
    is retired. All internal-app traffic authenticates the same way external
    API traffic does: `Authorization: Bearer <service-account-key>`.
 4. **No new access-control enforcement.** Isolation between service accounts
@@ -83,10 +83,10 @@ env-var token split.
    ([static_selector.go:44](../../../services/gateway/internal/relay/static_selector.go))
    proves upstream channel choice is keyed by protocol family in gateway
    config, not by the caller's inbound key, so the split has no remaining
-   purpose. WinLume gets one service-account key that replaces
-   `WINLUME_GATEWAY_TOKEN`, `WINLUME_IMAGE_GATEWAY_TOKEN`, and
-   `WINLUME_GATEWAY_INTERNAL_TOKEN`.
-7. **Admin backend location**: a new route group in the existing WinLume
+   purpose. Reizo gets one service-account key that replaces
+   `REIZO_GATEWAY_TOKEN`, `REIZO_IMAGE_GATEWAY_TOKEN`, and
+   `REIZO_GATEWAY_INTERNAL_TOKEN`.
+7. **Admin backend location**: a new route group in the existing Reizo
    Next.js app (e.g. `/gateway-admin`), not a separate deployable project.
    It is a thin UI over the gateway's own admin HTTP API — decoupling comes
    from that API boundary, not from repository separation.
@@ -95,7 +95,7 @@ env-var token split.
    `getCurrentAuthContext()` in [session.ts](../../../src/lib/auth/session.ts))
    rather than building a separate login system. `/gateway-admin` pages and
    API routes require `platformRole === "admin"` and nothing else — no
-   organization-role check, no other WinLume business-status check — so the
+   organization-role check, no other Reizo business-status check — so the
    gate stays a single, independent condition even though it rides on the
    same session mechanism.
 9. **Next.js ↔ Gateway service-to-service auth**: a new static shared secret,
@@ -103,14 +103,14 @@ env-var token split.
    endpoints on the Go gateway (list service accounts, view usage/spend,
    update quota, revoke key). This token is server-side only, never sent to
    the browser, following the same pattern as the existing
-   `WINLUME_GATEWAY_TOKEN`.
+   `REIZO_GATEWAY_TOKEN`.
 
 ## 5. Architecture
 
 ### 5.1 Request flow (after this change)
 
 ```
-Internal app (WinLume, future apps)
+Internal app (Reizo, future apps)
   --Authorization: Bearer <service-account-key>-->
   services/gateway  (LookupAPIKey, unchanged)
   --routes by protocol family via StaticSelector, unchanged-->
@@ -152,19 +152,19 @@ One migration: add `is_service_account boolean not null default false` to
 `users`. No changes to `api_keys` or `api_key_billing_policies` — they
 already carry everything a service account needs.
 
-### 5.4 Migration of existing WinLume traffic
+### 5.4 Migration of existing Reizo traffic
 
-- Seed one service-account user + one `api_keys` row for WinLume itself.
-- Replace `WINLUME_GATEWAY_TOKEN`, `WINLUME_IMAGE_GATEWAY_TOKEN`, and
-  `WINLUME_GATEWAY_INTERNAL_TOKEN` with a single `WINLUME_SERVICE_KEY` env
+- Seed one service-account user + one `api_keys` row for Reizo itself.
+- Replace `REIZO_GATEWAY_TOKEN`, `REIZO_IMAGE_GATEWAY_TOKEN`, and
+  `REIZO_GATEWAY_INTERNAL_TOKEN` with a single `REIZO_SERVICE_KEY` env
   var read by [gateway.ts](../../../src/lib/agent/provider/gateway.ts).
-- Remove the `legacyTransport`/`x-winlume-internal-token`/`New-Api-User`
+- Remove the `legacyTransport`/`x-reizo-internal-token`/`New-Api-User`
   branches from `gateway.ts` once the new key path is verified in
   production.
-- Deployment/rollout against the live gateway and WinLume Postgres uses the
+- Deployment/rollout against the live gateway and Reizo Postgres uses the
   existing ops access documented for those machines (see
   `E:\CodeCode\new-api\.claude\skills\connect-new-api-server-15-204-82-213`
-  and `E:\CodeCode\winlume\.agents\skills\connect-winlume-server`).
+  and `E:\CodeCode\reizo\.agents\skills\connect-reizo-server`).
 
 ## 6. Testing
 
@@ -175,8 +175,8 @@ already carry everything a service account needs.
   rejection on missing/wrong token.
 - Integration: `/gateway-admin` route handlers reject non-admin sessions
   (403) and unauthenticated requests (redirect/401).
-- Manual: issue a WinLume service-account key via the seed script, point a
-  local WinLume app at it, verify chat and image generation both work
+- Manual: issue a Reizo service-account key via the seed script, point a
+  local Reizo app at it, verify chat and image generation both work
   through the single key.
 
 ## 7. Open items deferred to future work
@@ -185,5 +185,5 @@ already carry everything a service account needs.
   if a real isolation need shows up between internal apps.
 - Self-service service-account creation in the admin UI, once app count
   grows enough to justify it.
-- A separate WinLume product-admin backend for managing WinLume's own end
+- A separate Reizo product-admin backend for managing Reizo's own end
   users/teams/content (explicitly out of scope here).

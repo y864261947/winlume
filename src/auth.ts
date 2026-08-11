@@ -42,10 +42,10 @@ function isPlatformAuthUser(user: User | AdapterUser): user is (User | AdapterUs
     && typeof user.authVersion === "number";
 }
 
-function createWinlumeCredentialsProvider() {
+function createReizoCredentialsProvider() {
   return CredentialsProvider({
     id: "credentials",
-    name: "WinLume",
+    name: "Reizo",
     credentials: {
       username: { label: "用户名", type: "text" },
       password: { label: "密码", type: "password" },
@@ -151,15 +151,15 @@ function createLegacyProviders(): NextAuthOptions["providers"] {
   return providers;
 }
 
-function createWinlumeProviders(): NextAuthOptions["providers"] {
-  const providers: NextAuthOptions["providers"] = [createWinlumeCredentialsProvider()];
+function createReizoProviders(): NextAuthOptions["providers"] {
+  const providers: NextAuthOptions["providers"] = [createReizoCredentialsProvider()];
   const google = createGoogleProvider();
   if (google) providers.unshift(google);
   return providers;
 }
 
 export function createAuthOptions(mode = getAuthMode()): NextAuthOptions {
-  const providers = mode === "legacy" ? createLegacyProviders() : createWinlumeProviders();
+  const providers = mode === "legacy" ? createLegacyProviders() : createReizoProviders();
   return {
     secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
     // Credentials authentication uses Auth.js JWTs even when the identity is

@@ -74,7 +74,7 @@ describe("ProductionWorkflowExecution", () => {
   });
 
   it("projects the first Stage as ready before any Run exists", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-workflow-execution-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-workflow-execution-"));
     directories.push(root);
     const host = createWebFileStore(root);
     const binding = createWorkflowSessionBinding(
@@ -110,7 +110,7 @@ describe("ProductionWorkflowExecution", () => {
   });
 
   it("atomically completes a Run after a concurrent infrastructure revision", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-workflow-execution-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-workflow-execution-"));
     directories.push(root);
     const host = createWebFileStore(root);
     const runs = createMemoryRunStore();
@@ -208,7 +208,7 @@ describe("ProductionWorkflowExecution", () => {
   });
 
   it("fails the Run instead of completing a Stage with a missing required output", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-workflow-execution-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-workflow-execution-"));
     directories.push(root);
     const host = createWebFileStore(root);
     const runs = createMemoryRunStore();
@@ -244,7 +244,7 @@ describe("ProductionWorkflowExecution", () => {
   });
 
   it("projects stop for active heads and retry_stage for failed heads", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-workflow-execution-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-workflow-execution-"));
     directories.push(root);
     const host = createWebFileStore(root);
     const runs = createMemoryRunStore();
@@ -363,7 +363,7 @@ describe("ProductionWorkflowExecution", () => {
   });
 
   it("creates one idempotent retry successor for a failed current head", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-workflow-execution-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-workflow-execution-"));
     directories.push(root);
     const host = createWebFileStore(root);
     const runs = createMemoryRunStore();
@@ -466,7 +466,7 @@ describe("ProductionWorkflowExecution", () => {
   });
 
   it("creates one idempotent revision Run for repeated request_changes commands", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-workflow-execution-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-workflow-execution-"));
     directories.push(root);
     const host = createWebFileStore(root);
     const runs = createMemoryRunStore();
@@ -587,7 +587,7 @@ describe("ProductionWorkflowExecution", () => {
   });
 
   it("approves the current Run and creates one idempotent next Stage Run", async () => {
-    const root = mkdtempSync(join(tmpdir(), "winlume-workflow-execution-"));
+    const root = mkdtempSync(join(tmpdir(), "reizo-workflow-execution-"));
     directories.push(root);
     const host = createWebFileStore(root);
     const runs = createMemoryRunStore();

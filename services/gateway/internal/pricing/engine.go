@@ -7,7 +7,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"winlume/services/gateway/internal/usage"
+	"reizo/services/gateway/internal/usage"
 )
 
 var (

@@ -1,5 +1,5 @@
 /**
- * Migrate a controlled New API export into the WinLume platform database.
+ * Migrate a controlled New API export into the Reizo platform database.
  *
  * The command is deliberately dry-run by default.  A write requires the
  * explicit --apply flag and a target DATABASE_URL. Raw credentials are
@@ -978,8 +978,8 @@ export function buildMigrationPlan(
   entities.channels.planned = 0;
   entities.channels.skipped = channels.length;
   if (channels.length > 0) {
-    addWarning(warnings, "WinLume 当前没有旧 channels 业务表；渠道需通过加密交接产物由 operator 配置");
-    if (plaintextSecretsSeen > 0 && !options.apply) addWarning(warnings, "渠道含明文密钥；正式导入必须提供 WINLUME_MIGRATION_CHANNEL_ENCRYPTION_KEY");
+    addWarning(warnings, "Reizo 当前没有旧 channels 业务表；渠道需通过加密交接产物由 operator 配置");
+    if (plaintextSecretsSeen > 0 && !options.apply) addWarning(warnings, "渠道含明文密钥；正式导入必须提供 REIZO_MIGRATION_CHANNEL_ENCRYPTION_KEY");
   }
 
   const nonUserRows = snapshot.tokens.length + snapshot.logs.length + snapshot.topups.length + snapshot.subscriptionOrders.length + snapshot.userSubscriptions.length;
@@ -1334,7 +1334,7 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): MigrationOptions {
     reportFile: getArg("--report") ?? env.NEW_API_MIGRATION_REPORT_FILE,
     snapshotOut: getArg("--snapshot-out") ?? env.NEW_API_MIGRATION_SNAPSHOT_OUT,
     channelArtifactFile: getArg("--channel-artifact") ?? env.NEW_API_MIGRATION_CHANNEL_ARTIFACT_FILE,
-    channelEncryptionKey: env.WINLUME_MIGRATION_CHANNEL_ENCRYPTION_KEY,
+    channelEncryptionKey: env.REIZO_MIGRATION_CHANNEL_ENCRYPTION_KEY,
     sourceLogDatabaseUrl: env.NEW_API_MIGRATION_SOURCE_LOG_DATABASE_URL,
     preserveCiphertext: env.NEW_API_MIGRATION_PRESERVE_CIPHERTEXT !== "0",
     maxRows: getArg("--max-rows") ? Math.max(1, integerValue(getArg("--max-rows"), 1)) : null,
@@ -1574,7 +1574,7 @@ async function runCli(): Promise<void> {
       plan.report.errors.push("存在渠道配置但未提供 --channel-artifact；当前目标需通过加密交接产物配置渠道");
     } else if (!options.channelEncryptionKey) {
       plan.report.channels.blocked = plan.channels.length;
-      plan.report.errors.push("存在渠道明文/密文配置但未提供 WINLUME_MIGRATION_CHANNEL_ENCRYPTION_KEY");
+      plan.report.errors.push("存在渠道明文/密文配置但未提供 REIZO_MIGRATION_CHANNEL_ENCRYPTION_KEY");
     }
   }
   const emitReport = async (): Promise<void> => {

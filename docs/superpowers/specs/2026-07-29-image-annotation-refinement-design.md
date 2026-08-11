@@ -24,7 +24,7 @@ The feature is intentionally a refinement interaction, not a collaboration produ
 
 ## 3. Image-edit data flow
 
-The annotation is an adaptation of Open Design's visual-comment idea. Open Design gives a coding agent a marked screenshot plus source-file/selector context. WinLume's output is bitmap-only, so the image model must receive both a clean base image and a visual targeting reference.
+The annotation is an adaptation of Open Design's visual-comment idea. Open Design gives a coding agent a marked screenshot plus source-file/selector context. Reizo's output is bitmap-only, so the image model must receive both a clean base image and a visual targeting reference.
 
 ```text
 ready image Artifact

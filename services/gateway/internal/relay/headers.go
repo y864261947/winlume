@@ -31,12 +31,12 @@ var requestBlockedHeaders = mergedHeaderSet(hopByHopHeaders,
 	"x-api-key",
 	"api-key",
 	"new-api-user",
-	"x-winlume-user",
-	"x-winlume-user-id",
-	"x-winlume-internal-token",
-	"x-winlume-internal-user-id",
-	"x-winlume-internal-identity",
-	"x-winlume-internal-user",
+	"x-reizo-user",
+	"x-reizo-user-id",
+	"x-reizo-internal-token",
+	"x-reizo-internal-user-id",
+	"x-reizo-internal-identity",
+	"x-reizo-internal-user",
 	"forwarded",
 	"via",
 	"origin",
@@ -123,7 +123,7 @@ func isBlockedHeader(name string, blocked, connectionScoped map[string]struct{})
 	if _, ok := connectionScoped[name]; ok {
 		return true
 	}
-	return strings.HasPrefix(name, "x-forwarded-") || strings.HasPrefix(name, "x-winlume-internal-")
+	return strings.HasPrefix(name, "x-forwarded-") || strings.HasPrefix(name, "x-reizo-internal-")
 }
 
 func safeHeaderValue(value string) bool {

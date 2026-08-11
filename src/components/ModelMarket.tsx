@@ -410,7 +410,7 @@ const footerColumns = [
       { label: "常见问题", href: "#portal-support" },
       { label: "联系支持", href: "#portal-support" },
       { label: "商务合作", href: "/business" },
-      { label: "© 2026 Winlume", href: "/" },
+      { label: "© 2026 Reizo", href: "/" },
     ],
   },
 ] as const;
@@ -678,7 +678,7 @@ export default function ModelMarket() {
         <div className="portal-nav-shell">
           <div className="portal-nav-shell-fill" aria-hidden />
           <header className="portal-nav" aria-label="主导航">
-            <PortalLink href="/" className="portal-brand">Winlume</PortalLink>
+            <PortalLink href="/" className="portal-brand">Reizo</PortalLink>
             <div className="portal-switcher" role="group" aria-label="版本选择">
               <PortalLink href="/" className={personalActive ? "is-active" : ""} onClick={() => changeAudience("personal")}>个人版</PortalLink>
               <PortalLink href="/business" className={!personalActive ? "is-active" : ""} onClick={() => changeAudience("business")}>企业版</PortalLink>
@@ -705,7 +705,7 @@ export default function ModelMarket() {
           <section className="portal-search-card" aria-labelledby="portal-search-title">
             <Image className="portal-search-waves" src="/figma-home/search-waves.svg" alt="" fill sizes="710px" priority />
             <div className="portal-search-content">
-              <SectionLabel>WINLUME AI HUB</SectionLabel>
+              <SectionLabel>REIZO AI HUB</SectionLabel>
               <h1 id="portal-search-title">搜索全部 AI 能力</h1>
               <form className="portal-search-form" onSubmit={submitSearch}>
                 <Search aria-hidden />
@@ -1036,7 +1036,7 @@ export default function ModelMarket() {
 
           <footer className="portal-ed-footer">
             <div className="portal-ed-footer-brand">
-              <strong>Winlume</strong>
+              <strong>Reizo</strong>
               <p>把 AI 能力放进每天的工作里。</p>
             </div>
             {footerColumns.map((group) => (

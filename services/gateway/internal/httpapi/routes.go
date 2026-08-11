@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"winlume/services/gateway/internal/config"
+	"reizo/services/gateway/internal/config"
 )
 
 var allowedPublicMethods = []string{

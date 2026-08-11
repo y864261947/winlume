@@ -6,7 +6,7 @@ apply). Sanitized: no DSNs, tokens, channel URLs, or request content below.
 ## Dry-run (2026-08-05, ~08:36 UTC)
 
 Read-only against `new-api-15-204-82-213`'s source database. No writes to
-WinLume.
+Reizo.
 
 ```
 rules=382 groups=18 availability=167 disabled=7
@@ -17,7 +17,7 @@ hash=555dfa0d8c60a0404fa93f02fb5e0bbcb36efffa596d8e6a8c106c71e8c13b03
 ## Apply, inactive draft (2026-08-05, 08:36:40 UTC)
 
 `pricing-import --apply --activate=false`. Wrote one `draft` catalog to
-WinLume's production `pricing_catalog_versions`. No active-row change.
+Reizo's production `pricing_catalog_versions`. No active-row change.
 
 ```
 catalog id: 4b6ccd61-7c78-4914-9830-63a6716f5e87
@@ -26,7 +26,7 @@ hash=bc61499d7736b7b67bdad876fbcab1d0e84c34f558448e78f9b95a09748ed3e5
 ```
 
 Verified directly against the target database: exactly one row, `state=draft`,
-counts match the CLI report. `winlume.service` confirmed healthy
+counts match the CLI report. `reizo.service` confirmed healthy
 (`/studio`, `/api/skills` both 200) after the migration this apply depended on
 (see below).
 
@@ -41,12 +41,12 @@ specific to the import itself:
    Postgres's own requirement, but never closed it). Every apply attempt
    executed every statement successfully and then silently rolled back on
    disconnect, with no error. Fixed in commit `5361f82c`.
-2. New tables landed owned by `postgres` instead of the app's `winlume` role
+2. New tables landed owned by `postgres` instead of the app's `reizo` role
    (an artifact of applying via `sudo -u postgres`). Ownership transferred to
-   `winlume` for all 11 new tables before continuing.
+   `reizo` for all 11 new tables before continuing.
 
 A `pg_dump` backup was taken before the migration
-(`/tmp/winlume-pre-0003-<timestamp>.dump` on the production host).
+(`/tmp/reizo-pre-0003-<timestamp>.dump` on the production host).
 
 ## Follow-up apply, activation (2026-08-05, ~17:02 UTC, Task 23 Step 1)
 

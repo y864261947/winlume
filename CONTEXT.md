@@ -1,6 +1,6 @@
-# WinLume Workbench
+# Reizo Workbench
 
-WinLume is a general AI workbench where conversations direct work and durable Artifacts carry professional results across reusable workflows.
+Reizo is a general AI workbench where conversations direct work and durable Artifacts carry professional results across reusable workflows.
 
 ## Language
 
@@ -17,7 +17,7 @@ A reusable instruction and quality contract applied to a Stage or an ordinary co
 _Avoid_: Workflow, agent
 
 **Tool**:
-A focused capability that creates, inspects, or transforms work inside WinLume.
+A focused capability that creates, inspects, or transforms work inside Reizo.
 _Avoid_: Connector, Skill
 
 **Connector**:

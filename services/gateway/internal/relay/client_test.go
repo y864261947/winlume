@@ -17,7 +17,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"winlume/services/gateway/internal/config"
+	"reizo/services/gateway/internal/config"
 )
 
 func TestProxyPreservesQueryMultipartBodyAndSafeHeadersAcrossReopens(t *testing.T) {

@@ -71,11 +71,11 @@ describe("AI SDK gateway adapter", () => {
 
 describe("streamAiSdkGatewayChat auth", () => {
   it("ignores userId/internalToken and legacy env vars, sending only the Authorization bearer token", async () => {
-    vi.stubEnv("WINLUME_AUTH_MODE", "winlume");
+    vi.stubEnv("REIZO_AUTH_MODE", "reizo");
     vi.stubEnv("NEW_API_URL", "https://retired-new-api.example");
-    vi.stubEnv("WINLUME_GATEWAY_TOKEN", "retired-token");
-    vi.stubEnv("WINLUME_GATEWAY_INTERNAL_TOKEN", "retired-internal-token");
-    vi.stubEnv("WINLUME_SERVICE_KEY", "wl_service_native");
+    vi.stubEnv("REIZO_GATEWAY_TOKEN", "retired-token");
+    vi.stubEnv("REIZO_GATEWAY_INTERNAL_TOKEN", "retired-internal-token");
+    vi.stubEnv("REIZO_SERVICE_KEY", "wl_service_native");
     const fetchImpl = vi.fn(async () => new Response("data: [DONE]\n\n", {
       status: 200,
       headers: { "content-type": "text/event-stream" },
@@ -100,8 +100,8 @@ describe("streamAiSdkGatewayChat auth", () => {
     const headers = new Headers(init.headers as HeadersInit);
     expect(headers.get("Authorization")).toBe("Bearer wl_service_native");
     expect(headers.get("New-Api-User")).toBeNull();
-    expect(headers.get("x-winlume-internal-token")).toBeNull();
-    expect(headers.get("x-winlume-internal-user-id")).toBeNull();
+    expect(headers.get("x-reizo-internal-token")).toBeNull();
+    expect(headers.get("x-reizo-internal-user-id")).toBeNull();
     vi.unstubAllEnvs();
   });
 });

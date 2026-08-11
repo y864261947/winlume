@@ -20,7 +20,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"winlume/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/storage"
 )
 
 // ChannelStore is the storage surface the channels admin endpoints depend

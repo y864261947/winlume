@@ -18,7 +18,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"winlume/services/gateway/internal/identity"
+	"reizo/services/gateway/internal/identity"
 )
 
 func main() {
@@ -42,8 +42,8 @@ func execute(ctx context.Context, arguments []string, getenv func(string) string
 	flags := flag.NewFlagSet("create-service-account", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	var username, displayName, billingGroup string
-	flags.StringVar(&username, "username", "", "required unique username, e.g. svc-winlume-app")
-	flags.StringVar(&displayName, "display-name", "", "required human-readable name, e.g. \"WinLume App\"")
+	flags.StringVar(&username, "username", "", "required unique username, e.g. svc-reizo-app")
+	flags.StringVar(&displayName, "display-name", "", "required human-readable name, e.g. \"Reizo App\"")
 	flags.StringVar(&billingGroup, "billing-group", "default", "billing group for pricing/accounting separation")
 	if err := flags.Parse(arguments); err != nil {
 		return 2

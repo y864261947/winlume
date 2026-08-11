@@ -16,7 +16,7 @@ The wrapper is used around the low-frequency session and project Headers. The ex
 
 ## Dependency Reliability
 
-Version `1.0.3` ships a `postinstall` command for `patch-package` but declares that binary only as its own development dependency. WinLume declares the matching `patch-package` version so normal `npm ci` lifecycle execution remains reproducible.
+Version `1.0.3` ships a `postinstall` command for `patch-package` but declares that binary only as its own development dependency. Reizo declares the matching `patch-package` version so normal `npm ci` lifecycle execution remains reproducible.
 
 ## Verification
 

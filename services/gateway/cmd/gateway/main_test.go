@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"winlume/services/gateway/internal/config"
-	"winlume/services/gateway/internal/identity"
+	"reizo/services/gateway/internal/config"
+	"reizo/services/gateway/internal/identity"
 )
 
 func TestRunServesHealthAndReadyThenShutsDown(t *testing.T) {
@@ -73,8 +73,8 @@ func TestRunAuthenticatesStudioAndRelaysWithoutBilling(t *testing.T) {
 	request, err := http.NewRequest(http.MethodPost, baseURL+"/v1/chat/completions?stream=true", bytes.NewReader(payload))
 	require.NoError(t, err)
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("x-winlume-internal-token", "studio-secret")
-	request.Header.Set("x-winlume-internal-user-id", userID.String())
+	request.Header.Set("x-reizo-internal-token", "studio-secret")
+	request.Header.Set("x-reizo-internal-user-id", userID.String())
 	request.Header.Set("new-api-user", "browser-spoof")
 	response, err := http.DefaultClient.Do(request)
 	require.NoError(t, err)

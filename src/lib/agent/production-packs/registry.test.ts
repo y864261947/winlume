@@ -51,7 +51,7 @@ afterEach(async () => {
 
 describe("production Pack registry", () => {
   it("lists only valid Packs whose Skill ids are installed and filters them by scene", async () => {
-    fixtureRoot = await mkdtemp(join(tmpdir(), "winlume-packs-"));
+    fixtureRoot = await mkdtemp(join(tmpdir(), "reizo-packs-"));
     const validDir = join(fixtureRoot, "content-office");
     const invalidDir = join(fixtureRoot, "unknown-skill-pack");
     await Promise.all([mkdir(validDir), mkdir(invalidDir)]);

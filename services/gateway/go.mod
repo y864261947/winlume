@@ -1,4 +1,4 @@
-module winlume/services/gateway
+module reizo/services/gateway
 
 go 1.25.1
 

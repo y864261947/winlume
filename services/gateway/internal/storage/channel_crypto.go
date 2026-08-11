@@ -3,7 +3,7 @@ package storage
 // channel_crypto.go implements encryption-at-rest for the channels.api_key
 // column using stdlib AES-256-GCM only (crypto/aes + crypto/cipher) - no new
 // dependency. The key comes from config.Config.ChannelEncryptionKey, decoded
-// from WINLUME_CHANNEL_ENCRYPTION_KEY by services/gateway/internal/config;
+// from REIZO_CHANNEL_ENCRYPTION_KEY by services/gateway/internal/config;
 // this file only consumes the already-decoded 32-byte key.
 //
 // Migration note for rows written before this change: channelCipher.Decrypt

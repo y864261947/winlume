@@ -1,4 +1,4 @@
-# WinLume Product Form Implementation Plan
+# Reizo Product Form Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -9,8 +9,8 @@
 **Tech Stack:** Existing Next.js 16 App Router, React 19, TypeScript, Vitest, `content/skills/**`, `scripts/import-agency-agents.mjs`, gateway chat SSE.
 
 **Specs:**
-- `docs/superpowers/specs/2026-07-24-winlume-product-form-design.md` (primary)
-- `docs/superpowers/specs/2026-07-24-winlume-studio-design.md` (base Studio)
+- `docs/superpowers/specs/2026-07-24-reizo-product-form-design.md` (primary)
+- `docs/superpowers/specs/2026-07-24-reizo-studio-design.md` (base Studio)
 
 ## Global Constraints
 
@@ -679,7 +679,7 @@ git commit -m "feat(studio): featured empty state, department skills page, sessi
 **Files:**
 - Modify: `content/skills/README.md` (if not done)
 - Modify: `docs/DEPLOY.md` — optional step to re-import skills before build
-- Modify: `docs/superpowers/specs/2026-07-24-winlume-product-form-design.md` — set Status to Implemented when done
+- Modify: `docs/superpowers/specs/2026-07-24-reizo-product-form-design.md` — set Status to Implemented when done
 
 - [ ] **Step 1: Document**
 
@@ -747,7 +747,7 @@ git commit -m "docs: product-form skills import and non-goals for MCP"
 
 ## Execution handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-07-24-winlume-product-form.md`.
+Plan complete and saved to `docs/superpowers/plans/2026-07-24-reizo-product-form.md`.
 
 **Two execution options:**
 

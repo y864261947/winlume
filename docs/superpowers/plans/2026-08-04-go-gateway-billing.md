@@ -1,4 +1,4 @@
-# WinLume Go Gateway Billing Implementation Plan
+# Reizo Go Gateway Billing Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -29,10 +29,10 @@ Implement calculation semantics from these owned new-api sources, adapting their
 The following boundaries are fixed for this implementation:
 
 - Auth.js and browser session cookies stay in Next.js.
-- Go accepts only a valid internal token plus user ID for Studio identity, or a native WinLume API key for external identity.
+- Go accepts only a valid internal token plus user ID for Studio identity, or a native Reizo API key for external identity.
 - Drizzle generates PostgreSQL migrations; Go never creates or alters tables at runtime.
 - `off` performs no billing writes; `shadow` writes only `billing_shadow_events`; `authoritative` is the only mode that writes quota and ledgers.
-- Go authoritative mode cannot start without `WINLUME_GATEWAY_BILLING_OWNER=go` and an upstream ownership declaration of `provider` or `non_charging_new_api`.
+- Go authoritative mode cannot start without `REIZO_GATEWAY_BILLING_OWNER=go` and an upstream ownership declaration of `provider` or `non_charging_new_api`.
 - No request body, generated content, raw API key, upstream credential, DSN, or arbitrary upstream error body is stored in billing metadata or logs.
 
 ## Target File Map
@@ -96,7 +96,7 @@ func TestLoadDoesNotUseNewAPIURL(t *testing.T) {
 func TestValidateRejectsUnsafeAuthoritativeMode(t *testing.T) {
 	cfg := Config{BillingMode: BillingAuthoritative, DatabaseURL: "postgres://db", InternalToken: "secret"}
 	err := cfg.Validate()
-	require.ErrorContains(t, err, "WINLUME_GATEWAY_BILLING_OWNER=go")
+	require.ErrorContains(t, err, "REIZO_GATEWAY_BILLING_OWNER=go")
 }
 ```
 
@@ -111,7 +111,7 @@ Expected: FAIL because `go.mod` and `internal/config` do not exist.
 Pin dependency versions already used by new-api where parity matters:
 
 ```go
-module winlume/services/gateway
+module reizo/services/gateway
 
 go 1.25.1
 
@@ -145,7 +145,7 @@ const (
 )
 ```
 
-`Load` must preserve the current `WINLUME_GATEWAY_<FAMILY>_UPSTREAM_URL` and credential names, default to `127.0.0.1:4010`, a 50 MiB request limit, loopback trusted proxies, and `shadow` billing. `Validate` must reject unknown modes, missing database/internal token in shadow or authoritative mode, an empty recovery directory in authoritative mode, and unsafe ownership declarations.
+`Load` must preserve the current `REIZO_GATEWAY_<FAMILY>_UPSTREAM_URL` and credential names, default to `127.0.0.1:4010`, a 50 MiB request limit, loopback trusted proxies, and `shadow` billing. `Validate` must reject unknown modes, missing database/internal token in shadow or authoritative mode, an empty recovery directory in authoritative mode, and unsafe ownership declarations.
 
 - [ ] **Step 4: Format, tidy, and run tests**
 
@@ -224,7 +224,7 @@ Accept only `GET`, `POST`, `PUT`, `PATCH`, and `DELETE`; give operational routes
 
 - [ ] **Step 4: Implement CORS and readiness semantics**
 
-Allow an origin only when it is in `WINLUME_GATEWAY_CORS_ORIGINS`, set `Vary: Origin`, handle preflight without authentication, return liveness regardless of upstream state, and return readiness `503` until a configured relay and required billing dependencies are ready.
+Allow an origin only when it is in `REIZO_GATEWAY_CORS_ORIGINS`, set `Vary: Origin`, handle preflight without authentication, return liveness regardless of upstream state, and return readiness `503` until a configured relay and required billing dependencies are ready.
 
 - [ ] **Step 5: Run focused HTTP tests**
 
@@ -256,7 +256,7 @@ Port all assertions from `auth.test.ts` and the sensitive-header section of `ser
 func TestStudioIdentityRequiresInternalToken(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	r.Header.Set("New-Api-User", "attacker")
-	r.Header.Set("x-winlume-internal-user-id", "user-1")
+	r.Header.Set("x-reizo-internal-user-id", "user-1")
 	_, err := AuthenticateStudio(r, "server-secret")
 	require.ErrorIs(t, err, ErrUnauthorized)
 }
@@ -287,11 +287,11 @@ func HashAPIKey(raw string) string {
 }
 ```
 
-Compare the internal token with `subtle.ConstantTimeCompare`; validate the user ID as UUID; accept legacy internal user aliases only after token validation; never read `New-Api-User` or `x-winlume-user` as authentication.
+Compare the internal token with `subtle.ConstantTimeCompare`; validate the user ID as UUID; accept legacy internal user aliases only after token validation; never read `New-Api-User` or `x-reizo-user` as authentication.
 
 - [ ] **Step 4: Implement the exact header allow/block policy**
 
-Port `HOP_BY_HOP`, `REQUEST_BLOCKED`, and `RESPONSE_BLOCKED` from `services/gateway/src/headers.ts`. Strip connection-scoped headers, caller authorization, cookies, forwarding headers, all internal WinLume identity headers, CR/LF values, and values over 16 KiB. Inject configured upstream authorization and only the server-validated `new-api-user` identity when that compatibility header is required.
+Port `HOP_BY_HOP`, `REQUEST_BLOCKED`, and `RESPONSE_BLOCKED` from `services/gateway/src/headers.ts`. Strip connection-scoped headers, caller authorization, cookies, forwarding headers, all internal Reizo identity headers, CR/LF values, and values over 16 KiB. Inject configured upstream authorization and only the server-validated `new-api-user` identity when that compatibility header is required.
 
 - [ ] **Step 5: Run package tests and race tests**
 
@@ -415,7 +415,7 @@ Keep `gateway:start` until the production binary task so existing deployment ins
 
 - [ ] **Step 5: Run the local contract smoke test**
 
-Run: `$env:WINLUME_GATEWAY_BILLING_MODE='off'; $env:WINLUME_GATEWAY_OPENAI_UPSTREAM_URL='http://127.0.0.1:9'; go -C services/gateway run ./cmd/gateway`
+Run: `$env:REIZO_GATEWAY_BILLING_MODE='off'; $env:REIZO_GATEWAY_OPENAI_UPSTREAM_URL='http://127.0.0.1:9'; go -C services/gateway run ./cmd/gateway`
 
 In a second terminal run: `curl.exe -fsS http://127.0.0.1:4010/healthz`
 
@@ -822,7 +822,7 @@ Insert a draft catalog, all rules/groups/availability, validate counts and hashe
 
 - [ ] **Step 6: Implement CLI safety**
 
-Use `NEW_API_DATABASE_URL` only for the source and `DATABASE_URL` for WinLume. Default to dry-run, require `--apply` for writes, require `--source-label`, accept explicit `--activate=true|false`, and return non-zero on validation failure. Never echo DSNs.
+Use `NEW_API_DATABASE_URL` only for the source and `DATABASE_URL` for Reizo. Default to dry-run, require `--apply` for writes, require `--source-label`, accept explicit `--activate=true|false`, and return non-zero on validation failure. Never echo DSNs.
 
 - [ ] **Step 7: Run importer tests**
 
@@ -945,7 +945,7 @@ Cover concurrent wallet holds, API-key quota exhaustion, reservation rollback wh
 
 - [ ] **Step 2: Run integration tests and verify failure**
 
-Run: `$env:TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/winlume_gateway_test?sslmode=disable'; go -C services/gateway test -tags=integration ./internal/storage -run TestReserve -v`
+Run: `$env:TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/reizo_gateway_test?sslmode=disable'; go -C services/gateway test -tags=integration ./internal/storage -run TestReserve -v`
 
 Expected: FAIL because authoritative storage is absent.
 
@@ -1044,7 +1044,7 @@ After usage normalization, write canonical usage, provenance, terminal state, ac
 
 - [ ] **Step 4: Add an owner-only local recovery spool for database outages**
 
-In authoritative mode, if even the pending snapshot cannot reach PostgreSQL, atomically write a JSON envelope containing only operation ID, usage event ID, catalog ID, canonical numeric usage, final quota, completion state, and checksum under `WINLUME_GATEWAY_RECOVERY_DIR` with directory mode `0700` and file mode `0600`. Fsync the file and directory, replay idempotently, then delete only after PostgreSQL confirms a terminal state.
+In authoritative mode, if even the pending snapshot cannot reach PostgreSQL, atomically write a JSON envelope containing only operation ID, usage event ID, catalog ID, canonical numeric usage, final quota, completion state, and checksum under `REIZO_GATEWAY_RECOVERY_DIR` with directory mode `0700` and file mode `0600`. Fsync the file and directory, replay idempotently, then delete only after PostgreSQL confirms a terminal state.
 
 - [ ] **Step 5: Implement the recovery worker**
 
@@ -1160,7 +1160,7 @@ git commit -m "feat(gateway): add billing metrics and ownership gates"
 
 - [ ] **Step 1: Add a dedicated disposable PostgreSQL service**
 
-Use PostgreSQL 16 with database `winlume_gateway_test`, fixed local port `55432`, health check `pg_isready`, and a named volume scoped to the compose project `winlume-gateway-test`. The script must verify the compose project name before removing the test volume.
+Use PostgreSQL 16 with database `reizo_gateway_test`, fixed local port `55432`, health check `pg_isready`, and a named volume scoped to the compose project `reizo-gateway-test`. The script must verify the compose project name before removing the test volume.
 
 - [ ] **Step 2: Implement the PowerShell test driver**
 
@@ -1180,7 +1180,7 @@ Run `go fmt` cleanliness, `go vet ./...`, `go test ./...`, `go test -race ./...`
 
 Run: `powershell -ExecutionPolicy Bypass -File scripts/test-go-gateway-integration.ps1`
 
-Expected: all Go integration tests pass and `docker compose -p winlume-gateway-test ps` reports no running test service afterward.
+Expected: all Go integration tests pass and `docker compose -p reizo-gateway-test ps` reports no running test service afterward.
 
 - [ ] **Step 5: Commit integration infrastructure**
 
@@ -1203,7 +1203,7 @@ Expected: exit 0 and a local ignored binary.
 
 - [ ] **Step 2: Use the production connection skill in read-only source mode**
 
-Follow `E:/CodeCode/winlume/.agents/skills/connect-newapi-server/SKILL.md`. Supply source and target DSNs through process environment or protected server environment files without displaying their values. Do not query channel key/token columns.
+Follow `E:/CodeCode/reizo/.agents/skills/connect-newapi-server/SKILL.md`. Supply source and target DSNs through process environment or protected server environment files without displaying their values. Do not query channel key/token columns.
 
 - [ ] **Step 3: Run the dry-run**
 
@@ -1276,7 +1276,7 @@ Remove `gateway:start` because production runs the built binary. Add `/services/
 
 - [ ] **Step 4: Update production service instructions**
 
-Build a Linux binary with `CGO_ENABLED=0 GOOS=linux GOARCH=amd64`, install it as `/opt/winlume-gateway/winlume-gateway`, and set systemd `ExecStart=/opt/winlume-gateway/winlume-gateway`. Document `WINLUME_GATEWAY_BILLING_MODE=shadow`, recovery directory ownership, active catalog, internal token, and upstream ownership. Remove the Node/tsx checkout requirement and every statement that calls the Gateway Fastify.
+Build a Linux binary with `CGO_ENABLED=0 GOOS=linux GOARCH=amd64`, install it as `/opt/reizo-gateway/reizo-gateway`, and set systemd `ExecStart=/opt/reizo-gateway/reizo-gateway`. Document `REIZO_GATEWAY_BILLING_MODE=shadow`, recovery directory ownership, active catalog, internal token, and upstream ownership. Remove the Node/tsx checkout requirement and every statement that calls the Gateway Fastify.
 
 - [ ] **Step 5: Run repository verification after deletion**
 
@@ -1316,7 +1316,7 @@ Expected: no duplicate catalog content, the matching validated draft becomes act
 
 - [ ] **Step 2: Install Go as the only traffic-handling Gateway in shadow mode**
 
-Set `WINLUME_GATEWAY_BILLING_MODE=shadow`. Keep new-api as the sole billing owner. Point nginx port 4010 at the Go binary and do not run Fastify. Verify `/healthz`, `/readyz`, `/capabilities`, `/metrics`, OpenAI JSON/SSE, Responses SSE, Claude SSE, image, and audio calls.
+Set `REIZO_GATEWAY_BILLING_MODE=shadow`. Keep new-api as the sole billing owner. Point nginx port 4010 at the Go binary and do not run Fastify. Verify `/healthz`, `/readyz`, `/capabilities`, `/metrics`, OpenAI JSON/SSE, Responses SSE, Claude SSE, image, and audio calls.
 
 - [ ] **Step 3: Reconcile correlated requests**
 
@@ -1324,7 +1324,7 @@ Query `/internal/billing/shadow-events` with the internal token and correlate re
 
 - [ ] **Step 4: Exercise failure and recovery cases**
 
-Test upstream rejection, transport failure, client disconnect after output, missing terminal usage, process termination after pending snapshot, retry-before-commit, duplicate idempotency key, and PostgreSQL interruption. Confirm no WinLume wallet/API-key/subscription ledger mutation occurs in shadow mode.
+Test upstream rejection, transport failure, client disconnect after output, missing terminal usage, process termination after pending snapshot, retry-before-commit, duplicate idempotency key, and PostgreSQL interruption. Confirm no Reizo wallet/API-key/subscription ledger mutation occurs in shadow mode.
 
 - [ ] **Step 5: Define the authoritative go/no-go evidence**
 
@@ -1344,11 +1344,11 @@ git commit -m "docs(gateway): define shadow reconciliation gates"
 
 - [ ] **Step 1: Confirm one billing owner before changing mode**
 
-Verify the upstream is direct Provider access or the new-api internal account cannot charge the WinLume customer again. Confirm Fastify is absent and no second Go instance uses authoritative mode against the same traffic without shared idempotency.
+Verify the upstream is direct Provider access or the new-api internal account cannot charge the Reizo customer again. Confirm Fastify is absent and no second Go instance uses authoritative mode against the same traffic without shared idempotency.
 
 - [ ] **Step 2: Switch one controlled deployment**
 
-Set `WINLUME_GATEWAY_BILLING_MODE=authoritative`, `WINLUME_GATEWAY_BILLING_OWNER=go`, and the reviewed upstream ownership value. Restart one Gateway instance and require readiness success before routing controlled traffic.
+Set `REIZO_GATEWAY_BILLING_MODE=authoritative`, `REIZO_GATEWAY_BILLING_OWNER=go`, and the reviewed upstream ownership value. Restart one Gateway instance and require readiness success before routing controlled traffic.
 
 - [ ] **Step 3: Verify money movement request by request**
 
@@ -1375,7 +1375,7 @@ git commit -m "docs(gateway): record authoritative billing cutover"
 
 ## Final Verification Matrix
 
-Run these commands from `E:/CodeCode/winlume` after Task 22 and before any production cutover:
+Run these commands from `E:/CodeCode/reizo` after Task 22 and before any production cutover:
 
 ```bash
 go -C services/gateway fmt ./...

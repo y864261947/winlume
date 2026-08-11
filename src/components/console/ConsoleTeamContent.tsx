@@ -90,7 +90,7 @@ function AddMemberDialog({
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <div>
             <h2 id="add-member-title" className="text-base font-semibold text-ink-950">添加工作区成员</h2>
-            <p className="mt-1 text-xs text-ink-500">仅可添加已经注册的 WinLume 用户。</p>
+            <p className="mt-1 text-xs text-ink-500">仅可添加已经注册的 Reizo 用户。</p>
           </div>
           <button type="button" onClick={onClose} aria-label="关闭" className="grid h-8 w-8 place-items-center text-ink-500 hover:bg-canvas hover:text-ink-950"><X className="h-4 w-4" /></button>
         </div>

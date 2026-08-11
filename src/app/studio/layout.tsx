@@ -5,7 +5,7 @@ import { site } from "@/data/site";
 
 export const metadata: Metadata = {
   title: `${site.name} Studio`,
-  description: "WinLume 工作台：自由对话、技能与作品。",
+  description: "Reizo 工作台：自由对话、技能与作品。",
 };
 
 export default function StudioLayout({

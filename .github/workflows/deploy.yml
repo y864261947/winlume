@@ -1,11 +1,11 @@
-# Deploy WinLume Studio to its dedicated directory on the production host.
+# Deploy Reizo Studio to its dedicated directory on the production host.
 #
 # Required GitHub repo secrets:
 #   DEPLOY_HOST              e.g. 104.160.47.89
 #   DEPLOY_USER              e.g. root
 #   DEPLOY_SSH_PRIVATE_KEY   Ed25519 private key authorized on the deploy host
-# Native platform secrets (DATABASE_URL, AUTH_SECRET, WINLUME_GATEWAY_URL,
-# WINLUME_GATEWAY_INTERNAL_TOKEN) are pre-provisioned on the host. The
+# Native platform secrets (DATABASE_URL, AUTH_SECRET, REIZO_GATEWAY_URL,
+# REIZO_GATEWAY_INTERNAL_TOKEN) are pre-provisioned on the host. The
 # standalone Go gateway binary is released and restarted separately.
 
 name: Deploy production
@@ -66,8 +66,8 @@ jobs:
         run: |
           set -euo pipefail
           scp -i ~/.ssh/id_ed25519 \
-            winlume-deploy.tar.gz \
-            "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/winlume-deploy.tar.gz"
+            reizo-deploy.tar.gz \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/reizo-deploy.tar.gz"
 
       - name: Remote swap + restart
         env:
@@ -80,87 +80,114 @@ jobs:
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
             bash -s <<'REMOTE'
           set -euo pipefail
+          # Brand cutover: stop both old WinLume and new Reizo units so port
+          # 3001 is free and we never run two generations at once.
+          systemctl stop reizo || true
           systemctl stop winlume || true
-          rm -rf /opt/winlume.previous
-          if [ -d /opt/winlume ]; then mv /opt/winlume /opt/winlume.previous; fi
-          mkdir -p /opt/winlume
-          tar -xzf /tmp/winlume-deploy.tar.gz -C /opt/winlume
-          if [ -f /opt/winlume.previous/.env ]; then
-            cp /opt/winlume.previous/.env /opt/winlume/.env
+
+          # Prefer existing Reizo release; otherwise seed previous from WinLume.
+          rm -rf /opt/reizo.previous
+          if [ -d /opt/reizo ]; then
+            mv /opt/reizo /opt/reizo.previous
+          elif [ -d /opt/winlume ]; then
+            mkdir -p /opt/reizo.previous
+            if [ -f /opt/winlume/.env ]; then cp /opt/winlume/.env /opt/reizo.previous/.env; fi
+            if [ -d /opt/winlume/data ]; then cp -a /opt/winlume/data /opt/reizo.previous/data; fi
           fi
-          if [ -d /opt/winlume.previous/data ]; then
-            mkdir -p /opt/winlume/data
-            cp -a /opt/winlume.previous/data/. /opt/winlume/data/
+
+          mkdir -p /opt/reizo
+          tar -xzf /tmp/reizo-deploy.tar.gz -C /opt/reizo
+          if [ -f /opt/reizo.previous/.env ]; then
+            cp /opt/reizo.previous/.env /opt/reizo/.env
           fi
+          if [ -d /opt/reizo.previous/data ]; then
+            mkdir -p /opt/reizo/data
+            cp -a /opt/reizo.previous/data/. /opt/reizo/data/
+          fi
+
+          # One-time env prefix rename WINLUME_* → REIZO_* (idempotent).
+          touch /opt/reizo/.env
+          if grep -q 'WINLUME_' /opt/reizo/.env; then
+            sed -i 's/WINLUME_/REIZO_/g' /opt/reizo/.env
+          fi
+          # Auth mode value also renamed with the brand.
+          sed -i 's/^REIZO_AUTH_MODE=winlume$/REIZO_AUTH_MODE=reizo/' /opt/reizo/.env || true
+          if [ -f /etc/winlume/web.env ] && [ ! -f /etc/reizo/web.env ]; then
+            mkdir -p /etc/reizo
+            cp /etc/winlume/web.env /etc/reizo/web.env
+            sed -i 's/WINLUME_/REIZO_/g' /etc/reizo/web.env
+            sed -i 's/^REIZO_AUTH_MODE=winlume$/REIZO_AUTH_MODE=reizo/' /etc/reizo/web.env || true
+          fi
+
           # Native releases must not inherit the retired new-api compatibility
           # settings from a previous standalone package.
-          touch /opt/winlume/.env
-          sed -i -E '/^[[:space:]]*(NEW_API_URL|AUTH_V2API_ID|AUTH_V2API_SECRET|WINLUME_GATEWAY_TOKEN|WINLUME_IMAGE_GATEWAY_TOKEN)[[:space:]]*=/d' /opt/winlume/.env
-          grep -q '^NODE_ENV=' /opt/winlume/.env || echo 'NODE_ENV=production' >> /opt/winlume/.env
-          grep -q '^PORT=' /opt/winlume/.env || echo 'PORT=3001' >> /opt/winlume/.env
-          grep -q '^HOSTNAME=' /opt/winlume/.env || echo 'HOSTNAME=127.0.0.1' >> /opt/winlume/.env
-          if grep -q '^WINLUME_AUTH_MODE=' /opt/winlume/.env; then
-            sed -i 's|^WINLUME_AUTH_MODE=.*|WINLUME_AUTH_MODE=winlume|' /opt/winlume/.env
+          sed -i -E '/^[[:space:]]*(NEW_API_URL|AUTH_V2API_ID|AUTH_V2API_SECRET|REIZO_GATEWAY_TOKEN|REIZO_IMAGE_GATEWAY_TOKEN)[[:space:]]*=/d' /opt/reizo/.env
+          grep -q '^NODE_ENV=' /opt/reizo/.env || echo 'NODE_ENV=production' >> /opt/reizo/.env
+          grep -q '^PORT=' /opt/reizo/.env || echo 'PORT=3001' >> /opt/reizo/.env
+          grep -q '^HOSTNAME=' /opt/reizo/.env || echo 'HOSTNAME=127.0.0.1' >> /opt/reizo/.env
+          if grep -q '^REIZO_AUTH_MODE=' /opt/reizo/.env; then
+            sed -i 's|^REIZO_AUTH_MODE=.*|REIZO_AUTH_MODE=reizo|' /opt/reizo/.env
           else
-            echo 'WINLUME_AUTH_MODE=winlume' >> /opt/winlume/.env
+            echo 'REIZO_AUTH_MODE=reizo' >> /opt/reizo/.env
           fi
-          # /etc/winlume/web.env is loaded after the package-local file. Make
+          # /etc/reizo/web.env is loaded after the package-local file. Make
           # an operator remove compatibility values there instead of silently
           # letting it override this native cutover deployment.
-          if [ -f /etc/winlume/web.env ] && {
-            grep -Eq '^[[:space:]]*WINLUME_AUTH_MODE[[:space:]]*=[[:space:]]*legacy([[:space:]]*(#.*)?)?$' /etc/winlume/web.env || \
-            grep -Eq '^[[:space:]]*(NEW_API_URL|AUTH_V2API_ID|AUTH_V2API_SECRET|WINLUME_GATEWAY_TOKEN|WINLUME_IMAGE_GATEWAY_TOKEN)[[:space:]]*=' /etc/winlume/web.env
+          if [ -f /etc/reizo/web.env ] && {
+            grep -Eq '^[[:space:]]*REIZO_AUTH_MODE[[:space:]]*=[[:space:]]*legacy([[:space:]]*(#.*)?)?$' /etc/reizo/web.env || \
+            grep -Eq '^[[:space:]]*(NEW_API_URL|AUTH_V2API_ID|AUTH_V2API_SECRET|REIZO_GATEWAY_TOKEN|REIZO_IMAGE_GATEWAY_TOKEN)[[:space:]]*=' /etc/reizo/web.env
           }; then
-            echo 'Refusing native deployment: remove legacy new-api variables from /etc/winlume/web.env first.' >&2
+            echo 'Refusing native deployment: remove legacy new-api variables from /etc/reizo/web.env first.' >&2
             exit 1
           fi
           # Apply pending Postgres schema migrations before the new process
           # starts. Failure here aborts the deploy so code never runs against
           # a schema it does not understand (e.g. missing columns on login).
           # DATABASE_URL is read from the package-local .env and optional
-          # /etc/winlume/web.env (later file wins for the same key).
+          # /etc/reizo/web.env (later file wins for the same key).
           set -a
           # shellcheck disable=SC1091
-          [ -f /opt/winlume/.env ] && . /opt/winlume/.env
+          [ -f /opt/reizo/.env ] && . /opt/reizo/.env
           # shellcheck disable=SC1091
-          [ -f /etc/winlume/web.env ] && . /etc/winlume/web.env
+          [ -f /etc/reizo/web.env ] && . /etc/reizo/web.env
           set +a
           if [ -z "${DATABASE_URL:-}" ]; then
             echo 'Refusing deployment: DATABASE_URL is not set; cannot run migrations.' >&2
             exit 1
           fi
-          if [ ! -f /opt/winlume/scripts/db-migrate.mjs ]; then
+          if [ ! -f /opt/reizo/scripts/db-migrate.mjs ]; then
             echo 'Refusing deployment: scripts/db-migrate.mjs missing from package.' >&2
             exit 1
           fi
           echo 'Running database migrations…'
-          (cd /opt/winlume && node scripts/db-migrate.mjs)
+          (cd /opt/reizo && node scripts/db-migrate.mjs)
           echo 'Database migrations complete.'
-          cat > /etc/systemd/system/winlume.service <<'UNIT'
+          cat > /etc/systemd/system/reizo.service <<'UNIT'
           [Unit]
-          Description=WinLume Next.js Studio
+          Description=Reizo Next.js Studio
           After=network.target
 
           [Service]
           Type=simple
-          WorkingDirectory=/opt/winlume
+          WorkingDirectory=/opt/reizo
           Environment=NODE_ENV=production
           Environment=PORT=3001
           Environment=HOSTNAME=127.0.0.1
-          EnvironmentFile=-/opt/winlume/.env
-          EnvironmentFile=-/etc/winlume/web.env
+          EnvironmentFile=-/opt/reizo/.env
+          EnvironmentFile=-/etc/reizo/web.env
           ExecStart=/usr/bin/node server.js
           Restart=always
           RestartSec=3
-          StandardOutput=append:/var/log/winlume.log
-          StandardError=append:/var/log/winlume.log
+          StandardOutput=append:/var/log/reizo.log
+          StandardError=append:/var/log/reizo.log
 
           [Install]
           WantedBy=multi-user.target
           UNIT
           systemctl daemon-reload
-          systemctl enable winlume
-          systemctl restart winlume
+          systemctl enable reizo
+          systemctl disable winlume 2>/dev/null || true
+          systemctl restart reizo
           # next-server may need a few seconds after systemd reports active
           code="000"
           for i in 1 2 3 4 5 6 7 8 9 10; do
@@ -172,11 +199,11 @@ jobs:
             fi
           done
           if [ "$code" != "200" ]; then
-            systemctl status winlume --no-pager -n 30 || true
-            tail -80 /var/log/winlume.log || true
+            systemctl status reizo --no-pager -n 30 || true
+            tail -80 /var/log/reizo.log || true
             exit 1
           fi
           REMOTE
 
       - name: Summary
-        run: echo "Web deploy finished. Release/restart winlume-gateway.service separately, then verify both health endpoints."
+        run: echo "Web deploy finished. Release/restart reizo-gateway.service separately, then verify both health endpoints."

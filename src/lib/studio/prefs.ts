@@ -2,7 +2,7 @@
  * Studio client preferences (localStorage).
  */
 
-export const DEFAULT_MODEL_STORAGE_KEY = "winlume:default-model";
+export const DEFAULT_MODEL_STORAGE_KEY = "reizo:default-model";
 export const FALLBACK_DEFAULT_MODEL = "gpt-4o-mini";
 
 export function getDefaultModel(): string {

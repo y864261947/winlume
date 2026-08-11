@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Megaphone, X } from "lucide-react";
 import { site } from "@/data/site";
 
-const storageKey = "winlume:announcement-dismissed-v1";
+const storageKey = "reizo:announcement-dismissed-v1";
 
 export default function AnnouncementBar() {
   const [visible, setVisible] = useState(true);

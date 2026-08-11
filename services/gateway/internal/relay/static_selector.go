@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"winlume/services/gateway/internal/config"
+	"reizo/services/gateway/internal/config"
 )
 
 var (

@@ -30,7 +30,7 @@ describe("loadCapabilityCatalog", () => {
       2,
       "http://gateway.test/v1/models",
       expect.objectContaining({
-        headers: { "x-winlume-internal-token": "test-internal-token" },
+        headers: { "x-reizo-internal-token": "test-internal-token" },
       }),
     );
   });

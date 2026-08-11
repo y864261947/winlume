@@ -55,8 +55,8 @@ import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
 
 type MobileTab = "chat" | "works";
 
-const PREVIEW_WIDTH_KEY = "winlume-artifact-preview-width";
-const LIST_WIDTH_KEY = "winlume-artifact-list-width";
+const PREVIEW_WIDTH_KEY = "reizo-artifact-preview-width";
+const LIST_WIDTH_KEY = "reizo-artifact-list-width";
 /** Collapsed list strip — keeps a discoverable control without stealing preview width. */
 const LIST_STRIP_W = 44;
 
@@ -878,7 +878,7 @@ export default function StudioSessionPage() {
               emptyHint={
                 workflowEnabled
                   ? "暂无运行记录。"
-                  : "发送一条消息，开始与 WinLume 对话。"
+                  : "发送一条消息，开始与 Reizo 对话。"
               }
               highlightMessageId={highlightMessageId}
               onHighlightConsumed={() => setHighlightMessageId(null)}

@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
 
-	"winlume/services/gateway/internal/pricing"
+	"reizo/services/gateway/internal/pricing"
 )
 
 var importedOptionKeys = []string{
@@ -87,14 +87,14 @@ func (source *PostgresSource) Load(ctx context.Context) (SourceData, error) {
 	return SourceData{Options: options, Availability: availability}, nil
 }
 
-// PostgresTarget persists native WinLume catalog rows. It is only constructed
+// PostgresTarget persists native Reizo catalog rows. It is only constructed
 // for an explicit --apply operation.
 type PostgresTarget struct{ pool *pgxpool.Pool }
 
 func NewPostgresTarget(ctx context.Context, dsn string) (*PostgresTarget, error) {
 	pool, err := newPool(ctx, dsn)
 	if err != nil {
-		return nil, errors.New("WinLume pricing target is unavailable")
+		return nil, errors.New("Reizo pricing target is unavailable")
 	}
 	return &PostgresTarget{pool: pool}, nil
 }
@@ -114,7 +114,7 @@ func (target *PostgresTarget) FindByHash(ctx context.Context, sourceHash string)
 		return ExistingCatalog{}, false, nil
 	}
 	if err != nil {
-		return ExistingCatalog{}, false, errors.New("WinLume pricing target could not be queried")
+		return ExistingCatalog{}, false, errors.New("Reizo pricing target could not be queried")
 	}
 	return item, true, nil
 }
@@ -122,7 +122,7 @@ func (target *PostgresTarget) FindByHash(ctx context.Context, sourceHash string)
 func (target *PostgresTarget) InsertDraft(ctx context.Context, catalog Catalog, activate bool) (uuid.UUID, string, error) {
 	tx, err := target.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return uuid.Nil, "", errors.New("WinLume pricing target transaction could not start")
+		return uuid.Nil, "", errors.New("Reizo pricing target transaction could not start")
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
@@ -137,7 +137,7 @@ func (target *PostgresTarget) InsertDraft(ctx context.Context, catalog Catalog, 
 		catalog.QuotaPerUnit.String(), catalog.PreConsumedTokens, catalog.Snapshot,
 	).Scan(&id)
 	if err != nil {
-		return uuid.Nil, "", errors.New("WinLume pricing catalog could not be inserted")
+		return uuid.Nil, "", errors.New("Reizo pricing catalog could not be inserted")
 	}
 	for _, rule := range catalog.Rules {
 		if err := insertRule(ctx, tx, id, rule); err != nil {
@@ -149,7 +149,7 @@ func (target *PostgresTarget) InsertDraft(ctx context.Context, catalog Catalog, 
 			INSERT INTO pricing_group_rules (catalog_version_id, user_group, billing_group, group_ratio, source_metadata)
 			VALUES ($1, $2, $3, $4, '{"source":"new-api"}'::jsonb)`,
 			id, group.UserGroup, group.BillingGroup, group.GroupRatio.String()); err != nil {
-			return uuid.Nil, "", errors.New("WinLume pricing group rule could not be inserted")
+			return uuid.Nil, "", errors.New("Reizo pricing group rule could not be inserted")
 		}
 	}
 	for _, item := range catalog.Availability {
@@ -161,7 +161,7 @@ func (target *PostgresTarget) InsertDraft(ctx context.Context, catalog Catalog, 
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 			id, item.Model, item.BillingGroup, item.ProviderType, item.ProtocolFamily,
 			item.Enabled, item.Priority, item.Weight, metadata); err != nil {
-			return uuid.Nil, "", errors.New("WinLume model availability could not be inserted")
+			return uuid.Nil, "", errors.New("Reizo model availability could not be inserted")
 		}
 	}
 	state := "draft"
@@ -172,7 +172,7 @@ func (target *PostgresTarget) InsertDraft(ctx context.Context, catalog Catalog, 
 		state = "active"
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return uuid.Nil, "", errors.New("WinLume pricing target transaction could not commit")
+		return uuid.Nil, "", errors.New("Reizo pricing target transaction could not commit")
 	}
 	return id, state, nil
 }
@@ -180,14 +180,14 @@ func (target *PostgresTarget) InsertDraft(ctx context.Context, catalog Catalog, 
 func (target *PostgresTarget) Activate(ctx context.Context, id uuid.UUID) error {
 	tx, err := target.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return errors.New("WinLume pricing activation transaction could not start")
+		return errors.New("Reizo pricing activation transaction could not start")
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	if err := activateInTransaction(ctx, tx, id); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return errors.New("WinLume pricing activation transaction could not commit")
+		return errors.New("Reizo pricing activation transaction could not commit")
 	}
 	return nil
 }
@@ -197,17 +197,17 @@ func activateInTransaction(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
 	// are inserted. Retire the previous active version before promotion so the
 	// partial unique active index remains true throughout this transaction.
 	if _, err := tx.Exec(ctx, `UPDATE pricing_catalog_versions SET state = 'retired' WHERE state = 'active'`); err != nil {
-		return errors.New("WinLume active pricing catalog could not be retired")
+		return errors.New("Reizo active pricing catalog could not be retired")
 	}
 	command, err := tx.Exec(ctx, `
 		UPDATE pricing_catalog_versions
 		SET state = 'active', activated_at = now()
 		WHERE id = $1 AND state = 'draft'`, id)
 	if err != nil {
-		return errors.New("WinLume pricing catalog could not be activated")
+		return errors.New("Reizo pricing catalog could not be activated")
 	}
 	if command.RowsAffected() != 1 {
-		return errors.New("WinLume pricing catalog is not an activatable draft")
+		return errors.New("Reizo pricing catalog is not an activatable draft")
 	}
 	return nil
 }
@@ -215,7 +215,7 @@ func activateInTransaction(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
 func insertRule(ctx context.Context, tx pgx.Tx, catalogID uuid.UUID, rule pricing.Rule) error {
 	toolPrices, err := json.Marshal(decimalStrings(rule.ToolPrices))
 	if err != nil {
-		return errors.New("WinLume pricing tool prices could not be encoded")
+		return errors.New("Reizo pricing tool prices could not be encoded")
 	}
 	metadata, err := json.Marshal(map[string]any{
 		"source": "new-api",
@@ -225,7 +225,7 @@ func insertRule(ctx context.Context, tx pgx.Tx, catalogID uuid.UUID, rule pricin
 		},
 	})
 	if err != nil {
-		return errors.New("WinLume pricing rule metadata could not be encoded")
+		return errors.New("Reizo pricing rule metadata could not be encoded")
 	}
 	var modelRatio, fixedPrice, expression, expressionHash, expressionVersion any
 	switch rule.Mode {
@@ -236,7 +236,7 @@ func insertRule(ctx context.Context, tx pgx.Tx, catalogID uuid.UUID, rule pricin
 	case pricing.ModeTieredExpr:
 		expression, expressionHash, expressionVersion = rule.TieredExpression, rule.TieredExpressionHash, rule.TieredExpressionVersion
 	default:
-		return errors.New("WinLume pricing rule has an unsupported mode")
+		return errors.New("Reizo pricing rule has an unsupported mode")
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO pricing_model_rules (
@@ -254,7 +254,7 @@ func insertRule(ctx context.Context, tx pgx.Tx, catalogID uuid.UUID, rule pricin
 		expressionHash, expressionVersion, toolPrices, rule.EnabledGroups, rule.ProtocolFamilies, rule.RuleHash, metadata,
 	)
 	if err != nil {
-		return errors.New("WinLume pricing rule could not be inserted")
+		return errors.New("Reizo pricing rule could not be inserted")
 	}
 	return nil
 }

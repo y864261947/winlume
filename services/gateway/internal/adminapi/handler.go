@@ -1,7 +1,7 @@
 // Package adminapi implements the gateway's operator-only HTTP surface for
 // listing, quota-editing, and revoking internal-application service-account
 // keys. It is mounted behind a separate shared-secret gate
-// (WINLUME_GATEWAY_ADMIN_TOKEN) by httpapi.Server, never on the public route
+// (REIZO_GATEWAY_ADMIN_TOKEN) by httpapi.Server, never on the public route
 // surface. See docs/superpowers/specs/2026-08-06-gateway-service-accounts-design.md.
 package adminapi
 
@@ -14,8 +14,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"winlume/services/gateway/internal/httpapi"
-	"winlume/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/httpapi"
+	"reizo/services/gateway/internal/storage"
 )
 
 // Store is the narrow storage surface this package depends on, satisfied by

@@ -4,7 +4,7 @@ import { Check, Copy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { highlightCode } from "@/lib/docs/highlight";
 
-const LANG_KEY = "winlume-docs-lang";
+const LANG_KEY = "reizo-docs-lang";
 
 function useCopy(code: string) {
   const [copied, setCopied] = useState(false);

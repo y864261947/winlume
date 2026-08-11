@@ -16,9 +16,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"winlume/services/gateway/internal/observability"
-	"winlume/services/gateway/internal/storage"
-	"winlume/services/gateway/internal/usage"
+	"reizo/services/gateway/internal/observability"
+	"reizo/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/usage"
 )
 
 const (

@@ -233,7 +233,7 @@ git commit -m "feat: add canvas artifact content model (parse/serialize/tag/merg
 
 **Interfaces:**
 - Consumes: nothing new.
-- Produces: `ArtifactKind` now includes `"canvas"`; `mimeTypeForKind("canvas")` returns `"application/vnd.winlume.canvas+json; charset=utf-8"`.
+- Produces: `ArtifactKind` now includes `"canvas"`; `mimeTypeForKind("canvas")` returns `"application/vnd.reizo.canvas+json; charset=utf-8"`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -262,7 +262,7 @@ In `src/lib/agent/tools/execute.ts`, add a case to `mimeTypeForKind` (before the
 
 ```ts
     case "canvas":
-      return "application/vnd.winlume.canvas+json; charset=utf-8";
+      return "application/vnd.reizo.canvas+json; charset=utf-8";
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -749,7 +749,7 @@ describe("buildCanvasReferenceReminder", () => {
         sessionId: "s1",
         name: "上线流程",
         kind: "canvas",
-        mimeType: "application/vnd.winlume.canvas+json",
+        mimeType: "application/vnd.reizo.canvas+json",
         storageKey: "",
         status: "ready",
         createdAt: new Date().toISOString(),

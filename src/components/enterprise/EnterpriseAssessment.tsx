@@ -7,7 +7,7 @@ import {
   type AssessmentAnswers,
 } from "./assessment";
 
-const STORAGE_KEY = "winlume:enterprise-assessment-v2";
+const STORAGE_KEY = "reizo:enterprise-assessment-v2";
 
 type QuestionId = keyof AssessmentAnswers;
 

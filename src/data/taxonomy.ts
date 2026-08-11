@@ -96,7 +96,7 @@ export const categories: Category[] = [
     cate: "api",
     icon: Blocks,
     color: "#64748b",
-    brands: ["WinLume 自营", "净刻 ClearCut"],
+    brands: ["Reizo 自营", "净刻 ClearCut"],
   },
   {
     slug: "apps",
@@ -104,7 +104,7 @@ export const categories: Category[] = [
     cate: "app",
     icon: LayoutGrid,
     color: "#ec4899",
-    brands: ["WinLume 自营"],
+    brands: ["Reizo 自营"],
   },
 ];
 

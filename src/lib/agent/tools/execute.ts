@@ -118,7 +118,7 @@ export function mimeTypeForKind(kind: ArtifactKind): string {
     case "image":
       return "application/octet-stream";
     case "canvas":
-      return "application/vnd.winlume.canvas+json; charset=utf-8";
+      return "application/vnd.reizo.canvas+json; charset=utf-8";
     case "binary":
       return "application/octet-stream";
     default:

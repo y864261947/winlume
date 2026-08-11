@@ -1,8 +1,8 @@
 export const site = {
-  name: "WinLume",
+  name: "Reizo",
   slogan: "让每一个需求都找到合适的 AI",
-  description: "WinLume 是聚合模型 API 与在线应用的 AI 资源平台，支持统一账户、余额与模型目录。",
-  announcement: "Lume 图像工坊全新上线：画布式 AI 图像工作台，生成与编辑一站完成",
+  description: "Reizo 是聚合模型 API 与在线应用的 AI 资源平台，支持统一账户、余额与模型目录。",
+  announcement: "Reizo 图像工坊全新上线：画布式 AI 图像工作台，生成与编辑一站完成",
 };
 
 export interface NavItem {
@@ -60,9 +60,9 @@ export interface FaqItem {
 
 export const faqItems: FaqItem[] = [
   {
-    question: "WinLume 是什么？",
+    question: "Reizo 是什么？",
     answer:
-      "WinLume 是聚合模型 API 与在线应用的 AI 资源平台。产品目录的分类与展示内容仍在迭代中，账户、余额与可用模型则由已接入的 API 网关提供。",
+      "Reizo 是聚合模型 API 与在线应用的 AI 资源平台。产品目录的分类与展示内容仍在迭代中，账户、余额与可用模型则由已接入的 API 网关提供。",
   },
   {
     question: "平台如何收费？",

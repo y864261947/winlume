@@ -1,10 +1,10 @@
 /**
- * WinLume API 文档目录 — AI 模型接口
- * 结构对齐 New API 文档分类，内容与示例统一为 WinLume 品牌。
+ * Reizo API 文档目录 — AI 模型接口
+ * 结构对齐 New API 文档分类，内容与示例统一为 Reizo 品牌。
  */
 
 export const DOCS_BASE_URL = "https://api.winlume.ai";
-export const DOCS_API_KEY_ENV = "WINLUME_API_KEY";
+export const DOCS_API_KEY_ENV = "REIZO_API_KEY";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
@@ -102,7 +102,7 @@ const bearer: ApiParam = {
   name: "Authorization",
   type: "string",
   required: true,
-  description: "Bearer Token，格式：`Bearer $WINLUME_API_KEY`",
+  description: "Bearer Token，格式：`Bearer $REIZO_API_KEY`",
 };
 
 function curlJson(method: HttpMethod, path: string, body?: unknown) {
@@ -148,7 +148,7 @@ export const apiCategories: ApiDocCategory[] = [
                 id: "gpt-4.1-mini",
                 object: "model",
                 created: 1715367049,
-                owned_by: "winlume",
+                owned_by: "reizo",
               },
             ],
           },
@@ -220,7 +220,7 @@ export const apiCategories: ApiDocCategory[] = [
           model: "gpt-4.1-mini",
           messages: [
             { role: "system", content: "You are a helpful assistant." },
-            { role: "user", content: "用一句话介绍 WinLume" },
+            { role: "user", content: "用一句话介绍 Reizo" },
           ],
           stream: false,
         }),
@@ -235,7 +235,7 @@ export const apiCategories: ApiDocCategory[] = [
                 index: 0,
                 message: {
                   role: "assistant",
-                  content: "WinLume 是统一接入多模型的 AI API 平台。",
+                  content: "Reizo 是统一接入多模型的 AI API 平台。",
                 },
                 finish_reason: "stop",
               },
@@ -266,7 +266,7 @@ export const apiCategories: ApiDocCategory[] = [
         ],
         requestExample: curlJson("POST", "/v1/responses", {
           model: "gpt-4.1-mini",
-          input: "总结 WinLume 的核心价值",
+          input: "总结 Reizo 的核心价值",
         }),
         responseExample: JSON.stringify(
           {
@@ -352,14 +352,14 @@ export const apiCategories: ApiDocCategory[] = [
           { name: "generationConfig", type: "object", description: "温度、maxOutputTokens 等" },
           { name: "systemInstruction", type: "object", description: "系统指令" },
         ],
-        requestExample: `curl -X POST "${DOCS_BASE_URL}/v1beta/models/gemini-2.0-flash:generateContent" \\\n  -H "Authorization: Bearer $${DOCS_API_KEY_ENV}" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "contents": [{\n      "role": "user",\n      "parts": [{"text": "介绍一下 WinLume"}]\n    }]\n  }'`,
+        requestExample: `curl -X POST "${DOCS_BASE_URL}/v1beta/models/gemini-2.0-flash:generateContent" \\\n  -H "Authorization: Bearer $${DOCS_API_KEY_ENV}" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "contents": [{\n      "role": "user",\n      "parts": [{"text": "介绍一下 Reizo"}]\n    }]\n  }'`,
         responseExample: JSON.stringify(
           {
             candidates: [
               {
                 content: {
                   role: "model",
-                  parts: [{ text: "WinLume 是 AI 模型与应用聚合平台。" }],
+                  parts: [{ text: "Reizo 是 AI 模型与应用聚合平台。" }],
                 },
                 finishReason: "STOP",
               },
@@ -438,7 +438,7 @@ export const apiCategories: ApiDocCategory[] = [
         ],
         requestExample: curlJson("POST", "/v1/completions", {
           model: "gpt-3.5-turbo-instruct",
-          prompt: "WinLume is",
+          prompt: "Reizo is",
           max_tokens: 32,
         }),
         responseExample: JSON.stringify(
@@ -478,7 +478,7 @@ export const apiCategories: ApiDocCategory[] = [
         ],
         requestExample: curlJson("POST", "/v1/embeddings", {
           model: "text-embedding-3-small",
-          input: "WinLume API 文档",
+          input: "Reizo API 文档",
         }),
         responseExample: JSON.stringify(
           {
@@ -542,8 +542,8 @@ export const apiCategories: ApiDocCategory[] = [
         ],
         requestExample: curlJson("POST", "/v1/rerank", {
           model: "rerank-multilingual-v3.0",
-          query: "什么是 WinLume？",
-          documents: ["WinLume 是 AI API 平台", "今天天气不错", "统一计费与模型路由"],
+          query: "什么是 Reizo？",
+          documents: ["Reizo 是 AI API 平台", "今天天气不错", "统一计费与模型路由"],
           top_n: 2,
         }),
         responseExample: JSON.stringify(
@@ -627,7 +627,7 @@ export const apiCategories: ApiDocCategory[] = [
         ],
         requestExample: curlJson("POST", "/v1/audio/speech", {
           model: "tts-1",
-          input: "欢迎使用 WinLume",
+          input: "欢迎使用 Reizo",
           voice: "alloy",
         }),
         responseExample: "（二进制音频流，Content-Type: audio/mpeg）",
@@ -651,7 +651,7 @@ export const apiCategories: ApiDocCategory[] = [
           { name: "response_format", type: "string", description: "json / text / srt / vtt" },
         ],
         requestExample: `curl -X POST "${DOCS_BASE_URL}/v1/audio/transcriptions" \\\n  -H "Authorization: Bearer $${DOCS_API_KEY_ENV}" \\\n  -F file="@speech.mp3" \\\n  -F model="whisper-1"`,
-        responseExample: JSON.stringify({ text: "欢迎使用 WinLume。" }, null, 2),
+        responseExample: JSON.stringify({ text: "欢迎使用 Reizo。" }, null, 2),
       },
       {
         slug: "ai-model/audio/openai/createtranslation",
@@ -670,7 +670,7 @@ export const apiCategories: ApiDocCategory[] = [
           { name: "response_format", type: "string", description: "json / text / srt / vtt" },
         ],
         requestExample: `curl -X POST "${DOCS_BASE_URL}/v1/audio/translations" \\\n  -H "Authorization: Bearer $${DOCS_API_KEY_ENV}" \\\n  -F file="@speech.mp3" \\\n  -F model="whisper-1"`,
-        responseExample: JSON.stringify({ text: "Welcome to WinLume." }, null, 2),
+        responseExample: JSON.stringify({ text: "Welcome to Reizo." }, null, 2),
       },
       {
         slug: "ai-model/audio/geminirelayv1beta-383836364",
@@ -694,7 +694,7 @@ export const apiCategories: ApiDocCategory[] = [
             description: "可配置 responseModalities 等音频输出选项",
           },
         ],
-        requestExample: `curl -X POST "${DOCS_BASE_URL}/v1beta/models/gemini-2.5-flash-preview-tts:generateContent" \\\n  -H "Authorization: Bearer $${DOCS_API_KEY_ENV}" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "contents": [{"role":"user","parts":[{"text":"你好，欢迎使用 WinLume"}]}],\n    "generationConfig": {"responseModalities": ["AUDIO"]}\n  }'`,
+        requestExample: `curl -X POST "${DOCS_BASE_URL}/v1beta/models/gemini-2.5-flash-preview-tts:generateContent" \\\n  -H "Authorization: Bearer $${DOCS_API_KEY_ENV}" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "contents": [{"role":"user","parts":[{"text":"你好，欢迎使用 Reizo"}]}],\n    "generationConfig": {"responseModalities": ["AUDIO"]}\n  }'`,
         responseExample: JSON.stringify(
           {
             candidates: [
@@ -784,7 +784,7 @@ export const apiCategories: ApiDocCategory[] = [
         ],
         requestExample: curlJson("POST", "/v1/images/generations", {
           model: "dall-e-3",
-          prompt: "A minimal logo for WinLume, teal spectrum accents",
+          prompt: "A minimal logo for Reizo, teal spectrum accents",
           size: "1024x1024",
         }),
         responseExample: JSON.stringify(

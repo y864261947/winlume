@@ -49,7 +49,7 @@ export function modelDescription(model: PlazaModel, vendor: PlazaVendor): string
   if (name.includes("max") || name.includes("opus") || name.includes("ultra") || name.includes("pro")) {
     return `${vendor.name} 旗舰级通用模型，适合高质量生成与复杂对话。`;
   }
-  return `${vendor.name} 提供的 ${model.model_name}，可通过 WinLume Gateway 调用。`;
+  return `${vendor.name} 提供的 ${model.model_name}，可通过 Reizo Gateway 调用。`;
 }
 
 export function modelTags(model: PlazaModel): PlazaTag[] {

@@ -86,7 +86,7 @@ function LoginForm({ initialMode, onClose }: { initialMode: Mode; onClose: () =>
 
   return (
     <div className="rounded-2xl border border-line bg-surface p-6 shadow-2xl shadow-ink-950/15">
-      <div className="flex items-start justify-between"><div className="flex items-center gap-2.5"><LogoMark /><div><p className="text-base font-semibold text-ink-900">{mode === "login" ? "登录 WinLume" : "注册 WinLume"}</p><p className="text-xs text-ink-400">一个账户管理 Studio、API 与工作区</p></div></div><ModalCloseButton onClose={onClose} /></div>
+      <div className="flex items-start justify-between"><div className="flex items-center gap-2.5"><LogoMark /><div><p className="text-base font-semibold text-ink-900">{mode === "login" ? "登录 Reizo" : "注册 Reizo"}</p><p className="text-xs text-ink-400">一个账户管理 Studio、API 与工作区</p></div></div><ModalCloseButton onClose={onClose} /></div>
       <div className="mt-5 grid grid-cols-2 rounded-lg bg-canvas p-1 text-sm ring-1 ring-line">
         {(["login", "register"] as Mode[]).map((item) => <button key={item} type="button" disabled={busy} onClick={() => { setMode(item); setError(""); setNotice(""); }} className={`rounded-md py-1.5 transition ${mode === item ? "bg-surface font-medium text-ink-900 shadow-sm" : "text-ink-500 hover:text-ink-700"}`}>{item === "login" ? "登录" : "注册"}</button>)}
       </div>

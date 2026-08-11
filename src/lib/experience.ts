@@ -32,7 +32,7 @@ export interface ExperiencePlan {
   outputHint: string;
 }
 
-const storageKey = "winlume:experience-history-v1";
+const storageKey = "reizo:experience-history-v1";
 
 /** @deprecated */
 export function createPlan(
@@ -42,7 +42,7 @@ export function createPlan(
   const base = subject?.type === "应用" ? "$0.03 - $0.08" : "$0.01 - $0.04";
   return {
     estimatedCost: base,
-    productName: subject?.name ?? "WinLume 智能编排",
+    productName: subject?.name ?? "Reizo 智能编排",
     outputHint: task === "制作短视频" ? "脚本、分镜与素材建议" : "可编辑的结果草稿",
   };
 }

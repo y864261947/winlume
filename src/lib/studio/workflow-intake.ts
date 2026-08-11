@@ -11,7 +11,7 @@ export type WorkflowIntakeValidation = {
 export type WorkflowIntakeDraft = Record<string, unknown>;
 
 export function workflowDraftKey(packId: string, version: string): string {
-  return `winlume:workflow-intake:${packId}:${version}`;
+  return `reizo:workflow-intake:${packId}:${version}`;
 }
 
 export function initialWorkflowIntake(

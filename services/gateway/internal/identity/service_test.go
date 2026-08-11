@@ -15,13 +15,13 @@ func TestStudioIdentityRequiresInternalToken(t *testing.T) {
 	userID := uuid.New()
 	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	request.Header.Set("New-Api-User", userID.String())
-	request.Header.Set("x-winlume-user", userID.String())
-	request.Header.Set("x-winlume-internal-user-id", userID.String())
+	request.Header.Set("x-reizo-user", userID.String())
+	request.Header.Set("x-reizo-internal-user-id", userID.String())
 
 	_, err := AuthenticateStudio(request, "server-secret")
 	require.ErrorIs(t, err, ErrUnauthorized)
 
-	request.Header.Set("x-winlume-internal-token", "wrong-secret")
+	request.Header.Set("x-reizo-internal-token", "wrong-secret")
 	_, err = AuthenticateStudio(request, "server-secret")
 	require.ErrorIs(t, err, ErrUnauthorized)
 }
@@ -29,16 +29,16 @@ func TestStudioIdentityRequiresInternalToken(t *testing.T) {
 func TestStudioIdentityAcceptsValidatedUUIDAliasesAfterTokenCheck(t *testing.T) {
 	userID := uuid.New()
 	aliases := []string{
-		"x-winlume-internal-user-id",
-		"x-winlume-internal-identity",
-		"x-winlume-internal-user",
-		"x-winlume-user-id",
+		"x-reizo-internal-user-id",
+		"x-reizo-internal-identity",
+		"x-reizo-internal-user",
+		"x-reizo-user-id",
 	}
 
 	for _, alias := range aliases {
 		t.Run(alias, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-			request.Header.Set("x-winlume-internal-token", "server-secret")
+			request.Header.Set("x-reizo-internal-token", "server-secret")
 			request.Header.Set(alias, userID.String())
 
 			actual, err := AuthenticateStudio(request, "server-secret")
@@ -54,9 +54,9 @@ func TestStudioIdentityRejectsMissingOrMalformedUserID(t *testing.T) {
 	for _, value := range []string{"", "authjs-user-7", uuid.Nil.String(), "bad\r\nidentity"} {
 		t.Run(value, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-			request.Header.Set("x-winlume-internal-token", "server-secret")
+			request.Header.Set("x-reizo-internal-token", "server-secret")
 			if value != "" {
-				request.Header.Set("x-winlume-internal-user-id", value)
+				request.Header.Set("x-reizo-internal-user-id", value)
 			}
 
 			_, err := AuthenticateStudio(request, "server-secret")

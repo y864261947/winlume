@@ -159,7 +159,7 @@ export async function authenticateGoogleOAuth(
   }
 
   // First-time Google user: provision wallet + workspace.
-  const displayName = input.name?.trim() || email.split("@")[0] || "WinLume user";
+  const displayName = input.name?.trim() || email.split("@")[0] || "Reizo user";
   const stem = usernameStemFromGoogleEmail(email);
   let username = normalizeUsername(stem);
   if (!/^[a-z0-9][a-z0-9._-]{2,63}$/.test(username)) {

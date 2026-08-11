@@ -1,6 +1,6 @@
 # Workflow Pack Transformation Plan
 
-**Goal:** Evolve WinLume from free chat plus small Skills into an artifact-first AI workbench where professional scenarios are delivered as observable, versioned Workflow Packs.
+**Goal:** Evolve Reizo from free chat plus small Skills into an artifact-first AI workbench where professional scenarios are delivered as observable, versioned Workflow Packs.
 
 **Non-goals:** `scheduleRun`/cron, external publishing, arbitrary generated UI, a broad marketplace, and fixed ecommerce dashboards.
 

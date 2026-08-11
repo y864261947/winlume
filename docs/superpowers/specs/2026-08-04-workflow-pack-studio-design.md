@@ -7,7 +7,7 @@
 
 ## 1. Outcome
 
-WinLume will expose a first-class professional Workflow experience without turning Studio into a fixed ecommerce or department dashboard.
+Reizo will expose a first-class professional Workflow experience without turning Studio into a fixed ecommerce or department dashboard.
 
 The durable server model remains authoritative:
 

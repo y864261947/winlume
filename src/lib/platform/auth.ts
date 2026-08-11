@@ -3,15 +3,15 @@ import type { PlatformAuthUser, PlatformRole, PlatformSessionClaims, UserStatus 
 import { getPlatformRepositories } from "./repositories";
 import { normalizeUsername, type PlatformUserRecord } from "./repositories/users";
 
-export type AuthMode = "winlume" | "legacy";
+export type AuthMode = "reizo" | "legacy";
 type Environment = Readonly<Record<string, string | undefined>>;
 
 export function getAuthMode(env: Environment = process.env): AuthMode {
-  return env.WINLUME_AUTH_MODE?.trim().toLowerCase() === "legacy" ? "legacy" : "winlume";
+  return env.REIZO_AUTH_MODE?.trim().toLowerCase() === "legacy" ? "legacy" : "reizo";
 }
 
 export function getBcryptCost(env: Environment = process.env): number {
-  const configured = Number.parseInt(env.WINLUME_BCRYPT_COST ?? "", 10);
+  const configured = Number.parseInt(env.REIZO_BCRYPT_COST ?? "", 10);
   if (Number.isInteger(configured) && configured >= 4 && configured <= 16) return configured;
   return 12;
 }

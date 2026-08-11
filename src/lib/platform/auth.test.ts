@@ -30,7 +30,7 @@ function platformUser(overrides: Partial<PlatformUserRecord> = {}): PlatformUser
   };
 }
 
-describe("WinLume credential helpers", () => {
+describe("Reizo credential helpers", () => {
   it("accepts bcrypt hashes emitted by the legacy Go service", async () => {
     const currentHash = await hashPassword("correct horse battery staple", 4);
     const goCompatibleHash = currentHash.replace(/^\$2b\$/, "$2a$");
@@ -103,8 +103,8 @@ describe("WinLume credential helpers", () => {
   });
 
   it("uses the database mode unless legacy is explicitly requested", () => {
-    expect(getAuthMode({})).toBe("winlume");
-    expect(getAuthMode({ WINLUME_AUTH_MODE: "legacy" })).toBe("legacy");
-    expect(getAuthMode({ WINLUME_AUTH_MODE: "new-api" })).toBe("winlume");
+    expect(getAuthMode({})).toBe("reizo");
+    expect(getAuthMode({ REIZO_AUTH_MODE: "legacy" })).toBe("legacy");
+    expect(getAuthMode({ REIZO_AUTH_MODE: "new-api" })).toBe("reizo");
   });
 });

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     default: `${site.name} 文档中心`,
     template: `%s · ${site.name} Docs`,
   },
-  description: "WinLume API 开发者文档：聊天、嵌入、图像、音频、视频等 AI 模型接口参考。",
+  description: "Reizo API 开发者文档：聊天、嵌入、图像、音频、视频等 AI 模型接口参考。",
 };
 
 export default function DocsLayout({ children }: { children: ReactNode }) {

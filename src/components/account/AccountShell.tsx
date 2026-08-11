@@ -63,7 +63,7 @@ export default function AccountShell({ children }: { children: ReactNode }) {
           <div className="portal-nav-shell-fill" aria-hidden />
           <header className="portal-nav" aria-label="主导航">
             <Link href="/" className="portal-brand">
-              Winlume
+              Reizo
             </Link>
             <div className="portal-switcher" role="group" aria-label="版本选择">
               <Link

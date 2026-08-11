@@ -218,7 +218,7 @@ func (store *responseStore) Write(chunk []byte) (int, error) {
 		return 0, store.observationErr
 	}
 	if store.file == nil && int64(store.memory.Len()+len(chunk)) > store.spillThreshold {
-		file, err := os.CreateTemp("", "winlume-gateway-response-*")
+		file, err := os.CreateTemp("", "reizo-gateway-response-*")
 		if err != nil {
 			return 0, fmt.Errorf("create usage response spill file: %w", err)
 		}

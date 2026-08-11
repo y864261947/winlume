@@ -130,7 +130,7 @@ describe("workflow intake", () => {
 
   it("creates a versioned draft key and control-compatible initial values", () => {
     expect(workflowDraftKey("content-office", "1.2.3")).toBe(
-      "winlume:workflow-intake:content-office:1.2.3",
+      "reizo:workflow-intake:content-office:1.2.3",
     );
     expect(initialWorkflowIntake(fields)).toEqual({
       brief: "",

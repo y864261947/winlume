@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"winlume/services/gateway/internal/pricing"
-	"winlume/services/gateway/internal/relay"
-	"winlume/services/gateway/internal/storage"
-	"winlume/services/gateway/internal/usage"
+	"reizo/services/gateway/internal/pricing"
+	"reizo/services/gateway/internal/relay"
+	"reizo/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/usage"
 )
 
 const authoritativePersistenceTimeout = 5 * time.Second
@@ -267,7 +267,7 @@ func normalizeIdempotencyKey(userID uuid.UUID, raw string) string {
 	}
 	// The database only needs equality. Persisting the supplied request header
 	// would make an otherwise private client token visible to support tooling.
-	return uuid.NewSHA1(userID, []byte("winlume-gateway-idempotency-v1:"+raw)).String()
+	return uuid.NewSHA1(userID, []byte("reizo-gateway-idempotency-v1:"+raw)).String()
 }
 
 func totalTokens(actual usage.Canonical) int64 {

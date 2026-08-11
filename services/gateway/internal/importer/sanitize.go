@@ -12,7 +12,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"winlume/services/gateway/internal/pricing"
+	"reizo/services/gateway/internal/pricing"
 )
 
 var maxImportedDecimal = decimal.NewFromInt(1_000_000_000_000)

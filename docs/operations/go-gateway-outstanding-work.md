@@ -2,13 +2,13 @@
 
 Status as of 2026-08-06: all 24 plan tasks (`docs/superpowers/plans/2026-08-04-go-gateway-billing.md`)
 are implemented and committed. The Go Gateway is live in production on
-`176.122.164.148` in `WINLUME_GATEWAY_BILLING_MODE=authoritative`, replacing
+`176.122.164.148` in `REIZO_GATEWAY_BILLING_MODE=authoritative`, replacing
 Fastify entirely. This document tracks what is deliberately still open.
 
 ## 1. No real-money reconciliation yet (highest priority)
 
 No real, funded user account has had a complete request traced end-to-end
-(WinLume's `usage_events` reservation → settlement → the same request's entry
+(Reizo's `usage_events` reservation → settlement → the same request's entry
 in new-api's own consume log) since the authoritative cutover. Everything up
 to that point is verified by:
 
@@ -64,12 +64,12 @@ listed here for completeness per the plan's Task 23 Step 4 / Task 24 Step 4.
 
 - The gateway process runs as `root`, matching the prior Fastify deployment's
   operational pattern. `docs/DEPLOY.md`'s documented production setup
-  recommends a dedicated `winlume-gateway` system user; this was not created
+  recommends a dedicated `reizo-gateway` system user; this was not created
   during cutover to minimize the number of changes in a single deployment.
 - Rollback (both mode-only, to `shadow`, and full reversion to Fastify) has
   documented steps and preserved backup files
   (`gateway.env.pre-authoritative-bak`, `gateway.env.pre-go-bak`,
-  `winlume-gateway.service.pre-go-bak`, `/opt/winlume-gateway.previous-fastify`)
+  `reizo-gateway.service.pre-go-bak`, `/opt/reizo-gateway.previous-fastify`)
   but the rollback procedure itself has not been dry-run.
 
 ## 5. Known, accepted, non-blocking code-level findings

@@ -1,11 +1,11 @@
-# WinLume Go Gateway Design
+# Reizo Go Gateway Design
 
 Status: approved design, pending implementation plan
 Date: 2026-08-04
 
 ## 1. Summary
 
-WinLume will replace the existing Fastify/Node.js/TypeScript Gateway with a
+Reizo will replace the existing Fastify/Node.js/TypeScript Gateway with a
 native Go Gateway. The Go process will preserve the current public transport
 contract while adding new-api-compatible authentication, relay usage
 normalization, pricing, pre-consumption, settlement, refund, subscription
@@ -13,7 +13,7 @@ fallback, API key quota enforcement, and billing audit behavior.
 
 The implementation will not embed or fork the whole new-api application. It
 will port the relevant new-api pricing and billing behavior into focused Go
-modules, then adapt those modules to WinLume's users, API keys, wallets,
+modules, then adapt those modules to Reizo's users, API keys, wallets,
 subscriptions, usage events, and immutable ledgers.
 
 The final invariant is:
@@ -32,12 +32,12 @@ credentials no longer cause new-api to charge the same request.
 - Keep Auth.js unchanged. Next.js continues to validate browser sessions.
 - Authenticate trusted Studio calls with the existing internal token and user
   ID headers.
-- Authenticate external WinLume API keys directly from PostgreSQL.
+- Authenticate external Reizo API keys directly from PostgreSQL.
 - Match new-api pricing, usage fallback, pre-consumption, settlement, refund,
   API key quota, subscription, wallet fallback, and retry semantics.
 - Normalize OpenAI-compatible, Anthropic Claude, Grok/xAI, image, and audio
   usage into one canonical representation.
-- Import the effective production new-api pricing catalog into native WinLume
+- Import the effective production new-api pricing catalog into native Reizo
   PostgreSQL tables without creating a runtime dependency on new-api.
 - Persist shadow calculations and expose an internal paginated reconciliation
   endpoint.
@@ -63,7 +63,7 @@ credentials no longer cause new-api to charge the same request.
 - The Go Gateway replaces Fastify rather than running as a permanent sidecar.
 - Billing modes are `off`, `shadow`, and `authoritative`; the default is
   `shadow`.
-- Native WinLume PostgreSQL tables are the runtime source of truth.
+- Native Reizo PostgreSQL tables are the runtime source of truth.
 - Initial pricing is imported from production new-api through a one-time,
   idempotent command that is dry-run by default and requires `--apply` to
   write.
@@ -197,8 +197,8 @@ depend on selector internals.
 
 Next.js continues to own Auth.js. It validates the session and sends:
 
-- `x-winlume-internal-token`
-- `x-winlume-internal-user-id`
+- `x-reizo-internal-token`
+- `x-reizo-internal-user-id`
 
 The Go Gateway compares the internal token in constant time, validates the user
 ID, and loads the billing profile from PostgreSQL. Browser-provided legacy
@@ -207,7 +207,7 @@ identity headers remain untrusted and are not forwarded upstream.
 ### 7.2 External API keys
 
 External clients use `Authorization: Bearer ...` or `x-api-key`. The Gateway
-hashes the raw key using the existing WinLume scheme and loads the native
+hashes the raw key using the existing Reizo scheme and loads the native
 `api_keys` row. It enforces status, expiry, IP allowlist, model allowlist,
 group policy, and API key quota before relay. Authentication database failure
 returns `503`; it never falls back to an unverified key.
@@ -216,7 +216,7 @@ The raw key is never logged or persisted by the Gateway.
 
 ### 7.3 Billing profiles
 
-A billing profile references a native WinLume user and stores the current
+A billing profile references a native Reizo user and stores the current
 billing preference and default billing group without changing authentication
 records. API key billing policy may override the default group with the group
 imported from the corresponding new-api token.
@@ -462,7 +462,7 @@ settlement.
 
 ### 11.6 Crash recovery
 
-WinLume adds durable recovery around new-api-compatible amounts:
+Reizo adds durable recovery around new-api-compatible amounts:
 
 - a completed normalized usage snapshot enters `settlement_pending` and is
   retried until the same deterministic settlement commits
@@ -586,7 +586,7 @@ creation time. It contains no request body or secret headers.
 ## 14. Pricing Import
 
 The Go `pricing-import` command supports a read-only new-api PostgreSQL source
-and a native WinLume target. Runtime Gateway processes never connect to the
+and a native Reizo target. Runtime Gateway processes never connect to the
 new-api database.
 
 ### 14.1 Imported source data
@@ -609,7 +609,7 @@ new-api database.
 
 The importer includes a compatibility defaults manifest tied to the imported
 algorithm version. Missing options use the matching new-api defaults rather
-than arbitrary WinLume defaults.
+than arbitrary Reizo defaults.
 
 ### 14.2 Safety and idempotency
 
@@ -786,7 +786,7 @@ same request.
 ## 19. Future Channel Work
 
 The first implementation uses one configured upstream per protocol family via
-the existing `WINLUME_GATEWAY_<FAMILY>_UPSTREAM_*` environment variables.
+the existing `REIZO_GATEWAY_<FAMILY>_UPSTREAM_*` environment variables.
 
 Future work adds:
 

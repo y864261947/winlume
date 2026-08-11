@@ -5,7 +5,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"winlume/services/gateway/internal/usage"
+	"reizo/services/gateway/internal/usage"
 )
 
 var toolPricePerThousandCalls = decimal.NewFromInt(1000)

@@ -213,11 +213,11 @@ describe("streamGatewayChat", () => {
   });
 
   it("ignores userId/internalToken and legacy env vars, sending only the Authorization bearer token", async () => {
-    vi.stubEnv("WINLUME_AUTH_MODE", "winlume");
+    vi.stubEnv("REIZO_AUTH_MODE", "reizo");
     vi.stubEnv("NEW_API_URL", "https://retired-new-api.example");
-    vi.stubEnv("WINLUME_GATEWAY_TOKEN", "retired-token");
-    vi.stubEnv("WINLUME_GATEWAY_INTERNAL_TOKEN", "retired-internal-token");
-    vi.stubEnv("WINLUME_SERVICE_KEY", "wl_service_native");
+    vi.stubEnv("REIZO_GATEWAY_TOKEN", "retired-token");
+    vi.stubEnv("REIZO_GATEWAY_INTERNAL_TOKEN", "retired-internal-token");
+    vi.stubEnv("REIZO_SERVICE_KEY", "wl_service_native");
     const fetchImpl = vi.fn(async () => new Response("data: [DONE]\n\n", {
       status: 200,
       headers: { "content-type": "text/event-stream" },
@@ -240,8 +240,8 @@ describe("streamGatewayChat", () => {
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer wl_service_native");
     expect(headers["New-Api-User"]).toBeUndefined();
-    expect(headers["x-winlume-internal-token"]).toBeUndefined();
-    expect(headers["x-winlume-internal-user-id"]).toBeUndefined();
+    expect(headers["x-reizo-internal-token"]).toBeUndefined();
+    expect(headers["x-reizo-internal-user-id"]).toBeUndefined();
     vi.unstubAllEnvs();
   });
 });
@@ -366,9 +366,9 @@ describe("generateImage", () => {
 });
 
 describe("streamGatewayChat auth", () => {
-  it("sends WINLUME_SERVICE_KEY as a Bearer token when no explicit token is passed", async () => {
-    const originalKey = process.env.WINLUME_SERVICE_KEY;
-    process.env.WINLUME_SERVICE_KEY = "wl_service_test";
+  it("sends REIZO_SERVICE_KEY as a Bearer token when no explicit token is passed", async () => {
+    const originalKey = process.env.REIZO_SERVICE_KEY;
+    process.env.REIZO_SERVICE_KEY = "wl_service_test";
     const fetchImpl = vi.fn(async () =>
       new Response("data: [DONE]\n\n", { headers: { "content-type": "text/event-stream" } }),
     );
@@ -380,7 +380,7 @@ describe("streamGatewayChat auth", () => {
       const headers = fetchImpl.mock.calls[0][1]?.headers as Record<string, string>;
       expect(headers.Authorization).toBe("Bearer wl_service_test");
     } finally {
-      process.env.WINLUME_SERVICE_KEY = originalKey;
+      process.env.REIZO_SERVICE_KEY = originalKey;
     }
   });
 });

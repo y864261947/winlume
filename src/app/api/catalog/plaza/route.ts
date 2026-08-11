@@ -44,19 +44,19 @@ async function legacyPlaza(): Promise<Response> {
 
 /** Fallback when no active pricing catalog is loaded: list gateway models without native prices. */
 async function gatewayModelsPlaza(): Promise<Response> {
-  const gatewayUrl = trimUrl(process.env.WINLUME_GATEWAY_URL ?? "http://127.0.0.1:4010");
-  const internalToken = process.env.WINLUME_GATEWAY_INTERNAL_TOKEN?.trim();
+  const gatewayUrl = trimUrl(process.env.REIZO_GATEWAY_URL ?? "http://127.0.0.1:4010");
+  const internalToken = process.env.REIZO_GATEWAY_INTERNAL_TOKEN?.trim();
   if (!internalToken) {
-    return NextResponse.json({ success: false, message: "WinLume 模型目录尚未配置。" }, { status: 503 });
+    return NextResponse.json({ success: false, message: "Reizo 模型目录尚未配置。" }, { status: 503 });
   }
 
   try {
     const upstream = await fetch(`${gatewayUrl}/v1/models`, {
-      headers: { "x-winlume-internal-token": internalToken },
+      headers: { "x-reizo-internal-token": internalToken },
       cache: "no-store",
     });
     if (!upstream.ok) {
-      return NextResponse.json({ success: false, message: "WinLume 模型目录暂时不可访问。" }, { status: 502 });
+      return NextResponse.json({ success: false, message: "Reizo 模型目录暂时不可访问。" }, { status: 502 });
     }
     const payload = (await upstream.json().catch(() => null)) as NativeModelsPayload | null;
     const rows = Array.isArray(payload?.data) ? payload.data : [];
@@ -89,7 +89,7 @@ async function gatewayModelsPlaza(): Promise<Response> {
       })),
     );
   } catch {
-    return NextResponse.json({ success: false, message: "WinLume 模型目录暂时不可访问。" }, { status: 502 });
+    return NextResponse.json({ success: false, message: "Reizo 模型目录暂时不可访问。" }, { status: 502 });
   }
 }
 

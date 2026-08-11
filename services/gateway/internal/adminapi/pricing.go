@@ -23,7 +23,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"winlume/services/gateway/internal/storage"
+	"reizo/services/gateway/internal/storage"
 )
 
 // PricingStore is the storage surface the quick-edit pricing endpoints

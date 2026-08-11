@@ -64,7 +64,7 @@ async function register(request: NextRequest) {
       if (code === "23505") {
         return NextResponse.json({ success: false, message: "用户名或邮箱已被使用。" }, { status: 409 });
       }
-      console.error("WinLume account registration failed", error);
+      console.error("Reizo account registration failed", error);
       return NextResponse.json({ success: false, message: "注册未完成，请稍后重试。" }, { status: 500 });
     }
   }

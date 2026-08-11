@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const internalTokenHeader = "x-winlume-internal-token"
+const internalTokenHeader = "x-reizo-internal-token"
 
 var (
 	ErrUnauthorized   = errors.New("unauthorized")
@@ -22,10 +22,10 @@ var (
 
 	bearerCredential    = regexp.MustCompile(`(?i)^Bearer\s+(\S+)$`)
 	internalUserAliases = []string{
-		"x-winlume-internal-user-id",
-		"x-winlume-internal-identity",
-		"x-winlume-internal-user",
-		"x-winlume-user-id",
+		"x-reizo-internal-user-id",
+		"x-reizo-internal-identity",
+		"x-reizo-internal-user",
+		"x-reizo-user-id",
 	}
 )
 

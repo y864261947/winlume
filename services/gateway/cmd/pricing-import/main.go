@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"winlume/services/gateway/internal/importer"
+	"reizo/services/gateway/internal/importer"
 )
 
 func main() {
@@ -22,7 +22,7 @@ func execute(ctx context.Context, arguments []string, getenv func(string) string
 	var apply bool
 	var activate bool
 	flags.StringVar(&sourceLabel, "source-label", "", "required source instance label")
-	flags.BoolVar(&apply, "apply", false, "write the validated catalog to WinLume")
+	flags.BoolVar(&apply, "apply", false, "write the validated catalog to Reizo")
 	flags.BoolVar(&activate, "activate", false, "activate the imported catalog (requires --apply)")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
@@ -47,7 +47,7 @@ func execute(ctx context.Context, arguments []string, getenv func(string) string
 	if apply {
 		target, err = importer.NewPostgresTarget(ctx, getenv("DATABASE_URL"))
 		if err != nil {
-			_, _ = fmt.Fprintln(stderr, "pricing import could not connect to the WinLume target")
+			_, _ = fmt.Fprintln(stderr, "pricing import could not connect to the Reizo target")
 			return 1
 		}
 		defer target.Close()

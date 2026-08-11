@@ -50,7 +50,7 @@ export function buildMediaWorkerServer(config: MediaWorkerConfig): FastifyInstan
 
   app.get("/healthz", async () => ({
     status: "ok",
-    service: "winlume-media-worker",
+    service: "reizo-media-worker",
     ...queue.snapshot(),
   }));
 

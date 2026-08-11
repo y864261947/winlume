@@ -38,7 +38,7 @@ export function ApiHub() {
       <header className="docs-page-head">
         <h1>API 参考</h1>
         <p className="docs-lead">
-          OpenAI 兼容的 HTTP 接口。鉴权使用 Bearer Token，经 WinLume 网关做校验、路由与计费。
+          OpenAI 兼容的 HTTP 接口。鉴权使用 Bearer Token，经 Reizo 网关做校验、路由与计费。
         </p>
       </header>
 
