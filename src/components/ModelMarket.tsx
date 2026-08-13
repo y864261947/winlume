@@ -695,21 +695,21 @@ export default function ModelMarket() {
             <div className="portal-search-content">
               <SectionLabel>REIZO AI HUB</SectionLabel>
               <h1 id="portal-search-title">搜索全部 AI 能力</h1>
-              <form className="portal-search-form" onSubmit={submitSearch}>
-                <Search aria-hidden />
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 AI 应用、智能体、模型 API、图片、视频与行业工具..." aria-label="搜索 AI 能力" />
-                <button type="submit"><Search aria-hidden />搜索</button>
-              </form>
+              <div className="portal-search-form-row">
+                <form className="portal-search-form" onSubmit={submitSearch}>
+                  <Search aria-hidden />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 AI 应用、智能体、模型 API、图片、视频与行业工具..." aria-label="搜索 AI 能力" />
+                  <button type="submit"><Search aria-hidden />搜索</button>
+                </form>
+                <PortalLink href="/studio" className="portal-workbench-button"><LayoutGrid aria-hidden />进入工作台<ChevronRight aria-hidden /></PortalLink>
+              </div>
               <div className="portal-chip-list" aria-label="热门能力">
                 {["AI 写作", "图片生成", "视频创作", "文件分析", "编程"].map((chip) => (
                   <button key={chip} type="button" className={query === chip ? "is-selected" : ""} onClick={() => { setQuery(chip); setSubmittedQuery(chip); }}>{chip}</button>
                 ))}
               </div>
             </div>
-            <div className="portal-search-actions">
-              <PortalLink href="/studio" className="portal-workbench-button"><LayoutGrid aria-hidden />进入工作台</PortalLink>
-              <ArrowLink href="/products">查看热门搜索</ArrowLink>
-            </div>
+            <div className="portal-search-actions"><ArrowLink href="/products">查看热门搜索</ArrowLink></div>
           </section>
 
           <article className="portal-enterprise-card portal-search-aside" aria-labelledby="portal-enterprise-title">

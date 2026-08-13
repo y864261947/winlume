@@ -4109,6 +4109,50 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-model-plaza-launch,
 .portal-model-plaza-docs { display: inline-flex; min-height: 32px; align-items: center; justify-content: center; gap: 5px; border-radius: 8px; font-size: 12px; font-weight: 700; }.portal-model-plaza-launch { flex: 1; color: #fff; background: var(--portal-blue); }.portal-model-plaza-launch:hover { color: #fff; background: #0b45b0; }.portal-model-plaza-launch svg { width: 14px; height: 14px; }.portal-model-plaza-docs { min-width: 55px; border: 1px solid rgba(126,168,218,.8); color: var(--portal-blue); background: rgba(255,255,255,.72); }.portal-model-plaza-docs:hover { border-color: var(--portal-blue); color: var(--portal-blue); background: rgba(235,245,255,.9); }
 
+/* Personal portal hero: a suspended, layered glass surface rather than a flat card. */
+.portal-search-card,
+.portal-enterprise-card {
+  border-color: rgba(255,255,255,.9);
+  box-shadow:
+    0 30px 60px -30px rgba(42, 83, 135, .5),
+    0 14px 28px -16px rgba(67, 125, 193, .28),
+    inset 0 1px 1px rgba(255,255,255,.98),
+    inset 0 -1px 1px rgba(101, 157, 214, .1);
+  backdrop-filter: blur(20px) saturate(1.16);
+  -webkit-backdrop-filter: blur(20px) saturate(1.16);
+}
+.portal-search-card {
+  height: 258px;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse 48% 92% at 15% 15%, rgba(255,255,255,.8), transparent 74%),
+    radial-gradient(ellipse 46% 94% at 88% 85%, rgba(163, 235, 255, .34), transparent 76%),
+    linear-gradient(128deg, rgba(255,255,255,.7) 0%, rgba(225,241,255,.54) 48%, rgba(238,250,255,.44) 100%);
+}
+.portal-search-card::before,
+.portal-search-card::after { position: absolute; z-index: 0; content: ""; pointer-events: none; }
+.portal-search-card::before { inset: 1px 1px auto; height: 46%; border-radius: 9px 9px 45% 45%; background: linear-gradient(180deg, rgba(255,255,255,.52), transparent); }
+.portal-search-card::after { right: -8%; bottom: -85%; width: 55%; aspect-ratio: 1; border: 1px solid rgba(255,255,255,.75); border-radius: 50%; box-shadow: 0 0 0 34px rgba(131, 205, 255, .08), 0 0 0 68px rgba(255,255,255,.09); }
+.portal-search-waves { z-index: 0; height: 258px !important; opacity: .76; mix-blend-mode: screen; }
+.portal-search-content { z-index: 1; }
+.portal-search-form-row { display: flex; align-items: stretch; gap: 14px; margin-top: 9px; }
+.portal-search-form { flex: 1; margin-top: 0; border-color: rgba(255,255,255,.94); background: linear-gradient(130deg, rgba(255,255,255,.75), rgba(244,250,255,.5)); box-shadow: 0 14px 28px -20px rgba(43,92,144,.55), inset 0 1px 1px rgba(255,255,255,.95); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.portal-search-form button { min-width: 98px; color: #172e55; background: linear-gradient(145deg, rgba(255,255,255,.86), rgba(226,241,255,.62)); box-shadow: inset 0 1px 1px rgba(255,255,255,.96), 0 8px 18px -15px rgba(20,89,185,.45); }
+.portal-search-form button:hover { color: #fff; background: linear-gradient(145deg, #0c61d6, #0759c8); }
+.portal-workbench-button { min-height: 48px; padding: 0 17px; border: 1px solid rgba(255,255,255,.94); color: #123a77; background: linear-gradient(135deg, rgba(255,255,255,.76), rgba(155,224,255,.45)); box-shadow: 0 15px 27px -18px rgba(31,118,208,.72), inset 0 1px 1px rgba(255,255,255,.98), inset 0 -1px 1px rgba(73,173,240,.18); backdrop-filter: blur(16px) saturate(1.15); -webkit-backdrop-filter: blur(16px) saturate(1.15); font-size: 14px; transition: transform .2s ease, box-shadow .2s ease, background-color .2s ease; }
+.portal-workbench-button:hover { color: #0c3675; background: linear-gradient(135deg, rgba(255,255,255,.92), rgba(143,218,255,.66)); box-shadow: 0 20px 32px -18px rgba(31,118,208,.75), inset 0 1px 1px #fff; transform: translateY(-2px); }
+.portal-workbench-button svg { width: 17px; height: 17px; }.portal-workbench-button svg:last-child { width: 15px; height: 15px; margin-left: 3px; }
+.portal-chip-list button { border-color: rgba(255,255,255,.86); background: rgba(255,255,255,.48); box-shadow: inset 0 1px 1px rgba(255,255,255,.88), 0 8px 18px -16px rgba(46,91,140,.52); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.portal-search-actions { right: 26px; bottom: 14px; }
+@media (max-width: 760px) {
+  .portal-search-card { height: 286px; }
+  .portal-search-waves { height: 286px !important; }
+  .portal-search-form-row { flex-wrap: wrap; gap: 9px; }
+  .portal-search-form { flex-basis: 100%; }
+  .portal-workbench-button { min-height: 38px; padding: 0 12px; font-size: 13px; }
+  .portal-search-actions { right: 17px; bottom: 11px; }
+}
+
 /* Portal pricing: carries the personal home visual language into the billing catalog. */
 .portal-pricing-page {
   --portal-blue: #0759c8;
@@ -4211,4 +4255,94 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 
 @media (prefers-reduced-motion: reduce) {
   .portal-api-trigger, .portal-api-trigger > svg, .portal-api-menu a { transition: none; }
+}
+
+/* Personal portal material system: glass gets lighter as information density rises. */
+.portal-home .portal-nav-shell {
+  box-shadow: 0 22px 42px -28px rgba(34, 74, 122, .44), inset 0 1px 0 rgba(255,255,255,.92);
+}
+.portal-home .portal-nav-shell-fill {
+  border-color: rgba(255,255,255,.92);
+  background-color: rgba(237,246,255,.64);
+  background-image:
+    radial-gradient(ellipse 82% 72% at 12% -10%, rgba(132, 198, 255, .34), transparent 58%),
+    radial-gradient(ellipse 58% 65% at 94% 8%, rgba(255, 214, 179, .22), transparent 58%),
+    linear-gradient(118deg, rgba(255,255,255,.7), rgba(225,240,255,.45) 55%, rgba(252,248,243,.54));
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.98), inset 0 -1px 1px rgba(77,135,196,.1);
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+}
+.portal-home .portal-nav {
+  text-shadow: 0 1px rgba(255,255,255,.58);
+}
+.portal-home .portal-catalog-hero,
+.portal-home .portal-catalog-filters {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.88);
+  box-shadow: 0 21px 42px -28px rgba(35, 80, 133, .36), inset 0 1px 1px rgba(255,255,255,.94);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+}
+.portal-home .portal-catalog-hero {
+  background:
+    radial-gradient(ellipse 44% 94% at 92% 0%, rgba(131, 208, 255, .24), transparent 74%),
+    radial-gradient(ellipse 54% 100% at 10% 100%, rgba(255,255,255,.66), transparent 72%),
+    linear-gradient(130deg, rgba(255,255,255,.7), rgba(229,243,255,.48) 58%, rgba(250,253,255,.42));
+}
+.portal-home .portal-catalog-filters {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 14px;
+  border-radius: 13px;
+  background: rgba(255,255,255,.46);
+}
+.portal-home .portal-catalog-filter-label { flex: 0 0 auto; margin: 0; }
+.portal-home .portal-catalog-filters .portal-chip-list { margin: 0; }
+.portal-home .portal-catalog-modebar button,
+.portal-home .portal-catalog-search,
+.portal-home .portal-catalog-search > button[type="submit"],
+.portal-home .portal-catalog-filters .portal-chip-list button {
+  border-color: rgba(255,255,255,.9);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.93), 0 10px 20px -18px rgba(34,77,122,.54);
+  backdrop-filter: blur(13px);
+  -webkit-backdrop-filter: blur(13px);
+}
+.portal-home .portal-catalog-modebar button,
+.portal-home .portal-catalog-search,
+.portal-home .portal-catalog-filters .portal-chip-list button { background: rgba(255,255,255,.52); }
+.portal-home .portal-catalog-search > button[type="submit"] { color: #173967; background: linear-gradient(135deg, rgba(255,255,255,.86), rgba(185,224,255,.62)); }
+.portal-home .portal-catalog-search > button[type="submit"]:hover { color: #fff; background: var(--portal-blue); }
+.portal-home .portal-product-card,
+.portal-home .portal-model-plaza-card {
+  border-color: rgba(255,255,255,.9);
+  background: linear-gradient(145deg, rgba(255,255,255,.72), rgba(236,247,255,.45));
+  box-shadow: 0 18px 32px -26px rgba(30,75,122,.52), inset 0 1px 1px rgba(255,255,255,.96);
+  backdrop-filter: blur(14px) saturate(1.06);
+  -webkit-backdrop-filter: blur(14px) saturate(1.06);
+}
+.portal-home .portal-product-card:hover,
+.portal-home .portal-model-plaza-card:hover {
+  border-color: rgba(172,224,255,.94);
+  box-shadow: 0 26px 38px -25px rgba(35,109,191,.45), inset 0 1px 1px rgba(255,255,255,.98);
+  transform: translateY(-3px);
+}
+.portal-home .portal-product-card-price,
+.portal-home .portal-model-plaza-docs,
+.portal-home .portal-model-plaza-launch,
+.portal-home .portal-product-card-detail,
+.portal-home .portal-product-card-launch {
+  border-color: rgba(255,255,255,.88);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.9), 0 8px 16px -15px rgba(34,88,150,.4);
+}
+.portal-home .portal-catalog-empty {
+  border-color: rgba(255,255,255,.9);
+  background: rgba(255,255,255,.48);
+  box-shadow: 0 18px 30px -24px rgba(34,79,125,.38), inset 0 1px 1px rgba(255,255,255,.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+@media (max-width: 760px) {
+  .portal-home .portal-catalog-filters { align-items: flex-start; flex-direction: column; gap: 7px; }
 }
