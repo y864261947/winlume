@@ -15,16 +15,19 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const context = await requireConsoleContext();
-    const organizationId = new URL(request.url).searchParams.get("organizationId") || null;
+    const organizations = await listConsoleOrganizations(context);
+    const requested = new URL(request.url).searchParams.get("organizationId") || null;
+    const platformUser = requested ? null : await context.repositories.users.findById(context.userId);
+    const currentOrganizationId = platformUser?.currentOrganizationId ?? null;
+    const organizationId = requested
+      ?? (currentOrganizationId && organizations.some((organization) => organization.id === currentOrganizationId)
+        ? currentOrganizationId
+        : organizations[0]?.id ?? null);
     if (organizationId) {
-      // Throws 403/404 if the caller isn't a member of this organization.
       await requireConsoleOrganization(context, organizationId);
     }
-    const [keys, organizations] = await Promise.all([
-      listConsoleApiKeys(context, organizationId),
-      listConsoleOrganizations(context),
-    ]);
-    return consoleJson({ keys, organizations });
+    const keys = organizationId ? await listConsoleApiKeys(context, organizationId) : [];
+    return consoleJson({ keys, organizations, organizationId });
   } catch (error) {
     return consoleError(error);
   }

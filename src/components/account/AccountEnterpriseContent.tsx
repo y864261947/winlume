@@ -1,11 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, LoaderCircle } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { ConsoleEmptyState, ConsolePage } from "@/components/console/ConsolePage";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { listConsoleKeys } from "@/lib/console/client";
 import type { ConsoleOrganization } from "@/lib/console/types";
-import { ConsoleEmptyState, ConsolePage } from "@/components/console/ConsolePage";
 
 type EnterpriseBillingRequest = {
   id: string;
@@ -29,12 +44,6 @@ const statusLabels: Record<EnterpriseBillingRequest["status"], string> = {
   rejected: "未通过",
 };
 
-const statusStyles: Record<EnterpriseBillingRequest["status"], string> = {
-  pending: "border-amber-200 bg-amber-50 text-amber-900",
-  approved: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  rejected: "border-rose-200 bg-rose-50 text-rose-900",
-};
-
 function date(value: string) {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime())
@@ -53,50 +62,35 @@ async function fetchExistingRequest(organizationId: string): Promise<EnterpriseB
 
 function StatusCard({ request }: { request: EnterpriseBillingRequest }) {
   return (
-    <div className="border border-line bg-surface p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-ink-950">{request.companyName}</p>
-          <p className="mt-1 text-xs text-ink-500">提交于 {date(request.createdAt)}</p>
+          <CardTitle>{request.companyName}</CardTitle>
+          <CardDescription>提交于 {date(request.createdAt)}</CardDescription>
         </div>
-        <span className={`border px-2.5 py-1 text-xs font-medium ${statusStyles[request.status]}`}>
+        <Badge variant={request.status === "approved" ? "success" : request.status === "rejected" ? "destructive" : "outline"}>
           {statusLabels[request.status]}
-        </span>
-      </div>
-      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-        <div>
-          <dt className="text-xs text-ink-500">联系人</dt>
-          <dd className="mt-1 text-ink-800">
-            {request.contactName} · {request.contactEmail}
-            {request.contactPhone ? ` · ${request.contactPhone}` : ""}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-ink-500">统一社会信用代码</dt>
-          <dd className="mt-1 text-ink-800">{request.taxId ?? "--"}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-ink-500">预估月消耗（Credits）</dt>
-          <dd className="mt-1 text-ink-800">{request.estimatedMonthlySpendCredits ?? "--"}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-ink-500">备注</dt>
-          <dd className="mt-1 text-ink-800">{request.notes ?? "--"}</dd>
-        </div>
-      </dl>
-      {request.status === "pending" ? (
-        <p className="mt-4 text-xs leading-5 text-ink-500">我们会尽快人工审核并通过联系邮箱与你确认，请保持联系方式畅通。</p>
-      ) : null}
-      {request.status === "approved" ? (
-        <p className="mt-4 text-xs leading-5 text-ink-500">申请已通过，我们会通过联系邮箱与你对接线下签约与对公结算事宜。</p>
-      ) : null}
-      {request.status === "rejected" ? (
-        <div className="mt-4 border border-rose-100 bg-rose-50/60 px-3 py-2">
-          <p className="text-xs font-medium text-rose-900">未通过原因</p>
-          <p className="mt-1 text-xs leading-5 text-rose-800">{request.reviewNotes ?? "未提供具体原因，可联系支持了解详情。"}</p>
-        </div>
-      ) : null}
-    </div>
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <p className="text-ink-800">
+          {request.contactName} · {request.contactEmail}
+          {request.contactPhone ? ` · ${request.contactPhone}` : ""}
+        </p>
+        <p className="text-xs text-ink-500">统一社会信用代码 {request.taxId ?? "--"}</p>
+        {request.status === "pending" ? (
+          <p className="text-xs leading-5 text-ink-500">人工审核中，请保持联系邮箱畅通。</p>
+        ) : null}
+        {request.status === "approved" ? (
+          <p className="text-xs leading-5 text-ink-500">已通过，我们会通过邮箱对接线下签约。当前不支持自动开票。</p>
+        ) : null}
+        {request.status === "rejected" ? (
+          <Alert variant="destructive">
+            <AlertDescription>{request.reviewNotes ?? "未提供具体原因，可联系支持了解详情。"}</AlertDescription>
+          </Alert>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -151,97 +145,66 @@ function RequestForm({
   }
 
   return (
-    <form onSubmit={submit} className="border border-line bg-surface p-5">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block text-sm font-medium text-ink-800">
-          公司名称
-          <input
-            autoFocus
-            value={companyName}
-            onChange={(event) => setCompanyName(event.target.value)}
-            maxLength={200}
-            placeholder="例如：示例科技有限公司"
-            className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500"
-          />
-        </label>
-        <label className="block text-sm font-medium text-ink-800">
-          统一社会信用代码（可选）
-          <input
-            value={taxId}
-            onChange={(event) => setTaxId(event.target.value)}
-            maxLength={64}
-            className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500"
-          />
-        </label>
-        <label className="block text-sm font-medium text-ink-800">
-          联系人姓名
-          <input
-            value={contactName}
-            onChange={(event) => setContactName(event.target.value)}
-            maxLength={120}
-            className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500"
-          />
-        </label>
-        <label className="block text-sm font-medium text-ink-800">
-          联系邮箱
-          <input
-            type="email"
-            value={contactEmail}
-            onChange={(event) => setContactEmail(event.target.value)}
-            maxLength={320}
-            className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500"
-          />
-        </label>
-        <label className="block text-sm font-medium text-ink-800">
-          联系电话（可选）
-          <input
-            value={contactPhone}
-            onChange={(event) => setContactPhone(event.target.value)}
-            maxLength={40}
-            className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500"
-          />
-        </label>
-        <label className="block text-sm font-medium text-ink-800">
-          预估月消耗（Credits，可选）
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={estimatedMonthlySpend}
-            onChange={(event) => setEstimatedMonthlySpend(event.target.value)}
-            className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500"
-          />
-        </label>
-      </div>
-      <label className="mt-4 block text-sm font-medium text-ink-800">
-        备注（可选）
-        <textarea
-          value={notes}
-          onChange={(event) => setNotes(event.target.value)}
-          maxLength={4000}
-          rows={3}
-          placeholder="补充说明业务场景、预期上线时间等信息"
-          className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500"
-        />
-      </label>
-      <p className="mt-3 text-xs leading-5 text-ink-500">
-        提交后由 Reizo 团队人工审核，通过后我们会通过联系邮箱与你对接线下签约与对公结算事宜（当前不支持自动开票）。
-      </p>
-      {error ? (
-        <p role="alert" className="mt-3 text-sm text-rose-700">
-          {error}
-        </p>
-      ) : null}
-      <div className="mt-4 flex justify-end">
-        <button
-          disabled={submitting}
-          className="inline-flex items-center gap-2 bg-ink-950 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800 disabled:opacity-60"
-        >
-          {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
-          提交申请
-        </button>
-      </div>
-    </form>
+    <Card>
+      <CardHeader>
+        <CardTitle>提交申请</CardTitle>
+        <CardDescription>审核通过后走线下签约，暂不支持自动开票。</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="flex flex-col gap-5">
+          <FieldGroup>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="company-name">公司名称</FieldLabel>
+                <Input id="company-name" autoFocus value={companyName} onChange={(event) => setCompanyName(event.target.value)} maxLength={200} placeholder="例如：示例科技有限公司" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="tax-id">统一社会信用代码</FieldLabel>
+                <Input id="tax-id" value={taxId} onChange={(event) => setTaxId(event.target.value)} maxLength={64} />
+                <FieldDescription>可选。</FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="contact-name">联系人姓名</FieldLabel>
+                <Input id="contact-name" value={contactName} onChange={(event) => setContactName(event.target.value)} maxLength={120} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="contact-email">联系邮箱</FieldLabel>
+                <Input id="contact-email" type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} maxLength={320} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="contact-phone">联系电话</FieldLabel>
+                <Input id="contact-phone" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={40} />
+                <FieldDescription>可选。</FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="monthly-spend">预估月消耗</FieldLabel>
+                <Input id="monthly-spend" type="number" min="0" step="0.01" value={estimatedMonthlySpend} onChange={(event) => setEstimatedMonthlySpend(event.target.value)} />
+                <FieldDescription>可选，单位 Credits。</FieldDescription>
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel htmlFor="notes">备注</FieldLabel>
+              <textarea
+                id="notes"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                maxLength={4000}
+                rows={3}
+                placeholder="补充业务场景或预期上线时间"
+                className="flex min-h-20 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink-950 shadow-sm outline-none placeholder:text-ink-400 focus-visible:ring-2 focus-visible:ring-primary-400"
+              />
+            </Field>
+          </FieldGroup>
+          {error ? <FieldError>{error}</FieldError> : null}
+          <div className="flex justify-end">
+            <Button type="submit" disabled={submitting}>
+              {submitting ? <Spinner data-icon="inline-start" /> : <Building2 data-icon="inline-start" />}
+              提交申请
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -256,8 +219,6 @@ export default function AccountEnterpriseContent() {
     setLoading(true);
     setError(null);
     try {
-      // listConsoleKeys() also returns the caller's accessible organizations —
-      // reused here purely for that list, mirroring ConsoleKeysContent's switcher.
       const result = await listConsoleKeys();
       setOrganizations(result.organizations);
       const nextOrganizationId = result.organizations[0]?.id ?? null;
@@ -297,62 +258,63 @@ export default function AccountEnterpriseContent() {
   return (
     <ConsolePage
       title="对公结算"
-      description="面向企业客户的额度合作：提交企业信息与预估用量，由 Reizo 团队人工审核，通过后走线下签约（暂不支持自动开票）。"
+      description="企业额度合作申请。通过后走线下签约，这里不处理日常充值和消耗。"
     >
       {loading && organizations === null ? (
-        <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-ink-500">
-          <LoaderCircle className="h-4 w-4 animate-spin" /> 正在加载…
+        <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Spinner /> 正在加载…
         </div>
       ) : null}
 
       {organizations !== null && organizations.length === 0 ? (
-        <ConsoleEmptyState
-          title="需要先创建工作区"
-          description="对公结算面向组织级的工作区，请先在“团队”页面创建或加入一个工作区，再回来提交申请。"
-        />
-      ) : null}
-
-      {organizations !== null && organizations.length === 0 ? (
-        <div className="mt-4 flex justify-center">
-          <Link href="/account/team" className="inline-flex items-center gap-2 bg-ink-950 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800">
-            <Building2 className="h-4 w-4" /> 前往创建工作区
-          </Link>
+        <div className="space-y-4">
+          <ConsoleEmptyState
+            title="需要先有工作区"
+            description="对公结算面向组织工作区。先到团队页创建或加入，再回来提交。"
+          />
+          <div className="flex justify-center">
+            <Button asChild>
+              <Link href="/account/team">前往团队</Link>
+            </Button>
+          </div>
         </div>
       ) : null}
 
       {organizations !== null && organizations.length > 0 ? (
         <div className="space-y-6">
-          <div className="flex items-center gap-2 text-sm text-ink-600">
-            <span>工作区</span>
-            <select
-              aria-label="选择工作区"
-              value={organizationId ?? ""}
-              onChange={(event) => void switchOrganization(event.target.value)}
-              className="border border-line bg-canvas px-2 py-1.5 text-sm text-ink-700 outline-none focus:border-ink-500"
-            >
-              {organizations.map((organization) => (
-                <option key={organization.id} value={organization.id}>
-                  {organization.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {organizations.length > 1 && organizationId ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>工作区</span>
+              <Select value={organizationId} onValueChange={(value) => void switchOrganization(value)}>
+                <SelectTrigger aria-label="选择工作区" className="w-52">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {organizations.map((organization) => (
+                      <SelectItem key={organization.id} value={organization.id}>{organization.name}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
 
           {error ? (
-            <p role="alert" className="border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-              {error}
-            </p>
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           ) : null}
 
           {!canManage ? (
-            <p className="border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              你可以查看该工作区的对公结算申请状态，但只有工作区 owner 或 admin 可以提交申请。
-            </p>
+            <Alert>
+              <AlertDescription>你可以查看申请状态，只有工作区 owner 或 admin 可以提交。</AlertDescription>
+            </Alert>
           ) : null}
 
           {loading ? (
-            <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-ink-500">
-              <LoaderCircle className="h-4 w-4 animate-spin" /> 正在加载…
+            <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Spinner /> 正在加载…
             </div>
           ) : (
             <>

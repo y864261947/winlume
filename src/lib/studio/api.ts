@@ -454,6 +454,23 @@ export async function patchSession(
   return parseJson<Session>(response);
 }
 
+export async function deleteSession(id: string): Promise<void> {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: withUserHeaders(),
+    credentials: "same-origin",
+  });
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (response.status === 404) throw new StudioApiError("会话不存在", 404);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "删除会话失败",
+      response.status,
+    );
+  }
+}
+
 export type ChatRequestBody = {
   sessionId?: string;
   message?: string;

@@ -1,23 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  BarChart3,
   ChevronRight,
-  Compass,
   FolderKanban,
   Plus,
-  HelpCircle,
   LayoutGrid,
   LoaderCircle,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  Settings2,
   Sparkles,
+  UserRound,
   Wallet,
 } from "lucide-react";
 import { useModals } from "@/components/providers";
@@ -26,8 +25,23 @@ import { site } from "@/data/site";
 import { listSessions } from "@/lib/studio/api";
 import { listProjects } from "@/lib/studio/api";
 import type { Project, Session } from "@/lib/agent/types";
-import LiquidGlassNavIndicator from "./LiquidGlassNavIndicator";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import ProjectDialog from "./ProjectDialog";
+import {
+  getUnreadSessionIds,
+  getUnreadSessionIdsServer,
+  setViewedStudioSession,
+  subscribeUnreadSessions,
+} from "@/lib/studio/session-unread";
+import StudioSearchDialog from "./StudioSearchDialog";
+import StudioSettingsDialog from "./StudioSettingsDialog";
 
 type NavItem = {
   href: string;
@@ -39,10 +53,8 @@ type NavItem = {
 
 const primaryNav: NavItem[] = [
   { href: "/studio", label: "开始创作", icon: Sparkles, exact: true },
-  { href: "/studio/skills", label: "全部能力", icon: LayoutGrid },
+  { href: "/studio/skills", label: "全部工具", icon: LayoutGrid },
   { href: "/studio/artifacts", label: "我的作品", icon: FolderKanban },
-  { href: "/studio/inspire", label: "灵感广场", icon: Compass },
-  { href: "/studio", label: "任务进度", icon: BarChart3, soon: true },
 ];
 
 function useSignOutAction() {
@@ -71,6 +83,23 @@ function navActive(pathname: string, href: string, exact?: boolean) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function usePersistedOpen(key: string, fallback = true) {
+  const [open, setOpen] = useState(fallback);
+  useEffect(() => {
+    const stored = window.localStorage.getItem(key);
+    if (stored === "0") setOpen(false);
+    if (stored === "1") setOpen(true);
+  }, [key]);
+  const toggle = useCallback(() => {
+    setOpen((current) => {
+      const next = !current;
+      window.localStorage.setItem(key, next ? "1" : "0");
+      return next;
+    });
+  }, [key]);
+  return [open, toggle] as const;
+}
+
 export default function StudioSidebar({
   temporary = false,
   onRequestCollapse,
@@ -82,13 +111,51 @@ export default function StudioSidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { account, accountLoading, balanceConfig } = useModals();
+  const { account, accountLoading, balanceConfig, openLogin } = useModals();
   const signOutAction = useSignOutAction();
   const [recent, setRecent] = useState<Session[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [projectsOpen, toggleProjectsOpen] = usePersistedOpen("reizo:studio-sidebar-projects");
+  const [recentsOpen, toggleRecentsOpen] = usePersistedOpen("reizo:studio-sidebar-recents");
+  const unreadIds = useSyncExternalStore(
+    subscribeUnreadSessions,
+    getUnreadSessionIds,
+    getUnreadSessionIdsServer,
+  );
+  const viewedSessionId = pathname.startsWith("/studio/c/")
+    ? decodeURIComponent(pathname.slice("/studio/c/".length))
+    : null;
+
+  useEffect(() => {
+    setViewedStudioSession(viewedSessionId);
+  }, [viewedSessionId]);
+
+  useEffect(() => {
+    document.body.style.removeProperty("pointer-events");
+  }, []);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if ((event.key === "k" || event.key === "K") && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        setSearchOpen(true);
+        return;
+      }
+      if (event.key === "/" && !event.metaKey && !event.ctrlKey && !event.altKey && !typing) {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     if (!account) return;
@@ -161,8 +228,8 @@ export default function StudioSidebar({
     .toUpperCase();
 
   return (
-    <aside className={`studio-glass relative z-[2] flex h-full w-[222px] shrink-0 flex-col border-r border-white/70 px-4 py-5 ${temporary ? "shadow-[12px_0_30px_rgba(36,30,54,0.16)]" : ""}`}>
-      <div className="mb-6 flex items-center gap-1">
+    <aside className={`studio-glass relative z-[2] flex h-full w-[248px] shrink-0 flex-col border-r border-white/70 px-3 py-4 ${temporary ? "shadow-[12px_0_30px_rgba(36,30,54,0.16)]" : ""}`}>
+      <div className="mb-5 flex items-center gap-1">
         <Link href="/studio" className="flex min-w-0 flex-1 items-center gap-2.5 px-2">
           <span className="studio-logo-mark flex h-[30px] w-[30px] shrink-0 items-center justify-center">
             <Image src="/brand/reizo-mark.png" alt="" width={30} height={30} priority />
@@ -194,164 +261,158 @@ export default function StudioSidebar({
         ) : null}
       </div>
 
-      <LiquidGlassNavIndicator
-        key={pathname}
-        activeItem={
-          primaryNav.find(
-            (item) => !item.soon && navActive(pathname, item.href, item.exact),
-          )?.href ?? "/studio"
-        }
-        onNavigate={(href) => router.push(href)}
+      <button
+        type="button"
+        onClick={() => setSearchOpen(true)}
+        className="studio-nav-item mb-2 flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-[14px] text-[#615A73] outline-none transition-colors focus-visible:outline-none"
       >
+        <Search className="size-[18px] shrink-0" strokeWidth={1.8} />
+        快速搜索
+        <kbd className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] border border-black/5 bg-white/70 px-1 text-[10.5px] font-bold text-[#8A7860]">
+          /
+        </kbd>
+      </button>
+
+      <nav className="flex flex-col gap-0.5" aria-label="Studio 导航">
         {primaryNav.map((item) => {
           const Icon = item.icon;
-          if (item.soon) {
-            return (
-              <span
-                key={item.label}
-                title="即将上线"
-                className="studio-nav-item flex cursor-not-allowed items-center gap-2.5 rounded-[11px] px-3 py-2.5 text-[14px] text-[#8A8298] transition"
-              >
-                <Icon className="h-[18px] w-[18px] shrink-0 opacity-70" strokeWidth={1.8} />
-                {item.label}
-                <span className="ml-auto rounded-md bg-white/70 px-1.5 text-[10px] text-[#8A7860]">
-                  即将
-                </span>
-              </span>
-            );
-          }
           const active = navActive(pathname, item.href, item.exact);
           return (
-            <a
+            <Link
               key={item.label}
               href={item.href}
-              data-studio-nav-id={item.href}
-              onClick={(event) => {
-                if (
-                  event.metaKey ||
-                  event.ctrlKey ||
-                  event.shiftKey ||
-                  event.altKey
-                ) {
-                  return;
-                }
-                event.preventDefault();
-                event.currentTarget.dispatchEvent(
-                  new CustomEvent("studio-nav-intent", {
-                    bubbles: true,
-                    detail: item.href,
-                  }),
-                );
-              }}
-              className={`studio-nav-item flex items-center gap-2.5 rounded-[11px] px-3 py-2.5 text-[14px] transition duration-150 ${
+              className={`studio-nav-item flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-[14px] outline-none transition-colors focus-visible:outline-none ${
                 active ? "studio-nav-active" : "text-[#615A73]"
               }`}
             >
-              <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+              <Icon className="size-[18px] shrink-0" strokeWidth={1.8} />
               {item.label}
-            </a>
+            </Link>
           );
         })}
-      </LiquidGlassNavIndicator>
+      </nav>
 
-      <div className="mt-5 min-h-0 max-h-[38%] overflow-y-auto px-1">
-        <div className="mb-2 flex items-center justify-between px-2">
-          <p className="text-[11px] font-semibold tracking-wide text-[#8A8298]">
-            项目
-          </p>
-          {account ? (
+      <div className="mt-6 flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
+        <div className="flex min-h-0 flex-col">
+          <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setProjectDialogOpen(true)}
-              title="新建项目"
-              aria-label="新建项目"
-              className="inline-flex h-6 w-6 items-center justify-center rounded-[7px] text-[#615A73] transition hover:bg-white/75 hover:text-[#241E36]"
+              onClick={toggleProjectsOpen}
+              className="studio-nav-item flex min-w-0 flex-1 items-center gap-1 rounded-[12px] px-3 py-2 text-left text-[13px] text-[#8A8298] outline-none transition-colors hover:text-[#241E36] focus-visible:outline-none"
+              aria-expanded={projectsOpen}
             >
-              <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+              <ChevronRight className={`size-3.5 shrink-0 transition-transform ${projectsOpen ? "rotate-90" : ""}`} />
+              项目
             </button>
+            {account ? (
+              <button
+                type="button"
+                onClick={() => setProjectDialogOpen(true)}
+                title="新建项目"
+                aria-label="新建项目"
+                className="mr-1 inline-flex size-7 items-center justify-center rounded-[8px] text-[#615A73] outline-none transition-colors hover:bg-white/70 hover:text-[#241E36] focus-visible:outline-none"
+              >
+                <Plus className="size-3.5" strokeWidth={2} />
+              </button>
+            ) : null}
+          </div>
+          {projectsOpen ? (
+            <div className="min-h-0 overflow-y-auto px-1 pb-2">
+              {!account ? (
+                <p className="px-3 py-1.5 text-xs leading-5 text-[#8A8298]">登录后管理项目</p>
+              ) : projectsLoading ? (
+                <p className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#8A8298]">
+                  <LoaderCircle className="size-3.5 animate-spin" />
+                  加载中…
+                </p>
+              ) : projects.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setProjectDialogOpen(true)}
+                  className="w-full rounded-[12px] px-3 py-2 text-left text-xs leading-5 text-[#8A8298] transition-colors hover:bg-white/60 hover:text-[#615A73]"
+                >
+                  创建一个项目
+                </button>
+              ) : (
+                <ul className="flex flex-col gap-0.5">
+                  {projects.slice(0, 12).map((project) => {
+                    const active = pathname === `/studio/p/${project.id}`;
+                    const count = sessionCounts.get(project.id);
+                    return (
+                      <li key={project.id}>
+                        <Link
+                          href={`/studio/p/${encodeURIComponent(project.id)}`}
+                          className={`studio-nav-item flex min-w-0 items-center gap-2 rounded-[12px] px-3 py-2 text-[13px] outline-none transition-colors focus-visible:outline-none ${
+                            active ? "studio-nav-active" : "text-[#615A73]"
+                          }`}
+                          title={project.description || project.name}
+                        >
+                          <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                          {count ? (
+                            <span className="shrink-0 text-[11px] tabular-nums text-[#AAA2B2]">
+                              {count}
+                            </span>
+                          ) : null}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           ) : null}
         </div>
-        {!account ? (
-          <p className="px-2 text-xs leading-5 text-[#8A8298]">登录后管理项目</p>
-        ) : projectsLoading ? (
-          <p className="flex items-center gap-1.5 px-2 text-xs text-[#8A8298]">
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-            加载中…
-          </p>
-        ) : projects.length === 0 ? (
+
+        <div className="flex min-h-0 flex-1 flex-col">
           <button
             type="button"
-            onClick={() => setProjectDialogOpen(true)}
-            className="group w-full rounded-[10px] border border-dashed border-white/80 px-2.5 py-2 text-left text-xs leading-5 text-[#8A8298] transition hover:border-[rgba(15,23,42,0.2)] hover:bg-white/50 hover:text-[#615A73]"
+            onClick={toggleRecentsOpen}
+            className="studio-nav-item flex w-full items-center gap-1 rounded-[12px] px-3 py-2 text-left text-[13px] text-[#8A8298] outline-none transition-colors hover:text-[#241E36] focus-visible:outline-none"
+            aria-expanded={recentsOpen}
           >
-            创建一个项目，把相关对话放在一起
+            <ChevronRight className={`size-3.5 shrink-0 transition-transform ${recentsOpen ? "rotate-90" : ""}`} />
+            对话
           </button>
-        ) : (
-          <ul className="space-y-0.5">
-            {projects.slice(0, 12).map((project) => {
-              const active = pathname === `/studio/p/${project.id}`;
-              const count = sessionCounts.get(project.id);
-              return (
-                <li key={project.id}>
-                  <Link
-                    href={`/studio/p/${encodeURIComponent(project.id)}`}
-                    className={`studio-nav-item flex min-w-0 items-center gap-2 rounded-[10px] px-2.5 py-2 text-[13px] transition ${
-                      active
-                        ? "studio-nav-active"
-                        : "text-[#615A73] hover:text-[#241E36]"
-                    }`}
-                    title={project.description || project.name}
-                  >
-                    <FolderKanban className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />
-                    <span className="min-w-0 flex-1 truncate">{project.name}</span>
-                    {count ? (
-                      <span className="shrink-0 text-[10px] tabular-nums text-[#AAA2B2]">
-                        {count}
-                      </span>
-                    ) : null}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      <div className="mt-5 min-h-0 flex-1 overflow-y-auto px-1">
-        <p className="mb-2 px-2 text-[11px] font-semibold tracking-wide text-[#8A8298]">
-          最近对话
-        </p>
-        {!account ? (
-          <p className="px-2 text-xs leading-5 text-[#8A8298]">登录后显示历史会话</p>
-        ) : recentLoading ? (
-          <p className="flex items-center gap-1.5 px-2 text-xs text-[#8A8298]">
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-            加载中…
-          </p>
-        ) : recent.length === 0 ? (
-          <p className="px-2 text-xs leading-5 text-[#8A8298]">暂无会话，从「开始创作」发起</p>
-        ) : (
-          <ul className="space-y-0.5">
-            {recent.map((s) => {
-              const active = pathname === `/studio/c/${s.id}`;
-              return (
-                <li key={s.id}>
-                  <Link
-                    href={`/studio/c/${s.id}`}
-                    className={`studio-nav-item block truncate rounded-[10px] px-2.5 py-2 text-[13px] transition ${
-                      active
-                        ? "studio-nav-active"
-                        : "text-[#615A73] hover:text-[#241E36]"
-                    }`}
-                    title={s.title}
-                  >
-                    {s.title || "未命名对话"}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+          {recentsOpen ? (
+            <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
+              {!account ? (
+                <p className="px-3 py-1.5 text-xs leading-5 text-[#8A8298]">登录后显示历史会话</p>
+              ) : recentLoading ? (
+                <p className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#8A8298]">
+                  <LoaderCircle className="size-3.5 animate-spin" />
+                  加载中…
+                </p>
+              ) : recent.length === 0 ? (
+                <p className="px-3 py-1.5 text-xs leading-5 text-[#8A8298]">暂无会话</p>
+              ) : (
+                <ul className="flex flex-col gap-0.5">
+                  {recent.map((s) => {
+                    const active = pathname === `/studio/c/${s.id}`;
+                    return (
+                      <li key={s.id}>
+                        <Link
+                          href={`/studio/c/${s.id}`}
+                          className={`studio-nav-item flex items-center gap-2 rounded-[12px] px-3 py-2 text-[13px] outline-none transition-colors focus-visible:outline-none ${
+                            active ? "studio-nav-active" : "text-[#615A73]"
+                          }`}
+                          title={s.title}
+                        >
+                          <span className="min-w-0 flex-1 truncate">{s.title || "未命名对话"}</span>
+                          {unreadIds.has(s.id) ? (
+                            <span
+                              className="size-1.5 shrink-0 rounded-full bg-[#3B82F6]"
+                              aria-label="未读回复"
+                            />
+                          ) : null}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <ProjectDialog
@@ -362,99 +423,97 @@ export default function StudioSidebar({
           router.push(`/studio/p/${encodeURIComponent(project.id)}`);
         }}
       />
-
-      <div className="mt-3 space-y-1 border-t border-white/50 pt-3">
-        <Link
-          href="/studio/skills"
-          className="studio-nav-item flex items-center gap-2.5 rounded-[11px] px-3 py-2.5 text-[13.5px] text-[#615A73] transition"
-        >
-          <Search className="h-4 w-4 shrink-0" strokeWidth={1.8} />
-          快速搜索
-          <span className="ml-auto inline-flex gap-1">
-            <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] border border-black/5 bg-gradient-to-b from-white to-[#f5f0e8] px-1 text-[10.5px] font-bold text-[#8A7860] shadow-sm">
-              /
-            </kbd>
-          </span>
-        </Link>
-        <button
-          type="button"
-          onClick={() => undefined}
-          className="studio-nav-item flex w-full items-center gap-2.5 rounded-[11px] px-3 py-2.5 text-left text-[13.5px] text-[#8A8298] transition"
-          title="帮助文档即将完善"
-        >
-          <HelpCircle className="h-4 w-4 shrink-0" strokeWidth={1.8} />
-          使用帮助
-        </button>
-      </div>
+      <StudioSearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <StudioSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <div className="mt-3 border-t border-white/50 pt-3">
         {account ? (
-          <div className="space-y-2">
-            <Link
-              href="/account"
-              aria-label="进入账户中心"
-              className="group flex items-center gap-2.5 rounded-[10px] px-1 py-1 transition-[background-color,color] duration-150 hover:bg-white/60 focus-visible:bg-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#615A73]/40"
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#334155] to-[#0F172A] text-sm font-bold text-white shadow-[0_6px_14px_-6px_rgba(15, 23, 42,0.5)]">
-                {avatarLetter}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-[#241E36]">
-                  {account.display_name || account.username}
-                </p>
-                <p className="flex items-center gap-1 text-[11px] text-[#8A8298]">
-                  <Wallet className="h-3 w-3 text-[#0F172A]" />
-                  <span className="font-mono font-semibold text-[#241E36]">
-                    {formatBalance(account.quota, balanceConfig)}
-                  </span>
-                </p>
-              </div>
-              <ChevronRight
-                aria-hidden
-                className="h-4 w-4 shrink-0 text-[#8A8298] transition-transform duration-150 group-hover:translate-x-0.5 group-focus-visible:translate-x-0.5"
-                strokeWidth={1.8}
-              />
-            </Link>
-            {signOutAction.failed ? (
-              <p role="alert" className="px-1 text-xs text-[#EF4770]">
-                退出失败，请重试
-              </p>
-            ) : null}
-            <div className="grid grid-cols-2 gap-1.5">
-              <Link
-                href="/studio/settings"
-                className="rounded-[10px] border border-white/80 bg-white/50 py-2 text-center text-xs text-[#615A73] transition hover:bg-white/80"
-              >
-                设置
-              </Link>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
               <button
                 type="button"
+                aria-label="打开账户菜单"
+                className="flex w-full items-center gap-2.5 rounded-[18px] px-2 py-2 text-left outline-none ring-0 transition-colors duration-150 hover:bg-white/60 focus:outline-none focus-visible:bg-white/60 focus-visible:outline-none data-[state=open]:bg-white/70"
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#334155] to-[#0F172A] text-sm font-bold text-white">
+                  {avatarLetter}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-[#241E36]">
+                    {account.display_name || account.username}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[12px] text-[#8A8298]">
+                    {account.email || formatBalance(account.quota, balanceConfig)}
+                  </span>
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="top"
+              align="start"
+              sideOffset={8}
+              className="w-[214px] rounded-[18px] border border-[#d4cec4] bg-[#fffdfb] p-1.5 shadow-[0_20px_50px_-16px_rgba(36,30,54,0.45),0_1px_0_rgba(255,255,255,0.8)_inset]"
+            >
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  className="h-10 cursor-pointer rounded-[12px] px-2.5 text-[14px] text-[#241E36] outline-none focus:bg-[#ebe4d8] focus:outline-none focus-visible:outline-none data-[highlighted]:bg-[#ebe4d8]"
+                  onSelect={() => {
+                    window.setTimeout(() => setSettingsOpen(true), 10);
+                  }}
+                >
+                  <Settings2 className="size-4 text-[#615A73]" />
+                  设置
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="h-10 cursor-pointer rounded-[12px] px-2.5 text-[14px] text-[#241E36] outline-none focus:bg-[#ebe4d8] focus:outline-none focus-visible:outline-none data-[highlighted]:bg-[#ebe4d8]">
+                  <Link href="/account">
+                    <UserRound className="size-4 text-[#615A73]" />
+                    个人中心
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="h-10 cursor-pointer rounded-[12px] px-2.5 text-[14px] text-[#241E36] outline-none focus:bg-[#ebe4d8] focus:outline-none focus-visible:outline-none data-[highlighted]:bg-[#ebe4d8]">
+                  <Link href="/account/wallet">
+                    <Wallet className="size-4 text-[#615A73]" />
+                    钱包与用量
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator className="mx-1 my-1 bg-[#e6e0d6]" />
+              <DropdownMenuItem
                 disabled={signOutAction.pending}
-                onClick={() => {
+                className="h-10 cursor-pointer rounded-[12px] px-2.5 text-[14px] text-[#241E36] outline-none focus:bg-[#ebe4d8] focus:outline-none focus-visible:outline-none data-[highlighted]:bg-[#ebe4d8]"
+                onSelect={() => {
                   void signOutAction.run();
                 }}
-                className="inline-flex items-center justify-center gap-1 rounded-[10px] border border-white/80 bg-white/50 py-2 text-xs text-[#615A73] transition hover:bg-white/80 disabled:opacity-60"
               >
-                {signOutAction.pending ? (
-                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <LogOut className="h-3.5 w-3.5" />
-                )}
-                退出
-              </button>
-            </div>
-          </div>
+                {signOutAction.pending ? <LoaderCircle className="size-4 animate-spin" /> : <LogOut className="size-4 text-[#615A73]" />}
+                退出登录
+              </DropdownMenuItem>
+              {signOutAction.failed ? (
+                <p role="alert" className="px-2.5 py-1 text-xs text-[#EF4770]">
+                  退出失败，请重试
+                </p>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : accountLoading ? (
           <div
-            className="h-16 animate-pulse rounded-[12px] bg-white/40"
+            className="h-12 animate-pulse rounded-[18px] bg-white/40"
             aria-label="正在加载账户"
           />
         ) : (
-          <div>
-            <p className="px-1 text-xs leading-5 text-[#8A8298]">
-              请使用右上角入口登录，以便开始对话、保存作品与管理 Skills。
-            </p>
-          </div>
+          <button
+            type="button"
+            onClick={() => openLogin("login")}
+            className="flex w-full items-center gap-2.5 rounded-[18px] px-2 py-2 text-left outline-none transition-colors duration-150 hover:bg-white/60 focus-visible:outline-none"
+          >
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#e8e2d6] text-sm font-medium text-[#615A73]">
+              登
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-[#241E36]">登录</span>
+              <span className="text-[12px] text-[#8A8298]">开始对话并保存作品</span>
+            </span>
+          </button>
         )}
       </div>
     </aside>

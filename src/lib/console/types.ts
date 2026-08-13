@@ -69,6 +69,54 @@ export type ConsoleUsageByKey = {
   reservedCredits: number;
 };
 
+export type ConsoleUsageModelSlice = {
+  model: string;
+  credits: number;
+  requests: number;
+};
+
+export type ConsoleUsageCharts = {
+  organizationId: string;
+  periodStart: string;
+  periodEnd: string;
+  daily: ConsoleUsagePoint[];
+  byModel: ConsoleUsageModelSlice[];
+};
+
+export type ConsoleAccountUsageItem = {
+  kind: "key" | "studio";
+  apiKeyId: string;
+  name: string;
+  keyPrefix: string;
+  totalGranted: number;
+  totalUsed: number;
+  totalAvailable: number;
+};
+
+export type ConsoleAccountUsage = {
+  organizationId: string;
+  quota: number;
+  usedQuota: number;
+  items: ConsoleAccountUsageItem[];
+};
+
+export type ConsoleUsageLogType = "consume" | "error" | "other";
+
+export type ConsoleUsageLog = {
+  id: string;
+  createdAt: string;
+  type: ConsoleUsageLogType;
+  model: string;
+  tokenName: string;
+  promptTokens: number;
+  completionTokens: number;
+  durationSeconds: number;
+  streamed: boolean;
+  credits: number;
+  requestId: string | null;
+  content: string | null;
+};
+
 export type ConsoleOrganizationUsageRollup = {
   periodStart: string;
   periodEnd: string;

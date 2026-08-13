@@ -113,7 +113,7 @@ export default function StudioShell({ children }: { children: ReactNode }) {
         <div className="studio-blob studio-blob-c" aria-hidden />
         <div
           className={`relative z-[2] block h-full shrink-0 transition-[width] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] ${
-            sidebarCollapsed ? "w-[52px]" : "w-[222px]"
+            sidebarCollapsed ? "w-[52px]" : "w-[248px]"
           }`}
           onPointerEnter={(event) => {
             if (event.pointerType === "mouse") showSidebarPeek();
@@ -147,7 +147,7 @@ export default function StudioShell({ children }: { children: ReactNode }) {
           )}
           {sidebarCollapsed && sidebarPeekRendered ? (
             <div
-              className="studio-sidebar-peek absolute inset-y-0 left-0 w-[222px]"
+              className="studio-sidebar-peek absolute inset-y-0 left-0 w-[248px]"
               data-active={sidebarPeekActive}
             >
               <StudioSidebar temporary onRequestExpand={expandSidebar} />

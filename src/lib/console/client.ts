@@ -3,14 +3,17 @@ import type {
   ConsoleApiKey,
   ConsoleOrganization,
   ConsoleOrganizationUsageRollup,
+  ConsoleAccountUsage,
   ConsoleOverview,
   ConsolePresetKind,
+  ConsoleUsageCharts,
   ConsolePersonalityPreset,
   ConsolePresets,
   ConsoleTeam,
   ConsoleTeamMember,
   ConsoleToolPreset,
   ConsoleUsageByKey,
+  ConsoleUsageLog,
   ConsoleWalletDetails,
 } from "./types";
 
@@ -61,8 +64,15 @@ export function getConsoleWallet() {
   return request<ConsoleWalletDetails>("/api/console/wallet", { cache: "no-store" });
 }
 
+export function redeemConsoleCode(input: { organizationId?: string | null; code: string }) {
+  return request<{ organizationId: string; type: string; credits: number | null }>("/api/console/wallet/redeem", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export function listConsoleKeys(organizationId?: string | null) {
-  return request<{ keys: ConsoleApiKey[]; organizations: ConsoleOrganization[] }>(
+  return request<{ keys: ConsoleApiKey[]; organizations: ConsoleOrganization[]; organizationId: string | null }>(
     `/api/console/keys${organizationQuery(organizationId)}`,
     { cache: "no-store" },
   );
@@ -86,6 +96,68 @@ export function revokeConsoleKey(id: string) {
   return request<{ key: ConsoleApiKey }>(`/api/console/keys/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
+}
+
+export function updateConsoleKey(
+  id: string,
+  input: {
+    name: string;
+    expiresAt?: string | null;
+    modelScopes?: string[];
+    ipAllowList?: string[];
+  },
+) {
+  return request<{ key: ConsoleApiKey }>(`/api/console/keys/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function getConsoleUsageLogs(
+  organizationId?: string | null,
+  query: {
+    page?: number;
+    pageSize?: number;
+    type?: ConsoleUsageLog["type"];
+    model?: string;
+    tokenName?: string;
+    requestId?: string;
+  } = {},
+) {
+  const params = new URLSearchParams();
+  if (organizationId) params.set("organizationId", organizationId);
+  if (query.page) params.set("page", String(query.page));
+  if (query.pageSize) params.set("pageSize", String(query.pageSize));
+  if (query.type && query.type !== "other") params.set("type", query.type);
+  if (query.model) params.set("model", query.model);
+  if (query.tokenName) params.set("tokenName", query.tokenName);
+  if (query.requestId) params.set("requestId", query.requestId);
+  const search = params.toString();
+  return request<{ items: ConsoleUsageLog[]; total: number; page: number; pageSize: number }>(
+    `/api/console/usage/logs${search ? `?${search}` : ""}`,
+    { cache: "no-store" },
+  );
+}
+
+export function getConsoleUsageCharts(organizationId?: string | null) {
+  return request<ConsoleUsageCharts>(
+    `/api/console/usage/charts${organizationQuery(organizationId)}`,
+    { cache: "no-store" },
+  );
+}
+
+export function getConsoleUsage(organizationId?: string | null) {
+  return request<{
+    organizationId: string;
+    quota: number;
+    used_quota: number;
+    items: ConsoleAccountUsage["items"];
+  }>(`/api/console/usage${organizationQuery(organizationId)}`, { cache: "no-store" }).then((payload) => ({
+    organizationId: payload.organizationId,
+    quota: payload.quota,
+    usedQuota: payload.used_quota,
+    items: payload.items,
+  } satisfies ConsoleAccountUsage));
 }
 
 export function getConsoleUsageByKey(organizationId?: string | null) {

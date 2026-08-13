@@ -10,6 +10,7 @@ vi.mock("../../newapi/team-client", () => ({
   findTeamTokenIdByName: vi.fn(async () => 55),
   fetchTeamTokenKey: vi.fn(async () => "sk-newapi-raw"),
   revokeTeamToken: vi.fn(async () => {}),
+  updateTeamToken: vi.fn(async () => {}),
 }));
 vi.mock("../../newapi/crypto", () => ({
   encryptSecret: vi.fn((value: string) => `enc(${value})`),
@@ -26,7 +27,7 @@ vi.mock("./team-new-api-mapping", () => ({
   },
 }));
 
-import { createTeamToken, revokeTeamToken } from "../../newapi/team-client";
+import { createTeamToken, revokeTeamToken, updateTeamToken } from "../../newapi/team-client";
 import { ApiKeyRepository } from "./api-keys";
 
 const mappingRow = {
@@ -43,6 +44,7 @@ function fakeDatabase(insertedRow: Record<string, unknown>) {
   return {
     insert: () => ({ values: () => ({ returning: async () => [insertedRow] }) }),
     update: () => ({ set: () => ({ where: () => ({ returning: async () => [insertedRow] }) }) }),
+    select: () => ({ from: () => ({ where: () => ({ limit: async () => [insertedRow] }) }) }),
   } as unknown as ConstructorParameters<typeof ApiKeyRepository>[0];
 }
 
@@ -77,9 +79,38 @@ describe("ApiKeyRepository.create (new-api backed)", () => {
     const result = await repository.create({ userId: "user-1", organizationId: "org-1", name: "CI key" });
 
     expect(findByOrganizationId).toHaveBeenCalledWith("org-1");
-    expect(createTeamToken).toHaveBeenCalledWith("pat", "CI key");
+    expect(createTeamToken).toHaveBeenCalledWith("pat", "CI key", {
+      expiredTime: -1,
+      modelLimits: [],
+      allowIps: [],
+    });
     expect(result.record.newApiTokenId).toBe(55);
     expect(result.plaintext).toMatch(/^wl_/);
+  });
+});
+
+describe("ApiKeyRepository.update (new-api backed)", () => {
+  it("syncs name and limits to the new-api token before writing the local row", async () => {
+    const database = fakeDatabase({
+      id: "key-1",
+      organizationId: "org-1",
+      newApiTokenId: 55,
+      name: "CI key",
+    });
+    const repository = new ApiKeyRepository(database);
+    const expiresAt = new Date("2028-01-01T00:00:00.000Z");
+    await repository.update("key-1", {
+      name: "CI key v2",
+      expiresAt,
+      allowedModels: ["gpt-4o"],
+      ipAllowlist: ["203.0.113.10"],
+    });
+    expect(updateTeamToken).toHaveBeenCalledWith("pat", 55, {
+      name: "CI key v2",
+      expiredTime: Math.floor(expiresAt.getTime() / 1000),
+      modelLimits: ["gpt-4o"],
+      allowIps: ["203.0.113.10"],
+    });
   });
 });
 
