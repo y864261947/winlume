@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -81,7 +82,7 @@ export default function StudioSidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { account, accountLoading, balanceConfig, openLogin } = useModals();
+  const { account, accountLoading, balanceConfig } = useModals();
   const signOutAction = useSignOutAction();
   const [recent, setRecent] = useState<Session[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
@@ -163,15 +164,10 @@ export default function StudioSidebar({
     <aside className={`studio-glass relative z-[2] flex h-full w-[222px] shrink-0 flex-col border-r border-white/70 px-4 py-5 ${temporary ? "shadow-[12px_0_30px_rgba(36,30,54,0.16)]" : ""}`}>
       <div className="mb-6 flex items-center gap-1">
         <Link href="/studio" className="flex min-w-0 flex-1 items-center gap-2.5 px-2">
-          <span className="studio-logo-mark flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M12 2L14 9L21 11L14 13L12 20L10 13L3 11L10 9L12 2Z"
-                fill="white"
-              />
-            </svg>
+          <span className="studio-logo-mark flex h-[30px] w-[30px] shrink-0 items-center justify-center">
+            <Image src="/brand/reizo-mark.png" alt="" width={30} height={30} priority />
           </span>
-          <span className="truncate text-[17px] font-bold tracking-wide text-[#241E36]">
+          <span className="studio-brand-wordmark truncate text-[#241E36]">
             {site.name}
           </span>
         </Link>
@@ -454,26 +450,10 @@ export default function StudioSidebar({
             aria-label="正在加载账户"
           />
         ) : (
-          <div className="space-y-2">
+          <div>
             <p className="px-1 text-xs leading-5 text-[#8A8298]">
-              登录后即可对话、使用 Skills 与保存作品。
+              请使用右上角入口登录，以便开始对话、保存作品与管理 Skills。
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => openLogin("login")}
-                className="rounded-[11px] border border-white/80 bg-white/60 py-2 text-sm text-[#241E36] transition hover:bg-white"
-              >
-                登录
-              </button>
-              <button
-                type="button"
-                onClick={() => openLogin("register")}
-                className="studio-send-btn rounded-[11px] py-2 text-sm font-medium text-white"
-              >
-                注册
-              </button>
-            </div>
           </div>
         )}
       </div>

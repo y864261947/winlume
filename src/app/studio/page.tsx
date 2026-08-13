@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowLeft,
   Bell,
   Clapperboard,
   FileText,
@@ -562,12 +563,37 @@ function StudioHomeInner() {
       className="studio-home-canvas studio-view-in relative flex min-h-0 flex-1 flex-col overflow-y-auto"
       data-docking={docking ? "true" : "false"}
     >
-      {/* Soft top-right utility */}
+      {/* Top-right portal return and utility */}
       <div
-        className={`pointer-events-none absolute right-5 top-4 z-[2] sm:right-8 sm:top-5 transition-opacity duration-200 ${
+        className={`pointer-events-none absolute right-5 top-4 z-[2] flex items-center gap-2 sm:right-8 sm:top-5 transition-opacity duration-200 ${
           docking ? "opacity-0" : "opacity-100"
         }`}
       >
+        <Link
+          href="/"
+          className="pointer-events-auto inline-flex h-9 items-center gap-1.5 rounded-full border border-white/85 bg-white/72 px-3.5 text-[13px] font-medium text-[#615A73] shadow-[0_6px_16px_rgba(36,30,54,0.08)] backdrop-blur transition-[background-color,color,transform] duration-150 hover:bg-white/92 hover:text-[#241E36] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7398e8]/55"
+        >
+          <ArrowLeft className="h-4 w-4" strokeWidth={1.8} />
+          返回首页
+        </Link>
+        {!account ? (
+          <>
+            <button
+              type="button"
+              onClick={() => openLogin("login")}
+              className="pointer-events-auto hidden h-9 items-center rounded-full border border-white/85 bg-white/72 px-3.5 text-[13px] font-medium text-[#615A73] shadow-[0_6px_16px_rgba(36,30,54,0.08)] backdrop-blur transition-[background-color,color,transform] duration-150 hover:bg-white/92 hover:text-[#241E36] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(115,152,232,0.55)] sm:inline-flex"
+            >
+              登录
+            </button>
+            <button
+              type="button"
+              onClick={() => openLogin("register")}
+              className="pointer-events-auto inline-flex h-9 items-center rounded-full bg-gradient-to-br from-[#334155] to-[#0F172A] px-3.5 text-[13px] font-medium text-white shadow-[0_7px_16px_rgba(15,23,42,0.22)] transition-[filter,transform] duration-150 hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7398e8]/65"
+            >
+              注册
+            </button>
+          </>
+        ) : null}
         <span
           className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#8A8298] shadow-sm backdrop-blur"
           title="通知（即将上线）"
