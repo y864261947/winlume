@@ -1,24 +1,64 @@
 "use client";
 
-import { Check, Copy, KeyRound, LoaderCircle, Plus, ShieldAlert, Trash2, X } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { createConsoleKey, listConsoleKeys, revokeConsoleKey } from "@/lib/console/client";
+import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
+import { Check, Copy, KeyRound, Pencil, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { createConsoleKey, listConsoleKeys, revokeConsoleKey, updateConsoleKey } from "@/lib/console/client";
 import type { ConsoleApiKey, ConsoleOrganization } from "@/lib/console/types";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { DataTableFacetedFilter } from "@/components/data-table/data-table-faceted-filter";
+import { DataTableToolbar } from "@/components/data-table/data-table-toolbar";
+import { createSelectionColumn } from "@/components/data-table/selection-column";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { ConsoleEmptyState, ConsolePage } from "./ConsolePage";
 
-function date(value: string | null) {
-  if (!value) return "从未使用";
+function date(value: string | null, empty = "从未使用") {
+  if (!value) return empty;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? "--" : new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(parsed);
 }
 
+function toDatetimeLocal(value: string | null) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+}
+
+function splitList(value: string) {
+  return value.split(",").map((entry) => entry.trim()).filter(Boolean);
+}
+
 function KeyRestrictionBadges({ apiKey }: { apiKey: ConsoleApiKey }) {
   const hasModelScopes = apiKey.modelScopes.length > 0;
-  const hasQuota = apiKey.quotaLimit !== null;
   const hasIpAllowList = apiKey.ipAllowList.length > 0;
+  const hasExpiry = Boolean(apiKey.expiresAt);
 
-  if (!hasModelScopes && !hasQuota && !hasIpAllowList) {
+  if (!hasModelScopes && !hasIpAllowList && !hasExpiry) {
     return <Badge variant="success">无限制</Badge>;
   }
 
@@ -29,14 +69,14 @@ function KeyRestrictionBadges({ apiKey }: { apiKey: ConsoleApiKey }) {
           {apiKey.modelScopes.length} 个模型
         </Badge>
       ) : null}
-      {hasQuota ? (
-        <Badge variant="outline" title={`额度上限：${apiKey.quotaLimit} Credits（已用 ${apiKey.usedQuota}）`}>
-          配额 {apiKey.quotaLimit}
-        </Badge>
-      ) : null}
       {hasIpAllowList ? (
         <Badge variant="outline" title={`IP 白名单：${apiKey.ipAllowList.join(", ")}`}>
           IP 限制
+        </Badge>
+      ) : null}
+      {hasExpiry ? (
+        <Badge variant="outline" title={`过期时间：${date(apiKey.expiresAt, "无")}`}>
+          有过期
         </Badge>
       ) : null}
     </div>
@@ -45,17 +85,22 @@ function KeyRestrictionBadges({ apiKey }: { apiKey: ConsoleApiKey }) {
 
 function KeyDialog({
   organizationId,
+  existing,
   onClose,
   onCreated,
+  onUpdated,
 }: {
   organizationId: string | null;
+  existing?: ConsoleApiKey | null;
   onClose: () => void;
   onCreated: (key: ConsoleApiKey, secret: string) => void;
+  onUpdated: (key: ConsoleApiKey) => void;
 }) {
-  const [name, setName] = useState("");
-  const [modelScopes, setModelScopes] = useState("");
-  const [quotaLimit, setQuotaLimit] = useState("");
-  const [ipAllowList, setIpAllowList] = useState("");
+  const editing = Boolean(existing);
+  const [name, setName] = useState(existing?.name ?? "");
+  const [modelScopes, setModelScopes] = useState(existing?.modelScopes.join(", ") ?? "");
+  const [ipAllowList, setIpAllowList] = useState(existing?.ipAllowList.join(", ") ?? "");
+  const [expiresAt, setExpiresAt] = useState(toDatetimeLocal(existing?.expiresAt ?? null));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,79 +111,140 @@ function KeyDialog({
       setError("请输入密钥名称。");
       return;
     }
-    let quota: number | null = null;
-    const trimmedQuota = quotaLimit.trim();
-    if (trimmedQuota) {
-      const parsed = Number(trimmedQuota);
-      if (!Number.isFinite(parsed) || parsed < 0) {
-        setError("额度上限必须是有效的非负数字。");
-        return;
-      }
-      quota = parsed;
+    if (normalized.length > 50) {
+      setError("密钥名称最多 50 个字符。");
+      return;
     }
-    const scopes = modelScopes
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-    const ips = ipAllowList
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean);
+    const scopes = splitList(modelScopes);
+    const ips = splitList(ipAllowList);
+    const expiry = expiresAt.trim() ? new Date(expiresAt).toISOString() : null;
     setSubmitting(true);
     setError(null);
     try {
-      const result = await createConsoleKey({
-        name: normalized,
-        organizationId,
-        modelScopes: scopes,
-        quotaLimit: quota,
-        ipAllowList: ips,
-      });
-      onCreated(result.key, result.secret);
+      if (existing) {
+        const result = await updateConsoleKey(existing.id, {
+          name: normalized,
+          expiresAt: expiry,
+          modelScopes: scopes,
+          ipAllowList: ips,
+        });
+        onUpdated(result.key);
+      } else {
+        const result = await createConsoleKey({
+          name: normalized,
+          organizationId,
+          expiresAt: expiry,
+          modelScopes: scopes,
+          ipAllowList: ips,
+        });
+        onCreated(result.key, result.secret);
+      }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "创建失败，请重试。");
+      setError(reason instanceof Error ? reason.message : editing ? "保存失败，请重试。" : "创建失败，请重试。");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-ink-950/35 p-4" role="presentation">
-      <form onSubmit={submit} className="w-full max-w-md border border-line bg-surface shadow-xl" role="dialog" aria-modal="true" aria-labelledby="new-key-title">
-        <div className="flex items-center justify-between border-b border-line px-5 py-4">
-          <h2 id="new-key-title" className="text-base font-semibold text-ink-950">新建 API Key</h2>
-          <button type="button" onClick={onClose} aria-label="关闭" className="grid h-8 w-8 place-items-center text-ink-500 hover:bg-canvas hover:text-ink-950"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="space-y-4 px-5 py-5">
-          <label className="block text-sm font-medium text-ink-800">
-            名称
-            <input autoFocus value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder="例如：生产环境" className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500" />
-          </label>
-          <label className="block text-sm font-medium text-ink-800">
-            允许的模型（可选，逗号分隔）
-            <input value={modelScopes} onChange={(event) => setModelScopes(event.target.value)} placeholder="例如：gpt-4o, claude-3-5-sonnet" className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500" />
-            <span className="mt-1 block text-xs text-ink-500">留空表示不限制可调用的模型。</span>
-          </label>
-          <label className="block text-sm font-medium text-ink-800">
-            额度上限（可选，单位：Credits）
-            <input type="number" min="0" step="0.01" value={quotaLimit} onChange={(event) => setQuotaLimit(event.target.value)} placeholder="留空表示不限额" className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500" />
-          </label>
-          <label className="block text-sm font-medium text-ink-800">
-            IP 白名单（可选，逗号分隔）
-            <input value={ipAllowList} onChange={(event) => setIpAllowList(event.target.value)} placeholder="例如：203.0.113.10, 203.0.113.0/24" className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500" />
-            <span className="mt-1 block text-xs text-ink-500">留空表示不限制来源 IP。</span>
-          </label>
-          <p className="text-xs leading-5 text-ink-500">完整密钥只会显示一次。请保存到部署平台的受保护环境变量中。</p>
-          {error ? <p role="alert" className="text-sm text-rose-700">{error}</p> : null}
-        </div>
-        <div className="flex justify-end gap-2 border-t border-line px-5 py-4">
-          <button type="button" onClick={onClose} className="border border-line px-3 py-2 text-sm text-ink-700 hover:bg-canvas">取消</button>
-          <button disabled={submitting} className="inline-flex items-center gap-2 bg-ink-950 px-3 py-2 text-sm font-medium text-white hover:bg-ink-800 disabled:opacity-60">
-            {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-            创建密钥
-          </button>
-        </div>
-      </form>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{editing ? "编辑 API Key" : "新建 API Key"}</DialogTitle>
+          <DialogDescription>
+            {editing ? "修改限制后立即对后续请求生效。" : "完整密钥只会显示一次，请保存到受保护的环境变量中。"}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="flex flex-col gap-5">
+          <FieldGroup>
+            <Field data-invalid={Boolean(error && !name.trim()) || undefined}>
+              <FieldLabel htmlFor="key-name">名称</FieldLabel>
+              <Input id="key-name" autoFocus value={name} onChange={(event) => setName(event.target.value)} maxLength={50} placeholder="例如：生产环境" />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="key-models">允许的模型</FieldLabel>
+              <Input id="key-models" value={modelScopes} onChange={(event) => setModelScopes(event.target.value)} placeholder="例如：gpt-4o, claude-3-5-sonnet" />
+              <FieldDescription>逗号分隔。留空表示不限制可调用的模型。</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="key-ips">IP 白名单</FieldLabel>
+              <Input id="key-ips" value={ipAllowList} onChange={(event) => setIpAllowList(event.target.value)} placeholder="例如：203.0.113.10, 203.0.113.0/24" />
+              <FieldDescription>逗号分隔。留空表示不限制来源 IP。</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="key-expires">过期时间</FieldLabel>
+              <Input id="key-expires" type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+              <FieldDescription>留空表示永不过期。额度在工作区账户上统一管理。</FieldDescription>
+            </Field>
+          </FieldGroup>
+          {error ? <FieldError>{error}</FieldError> : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? <Spinner data-icon="inline-start" /> : editing ? <Pencil data-icon="inline-start" /> : <KeyRound data-icon="inline-start" />}
+              {editing ? "保存修改" : "创建密钥"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConsoleKeysTable({
+  keys,
+  columns,
+  canManage,
+  rowSelection,
+  onRowSelectionChange,
+  selectedActiveCount,
+  batchRevoking,
+  onRevokeSelected,
+}: {
+  keys: ConsoleApiKey[];
+  columns: ColumnDef<ConsoleApiKey>[];
+  canManage: boolean;
+  rowSelection: RowSelectionState;
+  onRowSelectionChange: (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => void;
+  selectedActiveCount: number;
+  batchRevoking: boolean;
+  onRevokeSelected: () => void;
+}) {
+  const table = useDataTable({
+    columns,
+    data: keys,
+    getRowId: (key) => key.id,
+    rowSelection,
+    onRowSelectionChange,
+  });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <DataTableToolbar table={table} globalSearch searchPlaceholder="搜索名称、前缀或所有者…">
+        <DataTableFacetedFilter
+          table={table}
+          columnId="status"
+          placeholder="全部状态"
+          options={[
+            { label: "可用", value: "active" },
+            { label: "已撤销", value: "revoked" },
+            { label: "已过期", value: "expired" },
+          ]}
+        />
+        {canManage && selectedActiveCount > 0 ? (
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-8 gap-1.5"
+            disabled={batchRevoking}
+            onClick={onRevokeSelected}
+          >
+            {batchRevoking ? <Spinner /> : <Trash2 />}
+            批量撤销（{selectedActiveCount}）
+          </Button>
+        ) : null}
+      </DataTableToolbar>
+      <DataTable table={table} columnCount={columns.length} emptyDescription="没有匹配的 API Key。" />
     </div>
   );
 }
@@ -150,9 +256,12 @@ export default function ConsoleKeysContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
+  const [editing, setEditing] = useState<ConsoleApiKey | null>(null);
   const [revealed, setRevealed] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [batchRevoking, setBatchRevoking] = useState(false);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const load = useCallback(async (nextOrganizationId?: string | null) => {
     setLoading(true);
@@ -161,7 +270,8 @@ export default function ConsoleKeysContent() {
       const result = await listConsoleKeys(nextOrganizationId);
       setKeys(result.keys);
       setOrganizations(result.organizations);
-      setOrganizationId(nextOrganizationId ?? null);
+      setOrganizationId(result.organizationId);
+      setRowSelection({});
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "无法加载 API Keys。");
     } finally {
@@ -175,7 +285,7 @@ export default function ConsoleKeysContent() {
   }, [load]);
 
   const activeOrganization = organizationId ? organizations.find((org) => org.id === organizationId) ?? null : null;
-  const canManage = !organizationId || activeOrganization?.role === "owner" || activeOrganization?.role === "admin";
+  const canManage = activeOrganization?.role === "owner" || activeOrganization?.role === "admin";
 
   async function revoke(key: ConsoleApiKey) {
     if (!window.confirm(`撤销 “${key.name}” 后，使用它的应用会立即失去访问权限。是否继续？`)) return;
@@ -190,6 +300,31 @@ export default function ConsoleKeysContent() {
     }
   }
 
+  const selectedActiveKeys = keys.filter((key) => rowSelection[key.id] && key.status === "active");
+
+  async function revokeSelected() {
+    if (selectedActiveKeys.length === 0) return;
+    if (!window.confirm(`批量撤销 ${selectedActiveKeys.length} 个 Key 后，使用它们的应用会立即失去访问权限。是否继续？`)) return;
+    setBatchRevoking(true);
+    setError(null);
+    try {
+      const results = await Promise.allSettled(selectedActiveKeys.map((key) => revokeConsoleKey(key.id)));
+      const revoked = new Map<string, ConsoleApiKey>();
+      let failures = 0;
+      results.forEach((result) => {
+        if (result.status === "fulfilled") revoked.set(result.value.key.id, result.value.key);
+        else failures += 1;
+      });
+      if (revoked.size > 0) {
+        setKeys((current) => current.map((item) => revoked.get(item.id) ?? item));
+      }
+      if (failures > 0) setError(`${failures} 个 Key 撤销失败，请重试。`);
+      setRowSelection({});
+    } finally {
+      setBatchRevoking(false);
+    }
+  }
+
   async function copySecret() {
     if (!revealed) return;
     await navigator.clipboard.writeText(revealed);
@@ -197,27 +332,143 @@ export default function ConsoleKeysContent() {
     window.setTimeout(() => setCopied(false), 1600);
   }
 
+  const columns = useMemo<ColumnDef<ConsoleApiKey>[]>(() => {
+    const base: ColumnDef<ConsoleApiKey>[] = canManage ? [createSelectionColumn<ConsoleApiKey>()] : [];
+    base.push(
+      {
+        accessorKey: "name",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="名称" />,
+        cell: ({ row }) => <span className="font-medium text-ink-950">{row.original.name}</span>,
+        meta: { label: "名称" },
+      },
+      ...(organizationId
+        ? [
+            {
+              id: "owner",
+              header: "所有者",
+              cell: ({ row }: { row: { original: ConsoleApiKey } }) => (
+                <span className="text-xs text-ink-500">{row.original.ownerName ?? "--"}</span>
+              ),
+              enableSorting: false,
+              meta: { label: "所有者" },
+            } satisfies ColumnDef<ConsoleApiKey>,
+          ]
+        : []),
+      {
+        id: "prefix",
+        header: "前缀",
+        cell: ({ row }) => <span className="font-mono text-xs">{row.original.prefix}...</span>,
+        enableSorting: false,
+        meta: { label: "前缀" },
+      },
+      {
+        id: "restrictions",
+        header: "限制",
+        cell: ({ row }) => <KeyRestrictionBadges apiKey={row.original} />,
+        enableSorting: false,
+        meta: { label: "限制" },
+      },
+      {
+        accessorKey: "status",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="状态" />,
+        cell: ({ row }) => (
+          <span className={row.original.status === "active" ? "text-emerald-700" : "text-ink-500"}>
+            {row.original.status === "active" ? "可用" : row.original.status === "revoked" ? "已撤销" : "已过期"}
+          </span>
+        ),
+        meta: { label: "状态" },
+      },
+      {
+        accessorKey: "lastUsedAt",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="上次使用" />,
+        cell: ({ row }) => <span className="text-xs text-ink-500">{date(row.original.lastUsedAt)}</span>,
+        meta: { label: "上次使用" },
+      },
+      {
+        accessorKey: "createdAt",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="创建时间" />,
+        cell: ({ row }) => <span className="text-xs text-ink-500">{date(row.original.createdAt, "--")}</span>,
+        meta: { label: "创建时间" },
+      },
+      {
+        accessorKey: "expiresAt",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="过期时间" />,
+        cell: ({ row }) => <span className="text-xs text-ink-500">{date(row.original.expiresAt, "永不过期")}</span>,
+        meta: { label: "过期时间" },
+      },
+      {
+        id: "actions",
+        header: () => <span className="sr-only">操作</span>,
+        cell: ({ row }) => {
+          const key = row.original;
+          if (key.status !== "active" || !canManage) return null;
+          return (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => { setEditing(key); setShowDialog(true); }}
+                aria-label={`编辑 ${key.name}`}
+                title="编辑密钥"
+              >
+                <Pencil />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={revoking === key.id}
+                onClick={() => void revoke(key)}
+                aria-label={`撤销 ${key.name}`}
+                title="撤销密钥"
+                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              >
+                {revoking === key.id ? <Spinner /> : <Trash2 />}
+              </Button>
+            </div>
+          );
+        },
+        enableSorting: false,
+        enableHiding: false,
+      },
+    );
+    return base;
+  }, [canManage, organizationId, revoking]);
+
   return (
     <ConsolePage
       title="API Keys"
-      description="为每个部署或集成创建单独密钥；可随时撤销，不会暴露其他密钥。"
-      actions={canManage ? <button onClick={() => setShowDialog(true)} className="inline-flex items-center gap-2 bg-ink-950 px-3 py-2 text-sm font-medium text-white hover:bg-ink-800"><Plus className="h-4 w-4" /> 新建 Key</button> : undefined}
+      description="创建、限制和撤销密钥。余额和消耗不在这里看。"
+      actions={canManage ? (
+        <Button onClick={() => { setEditing(null); setShowDialog(true); }}>
+          <Plus data-icon="inline-start" />
+          新建 Key
+        </Button>
+      ) : undefined}
     >
-      {organizations.length > 0 ? (
-        <div className="mb-4 flex items-center gap-2 text-sm text-ink-600">
+      {organizations.length > 1 && organizationId ? (
+        <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
           <span>工作区</span>
-          <select
-            aria-label="选择工作区"
-            value={organizationId ?? ""}
-            onChange={(event) => void load(event.target.value || null)}
-            className="border border-line bg-canvas px-2 py-1.5 text-sm text-ink-700 outline-none focus:border-ink-500"
-          >
-            <option value="">个人</option>
-            {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
-          </select>
+          <Select value={organizationId} onValueChange={(value) => void load(value)}>
+            <SelectTrigger aria-label="选择工作区" className="w-52">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {organizations.map((organization) => (
+                  <SelectItem key={organization.id} value={organization.id}>{organization.name}</SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
       ) : null}
-      {!canManage ? <p className="mb-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">你可以查看该工作区的 API Key，但没有创建或撤销权限（仅 owner / admin 可管理）。</p> : null}
+      {!canManage ? (
+        <Alert className="mb-4">
+          <AlertDescription>你可以查看该工作区的 API Key，但没有创建或撤销权限（仅 owner / admin 可管理）。</AlertDescription>
+        </Alert>
+      ) : null}
       {revealed ? (
         <section className="mb-6 border border-emerald-200 bg-emerald-50 p-4">
           <div className="flex gap-3">
@@ -232,22 +483,51 @@ export default function ConsoleKeysContent() {
           </div>
         </section>
       ) : null}
-      {error ? <p role="alert" className="mb-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
       {loading ? (
-        <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-ink-500"><LoaderCircle className="h-4 w-4 animate-spin" /> 正在加载 API Keys…</div>
+        <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Spinner />
+          正在加载 API Keys…
+        </div>
+      ) : !organizationId ? (
+        <ConsoleEmptyState title="还没有工作区" description="密钥属于工作区。被邀请加入后，会在这里管理。" />
       ) : keys.length === 0 ? (
         <ConsoleEmptyState title="还没有 API Key" description="为服务端应用创建第一个 API Key。密钥只会在创建后显示一次。" />
       ) : (
-        <div className="overflow-x-auto border border-line bg-surface">
-          <table className="w-full min-w-[920px] text-left text-sm">
-            <thead className="border-b border-line bg-canvas text-xs font-medium text-ink-500"><tr><th className="px-4 py-3">名称</th>{organizationId ? <th className="px-4 py-3">所有者</th> : null}<th className="px-4 py-3">前缀</th><th className="px-4 py-3">限制</th><th className="px-4 py-3">状态</th><th className="px-4 py-3">上次使用</th><th className="px-4 py-3">创建时间</th><th className="w-14 px-4 py-3"><span className="sr-only">操作</span></th></tr></thead>
-            <tbody className="divide-y divide-line">
-              {keys.map((key) => <tr key={key.id} className="text-ink-700"><td className="px-4 py-3 font-medium text-ink-950">{key.name}</td>{organizationId ? <td className="px-4 py-3 text-xs text-ink-500">{key.ownerName ?? "--"}</td> : null}<td className="px-4 py-3 font-mono text-xs">{key.prefix}...</td><td className="px-4 py-3"><KeyRestrictionBadges apiKey={key} /></td><td className="px-4 py-3"><span className={key.status === "active" ? "text-emerald-700" : "text-ink-500"}>{key.status === "active" ? "可用" : key.status === "revoked" ? "已撤销" : "已过期"}</span></td><td className="px-4 py-3 text-xs text-ink-500">{date(key.lastUsedAt)}</td><td className="px-4 py-3 text-xs text-ink-500">{date(key.createdAt)}</td><td className="px-4 py-3">{key.status === "active" && canManage ? <button type="button" disabled={revoking === key.id} onClick={() => void revoke(key)} aria-label={`撤销 ${key.name}`} title="撤销密钥" className="grid h-8 w-8 place-items-center text-ink-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">{revoking === key.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button> : null}</td></tr>)}
-            </tbody>
-          </table>
-        </div>
+        <ConsoleKeysTable
+          keys={keys}
+          columns={columns}
+          canManage={canManage}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          selectedActiveCount={selectedActiveKeys.length}
+          batchRevoking={batchRevoking}
+          onRevokeSelected={() => void revokeSelected()}
+        />
       )}
-      {showDialog ? <KeyDialog organizationId={organizationId} onClose={() => setShowDialog(false)} onCreated={(key, secret) => { setKeys((current) => [key, ...current]); setRevealed(secret); setShowDialog(false); }} /> : null}
+      {showDialog ? (
+        <KeyDialog
+          key={editing?.id ?? "new"}
+          organizationId={organizationId}
+          existing={editing}
+          onClose={() => { setShowDialog(false); setEditing(null); }}
+          onCreated={(key, secret) => {
+            setKeys((current) => [key, ...current]);
+            setRevealed(secret);
+            setShowDialog(false);
+            setEditing(null);
+          }}
+          onUpdated={(key) => {
+            setKeys((current) => current.map((item) => item.id === key.id ? key : item));
+            setShowDialog(false);
+            setEditing(null);
+          }}
+        />
+      ) : null}
     </ConsolePage>
   );
 }

@@ -1,74 +1,260 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowUpRight, Heart, KeyRound, Settings2, UsersRound, WalletCards } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Activity, Gauge, KeyRound, ReceiptText, UsersRound, WalletCards } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ConsoleEmptyState, ConsolePage } from "@/components/console/ConsolePage";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import { StatTile } from "@/components/ui/stat-tile";
-import { getConsoleOverview } from "@/lib/console/client";
-import type { ConsoleOverview } from "@/lib/console/types";
+import { DEFAULT_QUOTA_PER_UNIT } from "@/lib/catalog/plaza-display";
+import { getConsoleOverview, getConsoleUsage, getConsoleUsageCharts } from "@/lib/console/client";
+import type { ConsoleOverview, ConsoleUsageCharts, ConsoleUsageModelSlice, ConsoleUsagePoint } from "@/lib/console/types";
 
-function value(number: number) {
-  return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(number);
+const ROLE_LABEL: Record<string, string> = {
+  owner: "Owner",
+  admin: "Admin",
+  member: "Member",
+  viewer: "Viewer",
+};
+
+function number(value: number) {
+  return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value);
 }
 
-function metric(number: number | undefined) {
-  return typeof number === "number" ? value(number) : "--";
+function percent(value: number) {
+  return `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 }).format(value)}%`;
 }
 
-const services = [
-  { href: "/account/wallet", title: "钱包与用量", description: "查看余额、账本记录与 API 消耗。", icon: WalletCards, tone: "bg-sky-100 text-sky-700", label: "查看用量" },
-  { href: "/account/team", title: "团队与权限", description: "邀请成员并管理协作范围。", icon: UsersRound, tone: "bg-emerald-100 text-emerald-700", label: "管理团队" },
-  { href: "/account/community", title: "收藏与历史", description: "快速回到常用 API、工具和预设。", icon: Heart, tone: "bg-orange-100 text-orange-700", label: "查看收藏" },
-];
+function summarizeModels(models: ConsoleUsageModelSlice[]): ConsoleUsageModelSlice[] {
+  const ranked = [...models].sort((left, right) => right.credits - left.credits || right.requests - left.requests);
+  const top = ranked.slice(0, 3);
+  const rest = ranked.slice(3);
+  if (rest.length === 0) return top;
+  return [
+    ...top,
+    {
+      model: "其他",
+      credits: rest.reduce((total, item) => total + item.credits, 0),
+      requests: rest.reduce((total, item) => total + item.requests, 0),
+    },
+  ];
+}
+
+function TrendSparkline({ points }: { points: ConsoleUsagePoint[] }) {
+  const width = 640;
+  const height = 148;
+  const pad = { top: 10, right: 8, bottom: 22, left: 8 };
+  const innerW = width - pad.left - pad.right;
+  const innerH = height - pad.top - pad.bottom;
+  const maxCredits = Math.max(...points.map((point) => point.credits), 0);
+  const scaleY = maxCredits > 0 ? maxCredits : 1;
+  const last = Math.max(points.length - 1, 1);
+  const x = (index: number) => pad.left + (index / last) * innerW;
+  const y = (value: number) => pad.top + innerH - (value / scaleY) * innerH;
+  const line = points.map((point, index) => `${index === 0 ? "M" : "L"}${x(index).toFixed(1)} ${y(point.credits).toFixed(1)}`).join(" ");
+  const area = `${line} L${x(points.length - 1).toFixed(1)} ${(pad.top + innerH).toFixed(1)} L${x(0).toFixed(1)} ${(pad.top + innerH).toFixed(1)} Z`;
+  const labelEvery = Math.max(1, Math.ceil(points.length / 5));
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="近 14 天额度消耗趋势" className="h-36 w-full">
+      <path d={area} className="fill-primary-500/10" />
+      <path d={line} className="stroke-primary-500" fill="none" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      {points.map((point, index) => (
+        index % labelEvery === 0 || index === points.length - 1 ? (
+          <text key={point.date} x={x(index)} y={height - 4} textAnchor="middle" className="fill-ink-400 text-[10px]">
+            {point.date.slice(5)}
+          </text>
+        ) : null
+      ))}
+    </svg>
+  );
+}
 
 export default function AccountOverview() {
   const [overview, setOverview] = useState<ConsoleOverview | null>(null);
+  const [charts, setCharts] = useState<ConsoleUsageCharts | null>(null);
+  const [usedCredits, setUsedCredits] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let active = true;
-    void getConsoleOverview().then((next) => { if (active) setOverview(next); }).catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : "账户信息暂不可用。 "); });
-    return () => { active = false; };
+  const [statsError, setStatsError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setStatsError(null);
+    try {
+      const overviewResult = await getConsoleOverview();
+      setOverview(overviewResult);
+      const organizationId = overviewResult.activeOrganization?.id ?? null;
+      if (!organizationId) {
+        setCharts(null);
+        setUsedCredits(overviewResult.wallet.usedCredits);
+        return;
+      }
+
+      const [usageResult, chartsResult] = await Promise.allSettled([
+        getConsoleUsage(organizationId),
+        getConsoleUsageCharts(organizationId),
+      ]);
+
+      if (usageResult.status === "fulfilled") {
+        setUsedCredits(usageResult.value.usedQuota / DEFAULT_QUOTA_PER_UNIT);
+      } else {
+        setUsedCredits(overviewResult.wallet.usedCredits);
+      }
+      if (chartsResult.status === "fulfilled") {
+        setCharts(chartsResult.value);
+      } else {
+        setCharts(null);
+      }
+      if (usageResult.status === "rejected" || chartsResult.status === "rejected") {
+        const first = [usageResult, chartsResult].find((result) => result.status === "rejected");
+        setStatsError(first && first.status === "rejected"
+          ? (first.reason instanceof Error ? first.reason.message : "近期汇总暂不可用。")
+          : "近期汇总暂不可用。");
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "账户信息暂不可用。");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return <div className="border border-line bg-surface/65 p-5 sm:p-7 lg:min-h-[calc(100dvh-8.875rem)]">
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <p className="text-sm text-ink-500">个人版 / 个人中心 / 账户信息</p>
-        <h1 className="mt-2 text-3xl font-semibold text-ink-950">账户与个人中心</h1>
-        <p className="mt-2 text-base text-ink-600">管理你的账户、余额、团队与常用工具，一切状态清晰可见。</p>
-      </div>
-      <Link href="/account/personalization" className="inline-flex h-10 items-center gap-2 bg-primary-500 px-4 text-sm font-medium text-white hover:bg-primary-600"><Settings2 className="h-4 w-4" />编辑个人资料</Link>
-    </div>
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
-    {error ? <div className="mt-6 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">账户实时数据暂不可用，下面显示基础账户入口。</div> : null}
-      <div className="mt-6 grid gap-4 md:grid-cols-3">
-        <StatTile
-          label="账户余额"
-          value={metric(overview?.wallet.availableCredits)}
-          hint={overview?.wallet.currency ?? "credits"}
-          icon={WalletCards}
-          tone="primary"
-        />
-        <StatTile
-          label="可用 API Keys"
-          value={metric(overview?.apiKeyCount)}
-          hint="按部署环境分别管理"
-          icon={KeyRound}
-          tone="success"
-        />
-        <StatTile
-          label="工作区"
-          value={<span className="block truncate">{overview?.activeOrganization?.name ?? "--"}</span>}
-          hint={overview?.activeOrganization ? `${overview.activeOrganization.role} 权限` : "登录后显示权限"}
-          icon={UsersRound}
-          tone="warning"
-        />
-      </div>
+  const windowRequests = charts?.daily.reduce((total, point) => total + point.requests, 0) ?? 0;
+  const windowCredits = charts?.daily.reduce((total, point) => total + point.credits, 0) ?? 0;
+  const hasTrend = Boolean(charts?.daily.some((point) => point.credits > 0 || point.requests > 0));
+  const modelMix = useMemo(() => summarizeModels(charts?.byModel ?? []), [charts]);
+  const mixTotal = modelMix.reduce((total, item) => total + item.credits, 0);
+  const leadModel = modelMix[0] ?? null;
 
-      <section className="mt-5 border border-sky-200 bg-sky-50/55 p-5"><p className="text-xs font-semibold text-primary-600">ACCOUNT OVERVIEW</p><div className="mt-2 flex flex-col justify-between gap-5 lg:flex-row lg:items-center"><div><h2 className="text-2xl font-semibold text-ink-950">把常用能力留在自己的工作空间</h2><p className="mt-2 text-sm leading-6 text-ink-600">在这里管理资料、支付方式、团队权限与常用工具收藏。</p></div><ol className="grid grid-cols-3 gap-2 text-center text-xs"><li className="border border-sky-200 bg-surface px-4 py-3"><strong className="block text-primary-600">01</strong><span className="mt-2 block text-ink-700">选择入口</span></li><li className="border border-sky-200 bg-surface px-4 py-3"><strong className="block text-primary-600">02</strong><span className="mt-2 block text-ink-700">完成配置</span></li><li className="border border-sky-200 bg-surface px-4 py-3"><strong className="block text-primary-600">03</strong><span className="mt-2 block text-ink-700">开始使用</span></li></ol></div></section>
+  return (
+    <ConsolePage
+      title="概览"
+      description="当前工作区的账户状态汇总，不重复密钥、日志和成员明细。"
+    >
+      {error ? (
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <section className="mt-7"><div className="flex items-center justify-between"><h2 className="text-xl font-semibold text-ink-950">常用账户服务</h2><Link href="/account/keys" className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700">查看全部 <ArrowUpRight className="h-4 w-4" /></Link></div><div className="mt-4 grid gap-4 md:grid-cols-3">{services.map((service) => { const Icon = service.icon; return <Link key={service.title} href={service.href} className="border border-line bg-surface/90 p-5 transition hover:border-sky-300 hover:shadow-sm"><span className={`grid h-11 w-11 place-items-center ${service.tone}`}><Icon className="h-5 w-5" /></span><h3 className="mt-4 text-lg font-semibold text-ink-950">{service.title}</h3><p className="mt-2 min-h-10 text-sm leading-5 text-ink-600">{service.description}</p><span className="mt-5 inline-flex items-center gap-1 text-sm font-medium text-primary-600">{service.label} <ArrowUpRight className="h-4 w-4" /></span></Link>; })}</div></section>
+      {loading && !overview ? (
+        <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Spinner /> 正在加载概览…
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <StatTile
+              label="账户余额"
+              value={overview ? number(overview.wallet.availableCredits) : "--"}
+              hint={overview?.wallet.currency ?? "CNY"}
+              icon={WalletCards}
+              tone="primary"
+            />
+            <StatTile
+              label="可用 API Keys"
+              value={overview ? number(overview.apiKeyCount) : "--"}
+              hint="按部署环境分别管理"
+              icon={KeyRound}
+              tone="success"
+            />
+            <StatTile
+              label="工作区"
+              value={<span className="block truncate">{overview?.activeOrganization?.name ?? "--"}</span>}
+              hint={overview?.activeOrganization
+                ? `${ROLE_LABEL[overview.activeOrganization.role] ?? overview.activeOrganization.role} 权限`
+                : "登录后显示权限"}
+              icon={UsersRound}
+              tone="warning"
+            />
+          </div>
 
-      <section className="mt-7 flex flex-col justify-between gap-5 bg-ink-950 p-6 text-white sm:flex-row sm:items-center"><div><h2 className="text-xl font-semibold">需要进一步协助？</h2><p className="mt-2 text-sm text-ink-300">对账户、迁移或支付有疑问？支持团队随时协助。</p></div><Link href="/account/community" className="inline-flex h-11 items-center justify-center gap-2 bg-surface px-4 text-sm font-medium text-primary-600 hover:bg-canvas">联系支持团队 <ArrowUpRight className="h-4 w-4" /></Link></section>
-  </div>;
+          {statsError ? (
+            <Alert>
+              <AlertDescription>{statsError}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatTile
+              label="近 14 天消耗"
+              value={charts ? number(windowCredits) : "--"}
+              hint="已结算额度"
+              icon={ReceiptText}
+            />
+            <StatTile
+              label="近 14 天请求"
+              value={charts ? number(windowRequests) : "--"}
+              hint="流式请求在结束后计入"
+              icon={Activity}
+              tone="primary"
+            />
+            <StatTile
+              label="累计已用"
+              value={usedCredits == null ? "--" : number(usedCredits)}
+              hint="工作区额度账户"
+              icon={Gauge}
+            />
+            <StatTile
+              label="主模型"
+              value={leadModel ? <span className="block truncate font-mono text-lg">{leadModel.model}</span> : "--"}
+              hint={leadModel && mixTotal > 0 ? `占近 14 天消耗 ${percent((leadModel.credits / mixTotal) * 100)}` : "暂无模型占比"}
+            />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(16rem,1fr)]">
+            <Card>
+              <CardHeader>
+                <CardTitle>近 14 天消耗</CardTitle>
+                <CardDescription>按日汇总的已结算额度，用来看趋势而不是逐条请求。</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {hasTrend && charts ? (
+                  <TrendSparkline points={charts.daily} />
+                ) : (
+                  <ConsoleEmptyState title="暂无消耗趋势" description="近 14 天还没有已结算请求。" />
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>用量构成</CardTitle>
+                <CardDescription>近 14 天额度占比，只保留头部模型。</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {modelMix.length === 0 || mixTotal <= 0 ? (
+                  <ConsoleEmptyState title="暂无构成" description="有结算用量后会显示模型占比。" />
+                ) : (
+                  <ul className="space-y-3">
+                    {modelMix.map((item) => {
+                      const share = mixTotal > 0 ? (item.credits / mixTotal) * 100 : 0;
+                      return (
+                        <li key={item.model}>
+                          <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+                            <span className="truncate font-mono text-xs text-ink-800">{item.model}</span>
+                            <span className="shrink-0 text-xs text-ink-500">{percent(share)}</span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-canvas">
+                            <div className="h-full rounded-full bg-primary-500" style={{ width: `${Math.max(share, 2)}%` }} />
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+    </ConsolePage>
+  );
 }

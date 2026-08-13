@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { type MouseEvent, type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scrollLock";
@@ -11,7 +11,7 @@ interface ModalProps {
   onClose: () => void;
   label: string;
   align?: "center" | "top";
-  size?: "default" | "workspace" | "onboarding";
+  size?: "default" | "workspace" | "onboarding" | "overlay";
   children: ReactNode;
 }
 
@@ -88,33 +88,49 @@ export default function Modal({
 
   if (!active) return null;
 
+  function closeOnBackdrop(event: MouseEvent<HTMLElement>) {
+    if (event.target === event.currentTarget) onClose();
+  }
+
   return createPortal(
     <div
       ref={hostRef}
       className={`fixed inset-0 ${closing ? "pointer-events-none" : ""}`}
     >
       <div
-        className={`absolute inset-0 bg-ink-950/35 backdrop-blur-sm ${closing ? "modal-fade-out" : "modal-fade-in"}`}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div className="absolute inset-0 overflow-y-auto">
-        <div className="flex min-h-full w-full justify-center p-4">
+        className={`absolute inset-0 overflow-y-auto ${
+          size === "overlay" ? "bg-ink-950/40" : "bg-ink-950/35"
+        } ${closing ? "modal-fade-out" : "modal-fade-in"}`}
+        onMouseDown={closeOnBackdrop}
+      >
+        <div
+          className={`flex min-h-full w-full justify-center ${
+            size === "overlay" ? "items-center px-[5vw] py-[6vh]" : "p-4"
+          }`}
+          onMouseDown={closeOnBackdrop}
+        >
           <div
             ref={panelRef}
             role="dialog"
             aria-modal="true"
             aria-label={label}
             tabIndex={-1}
-            className={`w-full outline-none ${align === "top" ? "mt-[10dvh] mb-4" : "my-auto"} ${
-              closing ? "modal-pop-out" : "modal-pop"
-            } ${
-              size === "workspace"
-                ? "max-w-6xl"
-                : size === "onboarding"
-                  ? "max-w-4xl"
-                  : "max-w-md"
+            className={`w-full outline-none focus:outline-none focus-visible:outline-none ${
+              size === "overlay"
+                ? "flex h-[min(84dvh,56rem)] flex-col"
+                : align === "top"
+                  ? "mt-[10dvh] mb-4"
+                  : "my-auto"
+            } ${closing ? "modal-pop-out" : "modal-pop"} ${
+              size === "overlay"
+                ? "max-w-none"
+                : size === "workspace"
+                  ? "max-w-6xl"
+                  : size === "onboarding"
+                    ? "max-w-4xl"
+                    : "max-w-md"
             }`}
+            onMouseDown={(event) => event.stopPropagation()}
           >
             {children}
           </div>

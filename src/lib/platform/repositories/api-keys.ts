@@ -4,7 +4,13 @@ import type { PlatformDatabase } from "../db/client";
 import { apiKeys } from "../db/schema";
 import { generateApiKey, hashApiKey } from "../api-keys";
 import { decryptSecret, encryptSecret } from "../../newapi/crypto";
-import { createTeamToken, fetchTeamTokenKey, findTeamTokenIdByName, revokeTeamToken } from "../../newapi/team-client";
+import {
+  createTeamToken,
+  fetchTeamTokenKey,
+  findTeamTokenIdByName,
+  revokeTeamToken,
+  updateTeamToken,
+} from "../../newapi/team-client";
 import { TeamNewApiMappingRepository } from "./team-new-api-mapping";
 import type { ApiKeyStatus } from "../types";
 
@@ -40,7 +46,11 @@ export class ApiKeyRepository {
     if (!mapping) throw new Error("This organization has no linked new-api team account.");
     const pat = decryptSecret(mapping.newApiPatCiphertext);
 
-    await createTeamToken(pat, name);
+    await createTeamToken(pat, name, {
+      expiredTime: unixExpiry(input.expiresAt),
+      modelLimits: input.allowedModels ?? [],
+      allowIps: input.ipAllowlist ?? [],
+    });
     const newApiTokenId = await findTeamTokenIdByName(pat, name);
     if (newApiTokenId === null) throw new Error("new-api token was created but could not be found afterward.");
     const newApiKey = await fetchTeamTokenKey(pat, newApiTokenId);
@@ -140,4 +150,48 @@ export class ApiKeyRepository {
   async touchLastUsed(id: string): Promise<void> {
     await this.database.update(apiKeys).set({ lastUsedAt: new Date(), updatedAt: new Date() }).where(eq(apiKeys.id, id));
   }
+
+  async update(
+    id: string,
+    input: {
+      name: string;
+      expiresAt: Date | null;
+      allowedModels: string[];
+      ipAllowlist: string[];
+    },
+  ): Promise<ApiKeyRecord | null> {
+    const existing = await this.findById(id);
+    if (!existing) return null;
+    const name = input.name.trim();
+    if (!name) throw new Error("An API key name is required.");
+
+    if (existing.newApiTokenId && existing.organizationId) {
+      const mapping = await this.teamMappings.findByOrganizationId(existing.organizationId);
+      if (!mapping) throw new Error("This organization has no linked new-api team account.");
+      await updateTeamToken(decryptSecret(mapping.newApiPatCiphertext), existing.newApiTokenId, {
+        name,
+        expiredTime: unixExpiry(input.expiresAt),
+        modelLimits: input.allowedModels,
+        allowIps: input.ipAllowlist,
+      });
+    }
+
+    const [record] = await this.database
+      .update(apiKeys)
+      .set({
+        name,
+        expiresAt: input.expiresAt,
+        allowedModels: input.allowedModels,
+        ipAllowlist: input.ipAllowlist,
+        updatedAt: new Date(),
+      })
+      .where(eq(apiKeys.id, id))
+      .returning();
+    return record ?? null;
+  }
+}
+
+function unixExpiry(value?: Date | null): number {
+  if (!value) return -1;
+  return Math.floor(value.getTime() / 1000);
 }

@@ -1,4 +1,6 @@
 import { getCurrentUserId } from "@/lib/auth/session";
+import { DEFAULT_QUOTA_PER_UNIT } from "@/lib/catalog/plaza-display";
+import { getNewApiUserQuota } from "@/lib/newapi/admin-client";
 import {
   canManageOrganizationResources,
   getPlatformRepositories,
@@ -100,10 +102,8 @@ export function mapConsoleApiKey(
 }
 
 /**
- * Lists keys for the caller's personal workspace (organizationId omitted) or
- * for a whole organization workspace (organizationId provided). Callers must
- * verify the caller's membership/permissions in that organization before
- * passing organizationId — this function does not re-check access.
+ * Lists keys for a workspace. Callers must verify membership before passing
+ * organizationId — this function does not re-check access.
  *
  * usedQuota is always 0 here: local usage_events were dropped; per-key usage
  * is served by GET /api/console/usage (new-api, Task 11).
@@ -126,6 +126,7 @@ export async function listConsoleApiKeys(
     );
   }
   return records
+    .filter((record) => !record.isStudioHidden)
     .map((record) => mapConsoleApiKey(record, BigInt(0), ownerNames?.get(record.userId) ?? null))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
@@ -204,25 +205,45 @@ const EMPTY_WALLET = {
   },
 };
 
+async function walletFromCurrentOrganization(context: ConsoleRequestContext) {
+  const user = await context.repositories.users.findById(context.userId);
+  const organizationId = user?.currentOrganizationId;
+  if (!organizationId) return { ...EMPTY_WALLET };
+  const mapping = await context.repositories.teamNewApiMapping.findByOrganizationId(organizationId);
+  if (!mapping) return { ...EMPTY_WALLET };
+  try {
+    const { quota, usedQuota } = await getNewApiUserQuota(mapping.newApiUserId);
+    return {
+      availableCredits: quota / DEFAULT_QUOTA_PER_UNIT,
+      reservedCredits: 0,
+      usedCredits: usedQuota / DEFAULT_QUOTA_PER_UNIT,
+      currency: "CNY",
+      subscription: EMPTY_WALLET.subscription,
+    };
+  } catch {
+    return { ...EMPTY_WALLET };
+  }
+}
+
 /**
- * Local wallet/ledger tables were dropped; team quota lives on new-api
- * (see GET /api/account/self and GET /api/console/usage). Returns an empty
- * shell so the account wallet page still loads.
+ * Local wallet/ledger tables were dropped; remaining and used quota now
+ * come from the workspace new-api account.
  */
 export async function getConsoleWalletDetails(
-  _context: ConsoleRequestContext,
+  context: ConsoleRequestContext,
 ): Promise<ConsoleWalletDetails> {
   return {
-    wallet: { ...EMPTY_WALLET },
+    wallet: await walletFromCurrentOrganization(context),
     ledger: [],
     paymentOrders: [],
   };
 }
 
 export async function getConsoleOverview(context: ConsoleRequestContext): Promise<ConsoleOverview> {
-  const [memberships, keys] = await Promise.all([
+  const [memberships, keys, wallet] = await Promise.all([
     context.repositories.organizations.listMembershipsForUser(context.userId),
     context.repositories.apiKeys.listForUser(context.userId),
+    walletFromCurrentOrganization(context),
   ]);
 
   const organizationMembership = memberships[0] ?? null;
@@ -231,7 +252,7 @@ export async function getConsoleOverview(context: ConsoleRequestContext): Promis
     : null;
 
   return {
-    wallet: { ...EMPTY_WALLET },
+    wallet,
     apiKeyCount: keys.filter((key) => key.status === "active" && (!key.expiresAt || key.expiresAt.getTime() > Date.now())).length,
     activeOrganization: organization && organizationMembership
       ? { id: organization.id, name: organization.name, role: organizationMembership.role }
@@ -239,6 +260,35 @@ export async function getConsoleOverview(context: ConsoleRequestContext): Promis
     usage: lastUsageDays(14),
     platformReady: true,
   };
+}
+
+function asConsoleStringList(raw: unknown, code: string): string[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.some((entry) => typeof entry !== "string")) {
+    throw new ConsoleRequestError("列表字段格式无效。", 400, code);
+  }
+  return [...new Set(raw.map((entry) => entry.trim()).filter(Boolean))].slice(0, 100);
+}
+
+function parseConsoleKeyName(raw: unknown): string {
+  const name = typeof raw === "string" ? raw.trim() : "";
+  // Capped at 50, not 120: new-api's AddToken rejects any token name over 50
+  // chars (controller/token.go), and every virtual key is backed by a
+  // new-api token 1:1 — a longer name here would fail key creation upstream.
+  if (!name || name.length > 50) {
+    throw new ConsoleRequestError("密钥名称必须为 1 到 50 个字符。", 400, "invalid_key_name");
+  }
+  return name;
+}
+
+function parseConsoleKeyExpiry(raw: unknown): Date | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  if (typeof raw !== "string") throw new ConsoleRequestError("过期时间无效。", 400, "invalid_expiry");
+  const expiresAt = new Date(raw);
+  if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+    throw new ConsoleRequestError("过期时间必须晚于当前时间。", 400, "invalid_expiry");
+  }
+  return expiresAt;
 }
 
 export function parseConsoleKeyInput(value: unknown): {
@@ -252,38 +302,33 @@ export function parseConsoleKeyInput(value: unknown): {
     throw new ConsoleRequestError("请求内容无效。", 400, "invalid_request");
   }
   const input = value as Record<string, unknown>;
-  const name = typeof input.name === "string" ? input.name.trim() : "";
-  // Capped at 50, not 120: new-api's AddToken rejects any token name over 50
-  // chars (controller/token.go), and every virtual key is backed by a
-  // new-api token 1:1 — a longer name here would fail key creation upstream.
-  if (!name || name.length > 50) {
-    throw new ConsoleRequestError("密钥名称必须为 1 到 50 个字符。", 400, "invalid_key_name");
-  }
   if (typeof input.organizationId !== "string" || !input.organizationId.trim()) {
     throw new ConsoleRequestError("创建 API Key 需要指定工作区。", 400, "organization_id_required");
   }
-  const organizationId = input.organizationId.trim();
-  let expiresAt: Date | null = null;
-  if (input.expiresAt !== undefined && input.expiresAt !== null && input.expiresAt !== "") {
-    if (typeof input.expiresAt !== "string") throw new ConsoleRequestError("过期时间无效。", 400, "invalid_expiry");
-    expiresAt = new Date(input.expiresAt);
-    if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
-      throw new ConsoleRequestError("过期时间必须晚于当前时间。", 400, "invalid_expiry");
-    }
-  }
-  const asStringList = (raw: unknown, code: string): string[] => {
-    if (raw === undefined || raw === null) return [];
-    if (!Array.isArray(raw) || raw.some((entry) => typeof entry !== "string")) {
-      throw new ConsoleRequestError("列表字段格式无效。", 400, code);
-    }
-    return [...new Set(raw.map((entry) => entry.trim()).filter(Boolean))].slice(0, 100);
-  };
   return {
-    name,
-    organizationId,
-    expiresAt,
-    allowedModels: asStringList(input.modelScopes, "invalid_model_scopes"),
-    ipAllowlist: asStringList(input.ipAllowList, "invalid_ip_allowlist"),
+    name: parseConsoleKeyName(input.name),
+    organizationId: input.organizationId.trim(),
+    expiresAt: parseConsoleKeyExpiry(input.expiresAt),
+    allowedModels: asConsoleStringList(input.modelScopes, "invalid_model_scopes"),
+    ipAllowlist: asConsoleStringList(input.ipAllowList, "invalid_ip_allowlist"),
+  };
+}
+
+export function parseConsoleKeyPatchInput(value: unknown): {
+  name: string;
+  expiresAt: Date | null;
+  allowedModels: string[];
+  ipAllowlist: string[];
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new ConsoleRequestError("请求内容无效。", 400, "invalid_request");
+  }
+  const input = value as Record<string, unknown>;
+  return {
+    name: parseConsoleKeyName(input.name),
+    expiresAt: parseConsoleKeyExpiry(input.expiresAt),
+    allowedModels: asConsoleStringList(input.modelScopes, "invalid_model_scopes"),
+    ipAllowlist: asConsoleStringList(input.ipAllowList, "invalid_ip_allowlist"),
   };
 }
 

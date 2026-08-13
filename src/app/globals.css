@@ -47,6 +47,30 @@
     "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas,
     "Liberation Mono", monospace;
+
+  /* shadcn semantic tokens mapped onto the existing Reizo palette */
+  --color-background: #ffffff;
+  --color-foreground: #0b1220;
+  --color-card: #ffffff;
+  --color-card-foreground: #0b1220;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #0b1220;
+  --color-primary: #0f172a;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5f7fa;
+  --color-secondary-foreground: #1d2939;
+  --color-muted: #f5f7fa;
+  --color-muted-foreground: #667085;
+  --color-accent: #f1f5f9;
+  --color-accent-foreground: #0b1220;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #e4e7ee;
+  --color-input: #e4e7ee;
+  --color-ring: #64748b;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
 }
 
 html {
@@ -75,6 +99,11 @@ button:not(:disabled) {
 :focus-visible {
   outline: 2px solid var(--color-primary-400);
   outline-offset: 2px;
+}
+
+[role="dialog"]:focus,
+[role="dialog"]:focus-visible {
+  outline: none;
 }
 
 ::-webkit-scrollbar {
@@ -530,13 +559,26 @@ button:not(:disabled) {
 }
 
 .studio-glass {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.56);
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.86);
   box-shadow:
-    0 20px 44px -16px rgba(15, 23, 42, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 20px 44px -16px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94);
+}
+
+.studio-search-panel :is(input, button):focus,
+.studio-search-panel :is(input, button):focus-visible,
+.studio-search-field,
+.studio-search-field:focus,
+.studio-search-field:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.studio-search-field {
+  border: 0;
 }
 
 .studio-glass-soft {
@@ -574,9 +616,9 @@ button:not(:disabled) {
 }
 
 .studio-sidebar-rail {
-  background: rgba(255, 255, 255, 0.56);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(20px) saturate(170%);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
 }
 
 .studio-sidebar-peek {
@@ -865,8 +907,8 @@ button:not(:disabled) {
 }
 
 .studio-nav-active {
-  background: transparent;
-  color: #0F172A;
+  background: rgba(255, 255, 255, 0.72);
+  color: #241E36;
   font-weight: 600;
 }
 
@@ -980,8 +1022,8 @@ button:not(:disabled) {
 }
 
 .studio-nav-item:hover {
-  background: rgba(15, 23, 42, 0.08);
-  transform: translateX(2px);
+  background: rgba(255, 255, 255, 0.58);
+  color: #241E36;
 }
 
 .studio-user-bubble {
@@ -2358,6 +2400,16 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   margin-top: 18px;
   align-items: start;
 }
+.portal-frame.portal-account-frame {
+  width: min(1680px, 100%);
+  padding: 7px 24px 0;
+}
+@media (min-width: 1280px) {
+  .portal-frame.portal-account-frame {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+}
 .portal-account-side {
   position: sticky;
   top: 18px;
@@ -2365,10 +2417,10 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   border: 1px solid var(--portal-line);
   border-radius: 18px;
   background:
-    linear-gradient(165deg, rgba(255, 255, 255, 0.86) 0%, rgba(244, 249, 255, 0.72) 55%, rgba(255, 248, 244, 0.68) 100%);
-  box-shadow: 0 14px 28px -16px rgba(76, 103, 121, 0.22), inset 0 1px 0.5px rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+    linear-gradient(165deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 252, 255, 0.82) 55%, rgba(255, 250, 246, 0.8) 100%);
+  box-shadow: 0 14px 28px -16px rgba(76, 103, 121, 0.18), inset 0 1px 0.5px rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
 }
 .portal-account-side-kicker {
   margin: 0 8px;

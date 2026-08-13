@@ -29,6 +29,7 @@ import {
   type WorkflowRunEventsResult,
 } from "@/lib/studio/api";
 import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
+import { noteLiveChatBecameIdle } from "@/lib/studio/session-unread";
 
 export type {
   ArtifactEventPayload,
@@ -188,6 +189,13 @@ function ensureEntry(sessionId: string, model?: string): Entry {
     entries.set(sessionId, entry);
   }
   return entry;
+}
+
+function notifyIdleIfQuiet(sessionId: string, entry: Entry): void {
+  if (entry.snapshot.streaming || entry.controller || entry.snapshot.queue.length > 0) {
+    return;
+  }
+  noteLiveChatBecameIdle(sessionId);
 }
 
 function emit(entry: Entry): void {
@@ -593,6 +601,7 @@ export function attachWorkflowRun(
   const finalizeAttachment = (): void => {
     applyStreamState(finalizeLiveAgentState(streamState, Date.now()));
     patchSnapshot(entry, { streaming: false });
+    notifyIdleIfQuiet(sessionId, entry);
   };
 
   void (async () => {
@@ -745,6 +754,7 @@ export async function startWorkflowLiveChat(
       if (entry.controller === controller) entry.controller = null;
       finalizeAssistant();
       patchSnapshot(entry, { streaming: false });
+      notifyIdleIfQuiet(sessionId, entry);
     }
     return "sent";
   } finally {
@@ -924,6 +934,7 @@ async function runLiveTurn(
       // Ensure assistant closed even if stream ended without done event
       finalizeAssistant();
       patchSnapshot(entry, { streaming: false });
+      notifyIdleIfQuiet(sessionId, entry);
       queueMicrotask(() => {
         void drainQueue(sessionId);
       });

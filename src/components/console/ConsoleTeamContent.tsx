@@ -1,15 +1,43 @@
 "use client";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import {
   Check,
-  LoaderCircle,
   Plus,
   ShieldCheck,
   Trash2,
   UserPlus,
   UsersRound,
-  X,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import { DataTableFacetedFilter } from "@/components/data-table/data-table-faceted-filter";
+import { DataTableToolbar } from "@/components/data-table/data-table-toolbar";
+import { useDataTable } from "@/components/data-table/use-data-table";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import {
   addConsoleTeamMember,
   getConsoleTeam,
@@ -17,7 +45,6 @@ import {
   updateConsoleTeamMember,
 } from "@/lib/console/client";
 import type { ConsoleOrganizationRole, ConsoleTeam, ConsoleTeamMember } from "@/lib/console/types";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ConsoleEmptyState, ConsolePage } from "./ConsolePage";
 
 const roles: Array<{ value: ConsoleOrganizationRole; label: string; description: string }> = [
@@ -41,12 +68,6 @@ function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "--";
   return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "short", day: "numeric" }).format(date);
-}
-
-function statusText(status: ConsoleTeamMember["status"]): string {
-  if (status === "active") return "正常";
-  if (status === "pending") return "待激活";
-  return "已停用";
 }
 
 function AddMemberDialog({
@@ -85,36 +106,95 @@ function AddMemberDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-ink-950/35 p-4" role="presentation">
-      <form onSubmit={submit} className="w-full max-w-md border border-line bg-surface shadow-xl" role="dialog" aria-modal="true" aria-labelledby="add-member-title">
-        <div className="flex items-center justify-between border-b border-line px-5 py-4">
-          <div>
-            <h2 id="add-member-title" className="text-base font-semibold text-ink-950">添加工作区成员</h2>
-            <p className="mt-1 text-xs text-ink-500">仅可添加已经注册的 Reizo 用户。</p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="关闭" className="grid h-8 w-8 place-items-center text-ink-500 hover:bg-canvas hover:text-ink-950"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="space-y-4 px-5 py-5">
-          <label className="block text-sm font-medium text-ink-800">
-            用户名或邮箱
-            <input autoFocus value={identifier} onChange={(event) => setIdentifier(event.target.value)} maxLength={320} placeholder="例如：alice 或 alice@example.com" className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500" />
-          </label>
-          <label className="block text-sm font-medium text-ink-800">
-            角色
-            <select value={role} onChange={(event) => setRole(event.target.value as ConsoleOrganizationRole)} className="mt-2 w-full border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-ink-500">
-              {roleOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          {error ? <p role="alert" className="text-sm text-rose-700">{error}</p> : null}
-        </div>
-        <div className="flex justify-end gap-2 border-t border-line px-5 py-4">
-          <button type="button" onClick={onClose} className="border border-line px-3 py-2 text-sm text-ink-700 hover:bg-canvas">取消</button>
-          <button disabled={submitting} className="inline-flex items-center gap-2 bg-ink-950 px-3 py-2 text-sm font-medium text-white hover:bg-ink-800 disabled:opacity-60">
-            {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-            添加成员
-          </button>
-        </div>
-      </form>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>添加工作区成员</DialogTitle>
+          <DialogDescription>仅可添加已经注册的 Reizo 用户。</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="flex flex-col gap-5">
+          <FieldGroup>
+            <Field data-invalid={Boolean(error && !identifier.trim()) || undefined}>
+              <FieldLabel htmlFor="member-identifier">用户名或邮箱</FieldLabel>
+              <Input
+                id="member-identifier"
+                autoFocus
+                value={identifier}
+                onChange={(event) => setIdentifier(event.target.value)}
+                maxLength={320}
+                placeholder="例如：alice 或 alice@example.com"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="member-role">角色</FieldLabel>
+              <Select value={role} onValueChange={(value) => setRole(value as ConsoleOrganizationRole)}>
+                <SelectTrigger id="member-role" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {roleOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <FieldDescription>Admin 只能添加 Member 或 Viewer。</FieldDescription>
+            </Field>
+          </FieldGroup>
+          {error ? <FieldError>{error}</FieldError> : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? <Spinner data-icon="inline-start" /> : <UserPlus data-icon="inline-start" />}
+              添加成员
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TeamMembersTable({
+  columns,
+  members,
+}: {
+  columns: ColumnDef<ConsoleTeamMember>[];
+  members: ConsoleTeamMember[];
+}) {
+  const table = useDataTable({
+    columns,
+    data: members,
+    getRowId: (member) => member.id,
+  });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <DataTableToolbar table={table} globalSearch searchPlaceholder="搜索姓名、邮箱或用户名…">
+        <DataTableFacetedFilter
+          table={table}
+          columnId="status"
+          placeholder="全部状态"
+          options={[
+            { label: "正常", value: "active" },
+            { label: "待激活", value: "pending" },
+            { label: "已停用", value: "suspended" },
+          ]}
+        />
+        <DataTableFacetedFilter
+          table={table}
+          columnId="role"
+          placeholder="全部角色"
+          options={[
+            { label: "Owner", value: "owner" },
+            { label: "Admin", value: "admin" },
+            { label: "Member", value: "member" },
+            { label: "Viewer", value: "viewer" },
+          ]}
+        />
+      </DataTableToolbar>
+      <DataTable table={table} columnCount={columns.length} emptyDescription="没有匹配的成员。" />
     </div>
   );
 }
@@ -143,7 +223,7 @@ export default function ConsoleTeamContent() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  async function changeRole(member: ConsoleTeamMember, role: ConsoleOrganizationRole) {
+  const changeRole = useCallback(async (member: ConsoleTeamMember, role: ConsoleOrganizationRole) => {
     if (!team || role === member.role) return;
     setBusyUserId(member.userId);
     setError(null);
@@ -155,9 +235,9 @@ export default function ConsoleTeamContent() {
     } finally {
       setBusyUserId(null);
     }
-  }
+  }, [team, load]);
 
-  async function remove(member: ConsoleTeamMember) {
+  const remove = useCallback(async (member: ConsoleTeamMember) => {
     if (!team) return;
     if (!window.confirm(`确定要将 ${member.displayName} 移出工作区吗？`)) return;
     setBusyUserId(member.userId);
@@ -170,49 +250,203 @@ export default function ConsoleTeamContent() {
     } finally {
       setBusyUserId(null);
     }
-  }
+  }, [team, load]);
 
   const ownerCount = team?.members.filter((member) => member.role === "owner").length ?? 0;
+
+  const columns = useMemo<ColumnDef<ConsoleTeamMember>[]>(() => {
+    if (!team) return [];
+    return [
+      {
+        accessorKey: "displayName",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="成员" />,
+        cell: ({ row }) => {
+          const member = row.original;
+          return (
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+                {member.displayName.slice(0, 1).toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="truncate font-medium text-ink-950">{member.displayName}</p>
+                  {member.isCurrentUser ? <Badge variant="outline">你</Badge> : null}
+                </div>
+                <p className="truncate text-xs text-ink-500">{member.email || member.username}</p>
+              </div>
+            </div>
+          );
+        },
+        meta: { label: "成员" },
+      },
+      {
+        accessorKey: "status",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="状态" />,
+        cell: ({ row }) => {
+          const status = row.original.status;
+          if (status === "active") {
+            return <Badge variant="success"><Check className="mr-1 size-3" />正常</Badge>;
+          }
+          if (status === "pending") return <Badge variant="outline">待激活</Badge>;
+          return <Badge variant="destructive">已停用</Badge>;
+        },
+        meta: { label: "状态" },
+      },
+      {
+        accessorKey: "role",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="角色" />,
+        cell: ({ row }) => {
+          const member = row.original;
+          const canManage = team.canManageMembers && canManageTarget(team.actorRole, member.role);
+          const protectedOwner = member.role === "owner" && ownerCount <= 1;
+          const busy = busyUserId === member.userId;
+          return (
+            <Select
+              value={member.role}
+              disabled={!canManage || protectedOwner || busy}
+              onValueChange={(value) => void changeRole(member, value as ConsoleOrganizationRole)}
+            >
+              <SelectTrigger aria-label={`${member.displayName} 的角色`} className="h-8 w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {roles.map((role) => (
+                    <SelectItem
+                      key={role.value}
+                      value={role.value}
+                      disabled={team.actorRole === "admin" && (role.value === "owner" || role.value === "admin")}
+                    >
+                      {role.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          );
+        },
+        meta: { label: "角色" },
+      },
+      {
+        accessorKey: "joinedAt",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="加入时间" />,
+        cell: ({ row }) => <span className="text-xs text-ink-500">{formatDate(row.original.joinedAt)}</span>,
+        meta: { label: "加入时间" },
+      },
+      {
+        id: "actions",
+        header: () => <span className="sr-only">操作</span>,
+        cell: ({ row }) => {
+          const member = row.original;
+          const canManage = team.canManageMembers && canManageTarget(team.actorRole, member.role);
+          const protectedOwner = member.role === "owner" && ownerCount <= 1;
+          if (!canManage || protectedOwner) return null;
+          const busy = busyUserId === member.userId;
+          return (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={busy}
+              onClick={() => void remove(member)}
+              aria-label={`移除 ${member.displayName}`}
+              title="移除成员"
+              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            >
+              {busy ? <Spinner /> : <Trash2 />}
+            </Button>
+          );
+        },
+        enableSorting: false,
+        enableHiding: false,
+      },
+    ];
+  }, [team, busyUserId, ownerCount, changeRole, remove]);
 
   return (
     <ConsolePage
       title="工作区成员"
-      description="工作区定义资源协作边界；API 额度仍保留在每位成员的个人钱包中。"
-      actions={team?.canManageMembers ? <button type="button" onClick={() => setShowAdd(true)} className="inline-flex items-center gap-2 bg-ink-950 px-3 py-2 text-sm font-medium text-white hover:bg-ink-800"><Plus className="h-4 w-4" />添加成员</button> : undefined}
+      description="谁在这个工作区、各自什么角色。额度和密钥不在这里管。"
+      actions={team?.canManageMembers ? (
+        <Button type="button" onClick={() => setShowAdd(true)}>
+          <Plus data-icon="inline-start" />
+          添加成员
+        </Button>
+      ) : undefined}
     >
-      {error ? <p role="alert" className="mb-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p> : null}
-      {loading ? <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-ink-500"><LoaderCircle className="h-4 w-4 animate-spin" />正在加载成员…</div> : null}
-      {!loading && !team && !error ? <ConsoleEmptyState title="工作区暂不可用" description="当前账户还没有可访问的工作区。" /> : null}
-      {!loading && team ? <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
-        <section className="border border-line bg-surface">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
-            <div className="flex items-center gap-2"><UsersRound className="h-4 w-4 text-ink-600" /><div><h2 className="text-sm font-semibold text-ink-950">{team.organization.name}</h2><p className="mt-0.5 text-xs text-ink-500">{team.members.length} 位成员 · 你的角色：{roles.find((role) => role.value === team.actorRole)?.label}</p></div></div>
-            {team.organizations.length > 1 ? <select aria-label="选择工作区" value={team.organization.id} onChange={(event) => void load(event.target.value)} className="border border-line bg-canvas px-2 py-1.5 text-sm text-ink-700 outline-none focus:border-ink-500">{team.organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}</select> : null}
-          </div>
-          {!team.canManageMembers ? <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">你可以查看成员，但没有修改工作区成员的权限。</div> : null}
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left text-sm">
-              <thead className="border-b border-line bg-canvas text-xs font-medium text-ink-500"><tr><th className="px-5 py-3">成员</th><th className="px-4 py-3">状态</th><th className="px-4 py-3">角色</th><th className="px-4 py-3">加入时间</th><th className="w-12 px-4 py-3"><span className="sr-only">操作</span></th></tr></thead>
-              <tbody className="divide-y divide-line">
-                {team.members.map((member) => {
-                  const canManage = team.canManageMembers && canManageTarget(team.actorRole, member.role);
-                  const protectedOwner = member.role === "owner" && ownerCount <= 1;
-                  const busy = busyUserId === member.userId;
-                  return <tr key={member.id} className="text-ink-700">
-                    <td className="px-5 py-3"><div className="flex min-w-0 items-center gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center bg-primary-100 text-xs font-semibold text-primary-700">{member.displayName.slice(0, 1).toUpperCase()}</span><div className="min-w-0"><div className="flex items-center gap-2"><p className="truncate font-medium text-ink-950">{member.displayName}</p>{member.isCurrentUser ? <span className="border border-primary-200 bg-primary-50 px-1.5 py-0.5 text-[10px] font-medium text-primary-700">你</span> : null}</div><p className="truncate text-xs text-ink-500">{member.email || member.username}</p></div></div></td>
-                    <td className="px-4 py-3"><span className={member.status === "active" ? "text-emerald-700" : "text-amber-700"}>{member.status === "active" ? <Check className="mr-1 inline h-3.5 w-3.5" /> : null}{statusText(member.status)}</span></td>
-                    <td className="px-4 py-3"><select aria-label={`${member.displayName} 的角色`} disabled={!canManage || protectedOwner || busy} value={member.role} onChange={(event) => void changeRole(member, event.target.value as ConsoleOrganizationRole)} className="border border-line bg-canvas px-2 py-1.5 text-sm text-ink-800 outline-none focus:border-ink-500 disabled:cursor-not-allowed disabled:opacity-60">{roles.map((role) => <option key={role.value} value={role.value} disabled={team.actorRole === "admin" && (role.value === "owner" || role.value === "admin")}>{role.label}</option>)}</select></td>
-                    <td className="px-4 py-3 text-xs text-ink-500">{formatDate(member.joinedAt)}</td>
-                    <td className="px-4 py-3">{canManage && !protectedOwner ? <button type="button" disabled={busy} onClick={() => void remove(member)} aria-label={`移除 ${member.displayName}`} title="移除成员" className="grid h-8 w-8 place-items-center text-ink-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button> : null}</td>
-                  </tr>;
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <aside className="border border-line bg-surface p-5"><div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-ink-600" /><h2 className="text-sm font-semibold text-ink-950">角色权限</h2></div><dl className="mt-4 space-y-4">{roles.map((role) => <div key={role.value}><dt className="text-sm font-medium text-ink-800">{role.label}</dt><dd className="mt-1 text-xs leading-5 text-ink-500">{role.description}</dd></div>)}</dl></aside>
-      </div> : null}
-      {showAdd && team ? <AddMemberDialog team={team} onClose={() => setShowAdd(false)} onAdded={() => load(team.organization.id)} /> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {loading ? (
+        <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Spinner />正在加载成员…
+        </div>
+      ) : null}
+      {!loading && !team && !error ? (
+        <ConsoleEmptyState title="工作区暂不可用" description="当前账户还没有可访问的工作区。" />
+      ) : null}
+      {!loading && team ? (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <UsersRound className="size-4 text-ink-600" />
+                <div>
+                  <CardTitle>{team.organization.name}</CardTitle>
+                  <CardDescription>
+                    {team.members.length} 位成员 · 你的角色：{roles.find((role) => role.value === team.actorRole)?.label}
+                  </CardDescription>
+                </div>
+              </div>
+              {team.organizations.length > 1 ? (
+                <Select value={team.organization.id} onValueChange={(value) => void load(value)}>
+                  <SelectTrigger aria-label="选择工作区" className="w-44">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {team.organizations.map((organization) => (
+                        <SelectItem key={organization.id} value={organization.id}>{organization.name}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              ) : null}
+            </CardHeader>
+            <CardContent>
+              {!team.canManageMembers ? (
+                <Alert className="mb-4">
+                  <AlertDescription>你可以查看成员，但没有修改工作区成员的权限。</AlertDescription>
+                </Alert>
+              ) : null}
+              <TeamMembersTable columns={columns} members={team.members} />
+            </CardContent>
+          </Card>
+          <Card className="h-fit">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="size-4 text-ink-600" />
+                <CardTitle>角色权限</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <dl className="space-y-4">
+                {roles.map((role) => (
+                  <div key={role.value}>
+                    <dt className="text-sm font-medium text-ink-800">{role.label}</dt>
+                    <dd className="mt-1 text-xs leading-5 text-ink-500">{role.description}</dd>
+                  </div>
+                ))}
+              </dl>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+      {showAdd && team ? (
+        <AddMemberDialog team={team} onClose={() => setShowAdd(false)} onAdded={() => load(team.organization.id)} />
+      ) : null}
     </ConsolePage>
   );
 }

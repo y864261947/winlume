@@ -98,7 +98,28 @@ function defaultTokenGroup(): string {
   return process.env.NEW_API_TOKEN_GROUP?.trim() || "gpt-pro";
 }
 
-export async function createTeamToken(pat: string, name: string): Promise<void> {
+export type TeamTokenSettings = {
+  expiredTime?: number;
+  modelLimits?: string[];
+  allowIps?: string[];
+};
+
+function tokenLimitFields(settings?: TeamTokenSettings) {
+  const modelLimits = settings?.modelLimits ?? [];
+  const allowIps = settings?.allowIps ?? [];
+  return {
+    expired_time: settings?.expiredTime ?? -1,
+    model_limits_enabled: modelLimits.length > 0,
+    model_limits: modelLimits.join(","),
+    allow_ips: allowIps.join(","),
+  };
+}
+
+export async function createTeamToken(
+  pat: string,
+  name: string,
+  settings?: TeamTokenSettings,
+): Promise<void> {
   const response = await fetch(`${baseUrl()}/api/token/`, {
     method: "POST",
     headers: teamHeaders(pat),
@@ -107,7 +128,82 @@ export async function createTeamToken(pat: string, name: string): Promise<void> 
       group: defaultTokenGroup(),
       remain_quota: 0,
       unlimited_quota: true,
-      expired_time: -1,
+      ...tokenLimitFields(settings),
+    }),
+    cache: "no-store",
+  });
+  await parseEnvelope(response);
+}
+
+export type TeamTokenSnapshot = {
+  id: number;
+  name: string;
+  group: string;
+  remainQuota: number;
+  unlimitedQuota: boolean;
+  expiredTime: number;
+  modelLimitsEnabled: boolean;
+  modelLimits: string;
+  allowIps: string;
+  crossGroupRetry: boolean;
+};
+
+export async function fetchTeamToken(pat: string, tokenId: number): Promise<TeamTokenSnapshot> {
+  const response = await fetch(`${baseUrl()}/api/token/${tokenId}`, {
+    method: "GET",
+    headers: teamHeaders(pat),
+    cache: "no-store",
+  });
+  const data = requireData(
+    await parseEnvelope<{
+      id: number;
+      name: string;
+      group: string;
+      remain_quota: number;
+      unlimited_quota: boolean;
+      expired_time: number;
+      model_limits_enabled: boolean;
+      model_limits: string;
+      allow_ips: string | null;
+      cross_group_retry?: boolean;
+    }>(response),
+    response.status,
+  );
+  return {
+    id: data.id,
+    name: data.name,
+    group: data.group,
+    remainQuota: data.remain_quota,
+    unlimitedQuota: data.unlimited_quota,
+    expiredTime: data.expired_time,
+    modelLimitsEnabled: data.model_limits_enabled,
+    modelLimits: data.model_limits,
+    allowIps: data.allow_ips ?? "",
+    crossGroupRetry: data.cross_group_retry ?? false,
+  };
+}
+
+export async function updateTeamToken(
+  pat: string,
+  tokenId: number,
+  settings: { name: string } & TeamTokenSettings,
+): Promise<void> {
+  const current = await fetchTeamToken(pat, tokenId);
+  const response = await fetch(`${baseUrl()}/api/token/`, {
+    method: "PUT",
+    headers: teamHeaders(pat),
+    body: JSON.stringify({
+      id: tokenId,
+      name: settings.name,
+      group: current.group || defaultTokenGroup(),
+      remain_quota: current.remainQuota,
+      unlimited_quota: current.unlimitedQuota,
+      cross_group_retry: current.crossGroupRetry,
+      ...tokenLimitFields({
+        expiredTime: settings.expiredTime ?? current.expiredTime,
+        modelLimits: settings.modelLimits ?? current.modelLimits.split(",").filter(Boolean),
+        allowIps: settings.allowIps ?? current.allowIps.split(",").filter(Boolean),
+      }),
     }),
     cache: "no-store",
   });
@@ -144,6 +240,106 @@ export async function revokeTeamToken(pat: string, tokenId: number): Promise<voi
     cache: "no-store",
   });
   await parseEnvelope(response);
+}
+
+export type NewApiUserLog = {
+  created_at?: number;
+  type?: number;
+  content?: string;
+  token_name?: string;
+  model_name?: string;
+  quota?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  use_time?: number;
+  is_stream?: boolean;
+  request_id?: string;
+};
+
+export async function getUserLogs(
+  pat: string,
+  query: {
+    page?: number;
+    pageSize?: number;
+    type?: number;
+    modelName?: string;
+    tokenName?: string;
+    requestId?: string;
+    startTimestamp?: number;
+    endTimestamp?: number;
+  } = {},
+): Promise<{ page: number; pageSize: number; total: number; items: NewApiUserLog[] }> {
+  const params = new URLSearchParams();
+  params.set("p", String(query.page ?? 1));
+  params.set("page_size", String(Math.min(Math.max(query.pageSize ?? 100, 1), 100)));
+  if (query.type) params.set("type", String(query.type));
+  if (query.modelName) params.set("model_name", query.modelName);
+  if (query.tokenName) params.set("token_name", query.tokenName);
+  if (query.requestId) params.set("request_id", query.requestId);
+  if (query.startTimestamp) params.set("start_timestamp", String(query.startTimestamp));
+  if (query.endTimestamp) params.set("end_timestamp", String(query.endTimestamp));
+  const response = await fetch(`${baseUrl()}/api/log/self?${params}`, {
+    method: "GET",
+    headers: teamHeaders(pat),
+    cache: "no-store",
+  });
+  const data = requireData(
+    await parseEnvelope<{ page: number; page_size: number; total: number; items: NewApiUserLog[] }>(response),
+    response.status,
+  );
+  return {
+    page: data.page,
+    pageSize: data.page_size,
+    total: data.total,
+    items: Array.isArray(data.items) ? data.items : [],
+  };
+}
+
+export type NewApiQuotaDate = {
+  model_name?: string;
+  created_at?: number;
+  count?: number;
+  quota?: number;
+  token_used?: number;
+};
+
+export async function getUserQuotaDates(
+  pat: string,
+  query: { startTimestamp: number; endTimestamp: number },
+): Promise<NewApiQuotaDate[]> {
+  const params = new URLSearchParams();
+  params.set("start_timestamp", String(query.startTimestamp));
+  params.set("end_timestamp", String(query.endTimestamp));
+  const response = await fetch(`${baseUrl()}/api/data/self?${params}`, {
+    method: "GET",
+    headers: teamHeaders(pat),
+    cache: "no-store",
+  });
+  const data = requireData(await parseEnvelope<NewApiQuotaDate[]>(response), response.status);
+  return Array.isArray(data) ? data : [];
+}
+
+export type NewApiRedeemResult = {
+  type: string;
+  quota: number | null;
+};
+
+export async function redeemTeamCode(pat: string, key: string): Promise<NewApiRedeemResult> {
+  const response = await fetch(`${baseUrl()}/api/user/topup`, {
+    method: "POST",
+    headers: teamHeaders(pat),
+    body: JSON.stringify({ key }),
+    cache: "no-store",
+  });
+  const data = await parseEnvelope<number | { type?: string; quota?: number }>(response);
+  if (typeof data === "number") return { type: "quota", quota: data };
+  if (data && typeof data === "object") {
+    return {
+      type: data.type ?? "quota",
+      quota: typeof data.quota === "number" ? data.quota : null,
+    };
+  }
+  return { type: "quota", quota: null };
 }
 
 export async function getTokenUsage(

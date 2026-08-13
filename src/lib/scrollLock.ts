@@ -11,5 +11,8 @@ export function lockBodyScroll() {
 export function unlockBodyScroll() {
   if (typeof document === "undefined") return;
   lockCount = Math.max(0, lockCount - 1);
-  if (lockCount === 0) document.body.style.overflow = "";
+  if (lockCount === 0) {
+    document.body.style.overflow = "";
+    document.body.style.removeProperty("pointer-events");
+  }
 }

@@ -4,9 +4,13 @@ import {
   fetchTeamTokenKey,
   findTeamTokenIdByName,
   getTokenUsage,
+  getUserLogs,
+  getUserQuotaDates,
   loginAndMintPat,
+  redeemTeamCode,
   NewApiTeamError,
   revokeTeamToken,
+  updateTeamToken,
 } from "./team-client";
 
 const originalEnv = { ...process.env };
@@ -72,6 +76,9 @@ describe("createTeamToken / findTeamTokenIdByName / fetchTeamTokenKey", () => {
       remain_quota: 0,
       unlimited_quota: true,
       expired_time: -1,
+      model_limits_enabled: false,
+      model_limits: "",
+      allow_ips: "",
     });
   });
 
@@ -95,12 +102,79 @@ describe("createTeamToken / findTeamTokenIdByName / fetchTeamTokenKey", () => {
     await expect(findTeamTokenIdByName("pat-xyz", "studio")).resolves.toBe(7);
   });
 
+  it("forwards expiry and model/IP limits when creating a token", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await createTeamToken("pat-xyz", "prod", {
+      expiredTime: 1_800_000_000,
+      modelLimits: ["gpt-4o"],
+      allowIps: ["203.0.113.10"],
+    });
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      expired_time: 1_800_000_000,
+      model_limits_enabled: true,
+      model_limits: "gpt-4o",
+      allow_ips: "203.0.113.10",
+    });
+  });
+
   it("fetches the raw key and prefixes sk-", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true, data: { key: "rawkey123" } }), { status: 200 })),
     );
     await expect(fetchTeamTokenKey("pat-xyz", 7)).resolves.toBe("sk-rawkey123");
+  });
+});
+
+describe("updateTeamToken", () => {
+  it("loads the current token then PUTs merged limits without resetting quota", async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "GET" || url.endsWith("/api/token/9")) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              id: 9,
+              name: "old",
+              group: "gpt-pro",
+              remain_quota: 42,
+              unlimited_quota: false,
+              expired_time: -1,
+              model_limits_enabled: false,
+              model_limits: "",
+              allow_ips: "",
+              cross_group_retry: false,
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ success: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await updateTeamToken("pat-xyz", 9, {
+      name: "new-name",
+      expiredTime: 1_800_000_000,
+      modelLimits: ["gpt-4o"],
+      allowIps: ["203.0.113.10"],
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://v2api.top/api/token/9");
+    const [putUrl, putInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(putUrl).toBe("https://v2api.top/api/token/");
+    expect(putInit.method).toBe("PUT");
+    expect(JSON.parse(putInit.body as string)).toMatchObject({
+      id: 9,
+      name: "new-name",
+      group: "gpt-pro",
+      remain_quota: 42,
+      unlimited_quota: false,
+      expired_time: 1_800_000_000,
+      model_limits_enabled: true,
+      model_limits: "gpt-4o",
+      allow_ips: "203.0.113.10",
+    });
   });
 });
 
@@ -112,6 +186,62 @@ describe("revokeTeamToken", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://v2api.top/api/token/7");
     expect(init.method).toBe("DELETE");
+  });
+});
+
+describe("getUserLogs", () => {
+  it("calls the team-scoped /api/log/self endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ success: true, data: { page: 1, page_size: 100, total: 1, items: [{ model_name: "gpt-4o" }] } }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(getUserLogs("pat-xyz", { pageSize: 100 })).resolves.toEqual({
+      page: 1,
+      pageSize: 100,
+      total: 1,
+      items: [{ model_name: "gpt-4o" }],
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://v2api.top/api/log/self?p=1&page_size=100");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer pat-xyz");
+  });
+});
+
+describe("getUserQuotaDates", () => {
+  it("calls the team-scoped /api/data/self endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: [{ model_name: "gpt-4o", created_at: 1_800_000_000, count: 2, quota: 500_000 }],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(getUserQuotaDates("pat-xyz", { startTimestamp: 10, endTimestamp: 20 })).resolves.toEqual([
+      { model_name: "gpt-4o", created_at: 1_800_000_000, count: 2, quota: 500_000 },
+    ]);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://v2api.top/api/data/self?start_timestamp=10&end_timestamp=20");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer pat-xyz");
+  });
+});
+
+describe("redeemTeamCode", () => {
+  it("posts the redemption key to /api/user/topup and maps a quota payload", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: 500_000 }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(redeemTeamCode("pat-xyz", "CODE-1")).resolves.toEqual({ type: "quota", quota: 500_000 });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://v2api.top/api/user/topup");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ key: "CODE-1" });
   });
 });
 
