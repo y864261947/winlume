@@ -3,6 +3,8 @@ import { ArrowRight, Building2, CheckCircle2, Database, ShieldCheck, Users, Work
 import type { LucideIcon } from "lucide-react";
 import { businessCases } from "@/data/audience";
 import styles from "./enterprise-portal.module.css";
+import EnterprisePageNav from "./EnterprisePageNav";
+import EnterprisePageFooter from "./EnterprisePageFooter";
 
 type DirectoryKind = "capabilities" | "cases" | "deployment" | "consultant";
 const pages = {
@@ -13,9 +15,9 @@ const pages = {
 } as const;
 export default function EnterpriseDirectory({ kind }: { kind: DirectoryKind }) {
   const page = pages[kind];
-  return <main className={styles.directory}><header className={styles.nav}><Link className={styles.brand} href="/business"><span>R</span>Reizo</Link><p>AI that works for real business</p><Link className={styles.audienceSwitch} href="/">个人版 <ArrowRight aria-hidden /></Link><nav><Link href="/business">企业版首页</Link><Link href="/business/capabilities">业务能力</Link><Link href="/business/cases">客户案例</Link><Link href="/business/deployment">AI 部署方向</Link><Link href="/business/consultant">咨询专员</Link></nav></header><section className={styles.directoryHero}><p className={styles.eyebrow}>{page.eyebrow}</p><h1>{page.title}</h1><span>{page.copy}</span><Link className={styles.primary} href="/business/assessment">免费评估 AI 机会 <ArrowRight /></Link></section>{kind === "cases" ? <CaseGrid /> : <InfoGrid kind={kind} />}<section className={styles.cta}><p>Every Business Will Run on AI.</p><h2>先看清问题，再开始落地。</h2><div><Link className={styles.primary} href="/business/assessment">开始 AI 评估 <ArrowRight /></Link><Link className={styles.secondary} href="/business/consultant">预约方案沟通</Link></div></section></main>;
+  return <main className={styles.directory}><EnterprisePageNav active={kind} /><section className={styles.directoryHero}><p className={styles.eyebrow}>{page.eyebrow}</p><h1>{page.title}</h1><span>{page.copy}</span><Link className={styles.primary} href="/business/assessment">免费评估 AI 机会 <ArrowRight /></Link></section>{kind === "cases" ? <CaseGrid /> : <InfoGrid kind={kind} />}<section className={styles.cta}><p>Every Business Will Run on AI.</p><h2>先看清问题，再开始落地。</h2><div><Link className={styles.primary} href="/business/assessment">开始 AI 评估 <ArrowRight /></Link><Link className={styles.secondary} href="/business/consultant">预约方案沟通</Link></div></section><EnterprisePageFooter /></main>;
 }
-function CaseGrid(){return <section className={styles.caseGrid}>{businessCases.map(item=><article key={item.id}><span>{item.industry}</span><h2>{item.client}</h2><p>{item.scenario}</p><strong>{item.outcome}</strong></article>)}</section>}
+function CaseGrid(){return <section className={styles.caseGrid}>{businessCases.map(item=><article key={item.id}><span>{item.industry}</span><h2>{item.client}</h2><p>{item.scenario}</p><strong>{item.outcome}</strong>{item.productId ? <Link className={styles.caseAction} href={`/products/${item.productId}`}>查看相关能力 <ArrowRight aria-hidden /></Link> : null}</article>)}</section>}
 type InfoItem = { icon: LucideIcon; title: string; copy: string };
 const infoByKind: Record<Exclude<DirectoryKind, "cases">, InfoItem[]> = {
   capabilities: [{ icon: Workflow, title: "Agent 执行与编排", copy: "让任务、工具与人工审批形成可观测流程" }, { icon: Database, title: "知识与系统连接", copy: "让数据、文档与业务系统成为可用上下文" }, { icon: ShieldCheck, title: "安全与治理", copy: "权限、审计、部署和成本始终可控" }],

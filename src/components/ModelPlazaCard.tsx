@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Star } from "lucide-react";
+import { ArrowDownLeft, ArrowRight, ArrowUpRight, Heart } from "lucide-react";
 import type { PlazaModel } from "@/lib/catalog";
+import { useModals } from "@/components/providers";
 import {
   modelDescription,
   modelPriceLines,
@@ -35,8 +36,11 @@ export function ModelPlazaCard({ model, docsHref }: Props) {
   const description = modelDescription(model, vendor);
   const tags = modelTags(model);
   const price = modelPriceLines(model);
-  const studioHref = `/studio?model=${encodeURIComponent(model.model_name)}`;
+  const studioHref = `/studio?model=${encodeURIComponent(model.model_name)}&entry=model-catalog`;
   const [logoFailed, setLogoFailed] = useState(false);
+  const { favorites, toggleFavorite } = useModals();
+  const favoriteId = `model:${model.model_name}`;
+  const favorite = favorites.includes(favoriteId);
 
   return (
     <article className="portal-model-plaza-card group relative flex h-full flex-col overflow-hidden">
@@ -65,36 +69,17 @@ export function ModelPlazaCard({ model, docsHref }: Props) {
           </span>
         </div>
 
-        {/* Hover actions — marketplace style */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex translate-y-1 opacity-0 transition duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100">
-          <div className="flex w-full overflow-hidden rounded-t-lg bg-[#0d4fc9]/95 text-center text-xs font-medium text-white backdrop-blur-sm">
-            {docsHref ? (
-              <a
-                href={docsHref}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 border-r border-white/20 px-2 py-2.5 transition hover:bg-[#0b45b0]"
-              >
-                查看文档
-              </a>
-            ) : null}
-            <Link
-              href={studioHref}
-              className={`px-2 py-2.5 transition hover:bg-[#0b45b0] ${docsHref ? "flex-1" : "w-full"}`}
-            >
-              立即体验
-            </Link>
-          </div>
-        </div>
-
         <button
           type="button"
-          className="absolute right-3 top-3 z-[2] rounded-full bg-white/80 p-1.5 text-slate-400 opacity-0 shadow-sm transition hover:text-amber-500 group-hover:opacity-100"
-          title="收藏（即将支持）"
-          aria-label="收藏"
-          onClick={(event) => event.preventDefault()}
+          className={`absolute right-3 top-3 z-[2] rounded-full bg-white/85 p-1.5 shadow-sm transition ${
+            favorite ? "text-rose-500" : "text-slate-400 hover:text-rose-500"
+          }`}
+          title={favorite ? "取消收藏" : "收藏模型"}
+          aria-label={favorite ? `取消收藏 ${model.model_name}` : `收藏 ${model.model_name}`}
+          aria-pressed={favorite}
+          onClick={() => toggleFavorite(favoriteId)}
         >
-          <Star className="h-3.5 w-3.5" />
+          <Heart className={`h-3.5 w-3.5 ${favorite ? "fill-current" : ""}`} />
         </button>
       </div>
 
@@ -131,6 +116,22 @@ export function ModelPlazaCard({ model, docsHref }: Props) {
               </p>
             </div>
           )}
+        </div>
+        <div className="portal-model-plaza-actions mt-3 flex gap-2">
+          {docsHref ? (
+            <a
+              href={docsHref}
+              target="_blank"
+              rel="noreferrer"
+              className="portal-model-plaza-docs"
+            >
+              文档
+            </a>
+          ) : null}
+          <Link href={studioHref} className="portal-model-plaza-launch">
+            进入工作台
+            <ArrowRight aria-hidden />
+          </Link>
         </div>
       </div>
     </article>

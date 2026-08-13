@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  ArrowRight,
   Bell,
   ChevronRight,
   LayoutGrid,
@@ -182,8 +183,8 @@ export default function ProductsExplorer({
           <h1>{mode === "models" ? "模型 API 目录" : "AI 应用目录"}</h1>
           <p className="portal-catalog-lead">
             {mode === "models"
-              ? "统一查看已导入定价目录中的模型，价格与 Gateway 计费同源。"
-              : "精选应用与工具，按场景挑选可直接打开的工作流。"}
+              ? "统一查看已导入定价目录中的模型；选好后可带着模型直接进入工作台继续使用。"
+              : "精选应用与工具，按场景挑选；进入工作台后仍可修改提示词与模型。"}
           </p>
           <div className="portal-catalog-modebar" role="tablist" aria-label="目录子菜单">
             <button
@@ -323,6 +324,7 @@ export default function ProductsExplorer({
               vendorKey={vendorKey}
               capability={capability}
               onStats={onPlazaStats}
+              onClearFilters={resetModelFilters}
             />
           </>
         ) : (
@@ -370,17 +372,26 @@ export default function ProductsExplorer({
             {appList.length === 0 ? (
               <div className="portal-catalog-empty">
                 <PackageSearch className="h-10 w-10 text-[#9aa8b5]" />
-                <p>没有符合条件的应用</p>
-                <button
-                  type="button"
-                  className="portal-arrow-link"
-                  onClick={() => {
-                    setAppTag(undefined);
-                    setQuery("");
-                  }}
-                >
-                  清除筛选
-                </button>
+                <h3>没有符合条件的应用</h3>
+                <p>尝试清除搜索或应用类目，重新浏览全部应用。</p>
+                <div className="portal-catalog-empty-actions">
+                  <button
+                    type="button"
+                    className="portal-catalog-empty-secondary"
+                    onClick={() => {
+                      setAppTag(undefined);
+                      setQuery("");
+                    }}
+                  >
+                    清除筛选
+                  </button>
+                  <Link
+                    href="/studio?entry=application-catalog-empty"
+                    className="portal-catalog-empty-primary"
+                  >
+                    进入工作台 <ArrowRight aria-hidden />
+                  </Link>
+                </div>
               </div>
             ) : (
               <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

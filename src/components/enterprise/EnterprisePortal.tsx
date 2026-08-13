@@ -3,6 +3,8 @@ import { ArrowRight, Building2, Database, Factory, ShieldCheck, Workflow } from 
 import type { ReactNode } from "react";
 import { businessCases } from "@/data/audience";
 import styles from "./enterprise-portal.module.css";
+import EnterprisePageNav from "./EnterprisePageNav";
+import EnterprisePageFooter from "./EnterprisePageFooter";
 
 const outcomes = ["更少\n重复工作", "更短\n流程周期", "更低\n单位成本", "更快\n业务响应"];
 const architecture = [
@@ -15,15 +17,7 @@ const architecture = [
 export default function EnterprisePortal() {
   return (
     <main className={styles.page}>
-      <header className={styles.nav}>
-        <Link className={styles.brand} href="/business"><span>R</span>Reizo</Link>
-        <p>AI that works for real business</p>
-        <Link className={styles.audienceSwitch} href="/">个人版 <ArrowRight aria-hidden /></Link>
-        <nav aria-label="企业版导航">
-          <Link href="/business">企业版首页</Link><Link href="/business/capabilities">业务能力</Link><Link href="/business/cases">客户案例</Link><Link href="/business/deployment">AI 部署方向</Link><Link href="/business/consultant">咨询专员</Link>
-        </nav>
-        <span className={styles.language}>中文 / EN</span>
-      </header>
+      <EnterprisePageNav active="home" />
 
       <section className={styles.hero}>
         <div className={styles.waves} aria-hidden="true"><i /><i /><i /></div>
@@ -53,10 +47,10 @@ export default function EnterprisePortal() {
 
       <section className={styles.scenarios}><div className={styles.globe}><Factory /><span>高价值<br />业务场景</span></div><div><p className={styles.eyebrow}>INDUSTRY SOLUTIONS</p><h2>让 AI 进入高价值业务场景</h2><ul><li>贸易与财务 → 对账、票据与流程自动化</li><li>制造与物流 → 调度、知识与设备运维</li><li>医疗与专业服务 → 文档解析与辅助审核</li><li>企业运营 → 运营、营销与数据分析</li></ul><Link href="/business/cases">查看全部行业方案 <ArrowRight /></Link></div></section>
 
-      <section className={styles.cases}><header><div><p className={styles.eyebrow}>CUSTOMER OUTCOMES</p><h2>从值得解决的问题开始</h2></div><Link href="/business/cases">查看客户案例 <ArrowRight /></Link></header><div>{businessCases.slice(0, 3).map((item) => <article key={item.id}><span>{item.industry}</span><h3>{item.client}</h3><p>{item.scenario}</p><strong>{item.outcome}</strong></article>)}</div></section>
+      <section className={styles.cases}><header><div><p className={styles.eyebrow}>CUSTOMER OUTCOMES</p><h2>从值得解决的问题开始</h2></div><Link href="/business/cases">查看客户案例 <ArrowRight /></Link></header><div>{businessCases.slice(0, 3).map((item) => <article key={item.id}><span>{item.industry}</span><h3>{item.client}</h3><p>{item.scenario}</p><strong>{item.outcome}</strong>{item.productId ? <Link className={styles.caseAction} href={`/products/${item.productId}`}>查看相关能力 <ArrowRight aria-hidden /></Link> : null}</article>)}</div></section>
 
       <section className={styles.cta}><p>Every Business Will Run on AI.</p><h2>让 AI 成为企业持续运行的能力</h2><span>不先推销模型。先确定问题是否值得用 AI 解决。</span><div><Link className={styles.primary} href="/business/assessment">免费评估 AI 机会 <ArrowRight /></Link><Link className={styles.secondary} href="/business/consultant">预约企业方案沟通</Link></div></section>
-      <footer className={styles.footer}><strong>REIZO</strong><span>© 2026 Reizo. 保留所有权利。</span><nav><Link href="/business/capabilities">产品能力</Link><Link href="/business/deployment">解决方案</Link><Link href="/business/cases">资源中心</Link><Link href="/business/consultant">联系我们</Link></nav></footer>
+      <EnterprisePageFooter />
     </main>
   );
 }

@@ -46,6 +46,25 @@ import {
 const DOCK_MS = 340;
 const DOCK_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
 
+const STUDIO_ENTRY_CONTEXT: Record<string, { label: string; detail: string }> = {
+  "model-catalog": {
+    label: "来自模型目录",
+    detail: "模型已带入工作台；开始前仍可按需要确认或切换模型。",
+  },
+  "application-catalog": {
+    label: "来自应用工具目录",
+    detail: "描述你的任务即可开始，也可以在对话中随时更换模型。",
+  },
+  "model-catalog-empty": {
+    label: "来自模型目录",
+    detail: "当前没有匹配的模型；你仍可以直接描述任务并开始使用。",
+  },
+  "application-catalog-empty": {
+    label: "来自应用工具目录",
+    detail: "当前没有匹配的应用；你仍可以直接描述任务并开始使用。",
+  },
+};
+
 /**
  * FLIP the home composer from hero center down to a bottom-docked slot
  * before View Transition navigation (no second DOM tree / no cover).
@@ -265,6 +284,7 @@ function StudioHomeInner() {
   const [featuredSkills, setFeaturedSkills] = useState<SkillMeta[] | null>(null);
   const [allSkills, setAllSkills] = useState<SkillMeta[]>([]);
   const projectId = searchParams.get("projectId")?.trim() || "";
+  const entryContext = STUDIO_ENTRY_CONTEXT[searchParams.get("entry") ?? ""];
   const [project, setProject] = useState<Project | null>(null);
 
   useEffect(() => {
@@ -580,6 +600,15 @@ function StudioHomeInner() {
               docking ? "mx-auto max-w-3xl" : "max-w-[720px]"
             }`}
           >
+            {entryContext ? (
+              <div className="mb-3 flex items-start gap-2 rounded-[12px] border border-white/75 bg-white/55 px-3 py-2 text-xs text-[#615A73] shadow-sm backdrop-blur">
+                <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#245FD0]" strokeWidth={1.8} />
+                <div>
+                  <p className="font-medium text-[#241E36]">{entryContext.label}</p>
+                  <p className="mt-0.5 text-[#8A8298]">{entryContext.detail}</p>
+                </div>
+              </div>
+            ) : null}
             {project ? (
               <div className="mb-3 flex items-center gap-2 rounded-[12px] border border-white/75 bg-white/55 px-3 py-2 text-xs text-[#615A73] shadow-sm backdrop-blur">
                 <FolderKanban className="h-3.5 w-3.5 shrink-0 text-[#0F172A]" strokeWidth={1.8} />

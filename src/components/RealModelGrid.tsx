@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ArrowRight, PackageSearch } from "lucide-react";
 import { fetchPlaza, type PlazaModel } from "@/lib/catalog";
 import { ModelPlazaCard } from "@/components/ModelPlazaCard";
 import {
@@ -16,6 +18,8 @@ export type RealModelGridProps = {
   capability?: PlazaCapabilityFilter;
   /** Report full (unfiltered) and filtered counts to parent chrome */
   onStats?: (stats: { total: number; filtered: number; models: PlazaModel[] }) => void;
+  /** Lets the surrounding catalog restore its selected filters. */
+  onClearFilters?: () => void;
 };
 
 export function RealModelGrid({
@@ -25,6 +29,7 @@ export function RealModelGrid({
   vendorKey,
   capability = "all",
   onStats,
+  onClearFilters,
 }: RealModelGridProps) {
   const [models, setModels] = useState<PlazaModel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,10 +108,35 @@ export function RealModelGrid({
   }
 
   if (visible.length === 0) {
+    const catalogIsEmpty = models.length === 0;
     return (
-      <p className="rounded-[10px] border border-dashed border-[rgba(120,150,180,.35)] bg-[rgba(255,255,255,.7)] px-4 py-10 text-center text-sm text-[#596978]">
-        {models.length === 0 ? "暂无已导入的定价模型。" : "没有符合当前筛选的模型，试试清除筛选。"}
-      </p>
+      <div className="portal-catalog-empty">
+        <PackageSearch className="h-10 w-10 text-[#9aa8b5]" aria-hidden />
+        <h3>{catalogIsEmpty ? "模型目录正在准备中" : "没有符合条件的模型"}</h3>
+        <p>
+          {catalogIsEmpty
+            ? "暂时没有可展示的模型。你仍可以进入工作台，查看当前可用能力。"
+            : "尝试清除搜索、能力或厂商筛选，重新浏览完整目录。"}
+        </p>
+        <div className="portal-catalog-empty-actions">
+          {!catalogIsEmpty && onClearFilters ? (
+            <button
+              type="button"
+              className="portal-catalog-empty-secondary"
+              onClick={onClearFilters}
+            >
+              清除筛选
+            </button>
+          ) : null}
+          <Link
+            href="/studio?entry=model-catalog-empty"
+            className="portal-catalog-empty-primary"
+          >
+            进入工作台
+            <ArrowRight aria-hidden />
+          </Link>
+        </div>
+      </div>
     );
   }
 

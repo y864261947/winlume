@@ -11,7 +11,7 @@ export default function ProductCard({ product }: { product: Product }) {
   const category = getCategory(product.category);
   const { favorites, toggleFavorite } = useModals();
   const favorite = favorites.includes(product.id);
-  const studioHref = `/studio?model=${encodeURIComponent(product.name)}`;
+  const studioHref = `/studio?model=${encodeURIComponent(product.name)}&entry=application-catalog`;
 
   return (
     <div className="portal-product-card group flex h-full flex-col p-5">

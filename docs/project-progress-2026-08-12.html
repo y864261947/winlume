@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reizo 项目详细完成清单</title>
+    <style>
+      :root { --ink:#10243d; --muted:#61758a; --blue:#0759c8; --line:#cfe0ee; --bg:#f5f9fd; --surface:rgba(255,255,255,.84); --done:#157657; --partial:#a76410; --todo:#9b3a48; }
+      * { box-sizing:border-box; } body { margin:0; color:var(--ink); background:radial-gradient(circle at 9% 0%,#dff4ff 0,transparent 31rem),radial-gradient(circle at 93% 7%,#f9efe1 0,transparent 27rem),var(--bg); font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif; }
+      main { width:min(1220px,calc(100% - 40px)); margin:auto; padding:48px 0 72px; }.hero { position:relative; overflow:hidden; padding:42px 48px; border:1px solid var(--line); border-radius:20px; background:linear-gradient(120deg,rgba(248,253,255,.96),rgba(255,253,248,.9)); }.hero::after { position:absolute; right:-70px; bottom:-150px; width:340px; height:340px; border:1px solid #91c9ed; border-radius:50%; box-shadow:0 0 0 35px rgba(145,201,237,.11),0 0 0 70px rgba(89,205,174,.07); content:""; }.eyebrow { margin:0; color:var(--blue); font-size:11px; font-weight:800; letter-spacing:.14em; }h1 { max-width:760px; margin:11px 0; font-size:clamp(32px,4.4vw,52px); letter-spacing:-.05em; line-height:1.07; }.intro { max-width:760px; margin:0; color:var(--muted); font-size:15px; line-height:1.75; }
+      .note { margin-top:14px; padding:13px 16px; border-left:3px solid var(--blue); color:#45627d; background:rgba(235,247,255,.76); font-size:13px; line-height:1.7; }.metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:14px; }.metric { padding:17px; border:1px solid var(--line); border-radius:13px; background:var(--surface); }.metric b { display:block; color:var(--blue); font-size:25px; }.metric span { color:var(--muted); font-size:12px; }
+      section { margin-top:36px; }h2 { margin:0 0 8px; font-size:25px; letter-spacing:-.035em; }.lead { margin:0 0 14px; color:var(--muted); font-size:14px; line-height:1.65; }.section-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }.section-card { padding:20px; border:1px solid var(--line); border-radius:14px; background:var(--surface); }.section-card h3 { margin:0; font-size:17px; }.section-card > p { margin:7px 0 0; color:var(--muted); font-size:13px; line-height:1.65; }
+      table { width:100%; overflow:hidden; border:1px solid var(--line); border-radius:14px; border-spacing:0; background:var(--surface); font-size:13px; }th { padding:12px 15px; color:#56718a; background:#edf6fd; text-align:left; font-size:11px; letter-spacing:.04em; }td { padding:13px 15px; border-top:1px solid #dbe8f2; color:#4f677f; vertical-align:top; line-height:1.55; }td:first-child { width:18%; color:var(--ink); font-weight:750; }td:nth-child(2) { width:19%; }td:nth-child(3) { width:36%; }td:nth-child(4) { width:27%; }.status { display:inline-flex; padding:3px 7px; border-radius:99px; font-size:11px; font-weight:800; white-space:nowrap; }.done { color:var(--done); background:#e3f7ef; }.partial { color:var(--partial); background:#fff1da; }.todo { color:var(--todo); background:#ffe9ed; }.route { color:var(--blue); font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:12px; }
+      ul { margin:10px 0 0; padding-left:19px; color:var(--muted); font-size:13px; line-height:1.8; }.priority { display:grid; grid-template-columns:54px 1fr; gap:15px; padding:19px; border:1px solid #b8d7f0; border-radius:14px; background:linear-gradient(135deg,#fafdff,#eff8ff); }.priority + .priority { margin-top:11px; }.priority strong { display:grid; width:40px; height:40px; place-items:center; border-radius:10px; color:#fff; background:var(--blue); }.priority h3 { margin:0; font-size:16px; }.priority p { margin:5px 0 0; color:var(--muted); font-size:13px; line-height:1.65; }footer { margin-top:32px; padding-top:17px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+      @media(max-width:760px) { main { width:min(100% - 28px,1220px); padding-top:25px; }.hero { padding:29px 23px; }.metrics,.section-grid { grid-template-columns:1fr 1fr; }table { display:block; overflow-x:auto; white-space:normal; min-width:760px; }.note { font-size:12px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <p class="eyebrow">REIZO / DETAILED DELIVERY CHECKLIST</p>
+        <h1>项目详细完成清单</h1>
+        <p class="intro">以当前 <strong>master</strong> 分支代码为准，区分“页面已完成”“功能已接入”“仍是展示/占位”三种状态。统计日期：2026-08-12。</p>
+        <div class="note"><strong>判断口径：</strong>“已完成”表示对应路由与交互已存在；“已接入”表示已连入账户/new-api 等真实服务；“待建设”表示只完成页面展示或尚无后台流程。不是产品验收结论，真实支付、模型调用和企业咨询仍需线上联调。</div>
+      </header>
+
+      <section class="metrics" aria-label="总体摘要">
+        <div class="metric"><b>1</b><span>个人门户主页</span></div><div class="metric"><b>4</b><span>个人主导航入口：主页/应用/模型/文档</span></div><div class="metric"><b>5</b><span>企业门户导航子页</span></div><div class="metric"><b>9</b><span>账户中心子页面</span></div>
+      </section>
+
+      <section>
+        <h2>个人版：已完成与缺口</h2>
+        <p class="lead">入口为 <span class="route">/</span>。个人版目前的核心价值是“发现能力 → 试用 → 账户/API → 用量”，其中页面层已比较完整，交易与调用体验需要继续验收。</p>
+        <table>
+          <thead><tr><th>区域 / 路由</th><th>当前状态</th><th>已经具备</th><th>仍需补齐或验证</th></tr></thead>
+          <tbody>
+            <tr><td>个人门户<br><span class="route">/</span></td><td><span class="status done">页面已完成</span></td><td>顶部主导航；AI 能力搜索；热门能力标签；“进入工作台”；右侧企业部署入口；API 分类与常用模型；精选轮播；账户余额/Token；行业工具；FAQ；页脚；客服与回顶部浮窗。</td><td>搜索目前是站内发现入口，需继续确认结果排序、空结果、未登录点击工作台后的引导是否符合产品规则。</td></tr>
+            <tr><td>应用工具<br><span class="route">/products?cate=app</span></td><td><span class="status done">页面已完成</span></td><td>应用目录、搜索、应用筛选、收藏、详情与“立即体验”入口；目录页有“应用工具 / 模型 API”子菜单切换。</td><td>应用详情到工作台的预设参数与实际执行结果需要逐个验收；收藏是否落库需确认。</td></tr>
+            <tr><td>模型目录<br><span class="route">/products?cate=api</span></td><td><span class="status partial">目录已完成</span></td><td>模型 API 子菜单、能力筛选、厂商筛选、搜索、模型卡片与详情跳转已具备。</td><td>当前目录内容依赖定价/模型目录数据；需确保线上有实际可用模型和实时价格，而非只显示展示数据。</td></tr>
+            <tr><td>开发者文档<br><span class="route">/docs</span></td><td><span class="status done">页面已完成</span></td><td>首页 Hero；创建 API Key 与模型目录入口；接口导航；模型、聊天、补全、嵌入、音频、图像、视频等文档路由。</td><td>示例请求、错误码、限流规则和所有模型的真实参数仍需持续与 new-api 能力同步。</td></tr>
+            <tr><td>公开计费标准<br><span class="route">/pricing</span></td><td><span class="status done">页面已完成</span></td><td>新版门户视觉；充值余额、用量明细、API Key 入口；分类锚点；按能力分组的价格表。</td><td>页面已明确为“参考价格”；需要确定是否要改为读取真实实时计费规则，避免与实际扣费不一致。</td></tr>
+            <tr><td>账户中心<br><span class="route">/account/*</span></td><td><span class="status partial">路由齐全</span></td><td>账户信息、API Keys、钱包与用量、我的计费、对公结算、人格与工具、团队、交流社区；移动端简化导航。</td><td>需要逐页验证登录态、无数据库配置、无活跃计费目录、权限不足等状态的提示与跳转。</td></tr>
+            <tr><td>工作台<br><span class="route">/studio/*</span></td><td><span class="status partial">功能主体存在</span></td><td>Studio 首页、会话、项目、产物、灵感、技能、生产包与设置路由均存在。</td><td>应重点验收“选模型/应用 → 真实调用 → 产物保存 → 用量扣除”的完整闭环；当前不应仅以界面存在视为完成。</td></tr>
+            <tr><td>登录、Key、调用、用量</td><td><span class="status partial">已接入 new-api</span></td><td>近期代码已接入注册、登录、虚拟 API Key、团队 Token、<span class="route">/v1/*</span> 请求转发及用量读取。</td><td>需要线上端到端回归：注册成功、Token 生成/撤销、Key 鉴权、额度不足、超时、第三方上游异常及账单一致性。</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>企业版：已完成与缺口</h2>
+        <p class="lead">入口为 <span class="route">/business</span>。企业版已具备完整营销与方案叙事，但还没有把“留下线索 → 咨询跟进 → 方案交付 → 项目管理”做成真实运营后台。</p>
+        <table>
+          <thead><tr><th>区域 / 路由</th><th>当前状态</th><th>已经具备</th><th>仍需补齐或验证</th></tr></thead>
+          <tbody>
+            <tr><td>企业门户<br><span class="route">/business</span></td><td><span class="status done">页面已完成</span></td><td>企业导航；返回个人版入口；Hero；免费 AI 机会评估/企业方案 CTA；能力层；成本/周期/响应结果；Agent/知识/安全能力；场景；案例；底部 CTA 与页脚。</td><td>中文/EN 目前为展示文字，需决定是否真正做国际化；咨询 CTA 后的实际提交及通知链路尚未确认。</td></tr>
+            <tr><td>业务能力<br><span class="route">/business/capabilities</span></td><td><span class="status done">页面已完成</span></td><td>Agent 执行与编排、知识与系统连接、安全与治理三类能力说明与评估入口。</td><td>需要补每项能力的真实交付范围、案例证据、技术边界与预计周期。</td></tr>
+            <tr><td>客户案例<br><span class="route">/business/cases</span></td><td><span class="status partial">展示已完成</span></td><td>案例网格、行业、客户名称、场景与成果字段均已输出。</td><td>当前案例来自静态数据；需要真实客户授权素材、详情页、指标口径与线索转化 CTA。</td></tr>
+            <tr><td>AI 部署方向<br><span class="route">/business/deployment</span></td><td><span class="status done">页面已完成</span></td><td>私有化部署、系统集成、合规治理三项方案说明。</td><td>需要补部署规格、网络/数据边界、私有云/本地/混合云选型、SLA 与报价流程。</td></tr>
+            <tr><td>咨询专员<br><span class="route">/business/consultant</span></td><td><span class="status partial">展示已完成</span></td><td>场景共创、试点设计、持续陪跑三段服务路径以及方案沟通 CTA。</td><td>未见真实的预约日历、表单提交、销售通知、CRM 分配或咨询状态页。</td></tr>
+            <tr><td>AI 评估<br><span class="route">/business/assessment</span></td><td><span class="status partial">表单已具备</span></td><td>独立 AI Readiness 页面与企业评估组件，可作为企业转化起点。</td><td>需确认表单答案是否入库；评估结果是否生成；是否向企业/销售发送通知；是否能在后台追踪。</td></tr>
+            <tr><td>企业交付后台</td><td><span class="status todo">尚未形成</span></td><td>当前只有企业展示、评估和账户/团队基础能力。</td><td>需要建设：企业线索库、联系人、商机阶段、方案文档、项目空间、里程碑、任务、交付物、权限及审计。</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section-grid">
+        <article class="section-card"><h3>线上与基础设施</h3><p>当前 <span class="route">master</span> 已与远端同步。GitHub Actions 的 <strong>Deploy production</strong> 在主分支推送后执行构建、打包、上传、数据库迁移与 Reizo 服务重启；最新一次部署已成功。</p><ul><li>部署目标：Reizo 生产服务</li><li>自动触发：推送至 master</li><li>近期底层改造：停用旧 Go gateway，改为 new-api 集成</li></ul></article>
+        <article class="section-card"><h3>不应视为“已完成”的内容</h3><p>以下并非只靠页面数量就能验收：真实模型可用性、实际扣费与价格一致性、钱包充值、企业线索流转、CRM/项目交付、真实客户案例授权、中文/英文切换、全链路异常处理。</p><ul><li>UI 完成 ≠ 功能完成</li><li>new-api 接入 ≠ 所有场景已回归</li><li>企业内容页完成 ≠ 企业运营链路完成</li></ul></article>
+      </section>
+
+      <section>
+        <h2>建议按此顺序继续</h2>
+        <article class="priority"><strong>01</strong><div><h3>个人版：做一次真实用户闭环验收</h3><p>用一个新账号依次完成：注册 → 登录 → 进入工作台 → 选择模型/应用 → 发起真实调用 → 查看产物与用量 → 创建/撤销 API Key → 用 Key 调用 <span class="route">/v1/*</span> → 余额不足提示。逐步记录页面、接口、计费与错误反馈。</p></div></article>
+        <article class="priority"><strong>02</strong><div><h3>企业版：把 AI 评估变为可跟进线索</h3><p>先定义评估表字段、提交后页面、通知对象、CRM/数据库记录、商机阶段和负责人；随后再增加案例详情与预约咨询。这样企业页才会从品牌展示页变成获客入口。</p></div></article>
+        <article class="priority"><strong>03</strong><div><h3>统一数据来源</h3><p>模型目录、公开计费、账户用量、工作台可选模型应尽量读取同一份 new-api/平台数据。优先消除“目录价、公开价、实际扣费价”三者不一致的风险。</p></div></article>
+      </section>
+
+      <footer>Reizo 项目详细完成清单 · 2026-08-12 · 基于当前 master 分支静态代码盘点，不替代线上业务验收。</footer>
+    </main>
+  </body>
+</html>
