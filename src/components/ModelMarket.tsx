@@ -670,7 +670,10 @@ export default function ModelMarket() {
         <div className="portal-nav-shell">
           <div className="portal-nav-shell-fill" aria-hidden />
           <header className="portal-nav" aria-label="主导航">
-            <PortalLink href="/" className="portal-brand">Reizo</PortalLink>
+            <PortalLink href="/" className="portal-brand">
+              <Image className="portal-brand-mark" src="/brand/reizo-mark.png" alt="" width={32} height={32} priority />
+              Reizo
+            </PortalLink>
             <nav className="portal-main-links" aria-label="页面导航">
               <PortalLink href="/" className="is-current">首页</PortalLink>
               <PortalLink href="/products?cate=app">应用工具</PortalLink>
@@ -1006,7 +1009,7 @@ export default function ModelMarket() {
 
           <footer className="portal-ed-footer">
             <div className="portal-ed-footer-brand">
-              <strong>Reizo</strong>
+              <strong><Image className="portal-footer-mark" src="/brand/reizo-mark.png" alt="" width={26} height={26} />Reizo</strong>
               <p>把 AI 能力放进每天的工作里。</p>
             </div>
             {footerColumns.map((group) => (

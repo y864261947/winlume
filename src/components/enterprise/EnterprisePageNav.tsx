@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import styles from "./enterprise-portal.module.css";
@@ -22,7 +23,8 @@ export default function EnterprisePageNav({ active }: { active: EnterprisePage }
   return (
     <header className={styles.nav}>
       <Link className={styles.brand} href="/business" aria-label="Reizo 企业版首页">
-        <span>R</span>Reizo
+        <Image className={styles.brandMark} src="/brand/reizo-mark.png" alt="" width={30} height={30} priority />
+        Reizo
       </Link>
       <p>AI that works for real business</p>
       <Link className={styles.audienceSwitch} href="/">

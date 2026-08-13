@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -120,6 +121,7 @@ export default function ProductsExplorer({
           <div className="portal-nav-shell-fill" aria-hidden />
           <header className="portal-nav" aria-label="主导航">
             <Link href="/" className="portal-brand">
+              <Image className="portal-brand-mark" src="/brand/reizo-mark.png" alt="" width={32} height={32} priority />
               Reizo
             </Link>
             <nav className="portal-main-links" aria-label="页面导航">
