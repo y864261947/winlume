@@ -125,19 +125,34 @@ function DetailRow({ label, value, copyable }: { label: string; value: string; c
   );
 }
 
-export function ConsoleUsageLogs({ organizationId }: { organizationId: string | null }) {
+export function ConsoleUsageLogs({
+  organizationId,
+  resolving = false,
+}: {
+  organizationId: string | null;
+  /** True while the caller is still resolving which workspace is active — avoids flashing the "no workspace" empty state before that's known. */
+  resolving?: boolean;
+}) {
   const [items, setItems] = useState<ConsoleUsageLog[]>([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(organizationId));
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ConsoleUsageLog | null>(null);
   const [status, setStatus] = useState<"all" | ConsoleUsageLogType>("all");
   const [search, setSearch] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 20 });
 
-  useEffect(() => {
-    setPagination((current) => ({ ...current, pageIndex: 0 }));
-  }, [organizationId, status]);
+  // organizationId typically arrives one tick after mount (parent resolves
+  // the workspace first). Flip loading=true the instant that happens, in
+  // the same render pass — otherwise there's a commit where organizationId
+  // is already set but loading/items haven't caught up yet, and the table
+  // paints its "empty" state for a frame before the real fetch effect fires.
+  const [lastOrganizationId, setLastOrganizationId] = useState(organizationId);
+  if (organizationId !== lastOrganizationId) {
+    setLastOrganizationId(organizationId);
+    if (organizationId) setLoading(true);
+    setPagination((current) => (current.pageIndex === 0 ? current : { ...current, pageIndex: 0 }));
+  }
 
   const load = useCallback(async () => {
     if (!organizationId) {
@@ -204,7 +219,11 @@ export function ConsoleUsageLogs({ organizationId }: { organizationId: string | 
         </Button>
       </CardHeader>
       <CardContent>
-        {!organizationId ? (
+        {!organizationId && resolving ? (
+          <div className="flex min-h-24 items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Spinner /> 正在加载请求日志…
+          </div>
+        ) : !organizationId ? (
           <ConsoleEmptyState title="还没有工作区" description="请求日志按工作区额度账户查询。" />
         ) : error ? (
           <Alert variant="destructive">
@@ -215,7 +234,10 @@ export function ConsoleUsageLogs({ organizationId }: { organizationId: string | 
             <DataTableToolbar table={table} globalSearch searchPlaceholder="搜索模型、Key 或请求 ID…">
               <Select
                 value={status}
-                onValueChange={(value) => setStatus(value as "all" | ConsoleUsageLogType)}
+                onValueChange={(value) => {
+                  setStatus(value as "all" | ConsoleUsageLogType);
+                  setPagination((current) => (current.pageIndex === 0 ? current : { ...current, pageIndex: 0 }));
+                }}
               >
                 <SelectTrigger aria-label="按状态筛选" className="h-8 w-28">
                   <SelectValue />

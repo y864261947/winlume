@@ -253,6 +253,12 @@ export default function ConsoleTeamContent() {
   }, [team, load]);
 
   const ownerCount = team?.members.filter((member) => member.role === "owner").length ?? 0;
+  const pendingCount = team?.members.filter((member) => member.status === "pending").length ?? 0;
+  const roleCounts = useMemo(() => {
+    const counts: Record<ConsoleOrganizationRole, number> = { owner: 0, admin: 0, member: 0, viewer: 0 };
+    for (const member of team?.members ?? []) counts[member.role] += 1;
+    return counts;
+  }, [team]);
 
   const columns = useMemo<ColumnDef<ConsoleTeamMember>[]>(() => {
     if (!team) return [];
@@ -416,6 +422,14 @@ export default function ConsoleTeamContent() {
               ) : null}
             </CardHeader>
             <CardContent>
+              <div className="mb-4 flex flex-wrap items-center gap-1.5">
+                {roles
+                  .filter((role) => roleCounts[role.value] > 0)
+                  .map((role) => (
+                    <Badge key={role.value} variant="outline">{role.label} {roleCounts[role.value]}</Badge>
+                  ))}
+                {pendingCount > 0 ? <Badge variant="outline">待激活 {pendingCount}</Badge> : null}
+              </div>
               {!team.canManageMembers ? (
                 <Alert className="mb-4">
                   <AlertDescription>你可以查看成员，但没有修改工作区成员的权限。</AlertDescription>

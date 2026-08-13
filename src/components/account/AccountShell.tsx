@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   Receipt,
+  ScrollText,
   Settings2,
   Store,
   UsersRound,
@@ -49,6 +50,7 @@ const groups: NavGroup[] = [
     label: "计费",
     items: [
       { href: "/account/wallet", aliases: ["/account/usage"], label: "钱包与用量", mobileLabel: "钱包", icon: WalletCards },
+      { href: "/account/logs", label: "请求日志", mobileLabel: "日志", icon: ScrollText },
       { href: "/account/pricing", label: "我的计费", mobileLabel: "计费", icon: Receipt },
       { href: "/account/enterprise", label: "对公结算", mobileLabel: "对公", icon: Building2 },
     ],

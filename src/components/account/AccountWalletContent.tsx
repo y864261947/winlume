@@ -1,9 +1,9 @@
 "use client";
 
-import { Ticket, TrendingUp, WalletCards } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, Ticket, TrendingUp, WalletCards } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ConsoleUsageCharts } from "@/components/account/ConsoleUsageCharts";
-import { ConsoleUsageLogs } from "@/components/account/ConsoleUsageLogs";
 import { ConsoleEmptyState, ConsolePage } from "@/components/console/ConsolePage";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -22,10 +22,10 @@ import { Spinner } from "@/components/ui/spinner";
 import { StatTile } from "@/components/ui/stat-tile";
 import { DEFAULT_QUOTA_PER_UNIT } from "@/lib/catalog/plaza-display";
 import {
+  getConsoleOrganizations,
   getConsoleOverview,
   getConsoleUsage,
   getConsoleUsageCharts,
-  listConsoleKeys,
   redeemConsoleCode,
 } from "@/lib/console/client";
 import type {
@@ -60,15 +60,15 @@ export default function AccountWalletContent() {
   const loadWorkspace = useCallback(async () => {
     setError(null);
     try {
-      const [overviewResult, keysResult] = await Promise.all([
+      const [overviewResult, orgsResult] = await Promise.all([
         getConsoleOverview(),
-        listConsoleKeys(),
+        getConsoleOrganizations(),
       ]);
       setOverview(overviewResult);
-      setOrganizations(keysResult.organizations);
+      setOrganizations(orgsResult.organizations);
       setOrganizationId((current) => {
         if (current) return current;
-        return keysResult.organizationId ?? overviewResult.activeOrganization?.id ?? keysResult.organizations[0]?.id ?? null;
+        return orgsResult.organizationId ?? overviewResult.activeOrganization?.id ?? orgsResult.organizations[0]?.id ?? null;
       });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "无法加载钱包。");
@@ -149,7 +149,7 @@ export default function AccountWalletContent() {
   return (
     <ConsolePage
       title="钱包与用量"
-      description="工作区额度账户的余额、兑换和消耗。密钥、成员和费率不在这里。"
+      description="工作区额度账户的余额、兑换和消耗趋势。"
     >
       {organizations.length > 1 && organizationId ? (
         <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
@@ -247,7 +247,11 @@ export default function AccountWalletContent() {
           ) : (
             <>
               <ConsoleUsageCharts charts={charts} keys={accountUsage?.items ?? []} />
-              <ConsoleUsageLogs organizationId={organizationId} />
+              <div className="flex justify-end">
+                <Link href="/account/logs" className="inline-flex items-center gap-1 text-sm font-medium text-ink-700 hover:text-ink-950">
+                  查看请求日志 <ArrowUpRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
             </>
           )}
         </div>

@@ -49,21 +49,38 @@ export async function GET(request: Request) {
     const model = url.searchParams.get("model")?.trim() || undefined;
     const tokenName = url.searchParams.get("tokenName")?.trim() || undefined;
     const requestId = url.searchParams.get("requestId")?.trim() || undefined;
+    const pat = decryptSecret(mapping.newApiPatCiphertext);
 
-    const logs = await getUserLogs(decryptSecret(mapping.newApiPatCiphertext), {
-      page,
-      pageSize,
-      type,
-      modelName: model,
-      tokenName,
-      requestId,
-    });
+    if (type) {
+      const logs = await getUserLogs(pat, { page, pageSize, type, modelName: model, tokenName, requestId });
+      return consoleJson({
+        organizationId,
+        page: logs.page,
+        pageSize: logs.pageSize,
+        total: logs.total,
+        items: logs.items.map(mapUsageLog),
+      });
+    }
+
+    // No status filter ("全部状态"): new-api's log table also carries
+    // non-request events (top-up, admin quota adjustments, system, login)
+    // under the same list, and its type filter only accepts one value at a
+    // time. A per-request log should never show those, so fetch the two
+    // request-shaped types (consume + error) separately and merge them
+    // instead of asking upstream for type=0 ("all").
+    const [consumeLogs, errorLogs] = await Promise.all([
+      getUserLogs(pat, { page, pageSize, type: LOG_TYPE_QUERY.consume, modelName: model, tokenName, requestId }),
+      getUserLogs(pat, { page, pageSize, type: LOG_TYPE_QUERY.error, modelName: model, tokenName, requestId }),
+    ]);
+    const merged = [...consumeLogs.items, ...errorLogs.items]
+      .sort((left, right) => (right.created_at ?? 0) - (left.created_at ?? 0))
+      .slice(0, pageSize);
     return consoleJson({
       organizationId,
-      page: logs.page,
-      pageSize: logs.pageSize,
-      total: logs.total,
-      items: logs.items.map(mapUsageLog),
+      page,
+      pageSize,
+      total: consumeLogs.total + errorLogs.total,
+      items: merged.map(mapUsageLog),
     });
   } catch (error) {
     return consoleError(error);
