@@ -53,7 +53,7 @@ type NavItem = {
 
 const primaryNav: NavItem[] = [
   { href: "/studio", label: "开始创作", icon: Sparkles, exact: true },
-  { href: "/studio/skills", label: "全部工具", icon: LayoutGrid },
+  { href: "/studio/tools", label: "全部工具", icon: LayoutGrid },
   { href: "/studio/artifacts", label: "我的作品", icon: FolderKanban },
 ];
 

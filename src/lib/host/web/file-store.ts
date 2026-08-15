@@ -1,23 +1,18 @@
 import {
-  createReadStream,
-  createWriteStream,
   mkdirSync,
   readFileSync,
   renameSync,
-  statSync,
   unlinkSync,
   writeFileSync,
   existsSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { pipeline } from "node:stream/promises";
-import { Transform } from "node:stream";
 import type { Artifact, Message, Project, Session } from "@/lib/agent/types";
 import type { ArtifactStore, ProjectStore, SessionStore } from "@/lib/host/ports";
+import { createLocalArtifactBlobStore, type ArtifactBlobStore } from "./artifact-blob-store";
 import {
   artifactsIndexPath,
-  blobPath,
   projectFilePath,
   projectsIndexPath,
   sessionFilePath,
@@ -308,7 +303,7 @@ function createProjectStore(
   };
 }
 
-function createArtifactStore(rootDir: string): ArtifactStore {
+function createArtifactStore(rootDir: string, blobs: ArtifactBlobStore): ArtifactStore {
   function readIndex(userId: string): Artifact[] {
     return readJsonFile<Artifact[]>(artifactsIndexPath(rootDir, userId), []);
   }
@@ -339,9 +334,7 @@ function createArtifactStore(rootDir: string): ArtifactStore {
         ...meta,
         storageKey: meta.storageKey || storageKeyFor(meta.userId, meta.id),
       };
-      const path = blobPath(rootDir, artifact.userId, artifact.id);
-      const buf = typeof content === "string" ? Buffer.from(content, "utf8") : content;
-      atomicWriteFile(path, buf);
+      await blobs.write(storageKeyFor(artifact.userId, artifact.id), content);
 
       const index = readIndex(artifact.userId).filter((a) => a.id !== artifact.id);
       index.push(artifact);
@@ -354,32 +347,7 @@ function createArtifactStore(rootDir: string): ArtifactStore {
         ...meta,
         storageKey: meta.storageKey || storageKeyFor(meta.userId, meta.id),
       };
-      const path = blobPath(rootDir, artifact.userId, artifact.id);
-      ensureDir(dirname(path));
-      const temporary = join(dirname(path), `.${randomUUID()}.tmp`);
-      let written = 0;
-      const maxBytes = options?.maxBytes;
-      const limiter = new Transform({
-        transform(chunk: Buffer, _encoding, callback) {
-          written += chunk.length;
-          if (maxBytes !== undefined && written > maxBytes) {
-            callback(new Error(`Artifact exceeds ${maxBytes} bytes`));
-            return;
-          }
-          callback(null, chunk);
-        },
-      });
-      try {
-        await pipeline(content, limiter, createWriteStream(temporary, { flags: "w" }));
-        renameSync(temporary, path);
-      } catch (error) {
-        try {
-          if (existsSync(temporary)) unlinkSync(temporary);
-        } catch {
-          // Preserve the original stream failure.
-        }
-        throw error;
-      }
+      await blobs.writeStream(storageKeyFor(artifact.userId, artifact.id), content, options);
 
       const index = readIndex(artifact.userId).filter((a) => a.id !== artifact.id);
       index.push(artifact);
@@ -388,21 +356,15 @@ function createArtifactStore(rootDir: string): ArtifactStore {
     },
 
     async readContent(userId, artifactId) {
-      const path = blobPath(rootDir, userId, artifactId);
-      if (!existsSync(path)) return null;
-      return readFileSync(path);
+      return blobs.read(storageKeyFor(userId, artifactId));
     },
 
     async createReadStream(userId, artifactId, options) {
-      const path = blobPath(rootDir, userId, artifactId);
-      if (!existsSync(path)) return null;
-      return createReadStream(path, options);
+      return blobs.createReadStream(storageKeyFor(userId, artifactId), options);
     },
 
     async contentSize(userId, artifactId) {
-      const path = blobPath(rootDir, userId, artifactId);
-      if (!existsSync(path)) return null;
-      return statSync(path).size;
+      return blobs.contentSize(storageKeyFor(userId, artifactId));
     },
   };
 }
@@ -419,14 +381,20 @@ export interface WebFileStore {
  * - users/{userId}/sessions.json
  * - users/{userId}/sessions/{sessionId}.json → { session, messages }
  * - users/{userId}/artifacts.json
- * - blobs/{userId}/{artifactId}
+ * - artifact content uses the injected blob store (local files by default)
  */
-export function createWebFileStore(rootDir: string): WebFileStore {
+export function createWebFileStore(
+  rootDir: string,
+  options: { artifactBlobs?: ArtifactBlobStore } = {},
+): WebFileStore {
   ensureDir(rootDir);
   const sessions = createSessionStore(rootDir);
   return {
     sessions,
     projects: createProjectStore(rootDir, sessions),
-    artifacts: createArtifactStore(rootDir),
+    artifacts: createArtifactStore(
+      rootDir,
+      options.artifactBlobs ?? createLocalArtifactBlobStore(rootDir),
+    ),
   };
 }

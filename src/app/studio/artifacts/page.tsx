@@ -145,7 +145,7 @@ export default function StudioArtifactsPage() {
               作品
             </h1>
             <p className="mt-1 text-sm text-ink-500">
-              对话、画布与参考视频拆解产生的所有作品。
+              对话、工具处理、画布与参考视频拆解产生的所有作品。
             </p>
           </div>
           <button
@@ -231,7 +231,7 @@ export default function StudioArtifactsPage() {
                     <p className="mt-2 truncate font-mono text-[10px] text-ink-400">
                       {a.id}
                     </p>
-                    {a.sessionId && (
+                    {a.sessionId && !a.sessionId.startsWith("tool:") && (
                       <Link
                         href={`/studio/c/${encodeURIComponent(a.sessionId)}`}
                         onClick={(e) => e.stopPropagation()}
