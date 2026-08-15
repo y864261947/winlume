@@ -36,6 +36,15 @@ describe("production Skill contracts", () => {
     });
   });
 
+  it("accepts background removal as a production tool", () => {
+    expect(
+      parseSkillContract(
+        JSON.stringify({ ...validContract, allowedTools: ["remove_background"] }),
+        "production-content-intake",
+      ),
+    ).toMatchObject({ allowedTools: ["remove_background"] });
+  });
+
   it("rejects ids, tools, capabilities, duplicate outputs, and resource paths outside the package", () => {
     expect(() =>
       parseSkillContract(
