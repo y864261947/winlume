@@ -19,6 +19,7 @@ export const productionToolNameSchema = z.enum([
   "read_artifact",
   "list_artifacts",
   "generate_image",
+  "remove_background",
   "generate_canvas",
 ]);
 
