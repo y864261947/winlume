@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { describe, it, expect, afterEach } from "vitest";
+import type { ArtifactBlobStore } from "./artifact-blob-store";
 import { createWebFileStore } from "./file-store";
 
 describe("web file store", () => {
@@ -314,5 +315,51 @@ describe("web file store", () => {
       ),
     ).rejects.toThrow(/exceeds/);
     expect(await store.artifacts.get("u1", "too-large")).toBeNull();
+  });
+
+  it("writes new artifact bytes to an injected blob store", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wl-"));
+    dirs.push(root);
+    const blobs = new Map<string, Buffer>();
+    const remote: ArtifactBlobStore = {
+      async write(key, content) {
+        blobs.set(key, Buffer.isBuffer(content) ? content : Buffer.from(content));
+      },
+      async writeStream(key, content) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of content) chunks.push(Buffer.from(chunk));
+        blobs.set(key, Buffer.concat(chunks));
+      },
+      async read(key) {
+        return blobs.get(key) ?? null;
+      },
+      async createReadStream(key) {
+        const value = blobs.get(key);
+        return value ? Readable.from([value]) : null;
+      },
+      async contentSize(key) {
+        return blobs.get(key)?.length ?? null;
+      },
+    };
+    const store = createWebFileStore(root, { artifactBlobs: remote });
+    await store.artifacts.write(
+      {
+        id: "remote-artifact",
+        userId: "u1",
+        sessionId: "s1",
+        name: "remote.png",
+        kind: "image",
+        mimeType: "image/png",
+        storageKey: "",
+        createdAt: new Date().toISOString(),
+      },
+      Buffer.from("remote-content"),
+    );
+
+    expect(blobs.get("blobs/u1/remote-artifact")?.toString()).toBe("remote-content");
+    expect(await store.artifacts.readContent("u1", "remote-artifact")).toEqual(
+      Buffer.from("remote-content"),
+    );
+    expect(existsSync(join(root, "blobs", "u1", "remote-artifact"))).toBe(false);
   });
 });

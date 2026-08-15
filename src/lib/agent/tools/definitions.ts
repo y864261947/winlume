@@ -8,6 +8,7 @@ export type StudioToolName =
   | "read_artifact"
   | "list_artifacts"
   | "generate_image"
+  | "remove_background"
   | "generate_canvas";
 
 /** OpenAI tools array passed to streamGatewayChat. */
@@ -227,6 +228,31 @@ export const STUDIO_TOOLS = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "remove_background",
+      description:
+        "Remove the background from one existing image artifact and return a ready PNG with transparency. Use this for requests to cut out, isolate, or make an uploaded product image background transparent. sourceArtifactId must be the exact image artifact id supplied in system context. Do not use generate_image as a substitute for background removal.",
+      parameters: {
+        type: "object",
+        properties: {
+          sourceArtifactId: {
+            type: "string",
+            description:
+              "Exact id of the source PNG, JPG, or WebP image artifact to process.",
+          },
+          outputId: {
+            type: "string",
+            description:
+              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
+          },
+        },
+        required: ["sourceArtifactId"],
+        additionalProperties: false,
+      },
+    },
+  },
 ] as const;
 
 export const STUDIO_TOOL_NAMES: readonly StudioToolName[] = [
@@ -235,5 +261,6 @@ export const STUDIO_TOOL_NAMES: readonly StudioToolName[] = [
   "read_artifact",
   "list_artifacts",
   "generate_image",
+  "remove_background",
   "generate_canvas",
 ] as const;

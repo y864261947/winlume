@@ -21,6 +21,9 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.27",
+    "@alicloud/imageseg20191230": "^4.0.1",
+    "@aws-sdk/client-s3": "^3.1111.0",
+    "@aws-sdk/lib-storage": "^3.1111.0",
     "@excalidraw/excalidraw": "^0.18.1",
     "@excalidraw/mermaid-to-excalidraw": "^2.2.2",
     "@openai/codex-sdk": "^0.146.0",
@@ -34,6 +37,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@ybouane/liquidglass": "^1.0.3",
     "ai": "^7.0.47",
+    "ali-oss": "^6.23.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -44,6 +48,7 @@
     "next-auth": "^4.24.15",
     "nuqs": "^2.9.5",
     "pg": "^8.22.0",
+    "proxy-agent": "^5.0.0",
     "radix-ui": "^1.6.7",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -55,6 +60,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/ali-oss": "^6.23.3",
     "@types/node": "^20",
     "@types/pg": "^8.20.3",
     "@types/react": "^19",

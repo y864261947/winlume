@@ -19,9 +19,12 @@ import {
 } from "@/lib/agent/canvas-content";
 import { artifactOutputIdSchema } from "@/lib/agent/skills/contracts";
 import type { ArtifactStore } from "@/lib/host/ports";
+import { isStudioToolImageMimeType } from "@/lib/studio/tool-catalog";
 import { generateImage } from "@/lib/agent/provider/gateway";
 import { resolveStudioToken } from "@/lib/agent/provider/studio-token";
 import { publishArtifactEvent } from "@/lib/agent/artifact-events";
+import { invokeToolCapability } from "./providers/registry";
+import { ToolProviderError } from "./providers/types";
 import {
   applyMerge,
   applyReplace,
@@ -92,6 +95,13 @@ const generateImageSchema = z.object({
 });
 
 export type GenerateImageArgs = z.infer<typeof generateImageSchema>;
+
+const removeBackgroundSchema = z.object({
+  sourceArtifactId: z.string().trim().min(1).max(128),
+  outputId: artifactOutputIdSchema.optional(),
+});
+
+export type RemoveBackgroundArgs = z.infer<typeof removeBackgroundSchema>;
 
 const generateCanvasSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -454,6 +464,94 @@ export async function executeGenerateImage(
   };
 }
 
+function backgroundRemovalOutputName(source: Artifact): string {
+  const base = source.name.replace(/\.[a-z0-9]{1,8}$/i, "").trim() || "商品图片";
+  return `${base}（已抠图）.png`;
+}
+
+/** Runs a synchronous background-removal capability and persists its ready PNG. */
+export async function executeRemoveBackground(
+  rawArgs: unknown,
+  ctx: ToolExecuteContext,
+): Promise<ToolExecuteResult> {
+  const parsed = removeBackgroundSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return fail(`remove_background validation failed: ${formatZodError(parsed.error)}`);
+  }
+
+  const { sourceArtifactId, outputId } = parsed.data;
+  const provenance = resolveArtifactProvenance("image", outputId, ctx);
+  if (provenance.error) return fail(provenance.error);
+
+  const source = await ctx.artifacts.get(ctx.userId, sourceArtifactId);
+  if (!source) return fail("Source image artifact not found");
+  if (source.kind !== "image" || !isStudioToolImageMimeType(source.mimeType)) {
+    return fail("Background removal requires a PNG, JPG, or WebP image artifact");
+  }
+
+  const sourceBytes = await ctx.artifacts.readContent(ctx.userId, source.id);
+  if (!sourceBytes?.length) return fail("Source image content is not ready");
+
+  let output: { bytes: Buffer; mimeType: string };
+  try {
+    const invocation = await invokeToolCapability("image.background_removal", {
+      images: [{ bytes: sourceBytes, mimeType: source.mimeType }],
+    });
+    if (invocation.status !== "completed") {
+      return fail("Background removal is still processing; please try again shortly");
+    }
+    const candidate = invocation.outputs[0];
+    if (!candidate?.bytes.length || candidate.mimeType.toLowerCase() !== "image/png") {
+      return fail("Background removal returned an invalid image");
+    }
+    output = candidate;
+  } catch (error) {
+    if (error instanceof ToolProviderError) return fail(error.message);
+    return fail("Background removal is temporarily unavailable; please try again shortly");
+  }
+
+  try {
+    const artifact = await ctx.artifacts.write(
+      {
+        id: randomUUID(),
+        userId: ctx.userId,
+        sessionId: ctx.sessionId,
+        ...(ctx.projectId ? { projectId: ctx.projectId } : {}),
+        ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
+        name: backgroundRemovalOutputName(source),
+        kind: "image",
+        mimeType: output.mimeType,
+        storageKey: "",
+        status: "ready",
+        createdAt: new Date().toISOString(),
+        ...(provenance.provenance ? { provenance: provenance.provenance } : {}),
+      },
+      output.bytes,
+    );
+    return {
+      ok: true,
+      summary: `Removed the background from "${source.name}" (id=${artifact.id})`,
+      content: JSON.stringify({
+        id: artifact.id,
+        name: artifact.name,
+        kind: artifact.kind,
+        status: artifact.status,
+      }),
+      artifact,
+      events: [
+        {
+          type: "artifact",
+          artifactId: artifact.id,
+          name: artifact.name,
+          kind: artifact.kind,
+        },
+      ],
+    };
+  } catch {
+    return fail("Unable to save the background removal result");
+  }
+}
+
 /**
  * Creates or updates a canvas artifact without waiting for client-side Mermaid
  * conversion. Existing scenes stay intact until the browser merges new
@@ -745,6 +843,8 @@ export async function executeStudioTool(
       return executeWriteArtifact(rawArgs, ctx);
     case "generate_image":
       return executeGenerateImage(rawArgs, ctx);
+    case "remove_background":
+      return executeRemoveBackground(rawArgs, ctx);
     case "generate_canvas":
       return executeGenerateCanvas(rawArgs, ctx);
     case "read_artifact":
