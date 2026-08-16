@@ -1,8 +1,9 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Sparkles, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Scissors, Sparkles, Trash2 } from "lucide-react";
 import type { Ref } from "react";
 import type { SkillMeta } from "@/lib/agent/types";
+import { listStudioTools, type StudioTool } from "@/lib/studio/tool-catalog";
 
 export type MenuView =
   | { kind: "root" }
@@ -16,6 +17,7 @@ export type SkillDepartment = {
 
 export type NavigableItem =
   | { type: "skill"; skill: SkillMeta }
+  | { type: "tool"; tool: StudioTool }
   | { type: "department"; id: string; label: string; count: number }
   | { type: "action"; action: "clear-turn" };
 
@@ -34,18 +36,33 @@ export function filterSkills(skills: SkillMeta[], query: string): SkillMeta[] {
   });
 }
 
+export function filterStudioTools(tools: readonly StudioTool[], query: string): StudioTool[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [...tools];
+  return tools.filter((tool) => {
+    const hay = [tool.id, tool.name, tool.summary, tool.description, ...tool.triggers]
+      .join("\n")
+      .toLowerCase();
+    return hay.includes(q);
+  });
+}
+
 /** Build keyboard-navigable rows for the current view / search query. */
 export function getSlashMenuItems(
   skills: SkillMeta[],
   departments: SkillDepartment[],
   query: string,
   view: MenuView,
+  tools: readonly StudioTool[] = listStudioTools(),
 ): NavigableItem[] {
   const q = query.trim();
   if (q) {
-    return filterSkills(skills, q)
-      .slice(0, SEARCH_MAX)
-      .map((skill) => ({ type: "skill" as const, skill }));
+    return [
+      ...filterStudioTools(tools, q).map((tool) => ({ type: "tool" as const, tool })),
+      ...filterSkills(skills, q)
+        .slice(0, SEARCH_MAX)
+        .map((skill) => ({ type: "skill" as const, skill })),
+    ];
   }
 
   if (view.kind === "department") {
@@ -55,6 +72,7 @@ export function getSlashMenuItems(
       .map((skill) => ({ type: "skill" as const, skill }));
   }
 
+  const toolItems = tools.map((tool) => ({ type: "tool" as const, tool }));
   const featured = skills
     .filter((s) => s.featured === true)
     .slice(0, FEATURED_MAX)
@@ -68,6 +86,7 @@ export function getSlashMenuItems(
   }));
 
   return [
+    ...toolItems,
     ...featured,
     ...depts,
     { type: "action" as const, action: "clear-turn" as const },
@@ -86,6 +105,7 @@ export type SkillSlashMenuProps = {
   view: MenuView;
   onViewChange: (view: MenuView) => void;
   onPickSkill: (skill: SkillMeta) => void;
+  onPickTool?: (tool: StudioTool) => void;
   onClearTurnSkills: () => void;
   menuId?: string;
   menuRef?: Ref<HTMLDivElement>;
@@ -103,6 +123,7 @@ export default function SkillSlashMenu({
   view,
   onViewChange,
   onPickSkill,
+  onPickTool,
   onClearTurnSkills,
   menuId,
   menuRef,
@@ -130,11 +151,15 @@ export default function SkillSlashMenu({
       ? `筛选「${q}」· ↑↓ 选择 · Enter 确认`
       : view.kind === "department"
         ? `${departmentLabel} · Esc 返回 · Enter 添加`
-        : "精选 / 部门 · 输入搜索 · Enter 确认";
+        : "工具 / 精选 / 部门 · 输入搜索 · Enter 确认";
 
   const activate = (item: NavigableItem) => {
     if (item.type === "skill") {
       onPickSkill(item.skill);
+      return;
+    }
+    if (item.type === "tool") {
+      onPickTool?.(item.tool);
       return;
     }
     if (item.type === "department") {
@@ -177,7 +202,7 @@ export default function SkillSlashMenu({
       ) : items.length === 0 ? (
         <p className="px-3 py-3 text-sm text-[#8A8298]">
           {searching
-            ? "没有匹配的 Skill"
+            ? "没有匹配的工具或 Skill"
             : view.kind === "department"
               ? "该部门暂无 Skill"
               : "暂无可用 Skill"}
@@ -185,18 +210,32 @@ export default function SkillSlashMenu({
       ) : (
         items.map((item, i) => {
           const active = i === highlightIndex;
+          const toolCount = !searching && view.kind === "root"
+            ? items.filter((entry) => entry.type === "tool").length
+            : 0;
+          const showToolHeader =
+            !searching && view.kind === "root" && item.type === "tool" && i === 0;
           const showFeaturedHeader =
-            !searching && view.kind === "root" && featuredCount > 0 && i === 0;
+            !searching &&
+            view.kind === "root" &&
+            featuredCount > 0 &&
+            item.type === "skill" &&
+            i === toolCount;
           const showDeptHeader =
             !searching &&
             view.kind === "root" &&
             item.type === "department" &&
-            i === featuredCount;
+            i === toolCount + featuredCount;
           const showActionSep =
             item.type === "action" && item.action === "clear-turn";
 
           return (
             <div key={rowKey(item)}>
+              {showToolHeader ? (
+                <div className="px-3 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wide text-[#8A8298]">
+                  工具
+                </div>
+              ) : null}
               {showFeaturedHeader ? (
                 <div className="px-3 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wide text-[#8A8298]">
                   精选
@@ -209,6 +248,30 @@ export default function SkillSlashMenu({
               ) : null}
               {showActionSep ? (
                 <div className="my-1 border-t border-white/50" />
+              ) : null}
+
+              {item.type === "tool" ? (
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onMouseEnter={() => onHighlightIndexChange(i)}
+                  onClick={() => onPickTool?.(item.tool)}
+                  className={`flex w-full flex-col gap-0.5 px-3 py-2 text-left transition ${
+                    active ? "bg-[rgba(15, 23, 42,0.08)]" : "hover:bg-white/50"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium text-[#241E36]">
+                    <Scissors className="h-3.5 w-3.5 shrink-0 text-[#0F172A]" />
+                    <span className="truncate">{item.tool.name}</span>
+                    <span className="shrink-0 rounded bg-[rgba(15, 23, 42,0.12)] px-1.5 text-[10px] text-[#0F172A]">
+                      工具
+                    </span>
+                  </span>
+                  <span className="line-clamp-1 text-xs text-[#8A8298]">
+                    {item.tool.summary}
+                  </span>
+                </button>
               ) : null}
 
               {item.type === "skill" ? (
@@ -287,6 +350,7 @@ export default function SkillSlashMenu({
 
 function rowKey(item: NavigableItem): string {
   if (item.type === "skill") return `skill-${item.skill.id}`;
+  if (item.type === "tool") return `tool-${item.tool.id}`;
   if (item.type === "department") return `dept-${item.id}`;
   return `action-${item.action}`;
 }
@@ -296,6 +360,7 @@ export function activateSlashMenuItem(
   item: NavigableItem | undefined,
   handlers: {
     onPickSkill: (skill: SkillMeta) => void;
+    onPickTool?: (tool: StudioTool) => void;
     onViewChange: (view: MenuView) => void;
     onClearTurnSkills: () => void;
     onHighlightIndexChange: (i: number) => void;
@@ -304,6 +369,10 @@ export function activateSlashMenuItem(
   if (!item) return false;
   if (item.type === "skill") {
     handlers.onPickSkill(item.skill);
+    return true;
+  }
+  if (item.type === "tool") {
+    handlers.onPickTool?.(item.tool);
     return true;
   }
   if (item.type === "department") {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -25,6 +26,7 @@ import {
   ListOrdered,
   LoaderCircle,
   Paperclip,
+  Scissors,
   RotateCw,
   Square,
   X,
@@ -77,6 +79,7 @@ import ArtifactMentionMenu, { detectAtMention } from "./ArtifactMentionMenu";
 import MentionPromptEditor, {
   type MentionPromptEditorHandle,
 } from "./MentionPromptEditor";
+import { type StudioTool } from "@/lib/studio/tool-catalog";
 import SkillChips from "./SkillChips";
 import SkillSlashMenu, {
   activateSlashMenuItem,
@@ -319,6 +322,7 @@ export default function Composer({
   const [slashRange, setSlashRange] = useState<{ start: number; end: number } | null>(
     null,
   );
+  const [turnTool, setTurnTool] = useState<StudioTool | null>(null);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionIndex, setMentionIndex] = useState(0);
@@ -641,6 +645,24 @@ export default function Composer({
       closeMenu();
     },
     [closeMenu, setDraft, setSelectedIds, slashRange, toggleSkill],
+  );
+
+  const pickToolFromMenu = useCallback(
+    (tool: StudioTool) => {
+      setTurnTool(tool);
+      const editor = editorRef.current;
+      if (slashRange && editor) {
+        const { text, cursor } = editor.replaceRange(slashRange, "");
+        const cleaned = text.replace(/\s{2,}/g, " ").trimStart();
+        const next = cleaned || "请把图抠成透明背景";
+        setDraft(next);
+        requestAnimationFrame(() => editor.setCaretOffset(Math.min(cursor, next.length)));
+      } else if (!draft.trim()) {
+        setDraft("请把图抠成透明背景");
+      }
+      closeMenu();
+    },
+    [closeMenu, draft, setDraft, slashRange],
   );
 
   const openSkillMenu = useCallback(
@@ -1031,7 +1053,10 @@ export default function Composer({
         }
 
         const outbound = composeOutboundMessage({
-          draft,
+          draft:
+            turnTool?.id === "background-removal" && !/[抠去]背景|透明背景/.test(draft)
+              ? `请把图抠成透明背景。${draft}`.trim()
+              : draft,
           pasted: pastedBlocks,
           images: workingImages,
           files,
@@ -1079,6 +1104,7 @@ export default function Composer({
         setDraft("");
         editorRef.current?.clear();
         setSelectedIds([]);
+        setTurnTool(null);
         clearAttachments();
         closeMenu();
         setMentionOpen(false);
@@ -1107,6 +1133,7 @@ export default function Composer({
     setComposerImages,
     onClearError,
     selectedIds,
+    turnTool,
     onSend,
     setDraft,
     setSelectedIds,
@@ -1120,11 +1147,12 @@ export default function Composer({
     const item = menuItems[menuIndex];
     activateSlashMenuItem(item, {
       onPickSkill: pickSkillFromMenu,
+      onPickTool: pickToolFromMenu,
       onViewChange: setMenuView,
       onClearTurnSkills: clearTurnSkills,
       onHighlightIndexChange: setMenuIndex,
     });
-  }, [menuItems, menuIndex, pickSkillFromMenu, clearTurnSkills]);
+  }, [menuItems, menuIndex, pickSkillFromMenu, pickToolFromMenu, clearTurnSkills]);
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -1404,6 +1432,33 @@ export default function Composer({
                     : "Enter 发送 · 粘贴长文自动折叠 · 可拖入文件"}
           </span>
         </div>
+
+        {turnTool ? (
+          <div className="flex flex-wrap items-center gap-1.5 px-2">
+            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-[#8A8298]">
+              本轮工具
+            </span>
+            <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-[rgba(15, 23, 42,0.2)] bg-[rgba(15, 23, 42,0.08)] py-0.5 pl-2.5 pr-1 text-xs text-[#0F172A]">
+              <Scissors className="h-3 w-3 shrink-0" />
+              <span className="truncate">{turnTool.name}</span>
+              <Link
+                href={`/studio/tools/${turnTool.id}`}
+                className="rounded-full px-1.5 text-[10px] text-[#4F46E5] hover:bg-white/70"
+              >
+                表单
+              </Link>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => setTurnTool(null)}
+                className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-white/70 disabled:opacity-50"
+                title="取消工具"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          </div>
+        ) : null}
 
         <SkillChips
           turnIds={selectedIds}
@@ -1715,6 +1770,7 @@ export default function Composer({
             view={menuView}
             onViewChange={setMenuView}
             onPickSkill={pickSkillFromMenu}
+            onPickTool={pickToolFromMenu}
             onClearTurnSkills={clearTurnSkills}
             menuId={menuId}
             menuRef={menuRef}

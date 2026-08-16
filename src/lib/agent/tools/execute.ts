@@ -99,6 +99,7 @@ export type GenerateImageArgs = z.infer<typeof generateImageSchema>;
 const removeBackgroundSchema = z.object({
   sourceArtifactId: z.string().trim().min(1).max(128),
   outputId: artifactOutputIdSchema.optional(),
+  subject: z.enum(["product", "person", "garment", "general"]).optional(),
 });
 
 export type RemoveBackgroundArgs = z.infer<typeof removeBackgroundSchema>;
@@ -479,7 +480,7 @@ export async function executeRemoveBackground(
     return fail(`remove_background validation failed: ${formatZodError(parsed.error)}`);
   }
 
-  const { sourceArtifactId, outputId } = parsed.data;
+  const { sourceArtifactId, outputId, subject } = parsed.data;
   const provenance = resolveArtifactProvenance("image", outputId, ctx);
   if (provenance.error) return fail(provenance.error);
 
@@ -496,6 +497,7 @@ export async function executeRemoveBackground(
   try {
     const invocation = await invokeToolCapability("image.background_removal", {
       images: [{ bytes: sourceBytes, mimeType: source.mimeType }],
+      ...(subject && subject !== "product" ? { params: { subject } } : {}),
     });
     if (invocation.status !== "completed") {
       return fail("Background removal is still processing; please try again shortly");

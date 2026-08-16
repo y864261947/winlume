@@ -59,12 +59,19 @@ describe("POST /api/tools/[toolId]/run", () => {
     const response = await POST(
       new NextRequest("http://localhost/api/tools/background-removal/run", {
         method: "POST",
-        body: JSON.stringify({ sourceArtifactId: "source-image" }),
+        body: JSON.stringify({ sourceArtifactId: "source-image", subject: "person" }),
       }),
       context,
     );
 
     expect(response.status).toBe(503);
+    expect(mocks.executeStudioTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceArtifactId: "source-image",
+        subject: "person",
+      }),
+      expect.any(Object),
+    );
     expect(await response.json()).toEqual({
       error: "商品抠图服务尚未配置，请联系管理员完成服务接入。",
       code: "tool_unavailable",

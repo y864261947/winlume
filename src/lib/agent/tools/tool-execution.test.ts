@@ -87,6 +87,34 @@ describe("executeStudioTool", () => {
     expect(invokeCapability).not.toHaveBeenCalled();
   });
 
+  it("forwards a non-default subject to the provider", async () => {
+    const invokeCapability = vi.fn().mockResolvedValue({
+      status: "completed",
+      outputs: [{ bytes: Buffer.from("png"), mimeType: "image/png" }],
+    });
+    await executeStudioTool(
+      {
+        tool: getStudioTool("background-removal")!,
+        userId: "user-1",
+        sourceArtifactId: source.id,
+        subject: "person",
+      },
+      {
+        artifacts: {
+          get: vi.fn().mockResolvedValue(source),
+          readContent: vi.fn().mockResolvedValue(Buffer.from("source")),
+          write: vi.fn(async (meta: Artifact) => meta),
+        } as never,
+        invokeCapability,
+      },
+    );
+
+    expect(invokeCapability).toHaveBeenCalledWith("image.background_removal", {
+      images: [{ bytes: Buffer.from("source"), mimeType: "image/jpeg" }],
+      params: { subject: "person" },
+    });
+  });
+
   it("turns a configuration failure into a non-retryable setup response", async () => {
     await expect(
       executeStudioTool(

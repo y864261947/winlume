@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import type { Artifact } from "@/lib/agent/types";
 import type { ArtifactStore } from "@/lib/host/ports";
 import {
+  parseBackgroundRemovalSubject,
+  type BackgroundRemovalSubject,
+} from "@/lib/studio/background-removal";
+import {
   isStudioToolImageMimeType,
   type StudioTool,
 } from "@/lib/studio/tool-catalog";
@@ -22,7 +26,10 @@ type ExecuteStudioToolDependencies = {
   artifacts: ArtifactStore;
   invokeCapability: (
     capability: "image.background_removal",
-    input: { images: Array<{ bytes: Buffer; mimeType: string }> },
+    input: {
+      images: Array<{ bytes: Buffer; mimeType: string }>;
+      params?: { subject?: BackgroundRemovalSubject };
+    },
   ) => Promise<ToolInvocationResult>;
 };
 
@@ -46,7 +53,12 @@ function providerFailure(error: ToolProviderError): StudioToolExecutionError {
  * function calls. It never creates a Session or Workflow Run.
  */
 export async function executeStudioTool(
-  input: { tool: StudioTool; userId: string; sourceArtifactId: string },
+  input: {
+    tool: StudioTool;
+    userId: string;
+    sourceArtifactId: string;
+    subject?: unknown;
+  },
   dependencies: ExecuteStudioToolDependencies,
 ): Promise<Artifact> {
   if (input.tool.id !== "background-removal") {
@@ -67,8 +79,10 @@ export async function executeStudioTool(
 
   let invocation: ToolInvocationResult;
   try {
+    const subject = parseBackgroundRemovalSubject(input.subject);
     invocation = await dependencies.invokeCapability("image.background_removal", {
       images: [{ bytes: sourceBytes, mimeType: source.mimeType }],
+      ...(subject === "product" ? {} : { params: { subject } }),
     });
   } catch (error) {
     if (error instanceof ToolProviderError) throw providerFailure(error);

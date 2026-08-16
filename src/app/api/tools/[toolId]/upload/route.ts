@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/lib/auth/session";
 import { webStore } from "@/lib/host/web/store-singleton";
-import { MAX_IMAGE_BYTES, parseDataUrl } from "@/lib/studio/composer-attachments";
+import { parseDataUrl } from "@/lib/studio/composer-attachments";
 import {
   getStudioTool,
   isStudioToolImageMimeType,
+  MAX_STUDIO_TOOL_IMAGE_BYTES,
   toolArtifactSessionId,
 } from "@/lib/studio/tool-catalog";
 
@@ -39,9 +40,9 @@ export async function POST(request: NextRequest, context: Context) {
   ) {
     return NextResponse.json({ error: "请选择一张有效的图片" }, { status: 400 });
   }
-  if (parsed.bytes.length > MAX_IMAGE_BYTES) {
+  if (parsed.bytes.length > MAX_STUDIO_TOOL_IMAGE_BYTES) {
     return NextResponse.json(
-      { error: `图片不能超过 ${MAX_IMAGE_BYTES / 1024 / 1024} MB` },
+      { error: `图片不能超过 ${MAX_STUDIO_TOOL_IMAGE_BYTES / 1024 / 1024} MB` },
       { status: 400 },
     );
   }

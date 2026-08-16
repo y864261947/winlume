@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Context = { params: Promise<{ toolId: string }> };
-type RunToolBody = { sourceArtifactId?: unknown };
+type RunToolBody = { sourceArtifactId?: unknown; subject?: unknown };
 
 export async function POST(request: NextRequest, context: Context) {
   const userId = await getCurrentUserId();
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, context: Context) {
 
   try {
     const artifact = await executeStudioTool(
-      { tool, userId, sourceArtifactId },
+      { tool, userId, sourceArtifactId, subject: body.subject },
       { artifacts: webStore.artifacts, invokeCapability: invokeToolCapability },
     );
     return NextResponse.json({ artifact }, { status: 201 });

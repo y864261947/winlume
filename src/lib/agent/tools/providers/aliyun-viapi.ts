@@ -1,9 +1,16 @@
 import { randomUUID } from "node:crypto";
 import ImageSegClient, {
+  SegmentBodyRequest,
+  SegmentClothRequest,
   SegmentCommodityRequest,
+  SegmentCommonImageRequest,
 } from "@alicloud/imageseg20191230";
 import { $OpenApiUtil } from "@alicloud/openapi-core";
 import OSS from "ali-oss";
+import {
+  parseBackgroundRemovalSubject,
+  type BackgroundRemovalSubject,
+} from "@/lib/studio/background-removal";
 import { isStudioToolImageMimeType } from "@/lib/studio/tool-catalog";
 import {
   ToolProviderError,
@@ -100,6 +107,39 @@ function outputMimeType(response: Response): string {
   return mimeType;
 }
 
+export type SegmentResultBody = {
+  data?: {
+    imageURL?: string;
+    elements?: Array<{ imageURL?: string }>;
+  };
+};
+
+export function providerImageUrlFromSegmentResult(
+  subject: BackgroundRemovalSubject,
+  body: SegmentResultBody | undefined,
+): string | undefined {
+  if (subject === "garment") return body?.data?.elements?.[0]?.imageURL;
+  return body?.data?.imageURL;
+}
+
+async function segmentBySubject(
+  client: ImageSegClient,
+  subject: BackgroundRemovalSubject,
+  imageURL: string,
+): Promise<SegmentResultBody | undefined> {
+  switch (subject) {
+    case "person":
+      return (await client.segmentBody(new SegmentBodyRequest({ imageURL }))).body;
+    case "garment":
+      return (await client.segmentCloth(new SegmentClothRequest({ imageURL }))).body;
+    case "general":
+      return (await client.segmentCommonImage(new SegmentCommonImageRequest({ imageURL }))).body;
+    case "product":
+    default:
+      return (await client.segmentCommodity(new SegmentCommodityRequest({ imageURL }))).body;
+  }
+}
+
 async function downloadProviderOutput(url: string): Promise<ToolAsset> {
   let response: Response;
   try {
@@ -151,6 +191,7 @@ export class AliyunViapiProvider implements ToolProvider {
         headers: { "Content-Type": source.mimeType },
       });
       const imageURL = inputUrlFor(oss, config, objectName);
+      const subject = parseBackgroundRemovalSubject(input.params?.subject);
       const client = new ImageSegClient(
         new $OpenApiUtil.Config({
           accessKeyId: config.accessKeyId,
@@ -158,10 +199,10 @@ export class AliyunViapiProvider implements ToolProvider {
           endpoint: "imageseg.cn-shanghai.aliyuncs.com",
         }),
       );
-      const response = await client.segmentCommodity(
-        new SegmentCommodityRequest({ imageURL }),
+      const providerUrl = providerImageUrlFromSegmentResult(
+        subject,
+        await segmentBySubject(client, subject, imageURL),
       );
-      const providerUrl = response.body?.data?.imageURL;
       if (!providerUrl) {
         throw new ToolProviderError("invalid_result", "商品抠图服务没有返回图片结果。");
       }

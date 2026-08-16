@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ToolProviderError } from "./types";
-import { readAliyunViapiConfig } from "./aliyun-viapi";
+import { providerImageUrlFromSegmentResult, readAliyunViapiConfig } from "./aliyun-viapi";
 
 describe("readAliyunViapiConfig", () => {
   it("requires a dedicated service identity rather than inferring CLI credentials", () => {
@@ -21,5 +21,21 @@ describe("readAliyunViapiConfig", () => {
       bucket: "private-staging-bucket",
       region: "oss-cn-shanghai",
     });
+  });
+});
+
+describe("providerImageUrlFromSegmentResult", () => {
+  it("reads the first garment element URL and the single-image URL for other subjects", () => {
+    expect(
+      providerImageUrlFromSegmentResult("garment", {
+        data: { elements: [{ imageURL: "https://example.com/cloth.png" }] },
+      }),
+    ).toBe("https://example.com/cloth.png");
+    expect(
+      providerImageUrlFromSegmentResult("person", {
+        data: { imageURL: "https://example.com/person.png" },
+      }),
+    ).toBe("https://example.com/person.png");
+    expect(providerImageUrlFromSegmentResult("product", { data: {} })).toBeUndefined();
   });
 });
