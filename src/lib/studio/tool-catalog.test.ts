@@ -9,9 +9,10 @@ import {
 describe("Studio tool catalog", () => {
   it("exposes only the enabled image tool", () => {
     expect(listStudioTools()).toEqual([
-      expect.objectContaining({ id: "background-removal", name: "商品抠图" }),
+      expect.objectContaining({ id: "background-removal", name: "智能抠图" }),
     ]);
     expect(getStudioTool("background-removal")?.category).toBe("图片处理");
+    expect(getStudioTool("background-removal")?.triggers).toContain("抠图");
     expect(getStudioTool("not-a-tool")).toBeNull();
   });
 

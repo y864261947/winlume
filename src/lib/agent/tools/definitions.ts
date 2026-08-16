@@ -233,7 +233,7 @@ export const STUDIO_TOOLS = [
     function: {
       name: "remove_background",
       description:
-        "Remove the background from one existing image artifact and return a ready PNG with transparency. Use this for requests to cut out, isolate, or make an uploaded product image background transparent. sourceArtifactId must be the exact image artifact id supplied in system context. Do not use generate_image as a substitute for background removal.",
+        "Remove the background from one existing image artifact and return a ready PNG with transparency. Use this for requests to cut out, isolate, or make an uploaded product, person, garment, or general image background transparent. sourceArtifactId must be the exact image artifact id supplied in system context. Set subject to product, person, garment, or general when the user specifies the subject type; default product. Do not use generate_image as a substitute for background removal.",
       parameters: {
         type: "object",
         properties: {
@@ -241,6 +241,12 @@ export const STUDIO_TOOLS = [
             type: "string",
             description:
               "Exact id of the source PNG, JPG, or WebP image artifact to process.",
+          },
+          subject: {
+            type: "string",
+            enum: ["product", "person", "garment", "general"],
+            description:
+              "What to isolate. product (default) for merchandise, person for portraits, garment for clothing, general when unsure.",
           },
           outputId: {
             type: "string",

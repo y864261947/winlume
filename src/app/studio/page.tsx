@@ -285,6 +285,7 @@ function StudioHomeInner() {
   const [featuredSkills, setFeaturedSkills] = useState<SkillMeta[] | null>(null);
   const [allSkills, setAllSkills] = useState<SkillMeta[]>([]);
   const projectId = searchParams.get("projectId")?.trim() || "";
+  const seedArtifactId = searchParams.get("artifact")?.trim() || "";
   const entryContext = STUDIO_ENTRY_CONTEXT[searchParams.get("entry") ?? ""];
   const [project, setProject] = useState<Project | null>(null);
 
@@ -493,6 +494,9 @@ function StudioHomeInner() {
 
         let referencedArtifactIds =
           meta?.referencedArtifactIds?.filter(Boolean) ?? [];
+        if (seedArtifactId && !referencedArtifactIds.includes(seedArtifactId)) {
+          referencedArtifactIds = [...referencedArtifactIds, seedArtifactId];
+        }
         if (!referencedArtifactIds.length && extractAtMentionNames(message).length) {
           referencedArtifactIds = resolveReferencedArtifactIds(
             message,
@@ -546,6 +550,7 @@ function StudioHomeInner() {
       project,
       projectId,
       router,
+      seedArtifactId,
       selectedSkillIds,
       starting,
     ],
