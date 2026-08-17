@@ -1,4 +1,6 @@
-export type ToolCapabilityId = "image.background_removal";
+import type { StudioToolCapabilityId } from "@/lib/studio/tool-catalog";
+
+export type ToolCapabilityId = StudioToolCapabilityId;
 
 export type ToolAsset = {
   bytes: Buffer;

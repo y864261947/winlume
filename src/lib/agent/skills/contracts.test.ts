@@ -36,13 +36,30 @@ describe("production Skill contracts", () => {
     });
   });
 
-  it("accepts background removal as a production tool", () => {
+  it("accepts image editing tools as production tools", () => {
     expect(
       parseSkillContract(
-        JSON.stringify({ ...validContract, allowedTools: ["remove_background"] }),
+        JSON.stringify({
+          ...validContract,
+          allowedTools: [
+            "remove_background",
+            "upscale_image",
+            "remove_watermark_or_subtitles",
+            "fuse_images",
+            "generate_ecommerce_image_set",
+          ],
+        }),
         "production-content-intake",
       ),
-    ).toMatchObject({ allowedTools: ["remove_background"] });
+    ).toMatchObject({
+      allowedTools: [
+        "remove_background",
+        "upscale_image",
+        "remove_watermark_or_subtitles",
+        "fuse_images",
+        "generate_ecommerce_image_set",
+      ],
+    });
   });
 
   it("rejects ids, tools, capabilities, duplicate outputs, and resource paths outside the package", () => {

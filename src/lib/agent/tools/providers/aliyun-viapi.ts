@@ -1,17 +1,23 @@
 import { randomUUID } from "node:crypto";
 import ImageSegClient, {
-  SegmentBodyRequest,
   SegmentClothRequest,
   SegmentCommodityRequest,
-  SegmentCommonImageRequest,
+  SegmentHDBodyRequest,
+  SegmentHDCommonImageRequest,
+  SegmentHairRequest,
 } from "@alicloud/imageseg20191230";
+import ImageEnhanClient, {
+  GenerateSuperResolutionImageRequest,
+  MakeSuperResolutionImageRequest,
+  RemoveImageSubtitlesRequest,
+  RemoveImageWatermarkRequest,
+} from "@alicloud/imageenhan20190930";
 import { $OpenApiUtil } from "@alicloud/openapi-core";
 import OSS from "ali-oss";
 import {
-  parseBackgroundRemovalSubject,
-  type BackgroundRemovalSubject,
-} from "@/lib/studio/background-removal";
-import { isStudioToolImageMimeType } from "@/lib/studio/tool-catalog";
+  isBackgroundRemovalSubject,
+  isStudioToolImageMimeType,
+} from "@/lib/studio/tool-catalog";
 import {
   ToolProviderError,
   type ToolAsset,
@@ -39,7 +45,7 @@ function requiredEnv(
   if (!value) {
     throw new ToolProviderError(
       "configuration",
-      "商品抠图服务尚未配置，请联系管理员完成服务接入。",
+      "图片编辑服务尚未配置，请联系管理员完成服务接入。",
     );
   }
   return value;
@@ -56,7 +62,7 @@ export function readAliyunViapiConfig(
   if (region !== "oss-cn-shanghai") {
     throw new ToolProviderError(
       "configuration",
-      "商品抠图服务的 OSS 区域必须配置为上海。",
+      "图片编辑服务的 OSS 区域必须配置为上海。",
     );
   }
   return {
@@ -93,51 +99,19 @@ function inputUrlFor(
   if (url.protocol !== "https:" || url.hostname !== expectedHost) {
     throw new ToolProviderError(
       "configuration",
-      "商品抠图服务无法生成可用的图片访问地址。",
+      "图片编辑服务无法生成可用的图片访问地址。",
     );
   }
   return signedUrl;
 }
 
 function outputMimeType(response: Response): string {
-  const mimeType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
-  if (mimeType !== "image/png") {
-    throw new ToolProviderError("invalid_result", "商品抠图服务返回了无效图片。");
+  const rawMimeType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  const mimeType = rawMimeType === "image/jpg" ? "image/jpeg" : rawMimeType;
+  if (!mimeType || !isStudioToolImageMimeType(mimeType)) {
+    throw new ToolProviderError("invalid_result", "图片编辑服务返回了无效图片。");
   }
   return mimeType;
-}
-
-export type SegmentResultBody = {
-  data?: {
-    imageURL?: string;
-    elements?: Array<{ imageURL?: string }>;
-  };
-};
-
-export function providerImageUrlFromSegmentResult(
-  subject: BackgroundRemovalSubject,
-  body: SegmentResultBody | undefined,
-): string | undefined {
-  if (subject === "garment") return body?.data?.elements?.[0]?.imageURL;
-  return body?.data?.imageURL;
-}
-
-async function segmentBySubject(
-  client: ImageSegClient,
-  subject: BackgroundRemovalSubject,
-  imageURL: string,
-): Promise<SegmentResultBody | undefined> {
-  switch (subject) {
-    case "person":
-      return (await client.segmentBody(new SegmentBodyRequest({ imageURL }))).body;
-    case "garment":
-      return (await client.segmentCloth(new SegmentClothRequest({ imageURL }))).body;
-    case "general":
-      return (await client.segmentCommonImage(new SegmentCommonImageRequest({ imageURL }))).body;
-    case "product":
-    default:
-      return (await client.segmentCommodity(new SegmentCommodityRequest({ imageURL }))).body;
-  }
 }
 
 async function downloadProviderOutput(url: string): Promise<ToolAsset> {
@@ -145,31 +119,157 @@ async function downloadProviderOutput(url: string): Promise<ToolAsset> {
   try {
     response = await fetch(url);
   } catch {
-    throw new ToolProviderError("unavailable", "商品抠图服务暂时不可用，请稍后重试。");
+    throw new ToolProviderError("unavailable", "图片编辑服务暂时不可用，请稍后重试。");
   }
   if (!response.ok) {
-    throw new ToolProviderError("unavailable", "商品抠图服务暂时不可用，请稍后重试。");
+    throw new ToolProviderError("unavailable", "图片编辑服务暂时不可用，请稍后重试。");
   }
   const mimeType = outputMimeType(response);
   const bytes = Buffer.from(await response.arrayBuffer());
   if (!bytes.length || bytes.length > MAX_PROVIDER_OUTPUT_BYTES) {
-    throw new ToolProviderError("invalid_result", "商品抠图服务返回了无效图片。");
+    throw new ToolProviderError("invalid_result", "图片编辑服务返回了无效图片。");
   }
   return { bytes, mimeType };
+}
+
+function createImageSegClient(config: AliyunViapiConfig): ImageSegClient {
+  return new ImageSegClient(
+    new $OpenApiUtil.Config({
+      accessKeyId: config.accessKeyId,
+      accessKeySecret: config.accessKeySecret,
+      endpoint: "imageseg.cn-shanghai.aliyuncs.com",
+    }),
+  );
+}
+
+function createImageEnhanClient(config: AliyunViapiConfig): ImageEnhanClient {
+  return new ImageEnhanClient(
+    new $OpenApiUtil.Config({
+      accessKeyId: config.accessKeyId,
+      accessKeySecret: config.accessKeySecret,
+      endpoint: "imageenhan.cn-shanghai.aliyuncs.com",
+    }),
+  );
+}
+
+function outputUrl(value: string | undefined, capability: ToolCapabilityId): string {
+  if (!value) {
+    throw new ToolProviderError(
+      "invalid_result",
+      `${capability} 服务没有返回图片结果。`,
+    );
+  }
+  return value;
+}
+
+function outputElementUrl(
+  elements: readonly { imageURL?: string }[] | undefined,
+  capability: ToolCapabilityId,
+): string {
+  return outputUrl(elements?.find((element) => element.imageURL)?.imageURL, capability);
+}
+
+async function invokeAliyunCapability(
+  capability: ToolCapabilityId,
+  input: ToolInvocationInput,
+  config: AliyunViapiConfig,
+  imageUrl: string,
+): Promise<string> {
+  if (capability === "image.background_removal") {
+    const client = createImageSegClient(config);
+    const subject = isBackgroundRemovalSubject(input.params?.subject)
+      ? input.params.subject
+      : "product";
+
+    switch (subject) {
+      case "person": {
+        const response = await client.segmentHDBody(
+          new SegmentHDBodyRequest({ imageURL: imageUrl }),
+        );
+        return outputUrl(response.body?.data?.imageURL, capability);
+      }
+      case "garment": {
+        const response = await client.segmentCloth(
+          new SegmentClothRequest({ imageURL: imageUrl }),
+        );
+        return outputElementUrl(response.body?.data?.elements, capability);
+      }
+      case "hair": {
+        const response = await client.segmentHair(
+          new SegmentHairRequest({ imageURL: imageUrl }),
+        );
+        return outputElementUrl(response.body?.data?.elements, capability);
+      }
+      case "general_hd": {
+        const response = await client.segmentHDCommonImage(
+          new SegmentHDCommonImageRequest({ imageUrl }),
+        );
+        return outputUrl(response.body?.data?.imageUrl, capability);
+      }
+      case "product": {
+        const response = await client.segmentCommodity(
+          new SegmentCommodityRequest({ imageURL: imageUrl }),
+        );
+        return outputUrl(response.body?.data?.imageURL, capability);
+      }
+    }
+  }
+
+  const client = createImageEnhanClient(config);
+  if (capability === "image.watermark_text_removal") {
+    const target = input.params?.target === "subtitles" ? "subtitles" : "watermark";
+    if (target === "subtitles") {
+      const response = await client.removeImageSubtitles(
+        new RemoveImageSubtitlesRequest({ imageURL: imageUrl }),
+      );
+      return outputUrl(response.body?.data?.imageURL, capability);
+    }
+    const response = await client.removeImageWatermark(
+      new RemoveImageWatermarkRequest({ imageURL: imageUrl }),
+    );
+    return outputUrl(response.body?.data?.imageURL, capability);
+  }
+
+  if (capability === "image.upscale") {
+    if (input.params?.mode === "generative") {
+      const response = await client.generateSuperResolutionImage(
+        new GenerateSuperResolutionImageRequest({
+          imageUrl,
+          outputFormat: "jpg",
+          outputQuality: 95,
+          scale: 2,
+        }),
+      );
+      return outputUrl(response.body?.data?.resultUrl, capability);
+    }
+    const response = await client.makeSuperResolutionImage(
+      new MakeSuperResolutionImageRequest({
+        url: imageUrl,
+        mode: "base",
+        outputFormat: "jpg",
+        outputQuality: 95,
+        upscaleFactor: 2,
+      }),
+    );
+    return outputUrl(response.body?.data?.url, capability);
+  }
+
+  throw new ToolProviderError("configuration", "该图片工具尚未配置服务。");
 }
 
 /** Official VIAPI adapter. Each invocation stages one private OSS object. */
 export class AliyunViapiProvider implements ToolProvider {
   readonly id = "aliyun-viapi";
-  readonly capabilities = ["image.background_removal"] as const;
+  readonly capabilities = [
+    "image.background_removal",
+    "image.upscale",
+    "image.watermark_text_removal",
+  ] as const;
 
   async invoke(
     capability: ToolCapabilityId,
     input: ToolInvocationInput,
   ): Promise<ToolInvocationResult> {
-    if (capability !== "image.background_removal") {
-      throw new ToolProviderError("configuration", "该图片工具尚未配置服务。");
-    }
     const source = input.images[0];
     if (!source?.bytes.length || !isStudioToolImageMimeType(source.mimeType)) {
       throw new ToolProviderError("invalid_result", "请选择一张有效的图片。");
@@ -191,25 +291,11 @@ export class AliyunViapiProvider implements ToolProvider {
         headers: { "Content-Type": source.mimeType },
       });
       const imageURL = inputUrlFor(oss, config, objectName);
-      const subject = parseBackgroundRemovalSubject(input.params?.subject);
-      const client = new ImageSegClient(
-        new $OpenApiUtil.Config({
-          accessKeyId: config.accessKeyId,
-          accessKeySecret: config.accessKeySecret,
-          endpoint: "imageseg.cn-shanghai.aliyuncs.com",
-        }),
-      );
-      const providerUrl = providerImageUrlFromSegmentResult(
-        subject,
-        await segmentBySubject(client, subject, imageURL),
-      );
-      if (!providerUrl) {
-        throw new ToolProviderError("invalid_result", "商品抠图服务没有返回图片结果。");
-      }
+      const providerUrl = await invokeAliyunCapability(capability, input, config, imageURL);
       return { status: "completed", outputs: [await downloadProviderOutput(providerUrl)] };
     } catch (error) {
       if (error instanceof ToolProviderError) throw error;
-      throw new ToolProviderError("unavailable", "商品抠图服务暂时不可用，请稍后重试。");
+      throw new ToolProviderError("unavailable", "图片编辑服务暂时不可用，请稍后重试。");
     } finally {
       await oss.delete(objectName).catch(() => {
         // A bucket lifecycle rule is the backstop if a transient cleanup fails.

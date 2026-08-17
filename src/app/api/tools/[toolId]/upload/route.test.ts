@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MAX_IMAGE_BYTES } from "@/lib/studio/composer-attachments";
 
 const mocks = vi.hoisted(() => ({
   getCurrentUserId: vi.fn(),
@@ -72,6 +73,24 @@ describe("POST /api/tools/[toolId]/upload", () => {
     );
 
     expect(response.status).toBe(400);
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
+
+  it("enforces the same image-size limit as Composer uploads", async () => {
+    const tooLarge = Buffer.alloc(MAX_IMAGE_BYTES + 1, 1).toString("base64");
+    const response = await POST(
+      new NextRequest("http://localhost/api/tools/background-removal/upload", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "large.png",
+          dataUrl: `data:image/png;base64,${tooLarge}`,
+        }),
+      }),
+      context,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "图片不能超过 2 MB" });
     expect(mocks.write).not.toHaveBeenCalled();
   });
 });

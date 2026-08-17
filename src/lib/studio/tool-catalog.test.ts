@@ -1,19 +1,62 @@
 import { describe, expect, it } from "vitest";
 import {
   getStudioTool,
+  initialStudioToolParams,
   isStudioToolImageMimeType,
   listStudioTools,
   toolArtifactSessionId,
+  validateStudioToolParams,
 } from "./tool-catalog";
 
 describe("Studio tool catalog", () => {
-  it("exposes only the enabled image tool", () => {
-    expect(listStudioTools()).toEqual([
-      expect.objectContaining({ id: "background-removal", name: "智能抠图" }),
+  it("exposes the configured image editing tools", () => {
+    expect(listStudioTools().map((tool) => tool.id)).toEqual([
+      "background-removal",
+      "image-clarity",
+      "watermark-subtitle-removal",
+      "image-fusion",
+      "ecommerce-image-set",
     ]);
     expect(getStudioTool("background-removal")?.category).toBe("图片处理");
-    expect(getStudioTool("background-removal")?.triggers).toContain("抠图");
+    expect(getStudioTool("person-removal")).toBeNull();
     expect(getStudioTool("not-a-tool")).toBeNull();
+  });
+
+  it("applies defaults and rejects invalid editing parameters", () => {
+    const backgroundRemoval = getStudioTool("background-removal")!;
+    const clarity = getStudioTool("image-clarity")!;
+    const cleanup = getStudioTool("watermark-subtitle-removal")!;
+    const fusion = getStudioTool("image-fusion")!;
+    const ecommerceSet = getStudioTool("ecommerce-image-set")!;
+
+    expect(initialStudioToolParams(backgroundRemoval)).toEqual({ subject: "product" });
+    expect(validateStudioToolParams(backgroundRemoval, { subject: "hair" }).params).toEqual({
+      subject: "hair",
+    });
+    expect(validateStudioToolParams(backgroundRemoval, { subject: "invalid" }).error).toContain(
+      "分割主体",
+    );
+    expect(initialStudioToolParams(clarity)).toEqual({ mode: "standard" });
+    expect(validateStudioToolParams(clarity, { mode: "invalid" }).error).toContain("增强方式");
+    expect(validateStudioToolParams(cleanup, { target: "subtitles" }).error).toContain("必要权利");
+    expect(
+      validateStudioToolParams(cleanup, {
+        target: "subtitles",
+        rightsConfirmed: true,
+      }).params,
+    ).toEqual({ target: "subtitles", rightsConfirmed: true });
+    expect(initialStudioToolParams(fusion)).toEqual({ size: "1024x1024" });
+    expect(fusion.capability).toBeUndefined();
+    expect(fusion.input).toMatchObject({ minImages: 2, maxImages: 2 });
+    expect(fusion.input.prompt?.maxLength).toBe(1200);
+    expect(fusion.composerPrompt).toContain("两张图融合");
+    expect(initialStudioToolParams(ecommerceSet)).toEqual({
+      template: "product",
+      size: "1024x1024",
+    });
+    expect(ecommerceSet.input).toMatchObject({ minImages: 1, maxImages: 2 });
+    expect(ecommerceSet.input.prompt?.required).toBeUndefined();
+    expect(ecommerceSet.composerPrompt).toContain("电商主图");
   });
 
   it("uses a non-session scope for direct tool uploads", () => {

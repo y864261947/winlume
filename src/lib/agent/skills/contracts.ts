@@ -19,7 +19,11 @@ export const productionToolNameSchema = z.enum([
   "read_artifact",
   "list_artifacts",
   "generate_image",
+  "fuse_images",
+  "generate_ecommerce_image_set",
   "remove_background",
+  "upscale_image",
+  "remove_watermark_or_subtitles",
   "generate_canvas",
 ]);
 

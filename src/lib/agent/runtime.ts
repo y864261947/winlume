@@ -14,6 +14,7 @@ import type {
 import { parseCanvasContent } from "@/lib/agent/canvas-content";
 import { summarizeCanvasElements } from "@/lib/agent/canvas-summary";
 import type { ArtifactStore, ProjectStore, SessionStore } from "@/lib/host/ports";
+import type { ToolJobStore } from "@/lib/studio/tool-jobs";
 import {
   streamGatewayChat,
   type GatewayChatStream,
@@ -56,8 +57,11 @@ export const BASE_POLICY = [
   "ALWAYS call write_artifact when the user asks for notes, copy, articles, reports, outlines, scripts, multi-piece content (e.g. 几篇小红书笔记), code files, or any document longer than a short chat reply. Put the full body in the tool; keep the chat message to a short summary + what was saved.",
   "Do not dump long multi-section documents only in chat. Chat is for conversation; artifacts are for finished work.",
   "After write_artifact succeeds: do NOT paste the full artifact body again in chat. Reply with a short summary and that it was saved — the UI already previews the work.",
-  "Call remove_background when the user asks to cut out an existing image, remove its background, or make its background transparent. Set sourceArtifactId to the exact injected image artifact id. Set subject to product, person, garment, or general when the user specifies the subject; default product. It returns a ready PNG artifact; do not use generate_image as a substitute for this operation.",
+  "Call remove_background when the user asks to cut out an existing image, remove its background, or make its background transparent. Set sourceArtifactId to the exact injected image artifact id. It returns a ready PNG artifact; do not use generate_image as a substitute for this operation.",
+  "Call upscale_image when the user asks to make an existing image clearer or higher resolution. Set sourceArtifactId to the exact injected image artifact id and choose mode=standard by default; use generative only when the user accepts reconstructed detail. It returns a ready image artifact.",
+  "Call remove_watermark_or_subtitles only when the user explicitly confirms they have the necessary rights to alter the existing image. Set sourceArtifactId to the exact injected image artifact id, choose target=watermark or subtitles, and set rightsConfirmed=true. Do not use it as a general object-removal tool. It returns a ready image artifact.",
   "Call generate_image when the user asks for an image, illustration, icon, mockup, artwork, or image edit. For edits and compositions, set sourceArtifactIds to every image whose pixels the result depends on, ordered with the base/canvas image first and reference images after it. Preserve the user's requested operation in prompt; an artifact id in prompt never substitutes for uploading that image through sourceArtifactIds. The tool returns immediately with a pending artifact — do not claim it is ready yet or describe what it looks like.",
+  "Call generate_ecommerce_image_set when the user asks for multiple independent e-commerce product images, such as a listing image set with hero, scene, and detail shots. Pass the exact product sourceArtifactId and use template=apparel for clothing or accessories. Pass referenceArtifactId only when a second supplied image should guide composition, lighting, palette, or atmosphere; it must never be used to copy readable text, logos, people, or protected visual assets. The tool starts a ToolJob and returns three pending image artifacts; do not claim they are ready in the same turn.",
   "Call generate_canvas when the user asks for a flowchart, mind map, sequence diagram, or another diagram they can edit by hand. Write Mermaid syntax in mermaid; do not invent raw shape coordinates. It returns a pending artifact immediately, so do not claim it is ready. To revise a canvas, set sourceArtifactId and follow the injected structural summary of its current contents first.",
   "You can use read_artifact and list_artifacts to inspect previously saved work in this session.",
   // Progress checklist (todo_write) — model decides; user never toggles a mode.
@@ -272,6 +276,8 @@ export interface RunAgentTurnOpts {
   sessions: SessionStore;
   projects?: ProjectStore;
   artifacts: ArtifactStore;
+  /** Optional durable job store for long-running Studio tools. */
+  toolJobs?: ToolJobStore;
   signal?: AbortSignal;
   /** Forwarded to gateway as New-Api-User when set */
   gatewayUserId?: string;
@@ -716,6 +722,7 @@ export async function* runAgentTurn(
         ...(opts.runId ? { runId: opts.runId } : {}),
         ...(opts.workflow ? { workflow: opts.workflow } : {}),
         artifacts,
+        ...(opts.toolJobs ? { toolJobs: opts.toolJobs } : {}),
         messageId: assistantId,
         todoState,
         userIntent: opts.userText,

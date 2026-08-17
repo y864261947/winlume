@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // The OSS client is used only by Node route handlers. Keeping it external
+  // avoids webpack resolving its optional coffee-script compiler dependency.
+  serverExternalPackages: ["ali-oss"],
   async redirects() {
     return [
       { source: "/console", destination: "/account", permanent: false },

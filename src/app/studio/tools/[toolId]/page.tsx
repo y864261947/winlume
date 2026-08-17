@@ -27,7 +27,7 @@ export default async function StudioToolPage({ params }: PageProps) {
           </div>
         </div>
       </header>
-      <ToolRunForm tool={tool} />
+      <ToolRunForm key={tool.id} tool={tool} />
     </div>
   );
 }

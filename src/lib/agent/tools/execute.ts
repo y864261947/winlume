@@ -19,12 +19,33 @@ import {
 } from "@/lib/agent/canvas-content";
 import { artifactOutputIdSchema } from "@/lib/agent/skills/contracts";
 import type { ArtifactStore } from "@/lib/host/ports";
-import { isStudioToolImageMimeType } from "@/lib/studio/tool-catalog";
+import { toolJobStore } from "@/lib/host/web/tool-job-singleton";
+import {
+  buildEcommerceImageSetPlan,
+  type EcommerceImageSetSize,
+  type EcommerceImageSetTemplate,
+} from "@/lib/studio/ecommerce-image-set";
+import {
+  createEcommerceImageSetJob,
+  type EcommerceImageSetJob,
+  type ToolJobStore,
+} from "@/lib/studio/tool-jobs";
+import {
+  BACKGROUND_REMOVAL_SUBJECTS,
+  getStudioTool,
+  isStudioToolImageMimeType,
+  validateStudioToolParams,
+  type StudioToolId,
+  type StudioToolParams,
+} from "@/lib/studio/tool-catalog";
 import { generateImage } from "@/lib/agent/provider/gateway";
 import { resolveStudioToken } from "@/lib/agent/provider/studio-token";
 import { publishArtifactEvent } from "@/lib/agent/artifact-events";
 import { invokeToolCapability } from "./providers/registry";
-import { ToolProviderError } from "./providers/types";
+import {
+  executeStudioTool as executeCatalogStudioTool,
+  StudioToolExecutionError,
+} from "./tool-execution";
 import {
   applyMerge,
   applyReplace,
@@ -94,15 +115,53 @@ const generateImageSchema = z.object({
     .optional(),
 });
 
-export type GenerateImageArgs = z.infer<typeof generateImageSchema>;
+const fuseImagesSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  outputId: artifactOutputIdSchema.optional(),
+  prompt: z.string().trim().min(1).max(1_200),
+  size: z.enum(["1024x1024", "1024x1536", "1536x1024"]),
+  sourceArtifactIds: z
+    .array(z.string().trim().min(1).max(128))
+    .length(2)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "sourceArtifactIds must reference two different images",
+    }),
+});
 
-const removeBackgroundSchema = z.object({
+const ecommerceImageSetSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  sourceArtifactId: z.string().trim().min(1).max(128),
+  referenceArtifactId: z.string().trim().min(1).max(128).optional(),
+  template: z.enum(["product", "apparel"]),
+  prompt: z.string().trim().max(1_200).optional().default(""),
+  size: z.enum(["1024x1024", "1024x1536", "1536x1024"]),
+});
+
+export type GenerateImageArgs = z.infer<typeof generateImageSchema>;
+export type FuseImagesArgs = z.infer<typeof fuseImagesSchema>;
+export type EcommerceImageSetArgs = z.infer<typeof ecommerceImageSetSchema>;
+
+const imageToolInputSchema = z.object({
   sourceArtifactId: z.string().trim().min(1).max(128),
   outputId: artifactOutputIdSchema.optional(),
-  subject: z.enum(["product", "person", "garment", "general"]).optional(),
+});
+
+const removeBackgroundSchema = imageToolInputSchema.extend({
+  subject: z.enum(BACKGROUND_REMOVAL_SUBJECTS).default("product"),
+});
+const upscaleImageSchema = imageToolInputSchema.extend({
+  mode: z.enum(["standard", "generative"]),
+});
+const removeWatermarkOrSubtitlesSchema = imageToolInputSchema.extend({
+  target: z.enum(["watermark", "subtitles"]),
+  rightsConfirmed: z.literal(true),
 });
 
 export type RemoveBackgroundArgs = z.infer<typeof removeBackgroundSchema>;
+export type UpscaleImageArgs = z.infer<typeof upscaleImageSchema>;
+export type RemoveWatermarkOrSubtitlesArgs = z.infer<
+  typeof removeWatermarkOrSubtitlesSchema
+>;
 
 const generateCanvasSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -167,6 +226,8 @@ export interface ToolExecuteContext {
   runId?: string;
   workflow?: WorkflowExecutionContext;
   artifacts: ArtifactStore;
+  /** Durable tool-owned jobs. Defaults to the single-node web adapter. */
+  toolJobs?: ToolJobStore;
   /** Optional link to the assistant message that issued the tool call */
   messageId?: string;
   /**
@@ -186,6 +247,10 @@ export interface ToolExecuteResult {
   content: string;
   /** When write_artifact succeeds */
   artifact?: Artifact;
+  /** Multiple artifacts produced by a grouped tool operation. */
+  artifacts?: Artifact[];
+  /** Present for long-running ToolJob-backed tools. */
+  job?: EcommerceImageSetJob;
   /** SSE side-effects the runtime should yield after tool_result */
   events?: AgentSseEvent[];
 }
@@ -383,6 +448,9 @@ export async function executeGenerateImage(
   for (const id of requestedSourceIds) {
     const meta = await ctx.artifacts.get(ctx.userId, id);
     if (!meta) return fail(`Source artifact not found: ${id}`);
+    if (meta.kind !== "image" || !isStudioToolImageMimeType(meta.mimeType)) {
+      return fail(`Source artifact is not a supported image: ${id}`);
+    }
     const buf = await ctx.artifacts.readContent(ctx.userId, id);
     if (!buf || buf.length === 0) {
       return fail(`Source artifact content missing: ${id}`);
@@ -456,6 +524,7 @@ export async function executeGenerateImage(
       artifacts: artifacts.map((a) => ({ id: a.id, name: a.name, status: a.status })),
     }),
     artifact: artifacts[0],
+    artifacts,
     events: artifacts.map((a) => ({
       type: "artifact" as const,
       artifactId: a.id,
@@ -465,74 +534,253 @@ export async function executeGenerateImage(
   };
 }
 
-function backgroundRemovalOutputName(source: Artifact): string {
-  const base = source.name.replace(/\.[a-z0-9]{1,8}$/i, "").trim() || "商品图片";
-  return `${base}（已抠图）.png`;
-}
-
-/** Runs a synchronous background-removal capability and persists its ready PNG. */
-export async function executeRemoveBackground(
+/** Starts an asynchronous two-image composition through the shared image gateway. */
+export async function executeFuseImages(
   rawArgs: unknown,
   ctx: ToolExecuteContext,
 ): Promise<ToolExecuteResult> {
-  const parsed = removeBackgroundSchema.safeParse(rawArgs);
+  const parsed = fuseImagesSchema.safeParse(rawArgs);
   if (!parsed.success) {
-    return fail(`remove_background validation failed: ${formatZodError(parsed.error)}`);
+    return fail(`fuse_images validation failed: ${formatZodError(parsed.error)}`);
+  }
+  return executeGenerateImage({ ...parsed.data, count: 1 }, ctx);
+}
+
+/**
+ * Reconcile durable tool state from its output artifacts. This is deliberately
+ * callable by the job endpoint too, so a process restart cannot strand a job
+ * in "generating" solely because its in-memory timer disappeared.
+ */
+export async function reconcileEcommerceImageSetJob(
+  jobId: string,
+  dependencies: Pick<ToolExecuteContext, "artifacts"> & { toolJobs?: ToolJobStore },
+): Promise<EcommerceImageSetJob | null> {
+  const jobs = dependencies.toolJobs ?? toolJobStore;
+  const latest = await jobs.get(jobId);
+  if (!latest || latest.stage !== "generating" || !latest.outputArtifactIds.length) return latest;
+
+  const outputs = await Promise.all(
+    latest.outputArtifactIds.map((id) => dependencies.artifacts.get(latest.userId, id)),
+  );
+  const failed = outputs.find((artifact) => artifact?.status === "failed");
+  if (failed) {
+    return jobs.update(latest.id, {
+      stage: "failed",
+      error: failed.error ?? "电商套图生成失败",
+      usage: latest.usage.map((entry) => entry.capability === "image.reference_edit"
+        ? { ...entry, status: "failed", recordedAt: new Date().toISOString() }
+        : entry),
+    });
   }
 
-  const { sourceArtifactId, outputId, subject } = parsed.data;
-  const provenance = resolveArtifactProvenance("image", outputId, ctx);
+  const allReady = outputs.length === latest.outputArtifactIds.length && outputs.every(
+    (artifact) => artifact && artifact.status === "ready",
+  );
+  if (!allReady) return latest;
+
+  return jobs.update(latest.id, {
+    stage: "review",
+    evaluation: {
+      status: "needs_review",
+      reason: "首版已完成商品锁定与镜头规划；视觉评分节点尚未接入，结果待人工确认。",
+      updatedAt: new Date().toISOString(),
+    },
+    usage: latest.usage.map((entry) => entry.capability === "image.reference_edit"
+      ? { ...entry, status: "completed", recordedAt: new Date().toISOString() }
+      : entry),
+  });
+}
+
+function scheduleEcommerceJobReview(
+  job: EcommerceImageSetJob,
+  ctx: ToolExecuteContext,
+  attempt = 0,
+): void {
+  const timer = setTimeout(() => {
+    void reconcileEcommerceImageSetJob(job.id, { artifacts: ctx.artifacts, toolJobs: ctx.toolJobs })
+      .then((latest) => {
+        if (latest?.stage === "generating" && attempt < 400) {
+          scheduleEcommerceJobReview(latest, ctx, attempt + 1);
+        }
+      })
+      .catch(() => {
+        // Artifact status remains the source of truth if best-effort job tracking fails.
+      });
+  }, 750);
+  timer.unref?.();
+}
+
+/** Starts the first provider-neutral e-commerce image-set ToolJob. */
+export async function executeEcommerceImageSet(
+  rawArgs: unknown,
+  ctx: ToolExecuteContext,
+): Promise<ToolExecuteResult> {
+  const parsed = ecommerceImageSetSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return fail(
+      `generate_ecommerce_image_set validation failed: ${formatZodError(parsed.error)}`,
+    );
+  }
+
+  const { name, prompt, size, sourceArtifactId, referenceArtifactId, template } = parsed.data;
+  if (referenceArtifactId === sourceArtifactId) {
+    return fail("参考图不能与商品图相同");
+  }
+
+  const jobs = ctx.toolJobs ?? toolJobStore;
+  let job = createEcommerceImageSetJob({
+    userId: ctx.userId,
+    sessionId: ctx.sessionId,
+    ...(ctx.projectId ? { projectId: ctx.projectId } : {}),
+    sourceArtifactId,
+    ...(referenceArtifactId ? { referenceArtifactId } : {}),
+    template: template as EcommerceImageSetTemplate,
+    size: size as EcommerceImageSetSize,
+    prompt,
+  });
+
+  try {
+    job = await jobs.create(job);
+    job = await jobs.update(job.id, { stage: "cutting_out" });
+
+    const cutoutTool = getStudioTool("background-removal");
+    if (!cutoutTool) throw new Error("Tool catalog is missing background-removal");
+    const cutout = await executeCatalogStudioTool(
+      {
+        tool: cutoutTool,
+        userId: ctx.userId,
+        sourceArtifactId,
+        params: { subject: "product" },
+        output: {
+          sessionId: ctx.sessionId,
+          ...(ctx.projectId ? { projectId: ctx.projectId } : {}),
+          ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
+          visibility: "hidden",
+        },
+      },
+      { artifacts: ctx.artifacts, invokeCapability: invokeToolCapability },
+    );
+
+    const plan = buildEcommerceImageSetPlan({
+      template: template as EcommerceImageSetTemplate,
+      size: size as EcommerceImageSetSize,
+      prompt,
+      hasReferenceImage: Boolean(referenceArtifactId),
+    });
+    job = await jobs.update(job.id, {
+      stage: "planning",
+      cutoutArtifactId: cutout.id,
+      plan,
+      usage: [
+        { capability: "image.background_removal", provider: "aliyun", status: "completed", recordedAt: new Date().toISOString() },
+      ],
+    });
+
+    // GPT-Image treats the first supplied image as the editable base. The
+    // transparent product is therefore first; the original preserves labels
+    // and material details, while an optional third image supplies style only.
+    const sourceArtifactIds = [cutout.id, sourceArtifactId, referenceArtifactId].filter(
+      (id): id is string => Boolean(id),
+    );
+    const shotResults = await Promise.all(
+      plan.shots.map((shot) => executeGenerateImage(
+        {
+          name: `${name} - ${shot.name}`,
+          prompt: shot.prompt,
+          size,
+          count: 1,
+          sourceArtifactIds,
+        },
+        ctx,
+      )),
+    );
+    const failedResult = shotResults.find((result) => !result.ok);
+    if (failedResult) throw new Error(failedResult.summary);
+
+    const artifacts = shotResults.flatMap((result) => result.artifacts ?? []);
+    if (artifacts.length !== plan.shots.length) {
+      throw new Error("Unable to start the complete e-commerce image set");
+    }
+    job = await jobs.update(job.id, {
+      stage: "generating",
+      outputArtifactIds: artifacts.map((artifact) => artifact.id),
+      usage: [
+        ...job.usage,
+        {
+          capability: "image.reference_edit",
+          provider: "new-api",
+          status: "started",
+          requestedOutputs: artifacts.length,
+          recordedAt: new Date().toISOString(),
+        },
+      ],
+    });
+    scheduleEcommerceJobReview(job, ctx);
+    return {
+      ok: true,
+      summary: `Started e-commerce image-set job ${job.id} with ${artifacts.length} image(s)`,
+      content: JSON.stringify({
+        job: { id: job.id, stage: job.stage, pipelineVersion: job.pipelineVersion },
+        artifacts: artifacts.map((artifact) => ({
+          id: artifact.id,
+          name: artifact.name,
+          status: artifact.status,
+        })),
+      }),
+      artifact: artifacts[0],
+      artifacts,
+      job,
+      events: shotResults.flatMap((result) => result.events ?? []),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to start e-commerce image set";
+    try {
+      job = await jobs.update(job.id, { stage: "failed", error: message });
+    } catch {
+      // A creation failure has no durable job to update.
+    }
+    return {
+      ...fail(message),
+      job,
+    };
+  }
+}
+
+async function executeCatalogImageTool(
+  toolId: StudioToolId,
+  agentToolName: string,
+  args: { sourceArtifactId: string; outputId?: string },
+  params: StudioToolParams,
+  ctx: ToolExecuteContext,
+): Promise<ToolExecuteResult> {
+  const tool = getStudioTool(toolId);
+  if (!tool) return fail(`Tool catalog is missing ${toolId}`);
+
+  const validated = validateStudioToolParams(tool, params);
+  if (!validated.params) return fail(`${agentToolName} validation failed: ${validated.error}`);
+
+  const provenance = resolveArtifactProvenance("image", args.outputId, ctx);
   if (provenance.error) return fail(provenance.error);
 
-  const source = await ctx.artifacts.get(ctx.userId, sourceArtifactId);
-  if (!source) return fail("Source image artifact not found");
-  if (source.kind !== "image" || !isStudioToolImageMimeType(source.mimeType)) {
-    return fail("Background removal requires a PNG, JPG, or WebP image artifact");
-  }
-
-  const sourceBytes = await ctx.artifacts.readContent(ctx.userId, source.id);
-  if (!sourceBytes?.length) return fail("Source image content is not ready");
-
-  let output: { bytes: Buffer; mimeType: string };
   try {
-    const invocation = await invokeToolCapability("image.background_removal", {
-      images: [{ bytes: sourceBytes, mimeType: source.mimeType }],
-      ...(subject && subject !== "product" ? { params: { subject } } : {}),
-    });
-    if (invocation.status !== "completed") {
-      return fail("Background removal is still processing; please try again shortly");
-    }
-    const candidate = invocation.outputs[0];
-    if (!candidate?.bytes.length || candidate.mimeType.toLowerCase() !== "image/png") {
-      return fail("Background removal returned an invalid image");
-    }
-    output = candidate;
-  } catch (error) {
-    if (error instanceof ToolProviderError) return fail(error.message);
-    return fail("Background removal is temporarily unavailable; please try again shortly");
-  }
-
-  try {
-    const artifact = await ctx.artifacts.write(
+    const artifact = await executeCatalogStudioTool(
       {
-        id: randomUUID(),
+        tool,
         userId: ctx.userId,
-        sessionId: ctx.sessionId,
-        ...(ctx.projectId ? { projectId: ctx.projectId } : {}),
-        ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
-        name: backgroundRemovalOutputName(source),
-        kind: "image",
-        mimeType: output.mimeType,
-        storageKey: "",
-        status: "ready",
-        createdAt: new Date().toISOString(),
-        ...(provenance.provenance ? { provenance: provenance.provenance } : {}),
+        sourceArtifactId: args.sourceArtifactId,
+        params: validated.params,
+        output: {
+          sessionId: ctx.sessionId,
+          ...(ctx.projectId ? { projectId: ctx.projectId } : {}),
+          ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
+          ...(provenance.provenance ? { provenance: provenance.provenance } : {}),
+        },
       },
-      output.bytes,
+      { artifacts: ctx.artifacts, invokeCapability: invokeToolCapability },
     );
     return {
       ok: true,
-      summary: `Removed the background from "${source.name}" (id=${artifact.id})`,
+      summary: `${tool.name} completed (id=${artifact.id})`,
       content: JSON.stringify({
         id: artifact.id,
         name: artifact.name,
@@ -549,9 +797,64 @@ export async function executeRemoveBackground(
         },
       ],
     };
-  } catch {
-    return fail("Unable to save the background removal result");
+  } catch (error) {
+    if (error instanceof StudioToolExecutionError) return fail(error.message);
+    return fail(`${tool.name} failed; please try again shortly`);
   }
+}
+
+/** Runs a synchronous background-removal capability and persists its ready PNG. */
+export async function executeRemoveBackground(
+  rawArgs: unknown,
+  ctx: ToolExecuteContext,
+): Promise<ToolExecuteResult> {
+  const parsed = removeBackgroundSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return fail(`remove_background validation failed: ${formatZodError(parsed.error)}`);
+  }
+  return executeCatalogImageTool(
+    "background-removal",
+    "remove_background",
+    parsed.data,
+    { subject: parsed.data.subject },
+    ctx,
+  );
+}
+
+export async function executeUpscaleImage(
+  rawArgs: unknown,
+  ctx: ToolExecuteContext,
+): Promise<ToolExecuteResult> {
+  const parsed = upscaleImageSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return fail(`upscale_image validation failed: ${formatZodError(parsed.error)}`);
+  }
+  return executeCatalogImageTool(
+    "image-clarity",
+    "upscale_image",
+    parsed.data,
+    { mode: parsed.data.mode },
+    ctx,
+  );
+}
+
+export async function executeRemoveWatermarkOrSubtitles(
+  rawArgs: unknown,
+  ctx: ToolExecuteContext,
+): Promise<ToolExecuteResult> {
+  const parsed = removeWatermarkOrSubtitlesSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return fail(
+      `remove_watermark_or_subtitles validation failed: ${formatZodError(parsed.error)}`,
+    );
+  }
+  return executeCatalogImageTool(
+    "watermark-subtitle-removal",
+    "remove_watermark_or_subtitles",
+    parsed.data,
+    { target: parsed.data.target, rightsConfirmed: parsed.data.rightsConfirmed },
+    ctx,
+  );
 }
 
 /**
@@ -845,8 +1148,16 @@ export async function executeStudioTool(
       return executeWriteArtifact(rawArgs, ctx);
     case "generate_image":
       return executeGenerateImage(rawArgs, ctx);
+    case "fuse_images":
+      return executeFuseImages(rawArgs, ctx);
+    case "generate_ecommerce_image_set":
+      return executeEcommerceImageSet(rawArgs, ctx);
     case "remove_background":
       return executeRemoveBackground(rawArgs, ctx);
+    case "upscale_image":
+      return executeUpscaleImage(rawArgs, ctx);
+    case "remove_watermark_or_subtitles":
+      return executeRemoveWatermarkOrSubtitles(rawArgs, ctx);
     case "generate_canvas":
       return executeGenerateCanvas(rawArgs, ctx);
     case "read_artifact":

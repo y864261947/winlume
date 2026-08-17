@@ -51,6 +51,97 @@ describe("executeStudioTool", () => {
     );
   });
 
+  it("forwards catalog parameters to the matching image capability", async () => {
+    const write = vi.fn(async (meta: Artifact) => meta);
+    const invokeCapability = vi.fn().mockResolvedValue({
+      status: "completed",
+      outputs: [{ bytes: Buffer.from("jpeg"), mimeType: "image/jpeg" }],
+    });
+
+    const artifact = await executeStudioTool(
+      {
+        tool: getStudioTool("image-clarity")!,
+        userId: "user-1",
+        sourceArtifactId: source.id,
+        params: { mode: "generative" },
+      },
+      {
+        artifacts: {
+          get: vi.fn().mockResolvedValue(source),
+          readContent: vi.fn().mockResolvedValue(Buffer.from("source")),
+          write,
+        } as never,
+        invokeCapability,
+      },
+    );
+
+    expect(invokeCapability).toHaveBeenCalledWith("image.upscale", {
+      images: [{ bytes: Buffer.from("source"), mimeType: "image/jpeg" }],
+      params: { mode: "generative" },
+    });
+    expect(artifact).toEqual(
+      expect.objectContaining({ name: "shoe（已变清晰）.jpg", mimeType: "image/jpeg" }),
+    );
+  });
+
+  it("forwards the selected segmentation subject to background removal", async () => {
+    const invokeCapability = vi.fn().mockResolvedValue({
+      status: "completed",
+      outputs: [{ bytes: Buffer.from("png"), mimeType: "image/png" }],
+    });
+
+    await executeStudioTool(
+      {
+        tool: getStudioTool("background-removal")!,
+        userId: "user-1",
+        sourceArtifactId: source.id,
+        params: { subject: "hair" },
+      },
+      {
+        artifacts: {
+          get: vi.fn().mockResolvedValue(source),
+          readContent: vi.fn().mockResolvedValue(Buffer.from("source")),
+          write: vi.fn(async (meta: Artifact) => meta),
+        } as never,
+        invokeCapability,
+      },
+    );
+
+    expect(invokeCapability).toHaveBeenCalledWith("image.background_removal", {
+      images: [{ bytes: Buffer.from("source"), mimeType: "image/jpeg" }],
+      params: { subject: "hair" },
+    });
+  });
+
+  it("forwards the confirmed cleanup target to the cleanup capability", async () => {
+    const invokeCapability = vi.fn().mockResolvedValue({
+      status: "completed",
+      outputs: [{ bytes: Buffer.from("png"), mimeType: "image/png" }],
+    });
+
+    await executeStudioTool(
+      {
+        tool: getStudioTool("watermark-subtitle-removal")!,
+        userId: "user-1",
+        sourceArtifactId: source.id,
+        params: { target: "subtitles", rightsConfirmed: true },
+      },
+      {
+        artifacts: {
+          get: vi.fn().mockResolvedValue(source),
+          readContent: vi.fn().mockResolvedValue(Buffer.from("source")),
+          write: vi.fn(async (meta: Artifact) => meta),
+        } as never,
+        invokeCapability,
+      },
+    );
+
+    expect(invokeCapability).toHaveBeenCalledWith("image.watermark_text_removal", {
+      images: [{ bytes: Buffer.from("source"), mimeType: "image/jpeg" }],
+      params: { target: "subtitles", rightsConfirmed: true },
+    });
+  });
+
   it("does not call a provider for an inaccessible source image", async () => {
     const invokeCapability = vi.fn();
     await expect(
@@ -64,6 +155,20 @@ describe("executeStudioTool", () => {
     ).rejects.toMatchObject({
       status: 404,
       code: "source_not_found",
+    });
+    expect(invokeCapability).not.toHaveBeenCalled();
+  });
+
+  it("does not send gateway-backed tools through a provider capability", async () => {
+    const invokeCapability = vi.fn();
+    await expect(
+      executeStudioTool(
+        { tool: getStudioTool("image-fusion")!, userId: "user-1", sourceArtifactId: source.id },
+        { artifacts: {} as never, invokeCapability },
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: "async_tool_required",
     });
     expect(invokeCapability).not.toHaveBeenCalled();
   });
@@ -97,7 +202,7 @@ describe("executeStudioTool", () => {
         tool: getStudioTool("background-removal")!,
         userId: "user-1",
         sourceArtifactId: source.id,
-        subject: "person",
+        params: { subject: "person" },
       },
       {
         artifacts: {
@@ -125,7 +230,7 @@ describe("executeStudioTool", () => {
             readContent: vi.fn().mockResolvedValue(Buffer.from("source")),
           } as never,
           invokeCapability: vi.fn().mockRejectedValue(
-            new ToolProviderError("configuration", "商品抠图服务尚未配置，请联系管理员完成服务接入。"),
+            new ToolProviderError("configuration", "图片编辑服务尚未配置，请联系管理员完成服务接入。"),
           ),
         },
       ),
