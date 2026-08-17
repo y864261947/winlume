@@ -86,16 +86,11 @@ function teamHeaders(pat: string): Record<string, string> {
   return { "Content-Type": "application/json", Authorization: `Bearer ${pat}` };
 }
 
-// The GORM column default for a new-api user's own `group` field is the
-// literal string "default" (model/user.go), but that's just a schema
-// default — it is NOT guaranteed to be a live, routable group on any given
-// deployment. On production (15.204.82.213) "default" was retired and
-// AddToken rejects it with "分组 default 已被弃用"; confirmed via
-// `GET /api/user/groups` that "gpt-pro" (desc: 默认分组, ratio 0.25) is the
-// deployment's actual intended default. Configurable since this is
-// deployment-specific, not a new-api-wide constant.
+// `auto` is NewAPI's pseudo-group: it selects from the server's configured
+// AutoGroups. A token remains model-agnostic while the relay owns routing.
+// Deployments can override this if their relay has not enabled auto routing.
 function defaultTokenGroup(): string {
-  return process.env.NEW_API_TOKEN_GROUP?.trim() || "gpt-pro";
+  return process.env.NEW_API_TOKEN_GROUP?.trim() || "auto";
 }
 
 export type TeamTokenSettings = {
@@ -120,14 +115,16 @@ export async function createTeamToken(
   name: string,
   settings?: TeamTokenSettings,
 ): Promise<void> {
+  const group = defaultTokenGroup();
   const response = await fetch(`${baseUrl()}/api/token/`, {
     method: "POST",
     headers: teamHeaders(pat),
     body: JSON.stringify({
       name,
-      group: defaultTokenGroup(),
+      group,
       remain_quota: 0,
       unlimited_quota: true,
+      cross_group_retry: group === "auto",
       ...tokenLimitFields(settings),
     }),
     cache: "no-store",

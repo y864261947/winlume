@@ -15,6 +15,14 @@ import {
   READ_CONTENT_MAX_CHARS,
 } from "./execute";
 
+const providerMocks = vi.hoisted(() => ({
+  invokeToolCapability: vi.fn(),
+}));
+
+vi.mock("./providers/registry", () => ({
+  invokeToolCapability: providerMocks.invokeToolCapability,
+}));
+
 describe("mimeTypeForKind", () => {
   it("maps known kinds", () => {
     expect(mimeTypeForKind("markdown")).toContain("markdown");
@@ -354,6 +362,8 @@ describe("executeGenerateCanvas", () => {
 
 import { generateImage } from "../provider/gateway";
 import {
+  executeEcommerceImageSet,
+  executeFuseImages,
   executeGenerateImage,
   runImageGenerationJob,
 } from "./execute";
@@ -372,6 +382,7 @@ describe("executeGenerateImage", () => {
   afterEach(() => {
     for (const d of dirs) rmSync(d, { recursive: true, force: true });
     vi.mocked(generateImage).mockReset();
+    providerMocks.invokeToolCapability.mockReset();
   });
 
   function makeStore() {
@@ -604,6 +615,161 @@ describe("executeGenerateImage", () => {
         ],
       }),
     );
+  });
+
+  it("starts fusion with exactly two source images", async () => {
+    const artifacts = makeStore();
+    const baseBytes = Buffer.from("BASE-PNG-BYTES");
+    const subjectBytes = Buffer.from("SUBJECT-JPEG-BYTES");
+    for (const source of [
+      { id: "base", bytes: baseBytes, mimeType: "image/png" },
+      { id: "subject", bytes: subjectBytes, mimeType: "image/jpeg" },
+    ]) {
+      await artifacts.write(
+        {
+          id: source.id,
+          userId: "u1",
+          sessionId: "s1",
+          name: source.id,
+          kind: "image",
+          mimeType: source.mimeType,
+          storageKey: "",
+          status: "ready",
+          createdAt: new Date().toISOString(),
+        },
+        source.bytes,
+      );
+    }
+    vi.mocked(generateImage).mockImplementation(() => new Promise(() => {}));
+
+    const result = await executeFuseImages(
+      {
+        name: "AI 融图",
+        prompt: "将图二的产品融合到图一场景中。",
+        size: "1536x1024",
+        sourceArtifactIds: ["base", "subject"],
+      },
+      { userId: "u1", sessionId: "tool:image-fusion", artifacts },
+    );
+
+    expect(result).toMatchObject({ ok: true, artifact: { status: "pending" } });
+    expect(generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        size: "1536x1024",
+        sourceImages: [
+          { bytes: baseBytes, mimeType: "image/png" },
+          { bytes: subjectBytes, mimeType: "image/jpeg" },
+        ],
+      }),
+    );
+  });
+
+  it("rejects a fusion request that uses the same image twice", async () => {
+    const artifacts = makeStore();
+    const result = await executeFuseImages(
+      {
+        name: "AI 融图",
+        prompt: "将图片融入场景。",
+        size: "1024x1024",
+        sourceArtifactIds: ["same-image", "same-image"],
+      },
+      { userId: "u1", sessionId: "tool:image-fusion", artifacts },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain("two different images");
+    expect(generateImage).not.toHaveBeenCalled();
+  });
+
+  it("cuts out the product, then starts three listing images with ordered references", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "reizo-ecommerce-set-"));
+    dirs.push(dir);
+    const store = createWebFileStore(dir);
+    const artifacts = store.artifacts;
+    const sourceBytes = Buffer.from("PRODUCT-PNG-BYTES");
+    const referenceBytes = Buffer.from("REFERENCE-PNG-BYTES");
+    const cutoutBytes = Buffer.from("CUTOUT-PNG-BYTES");
+    await artifacts.write(
+      {
+        id: "product",
+        userId: "u1",
+        sessionId: "s1",
+        name: "serum.png",
+        kind: "image",
+        mimeType: "image/png",
+        storageKey: "",
+        status: "ready",
+        createdAt: new Date().toISOString(),
+      },
+      sourceBytes,
+    );
+    await artifacts.write(
+      {
+        id: "reference",
+        userId: "u1",
+        sessionId: "s1",
+        name: "reference.png",
+        kind: "image",
+        mimeType: "image/png",
+        storageKey: "",
+        status: "ready",
+        createdAt: new Date().toISOString(),
+      },
+      referenceBytes,
+    );
+    providerMocks.invokeToolCapability.mockResolvedValue({
+      status: "completed",
+      outputs: [{ bytes: cutoutBytes, mimeType: "image/png" }],
+    });
+    vi.mocked(generateImage).mockImplementation(() => new Promise(() => {}));
+
+    const result = await executeEcommerceImageSet(
+      {
+        name: "AI 电商套图",
+        sourceArtifactId: "product",
+        referenceArtifactId: "reference",
+        template: "product",
+        prompt: "极简护肤品，保持瓶身标签。",
+        size: "1024x1024",
+      },
+      {
+        userId: "u1",
+        sessionId: "tool:ecommerce-image-set",
+        artifacts,
+        toolJobs: store.toolJobs,
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      artifacts: expect.any(Array),
+      job: { stage: "generating", cutoutArtifactId: expect.any(String) },
+    });
+    expect(result.artifacts).toHaveLength(3);
+    expect(result.artifacts?.map((artifact) => artifact.name)).toEqual([
+      "AI 电商套图 - 主图",
+      "AI 电商套图 - 场景图",
+      "AI 电商套图 - 细节图",
+    ]);
+    expect(providerMocks.invokeToolCapability).toHaveBeenCalledWith(
+      "image.background_removal",
+      expect.objectContaining({
+        images: [{ bytes: sourceBytes, mimeType: "image/png" }],
+        params: { subject: "product" },
+      }),
+    );
+    const cutout = await artifacts.get("u1", result.job!.cutoutArtifactId!);
+    expect(cutout).toMatchObject({ visibility: "hidden", status: "ready" });
+    expect(result.job?.plan?.referenceMode).toBe("style_only");
+    expect(generateImage).toHaveBeenCalledTimes(3);
+    expect(generateImage).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      sourceImages: [
+        { bytes: cutoutBytes, mimeType: "image/png" },
+        { bytes: sourceBytes, mimeType: "image/png" },
+        { bytes: referenceBytes, mimeType: "image/png" },
+      ],
+      prompt: expect.stringContaining("marketplace hero image"),
+    }));
   });
 });
 

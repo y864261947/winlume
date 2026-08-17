@@ -62,7 +62,7 @@ describe("loginAndMintPat", () => {
 });
 
 describe("createTeamToken / findTeamTokenIdByName / fetchTeamTokenKey", () => {
-  it("creates a token with the configured default group (gpt-pro) and unlimited quota", async () => {
+  it("creates a token with the default auto group and unlimited quota", async () => {
     delete process.env.NEW_API_TOKEN_GROUP;
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -72,9 +72,10 @@ describe("createTeamToken / findTeamTokenIdByName / fetchTeamTokenKey", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer pat-xyz");
     expect(JSON.parse(init.body as string)).toEqual({
       name: "studio",
-      group: "gpt-pro",
+      group: "auto",
       remain_quota: 0,
       unlimited_quota: true,
+      cross_group_retry: true,
       expired_time: -1,
       model_limits_enabled: false,
       model_limits: "",

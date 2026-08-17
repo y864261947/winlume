@@ -67,10 +67,10 @@ NEW_API_ADMIN_TOKEN=replace-with-a-new-api-admin-pat
 # ciphertext (every team's PAT, every virtual key's underlying new-api sk).
 REIZO_TOKEN_ENCRYPTION_KEY=replace-with-openssl-rand--hex-32-output
 # Optional — deployment-specific new-api token group for team/Studio tokens.
-# Check GET /api/user/groups on the target new-api instance before assuming
-# its "default" group (a GORM column default, not necessarily a live
-# routable group) actually works. Default here: gpt-pro.
-# NEW_API_TOKEN_GROUP=gpt-pro
+# Default is NewAPI's `auto` pseudo-group, which routes to the relay's
+# configured AutoGroups. Keep it as auto when the relay has both text and
+# image groups enabled; override only for a relay without auto routing.
+# NEW_API_TOKEN_GROUP=auto
 ```
 
 ## Database and migration

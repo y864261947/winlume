@@ -267,6 +267,13 @@ describe("web file store", () => {
     const annotation = await store.artifacts.get("u1", "annotation-image");
     expect(annotation?.visibility).toBe("hidden");
     expect(annotation?.purpose).toBe("annotation");
+
+    expect((await store.artifacts.listByUser("u1")).map((artifact) => artifact.id)).toEqual([
+      "visible-image",
+    ]);
+    expect((await store.artifacts.listBySession("u1", "s1")).map((artifact) => artifact.id)).toEqual([
+      "visible-image",
+    ]);
   });
 
   it("streams video bytes to disk and supports a byte range reader", async () => {

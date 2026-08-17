@@ -8,7 +8,11 @@ export type StudioToolName =
   | "read_artifact"
   | "list_artifacts"
   | "generate_image"
+  | "fuse_images"
+  | "generate_ecommerce_image_set"
   | "remove_background"
+  | "upscale_image"
+  | "remove_watermark_or_subtitles"
   | "generate_canvas";
 
 /** OpenAI tools array passed to streamGatewayChat. */
@@ -199,6 +203,90 @@ export const STUDIO_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "fuse_images",
+      description:
+        "Fuse exactly two existing image artifacts into a new image. The first source is the base composition and the second is the subject or visual element to merge. Use a precise prompt to state what must be preserved and how the images should combine. Returns a pending image artifact; do not claim the final image is ready in the same turn.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Short human-readable title for the generated image.",
+          },
+          outputId: {
+            type: "string",
+            description:
+              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
+          },
+          prompt: {
+            type: "string",
+            description:
+              "Explain how the second image should be merged into the first and the details that must remain unchanged.",
+          },
+          size: {
+            type: "string",
+            enum: ["1024x1024", "1024x1536", "1536x1024"],
+            description: "Output image dimensions.",
+          },
+          sourceArtifactIds: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 2,
+            maxItems: 2,
+            description:
+              "Exactly two source image artifact ids. The first is the base composition; the second is the reference to merge.",
+          },
+        },
+        required: ["name", "prompt", "size", "sourceArtifactIds"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "generate_ecommerce_image_set",
+      description:
+        "Start an e-commerce image-set ToolJob from one product image: it creates a hidden product cutout, plans hero/lifestyle/detail shots, then generates three independent images. An optional reference image may guide composition, lighting, palette, and atmosphere only; do not copy its readable text, logos, people, or protected visual assets. Returns three pending artifacts and a job id; do not describe the images as ready in the same turn.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Short human-readable title for this product image set.",
+          },
+          sourceArtifactId: {
+            type: "string",
+            description: "Exact id of the product image artifact to preserve across all three outputs.",
+          },
+          referenceArtifactId: {
+            type: "string",
+            description:
+              "Optional exact id of a second reference image. It supplies style direction only and must be different from sourceArtifactId.",
+          },
+          template: {
+            type: "string",
+            enum: ["product", "apparel"],
+            description: "Use apparel for clothing or accessories; product for other physical goods.",
+          },
+          prompt: {
+            type: "string",
+            description: "Optional product, audience, scene, or visual constraints to apply to every output.",
+          },
+          size: {
+            type: "string",
+            enum: ["1024x1024", "1024x1536", "1536x1024"],
+            description: "Shared output dimensions for all three images.",
+          },
+        },
+        required: ["name", "sourceArtifactId", "template", "size"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "generate_canvas",
       description:
         "Generate or update an editable infinite-canvas diagram (flowchart, mind map, sequence diagram, etc.) by writing Mermaid syntax. Returns immediately with a pending artifact id; the diagram renders in the artifact panel once client-side conversion finishes. Do not wait for it or claim it is ready in this turn. Pass sourceArtifactId to update an existing canvas. When updating, read the injected structural summary of its current contents first so you do not ignore changes the user already made by hand.",
@@ -233,7 +321,7 @@ export const STUDIO_TOOLS = [
     function: {
       name: "remove_background",
       description:
-        "Remove the background from one existing image artifact and return a ready PNG with transparency. Use this for requests to cut out, isolate, or make an uploaded product, person, garment, or general image background transparent. sourceArtifactId must be the exact image artifact id supplied in system context. Set subject to product, person, garment, or general when the user specifies the subject type; default product. Do not use generate_image as a substitute for background removal.",
+        "Remove the background from one existing image artifact and return a ready PNG with transparency. Select the subject that best matches the source: product, person, garment, hair, or general_hd. sourceArtifactId must be the exact image artifact id supplied in system context. Do not use generate_image as a substitute for background removal.",
       parameters: {
         type: "object",
         properties: {
@@ -244,9 +332,9 @@ export const STUDIO_TOOLS = [
           },
           subject: {
             type: "string",
-            enum: ["product", "person", "garment", "general"],
+            enum: ["product", "person", "garment", "hair", "general_hd"],
             description:
-              "What to isolate. product (default) for merchandise, person for portraits, garment for clothing, general when unsure.",
+              "Primary subject to segment. Use product when the user does not specify a more precise subject.",
           },
           outputId: {
             type: "string",
@@ -259,6 +347,69 @@ export const STUDIO_TOOLS = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "upscale_image",
+      description:
+        "Improve the clarity of one existing image artifact. Use this for requests to make an image clearer, higher resolution, or more suitable for display. Returns a ready image artifact.",
+      parameters: {
+        type: "object",
+        properties: {
+          sourceArtifactId: {
+            type: "string",
+            description: "Exact id of the source PNG, JPG, or WebP image artifact to process.",
+          },
+          mode: {
+            type: "string",
+            enum: ["standard", "generative"],
+            description: "standard is stable enhancement; generative may reconstruct more detail.",
+          },
+          outputId: {
+            type: "string",
+            description:
+              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
+          },
+        },
+        required: ["sourceArtifactId", "mode"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "remove_watermark_or_subtitles",
+      description:
+        "Remove either a watermark or subtitles from one existing image artifact. Use only when the user explicitly confirms they have the necessary rights to alter the image. This is not a general object-removal tool. Returns a ready image artifact.",
+      parameters: {
+        type: "object",
+        properties: {
+          sourceArtifactId: {
+            type: "string",
+            description: "Exact id of the source PNG, JPG, or WebP image artifact to process.",
+          },
+          target: {
+            type: "string",
+            enum: ["watermark", "subtitles"],
+            description: "The visual content to remove.",
+          },
+          rightsConfirmed: {
+            type: "boolean",
+            enum: [true],
+            description: "Must be true only after the user explicitly confirms they have the necessary rights.",
+          },
+          outputId: {
+            type: "string",
+            description:
+              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
+          },
+        },
+        required: ["sourceArtifactId", "target", "rightsConfirmed"],
+        additionalProperties: false,
+      },
+    },
+  },
 ] as const;
 
 export const STUDIO_TOOL_NAMES: readonly StudioToolName[] = [
@@ -267,6 +418,10 @@ export const STUDIO_TOOL_NAMES: readonly StudioToolName[] = [
   "read_artifact",
   "list_artifacts",
   "generate_image",
+  "fuse_images",
+  "generate_ecommerce_image_set",
   "remove_background",
+  "upscale_image",
+  "remove_watermark_or_subtitles",
   "generate_canvas",
 ] as const;

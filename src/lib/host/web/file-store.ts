@@ -10,7 +10,9 @@ import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Artifact, Message, Project, Session } from "@/lib/agent/types";
 import type { ArtifactStore, ProjectStore, SessionStore } from "@/lib/host/ports";
+import type { ToolJobStore } from "@/lib/studio/tool-jobs";
 import { createLocalArtifactBlobStore, type ArtifactBlobStore } from "./artifact-blob-store";
+import { createToolJobStore } from "./tool-job-store";
 import {
   artifactsIndexPath,
   projectFilePath,
@@ -312,17 +314,21 @@ function createArtifactStore(rootDir: string, blobs: ArtifactBlobStore): Artifac
     writeJsonFile(artifactsIndexPath(rootDir, userId), artifacts);
   }
 
+  function visible(artifacts: Artifact[]): Artifact[] {
+    return artifacts.filter((artifact) => artifact.visibility !== "hidden");
+  }
+
   return {
     async listByUser(userId) {
-      return readIndex(userId);
+      return visible(readIndex(userId));
     },
 
     async listBySession(userId, sessionId) {
-      return readIndex(userId).filter((a) => a.sessionId === sessionId);
+      return visible(readIndex(userId)).filter((artifact) => artifact.sessionId === sessionId);
     },
 
     async listByProject(userId, projectId) {
-      return readIndex(userId).filter((a) => a.projectId === projectId);
+      return visible(readIndex(userId)).filter((artifact) => artifact.projectId === projectId);
     },
 
     async get(userId, artifactId) {
@@ -373,6 +379,7 @@ export interface WebFileStore {
   sessions: SessionStore;
   projects: ProjectStore;
   artifacts: ArtifactStore;
+  toolJobs: ToolJobStore;
 }
 
 /**
@@ -381,6 +388,7 @@ export interface WebFileStore {
  * - users/{userId}/sessions.json
  * - users/{userId}/sessions/{sessionId}.json → { session, messages }
  * - users/{userId}/artifacts.json
+ * - tool-jobs.json
  * - artifact content uses the injected blob store (local files by default)
  */
 export function createWebFileStore(
@@ -396,5 +404,6 @@ export function createWebFileStore(
       rootDir,
       options.artifactBlobs ?? createLocalArtifactBlobStore(rootDir),
     ),
+    toolJobs: createToolJobStore(rootDir),
   };
 }

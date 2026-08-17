@@ -323,6 +323,7 @@ export default function Composer({
     null,
   );
   const [turnTool, setTurnTool] = useState<StudioTool | null>(null);
+  const [watermarkRightsConfirmed, setWatermarkRightsConfirmed] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionIndex, setMentionIndex] = useState(0);
@@ -650,15 +651,16 @@ export default function Composer({
   const pickToolFromMenu = useCallback(
     (tool: StudioTool) => {
       setTurnTool(tool);
+      setWatermarkRightsConfirmed(false);
       const editor = editorRef.current;
       if (slashRange && editor) {
         const { text, cursor } = editor.replaceRange(slashRange, "");
         const cleaned = text.replace(/\s{2,}/g, " ").trimStart();
-        const next = cleaned || "请把图抠成透明背景";
+        const next = cleaned || tool.composerPrompt;
         setDraft(next);
         requestAnimationFrame(() => editor.setCaretOffset(Math.min(cursor, next.length)));
       } else if (!draft.trim()) {
-        setDraft("请把图抠成透明背景");
+        setDraft(tool.composerPrompt);
       }
       closeMenu();
     },
@@ -986,6 +988,10 @@ export default function Composer({
       setAttachError("请先确认你拥有该参考视频的使用授权");
       return;
     }
+    if (turnTool?.id === "watermark-subtitle-removal" && !watermarkRightsConfirmed) {
+      setAttachError("请先确认你拥有处理此图片及移除相关内容的必要权利");
+      return;
+    }
     onClearError?.();
 
     void (async () => {
@@ -1052,11 +1058,14 @@ export default function Composer({
           }
         }
 
+        const toolDraft = turnTool && !draft.includes(turnTool.composerPrompt)
+          ? `${turnTool.composerPrompt}\n${draft}`.trim()
+          : draft;
         const outbound = composeOutboundMessage({
           draft:
-            turnTool?.id === "background-removal" && !/[抠去]背景|透明背景/.test(draft)
-              ? `请把图抠成透明背景。${draft}`.trim()
-              : draft,
+            turnTool?.id === "watermark-subtitle-removal"
+              ? `${toolDraft}\n我确认拥有处理此图片及移除相关内容的必要权利。`
+              : toolDraft,
           pasted: pastedBlocks,
           images: workingImages,
           files,
@@ -1105,6 +1114,7 @@ export default function Composer({
         editorRef.current?.clear();
         setSelectedIds([]);
         setTurnTool(null);
+        setWatermarkRightsConfirmed(false);
         clearAttachments();
         closeMenu();
         setMentionOpen(false);
@@ -1134,6 +1144,7 @@ export default function Composer({
     onClearError,
     selectedIds,
     turnTool,
+    watermarkRightsConfirmed,
     onSend,
     setDraft,
     setSelectedIds,
@@ -1450,13 +1461,31 @@ export default function Composer({
               <button
                 type="button"
                 disabled={disabled}
-                onClick={() => setTurnTool(null)}
+                onClick={() => {
+                  setTurnTool(null);
+                  setWatermarkRightsConfirmed(false);
+                }}
                 className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-white/70 disabled:opacity-50"
                 title="取消工具"
               >
                 <X className="h-3 w-3" />
               </button>
             </span>
+            {turnTool.id === "watermark-subtitle-removal" ? (
+              <label className="inline-flex items-center gap-1.5 text-xs text-[#615A73]">
+                <input
+                  type="checkbox"
+                  checked={watermarkRightsConfirmed}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    setWatermarkRightsConfirmed(event.target.checked);
+                    if (event.target.checked) setAttachError(null);
+                  }}
+                  className="h-3.5 w-3.5 accent-[#0F172A]"
+                />
+                我确认拥有处理此图片及移除相关内容的必要权利
+              </label>
+            ) : null}
           </div>
         ) : null}
 
