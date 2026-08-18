@@ -145,7 +145,12 @@ export default function SkillAdminContent() {
         credentials: "same-origin",
         body: JSON.stringify({ action }),
       });
-      const body = (await response.json()) as { written?: number; error?: string };
+      const body = (await response.json()) as {
+        written?: number;
+        translated?: number;
+        skipped?: number;
+        error?: string;
+      };
       if (!response.ok) throw new Error(body.error || "操作失败");
       setNotice(
         action === "sync-bundled"
