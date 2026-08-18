@@ -179,7 +179,7 @@ async function invokeAliyunCapability(
     const client = createImageSegClient(config);
     const subject = isBackgroundRemovalSubject(input.params?.subject)
       ? input.params.subject
-      : "product";
+      : "auto";
 
     switch (subject) {
       case "person": {
@@ -200,6 +200,7 @@ async function invokeAliyunCapability(
         );
         return outputElementUrl(response.body?.data?.elements, capability);
       }
+      case "auto":
       case "general_hd": {
         const response = await client.segmentHDCommonImage(
           new SegmentHDCommonImageRequest({ imageUrl }),

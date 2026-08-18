@@ -18,6 +18,7 @@ export interface Account {
   used_quota?: number;
   request_count?: number;
   group?: string;
+  platform_role?: "user" | "admin";
 }
 
 interface ApiResponse<T> { success: boolean; message?: string; data?: T; }

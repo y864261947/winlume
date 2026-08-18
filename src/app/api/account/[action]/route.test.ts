@@ -66,6 +66,7 @@ describe("GET /api/account/self", () => {
     expect(body.data.used_quota).toBe(250);
     expect(body.data.id).toBe("user-1");
     expect(body.data.username).toBe("team-abc");
+    expect(body.data.platform_role).toBe("user");
     expect(mocks.getNewApiUserQuota).toHaveBeenCalledWith(42);
   });
 

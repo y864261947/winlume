@@ -57,6 +57,13 @@
       "when": 1786457155682,
       "tag": "0007_reizo_new_api_integration",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787059200000,
+      "tag": "0008_studio_skills",
+      "breakpoints": true
     }
   ]
 }

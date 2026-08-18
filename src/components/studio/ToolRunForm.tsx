@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Download, ImagePlus, LoaderCircle, RefreshCw, Upload } from "lucide-react";
 import { useModals } from "@/components/providers";
 import type { Artifact } from "@/lib/agent/types";
@@ -70,6 +70,8 @@ export default function ToolRunForm({ tool }: { tool: StudioTool }) {
   const [runError, setRunError] = useState<string | null>(null);
   const [results, setResults] = useState<Artifact[]>([]);
   const [toolJob, setToolJob] = useState<EcommerceImageSetJob | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const dragCounter = useRef(0);
   const toolJobId = toolJob?.id;
   const toolJobStage = toolJob?.stage;
   const [params, setParams] = useState<StudioToolParams>(() => initialStudioToolParams(tool));
@@ -177,6 +179,52 @@ export default function ToolRunForm({ tool }: { tool: StudioTool }) {
     },
     [openLogin, tool.id, tool.input.maxImages, uploading],
   );
+
+  const onImageDragEnter = useCallback((event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragCounter.current += 1;
+    if (account && !uploading) setDragOver(true);
+  }, [account, uploading]);
+
+  const onImageDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setDragOver(false);
+    }
+  }, []);
+
+  const onImageDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const onImageDrop = useCallback((event: DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragCounter.current = 0;
+    setDragOver(false);
+
+    const files = Array.from(event.dataTransfer.files);
+    if (!files.length || uploading) return;
+    if (!account) {
+      openLogin("login");
+      return;
+    }
+    if (files.length > 1) {
+      setRunError("一次只能拖入 1 张图片，请逐张添加。");
+      return;
+    }
+    void uploadImage(files[0] ?? null);
+  }, [account, openLogin, uploadImage, uploading]);
 
   const run = useCallback(async () => {
     if (running) return;
@@ -419,7 +467,13 @@ export default function ToolRunForm({ tool }: { tool: StudioTool }) {
           </div>
         ) : null}
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div
+          className="relative min-h-0 flex-1 overflow-y-auto p-4"
+          onDragEnter={onImageDragEnter}
+          onDragLeave={onImageDragLeave}
+          onDragOver={onImageDragOver}
+          onDrop={onImageDrop}
+        >
           {!accountLoading && !account ? (
             <div className="border-l-2 border-primary-400 bg-primary-50/60 px-3 py-3 text-sm leading-6 text-ink-700">
               <p>登录后可上传图片或使用已有作品。</p>
@@ -496,6 +550,12 @@ export default function ToolRunForm({ tool }: { tool: StudioTool }) {
               })}
             </div>
           )}
+          {dragOver ? (
+            <div className="pointer-events-none absolute inset-4 z-10 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-primary-500 bg-primary-50/90 px-5 text-center text-sm font-medium text-primary-800">
+              <Upload className="h-6 w-6" />
+              <span className="mt-2">松开以上传图片</span>
+            </div>
+          ) : null}
         </div>
 
         <div className="border-t border-line bg-surface p-4">

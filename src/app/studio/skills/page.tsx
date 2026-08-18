@@ -1,122 +1,69 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import {
-  LoaderCircle,
-  Search,
-  Sparkles,
-  Tag,
-  Wrench,
-} from "lucide-react";
-import type { SkillMeta } from "@/lib/agent/types";
-import type { WorkScene } from "@/lib/studio/work-scenes";
+import { useRouter, useSearchParams } from "next/navigation";
+import { LoaderCircle, Search, Wrench } from "lucide-react";
+import SkillWaterfall from "@/components/studio/SkillWaterfall";
 import { WorkflowPackSection } from "@/components/studio/workflow/WorkflowPackSection";
-
-type Department = {
-  id: string;
-  label: string;
-  count: number;
-};
+import {
+  getStudioToolCategory,
+  isStudioToolCategoryId,
+  type StudioCatalogCount,
+} from "@/lib/studio/tool-categories";
 
 function StudioSkillsPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const scene = searchParams.get("scene")?.trim() || "";
-  const [skills, setSkills] = useState<SkillMeta[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const catalogParam = searchParams.get("catalog")?.trim() || "all";
+  const catalog =
+    catalogParam === "all" || isStudioToolCategoryId(catalogParam)
+      ? catalogParam
+      : "all";
+  const [catalogs, setCatalogs] = useState<StudioCatalogCount[]>([]);
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
-  /** `all` or department id */
-  const [department, setDepartment] = useState("all");
-  const [selected, setSelected] = useState<SkillMeta | null>(null);
-  const [activeScene, setActiveScene] = useState<WorkScene | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim()), 200);
     return () => clearTimeout(t);
   }, [q]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (debouncedQ) params.set("q", debouncedQ);
-      if (department && department !== "all") {
-        params.set("category", department);
-      }
-      if (scene) params.set("scene", scene);
-      const res = await fetch(`/api/skills?${params.toString()}`, {
-        credentials: "same-origin",
-      });
-      if (!res.ok) {
-        throw new Error("加载 Skills 失败");
-      }
-      const data = (await res.json()) as {
-        skills: SkillMeta[];
-        departments?: Department[];
-        total?: number;
-        activeScene?: WorkScene | null;
-      };
-      const list = data.skills ?? [];
-      setSkills(list);
-      setTotal(typeof data.total === "number" ? data.total : list.length);
-      setActiveScene(data.activeScene ?? null);
-      if (data.departments?.length) {
-        setDepartments(data.departments);
-      }
-      setSelected((prev) => {
-        if (!prev) return list[0] ?? null;
-        return list.find((s) => s.id === prev.id) ?? list[0] ?? null;
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
-      setSkills([]);
-      setTotal(0);
-      setActiveScene(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [debouncedQ, department, scene]);
-
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void load();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [load]);
+    let cancelled = false;
+    fetch("/api/skills?limit=1", { credentials: "same-origin" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("catalogs");
+        return res.json() as Promise<{ catalogs?: StudioCatalogCount[] }>;
+      })
+      .then((data) => {
+        if (!cancelled && data.catalogs?.length) setCatalogs(data.catalogs);
+      })
+      .catch(() => {
+        if (!cancelled) setCatalogs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const labelById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const d of departments) map.set(d.id, d.label);
-    return map;
-  }, [departments]);
-
-  const deptLabel = useCallback(
-    (id: string) => labelById.get(id) || id,
-    [labelById],
+  const setCatalogFilter = useCallback(
+    (next: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (!next || next === "all") params.delete("catalog");
+      else params.set("catalog", next);
+      const query = params.toString();
+      router.replace(query ? `/studio/skills?${query}` : "/studio/skills");
+    },
+    [router, searchParams],
   );
 
   const allCount = useMemo(
-    () => departments.reduce((sum, d) => sum + d.count, 0),
-    [departments],
+    () => catalogs.reduce((sum, item) => sum + item.count, 0),
+    [catalogs],
   );
-
-  const displayedCount = activeScene ? total : allCount;
-
-  const useExampleHref = useMemo(() => {
-    if (!selected) return "/studio";
-    const params = new URLSearchParams();
-    params.set("skill", selected.id);
-    if (selected.examplePrompt) {
-      params.set("prompt", selected.examplePrompt);
-    }
-    return `/studio?${params.toString()}`;
-  }, [selected]);
+  const catalogName =
+    catalog !== "all" ? getStudioToolCategory(catalog)?.name : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -128,12 +75,10 @@ function StudioSkillsPageContent() {
               Skills
             </h1>
             <p className="mt-1 text-sm text-ink-500">
-              {activeScene
-                ? `${activeScene.label} · ${activeScene.summary}`
-                : "按部门浏览内置角色技能，选用示例提示词开始对话。"}
-              {!loading && displayedCount > 0 ? (
+              往下刷即可，点卡片挂到工作台。
+              {allCount > 0 ? (
                 <span className="ml-1 tabular-nums text-ink-400">
-                  （共 {displayedCount} 个）
+                  （共 {allCount} 个）
                 </span>
               ) : null}
             </p>
@@ -150,13 +95,12 @@ function StudioSkillsPageContent() {
           </label>
         </div>
 
-        {/* Department tabs (mobile + top) */}
         <div className="mt-4 flex gap-1.5 overflow-x-auto pb-0.5 lg:hidden">
           <button
             type="button"
-            onClick={() => setDepartment("all")}
+            onClick={() => setCatalogFilter("all")}
             className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-              department === "all"
+              catalog === "all"
                 ? "bg-primary-500 text-white"
                 : "bg-canvas text-ink-600 hover:bg-primary-50"
             }`}
@@ -166,40 +110,39 @@ function StudioSkillsPageContent() {
               <span className="ml-1 tabular-nums opacity-80">{allCount}</span>
             ) : null}
           </button>
-          {departments.map((d) => (
+          {catalogs.map((item) => (
             <button
-              key={d.id}
+              key={item.id}
               type="button"
-              onClick={() => setDepartment(d.id)}
+              onClick={() => setCatalogFilter(item.id)}
               className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                department === d.id
+                catalog === item.id
                   ? "bg-primary-500 text-white"
                   : "bg-canvas text-ink-600 hover:bg-primary-50"
               }`}
             >
-              {d.label}
-              <span className="ml-1 tabular-nums opacity-80">{d.count}</span>
+              {item.name}
+              <span className="ml-1 tabular-nums opacity-80">{item.count}</span>
             </button>
           ))}
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {/* Left department list (desktop) */}
         <nav
           className="hidden w-52 shrink-0 overflow-y-auto border-r border-line bg-surface p-3 lg:block"
-          aria-label="部门"
+          aria-label="工作台分类"
         >
           <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-ink-400">
-            部门
+            分类
           </p>
           <ul className="space-y-0.5">
             <li>
               <button
                 type="button"
-                onClick={() => setDepartment("all")}
+                onClick={() => setCatalogFilter("all")}
                 className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${
-                  department === "all"
+                  catalog === "all"
                     ? "bg-primary-50 font-medium text-primary-700"
                     : "text-ink-700 hover:bg-canvas"
                 }`}
@@ -210,20 +153,20 @@ function StudioSkillsPageContent() {
                 </span>
               </button>
             </li>
-            {departments.map((d) => (
-              <li key={d.id}>
+            {catalogs.map((item) => (
+              <li key={item.id}>
                 <button
                   type="button"
-                  onClick={() => setDepartment(d.id)}
+                  onClick={() => setCatalogFilter(item.id)}
                   className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${
-                    department === d.id
+                    catalog === item.id
                       ? "bg-primary-50 font-medium text-primary-700"
                       : "text-ink-700 hover:bg-canvas"
                   }`}
                 >
-                  <span className="truncate">{d.label}</span>
+                  <span className="truncate">{item.name}</span>
                   <span className="ml-2 shrink-0 tabular-nums text-xs text-ink-400">
-                    {d.count}
+                    {item.count}
                   </span>
                 </button>
               </li>
@@ -233,164 +176,13 @@ function StudioSkillsPageContent() {
 
         <div className="min-w-0 flex-1 overflow-y-auto p-6">
           <WorkflowPackSection scene={scene} query={debouncedQ} />
-
-          {loading ? (
-            <div className="flex items-center gap-2 text-sm text-ink-500">
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-              正在加载 Skills…
-            </div>
-          ) : error ? (
-            <div
-              role="alert"
-              className="flex flex-wrap items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
-            >
-              <span>{error}</span>
-              <button
-                type="button"
-                onClick={() => void load()}
-                className="ml-auto font-medium underline underline-offset-2"
-              >
-                重试
-              </button>
-            </div>
-          ) : skills.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-line bg-canvas px-6 py-12 text-center">
-              <Sparkles className="mx-auto h-8 w-8 text-ink-300" />
-              <p className="mt-3 text-sm text-ink-500">没有匹配的 Skills</p>
-            </div>
-          ) : (
-            <>
-              <p className="mb-3 text-xs text-ink-400">
-                当前列表 {total} 个
-                {activeScene ? ` · ${activeScene.label}` : ""}
-                {department !== "all" ? ` · ${deptLabel(department)}` : ""}
-                {debouncedQ ? ` · 「${debouncedQ}」` : ""}
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {skills.map((skill) => {
-                  const active = selected?.id === skill.id;
-                  return (
-                    <button
-                      key={skill.id}
-                      type="button"
-                      onClick={() => setSelected(skill)}
-                      className={`rounded-2xl border p-4 text-left transition ${
-                        active
-                          ? "border-primary-300 bg-primary-50 shadow-sm"
-                          : "border-line bg-surface hover:border-primary-200 hover:bg-canvas"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <h2 className="text-sm font-semibold text-ink-900">
-                          {skill.name}
-                        </h2>
-                        <span className="shrink-0 rounded-md bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-ink-500">
-                          {deptLabel(skill.category)}
-                        </span>
-                      </div>
-                      <p className="mt-2 line-clamp-3 text-xs leading-5 text-ink-500">
-                        {skill.description || "暂无描述"}
-                      </p>
-                      {skill.triggers && skill.triggers.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-1">
-                          {skill.triggers.slice(0, 3).map((t) => (
-                            <span
-                              key={t}
-                              className="inline-flex items-center gap-0.5 rounded-full bg-canvas px-2 py-0.5 text-[10px] text-ink-500"
-                            >
-                              <Tag className="h-2.5 w-2.5" />
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
+          <SkillWaterfall
+            catalog={catalog}
+            query={debouncedQ}
+            heading={catalogName ?? "技能"}
+          />
         </div>
-
-        <aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-line bg-surface p-5 lg:block">
-          {selected ? (
-            <div className="space-y-4">
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-widest text-ink-400">
-                  {selected.id}
-                </p>
-                <h2 className="mt-1 text-lg font-bold text-ink-950">
-                  {selected.name}
-                </h2>
-                <p className="mt-1 text-xs text-ink-400">
-                  {deptLabel(selected.category)} · {selected.source}
-                  {selected.featured ? " · 精选" : ""}
-                </p>
-              </div>
-              <p className="text-sm leading-6 text-ink-600">
-                {selected.description || "暂无描述"}
-              </p>
-              {selected.triggers && selected.triggers.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-ink-500">触发词</p>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {selected.triggers.map((t) => (
-                      <span
-                        key={t}
-                        className="rounded-full border border-line px-2 py-0.5 text-xs text-ink-600"
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {selected.examplePrompt && (
-                <div>
-                  <p className="text-xs font-medium text-ink-500">示例提示</p>
-                  <p className="mt-1.5 rounded-xl bg-canvas p-3 text-sm leading-6 text-ink-700">
-                    {selected.examplePrompt}
-                  </p>
-                </div>
-              )}
-              <Link
-                href={useExampleHref}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600"
-              >
-                <Sparkles className="h-4 w-4" />
-                使用示例
-              </Link>
-              <p className="text-[11px] leading-5 text-ink-400">
-                将跳转到新对话并预填示例提示词与技能。
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-ink-400">选择左侧卡片查看详情</p>
-          )}
-        </aside>
       </div>
-
-      {/* Mobile detail bar */}
-      {selected && (
-        <div className="shrink-0 border-t border-line bg-surface p-4 lg:hidden">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-ink-900">
-                {selected.name}
-              </p>
-              <p className="truncate text-xs text-ink-400">
-                {selected.description}
-              </p>
-            </div>
-            <Link
-              href={useExampleHref}
-              className="shrink-0 rounded-lg bg-primary-500 px-3 py-2 text-sm font-medium text-white"
-            >
-              使用示例
-            </Link>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

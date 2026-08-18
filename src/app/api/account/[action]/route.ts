@@ -102,6 +102,7 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/acc
         username: user.username,
         display_name: user.displayName,
         email: user.email ?? "",
+        platform_role: user.platformRole,
       },
     }, { headers: { "cache-control": "no-store" } });
   }
@@ -132,6 +133,7 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/acc
       quota,
       used_quota: usedQuota,
       group: "personal",
+      platform_role: user.platformRole,
     },
   }, { headers: { "cache-control": "no-store" } });
 }

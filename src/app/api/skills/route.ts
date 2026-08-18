@@ -9,13 +9,14 @@ import {
   toProductionPackMeta,
 } from "@/lib/agent/production-packs/registry";
 import { getWorkScene, WORK_SCENES } from "@/lib/studio/work-scenes";
+import { catalogsFromDepartmentCounts } from "@/lib/studio/tool-categories";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/skills
- * Query: q?, category?, featured?, id? (single skill with optional body)
+ * Query: q?, category?, catalog?, featured?, limit?, offset?, id? (single skill with optional body)
  *
  * Public browse — no auth required (skills are bundled content).
  * When `id` is set and `full=1`, returns full Skill including systemPrompt.
@@ -40,24 +41,36 @@ export async function GET(request: NextRequest) {
 
   const q = searchParams.get("q") ?? undefined;
   const category = searchParams.get("category") ?? undefined;
+  const catalog = searchParams.get("catalog") ?? undefined;
   const scene = searchParams.get("scene") ?? undefined;
   const activeScene = getWorkScene(scene);
   const featured =
     searchParams.get("featured") === "1" ||
     searchParams.get("featured") === "true";
-  const skills = await listSkillsFiltered({
+  const limitRaw = Number(searchParams.get("limit") ?? "");
+  const offsetRaw = Number(searchParams.get("offset") ?? "");
+  const limit =
+    Number.isFinite(limitRaw) && limitRaw > 0
+      ? Math.min(100, Math.floor(limitRaw))
+      : undefined;
+  const offset =
+    Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
+  const matched = await listSkillsFiltered({
     q,
     category,
+    catalog,
     featured: featured || undefined,
     scene,
   });
-  const categories = [...new Set(skills.map((s) => s.category))].sort((a, b) =>
+  const total = matched.length;
+  const skills = limit ? matched.slice(offset, offset + limit) : matched;
+  const categories = [...new Set(matched.map((s) => s.category))].sort((a, b) =>
     a.localeCompare(b, "zh"),
   );
 
   // Also expose full category list from unfiltered set when filtering
   let allCategories = categories;
-  if (q || featured || (category && category !== "all") || activeScene) {
+  if (q || featured || (category && category !== "all") || catalog || activeScene) {
     const all = await listSkillsFiltered({});
     allCategories = [...new Set(all.map((s) => s.category))].sort((a, b) =>
       a.localeCompare(b, "zh"),
@@ -73,9 +86,11 @@ export async function GET(request: NextRequest) {
     skills,
     categories: allCategories,
     departments,
+    catalogs: catalogsFromDepartmentCounts(departments),
     scenes: WORK_SCENES,
     activeScene,
     packs: packs.map(toProductionPackMeta),
-    total: skills.length,
+    total,
+    hasMore: limit ? offset + skills.length < total : false,
   });
 }

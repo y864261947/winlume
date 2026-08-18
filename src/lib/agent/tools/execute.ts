@@ -147,7 +147,7 @@ const imageToolInputSchema = z.object({
 });
 
 const removeBackgroundSchema = imageToolInputSchema.extend({
-  subject: z.enum(BACKGROUND_REMOVAL_SUBJECTS).default("product"),
+  subject: z.enum(BACKGROUND_REMOVAL_SUBJECTS).default("auto"),
 });
 const upscaleImageSchema = imageToolInputSchema.extend({
   mode: z.enum(["standard", "generative"]),

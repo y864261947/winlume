@@ -3,6 +3,7 @@ import { ApiKeyRepository } from "./api-keys";
 import { AuthIdentityRepository } from "./auth-identities";
 import { OrganizationRepository } from "./organizations";
 import { PresetRepository } from "./presets";
+import { SkillRepository } from "./skills";
 import { TeamNewApiMappingRepository } from "./team-new-api-mapping";
 import { UserRepository } from "./users";
 
@@ -12,6 +13,7 @@ export class PlatformRepositories {
   readonly organizations: OrganizationRepository;
   readonly apiKeys: ApiKeyRepository;
   readonly presets: PresetRepository;
+  readonly skills: SkillRepository;
   readonly teamNewApiMapping: TeamNewApiMappingRepository;
 
   constructor(database: PlatformDatabase) {
@@ -20,6 +22,7 @@ export class PlatformRepositories {
     this.organizations = new OrganizationRepository(database);
     this.apiKeys = new ApiKeyRepository(database);
     this.presets = new PresetRepository(database);
+    this.skills = new SkillRepository(database);
     this.teamNewApiMapping = new TeamNewApiMappingRepository(database);
   }
 }
@@ -33,5 +36,6 @@ export * from "./api-keys";
 export * from "./auth-identities";
 export * from "./organizations";
 export * from "./presets";
+export * from "./skills";
 export * from "./team-new-api-mapping";
 export * from "./users";

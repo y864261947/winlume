@@ -18,6 +18,7 @@ import {
   Sparkles,
   UserRound,
   Wallet,
+  Wrench,
 } from "lucide-react";
 import { useModals } from "@/components/providers";
 import { formatBalance } from "@/lib/account";
@@ -42,6 +43,12 @@ import {
 } from "@/lib/studio/session-unread";
 import StudioSearchDialog from "./StudioSearchDialog";
 import StudioSettingsDialog from "./StudioSettingsDialog";
+import {
+  listStudioToolCategories,
+  studioSkillsHref,
+  studioToolCategoryHref,
+} from "@/lib/studio/tool-categories";
+import { getStudioTool } from "@/lib/studio/tool-catalog";
 
 type NavItem = {
   href: string;
@@ -53,9 +60,10 @@ type NavItem = {
 
 const primaryNav: NavItem[] = [
   { href: "/studio", label: "开始创作", icon: Sparkles, exact: true },
-  { href: "/studio/tools", label: "全部工具", icon: LayoutGrid },
   { href: "/studio/artifacts", label: "我的作品", icon: FolderKanban },
 ];
+
+const toolCategories = listStudioToolCategories();
 
 function useSignOutAction() {
   const { signOut } = useModals();
@@ -87,8 +95,10 @@ function usePersistedOpen(key: string, fallback = true) {
   const [open, setOpen] = useState(fallback);
   useEffect(() => {
     const stored = window.localStorage.getItem(key);
+    /* eslint-disable react-hooks/set-state-in-effect -- hydrate persisted sidebar fold from localStorage after mount */
     if (stored === "0") setOpen(false);
     if (stored === "1") setOpen(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [key]);
   const toggle = useCallback(() => {
     setOpen((current) => {
@@ -122,6 +132,13 @@ export default function StudioSidebar({
   const [searchOpen, setSearchOpen] = useState(false);
   const [projectsOpen, toggleProjectsOpen] = usePersistedOpen("reizo:studio-sidebar-projects");
   const [recentsOpen, toggleRecentsOpen] = usePersistedOpen("reizo:studio-sidebar-recents");
+  const [toolsOpen, toggleToolsOpen] = usePersistedOpen("reizo:studio-sidebar-tools", false);
+  const onToolsRoute = pathname === "/studio/tools" || pathname.startsWith("/studio/tools/");
+  const onSkillsRoute = pathname === "/studio/skills" || pathname.startsWith("/studio/skills/");
+  const toolsExpanded = toolsOpen || onToolsRoute || onSkillsRoute;
+  const activeToolCategoryId = pathname.startsWith("/studio/tools/c/")
+    ? decodeURIComponent(pathname.slice("/studio/tools/c/".length).split("/")[0] ?? "")
+    : getStudioTool(pathname.replace(/^\/studio\/tools\//, ""))?.category ?? "";
   const unreadIds = useSyncExternalStore(
     subscribeUnreadSessions,
     getUnreadSessionIds,
@@ -274,7 +291,75 @@ export default function StudioSidebar({
       </button>
 
       <nav className="flex flex-col gap-0.5" aria-label="Studio 导航">
-        {primaryNav.map((item) => {
+        {primaryNav.slice(0, 1).map((item) => {
+          const Icon = item.icon;
+          const active = navActive(pathname, item.href, item.exact);
+          return (
+            <Link
+              key={item.label}
+              href={item.href}
+              className={`studio-nav-item flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-[14px] outline-none transition-colors focus-visible:outline-none ${
+                active ? "studio-nav-active" : "text-[#615A73]"
+              }`}
+            >
+              <Icon className="size-[18px] shrink-0" strokeWidth={1.8} />
+              {item.label}
+            </Link>
+          );
+        })}
+
+        <div>
+          <button
+            type="button"
+            onClick={toggleToolsOpen}
+            aria-expanded={toolsExpanded}
+            className={`studio-nav-item flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-[14px] outline-none transition-colors focus-visible:outline-none ${
+              onToolsRoute || onSkillsRoute ? "studio-nav-active" : "text-[#615A73]"
+            }`}
+          >
+            <LayoutGrid className="size-[18px] shrink-0" strokeWidth={1.8} />
+            全部工具
+            <ChevronRight
+              className={`ml-auto size-3.5 shrink-0 transition-transform ${toolsExpanded ? "rotate-90" : ""}`}
+            />
+          </button>
+          {toolsExpanded ? (
+            <ul className="mt-0.5 flex max-h-[42vh] flex-col gap-0.5 overflow-y-auto px-1 pb-1">
+              {toolCategories.map((category) => {
+                const Icon = category.icon;
+                const href = studioToolCategoryHref(category.id);
+                const active = activeToolCategoryId === category.id;
+                return (
+                  <li key={category.id}>
+                    <Link
+                      href={href}
+                      title={category.summary}
+                      className={`studio-nav-item flex min-w-0 items-center gap-2 rounded-[12px] px-3 py-2 text-[13px] outline-none transition-colors focus-visible:outline-none ${
+                        active ? "studio-nav-active" : "text-[#615A73]"
+                      }`}
+                    >
+                      <Icon className="size-3.5 shrink-0" strokeWidth={1.8} />
+                      <span className="truncate">{category.name}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+              <li>
+                <Link
+                  href={studioSkillsHref()}
+                  className={`studio-nav-item flex min-w-0 items-center gap-2 rounded-[12px] px-3 py-2 text-[13px] outline-none transition-colors focus-visible:outline-none ${
+                    onSkillsRoute ? "studio-nav-active" : "text-[#615A73]"
+                  }`}
+                >
+                  <Wrench className="size-3.5 shrink-0" strokeWidth={1.8} />
+                  <span className="truncate">Skills 目录</span>
+                </Link>
+              </li>
+            </ul>
+          ) : null}
+        </div>
+
+        {primaryNav.slice(1).map((item) => {
           const Icon = item.icon;
           const active = navActive(pathname, item.href, item.exact);
           return (

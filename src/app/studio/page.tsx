@@ -43,6 +43,16 @@ import {
   FALLBACK_DEFAULT_MODEL,
   getDefaultModel,
 } from "@/lib/studio/prefs";
+import {
+  isGenericSkillPrompt,
+  usableComposerPrompt,
+} from "@/lib/studio/skill-prompt";
+import {
+  listStudioToolCategories,
+  studioToolCategoryHref,
+  type StudioCatalogCount,
+} from "@/lib/studio/tool-categories";
+import { listStudioToolsByCategory } from "@/lib/studio/tool-catalog";
 
 const DOCK_MS = 340;
 const DOCK_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
@@ -220,10 +230,8 @@ function skillToCard(skill: SkillMeta, index: number): SceneCard {
   return {
     key: skill.id,
     label: skill.name,
-    desc: skill.description || "精选技能，一键挂载并预填示例。",
-    prompt:
-      skill.examplePrompt?.trim() ||
-      `请以「${skill.name}」的专业视角帮我完成任务。`,
+    desc: skill.description || "精选技能，点选后挂载到本轮对话。",
+    prompt: usableComposerPrompt(skill.examplePrompt) ?? "",
     skillIds: [skill.id],
     icon: FEATURED_ICONS[index % FEATURED_ICONS.length] ?? Sparkles,
   };
@@ -283,7 +291,8 @@ function StudioHomeInner() {
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [capabilityPresetId, setCapabilityPresetId] = useState<string | null>(null);
   const [featuredSkills, setFeaturedSkills] = useState<SkillMeta[] | null>(null);
-  const [allSkills, setAllSkills] = useState<SkillMeta[]>([]);
+  const [catalogCounts, setCatalogCounts] = useState<StudioCatalogCount[]>([]);
+  const [skillLabels, setSkillLabels] = useState<Record<string, string>>({});
   const projectId = searchParams.get("projectId")?.trim() || "";
   const seedArtifactId = searchParams.get("artifact")?.trim() || "";
   const entryContext = STUDIO_ENTRY_CONTEXT[searchParams.get("entry") ?? ""];
@@ -296,7 +305,11 @@ function StudioHomeInner() {
       const skill = searchParams.get("skill");
       const modelParam = searchParams.get("model")?.trim();
       const presetParam = searchParams.get("preset");
-      if (prompt) setDraft(prompt);
+      if (prompt) {
+        const usable = usableComposerPrompt(prompt);
+        if (usable) setDraft(usable);
+        else setDraft("");
+      }
       if (skill) setSelectedSkillIds([skill]);
       setModel(getDefaultModel());
       setCapabilityPresetId(null);
@@ -354,10 +367,21 @@ function StudioHomeInner() {
     fetch("/api/skills?featured=1", { credentials: "same-origin" })
       .then(async (res) => {
         if (!res.ok) throw new Error("featured");
-        return res.json() as Promise<{ skills?: SkillMeta[] }>;
+        return res.json() as Promise<{
+          skills?: SkillMeta[];
+          catalogs?: StudioCatalogCount[];
+        }>;
       })
       .then((data) => {
-        if (!cancelled) setFeaturedSkills(data.skills ?? []);
+        if (cancelled) return;
+        const featured = data.skills ?? [];
+        setFeaturedSkills(featured);
+        if (data.catalogs?.length) setCatalogCounts(data.catalogs);
+        setSkillLabels((current) => {
+          const next = { ...current };
+          for (const skill of featured) next[skill.id] = skill.name;
+          return next;
+        });
       })
       .catch(() => {
         if (!cancelled) setFeaturedSkills([]);
@@ -367,40 +391,66 @@ function StudioHomeInner() {
     };
   }, []);
 
-  // Full catalog for scroll discovery under the fold
   useEffect(() => {
+    const missing = selectedSkillIds.filter((id) => !skillLabels[id]);
+    if (missing.length === 0) return;
     let cancelled = false;
-    fetch("/api/skills", { credentials: "same-origin" })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("skills");
-        return res.json() as Promise<{ skills?: SkillMeta[] }>;
-      })
-      .then((data) => {
-        if (!cancelled) setAllSkills(data.skills ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setAllSkills([]);
+    void Promise.all(
+      missing.map((id) =>
+        fetch(`/api/skills?id=${encodeURIComponent(id)}`, {
+          credentials: "same-origin",
+        })
+          .then(async (res) => {
+            if (!res.ok) return null;
+            return res.json() as Promise<{ skill?: SkillMeta }>;
+          })
+          .then((data) =>
+            data?.skill ? ([data.skill.id, data.skill.name] as const) : null,
+          )
+          .catch(() => null),
+      ),
+    ).then((rows) => {
+      if (cancelled) return;
+      setSkillLabels((current) => {
+        const next = { ...current };
+        for (const row of rows) {
+          if (row) next[row[0]] = row[1];
+        }
+        return next;
       });
+    });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedSkillIds, skillLabels]);
+
+  const workbenchCategories = useMemo(
+    () =>
+      listStudioToolCategories().map((category) => ({
+        ...category,
+        toolCount: listStudioToolsByCategory(category.id).length,
+        skillCount:
+          catalogCounts.find((item) => item.id === category.id)?.count ?? 0,
+      })),
+    [catalogCounts],
+  );
 
   const sceneCards = useMemo((): SceneCard[] => {
     const featured = featuredSkills ?? [];
-    const byId = new Map<string, SceneCard>();
-    featured.forEach((s, i) => byId.set(s.id, skillToCard(s, i)));
-    allSkills.forEach((s, i) => {
-      if (!byId.has(s.id)) byId.set(s.id, skillToCard(s, featured.length + i));
-    });
-    const list = [...byId.values()];
-    if (list.length > 0) return list.slice(0, 36);
+    if (featured.length > 0) {
+      return featured.slice(0, 12).map((skill, index) => skillToCard(skill, index));
+    }
     return FALLBACK_CAPABILITY_CARDS;
-  }, [featuredSkills, allSkills]);
+  }, [featuredSkills]);
 
   const applyCard = useCallback((card: SceneCard) => {
-    setDraft(card.prompt);
+    const prompt = usableComposerPrompt(card.prompt);
+    if (prompt) setDraft(prompt);
+    else if (isGenericSkillPrompt(draft)) setDraft("");
     setSelectedSkillIds([...card.skillIds]);
+    if (card.skillIds.length === 1) {
+      setSkillLabels((current) => ({ ...current, [card.skillIds[0]]: card.label }));
+    }
     // Bring focus back to the hero composer
     requestAnimationFrame(() => {
       document
@@ -412,7 +462,7 @@ function StudioHomeInner() {
       );
       ta?.focus({ preventScroll: true });
     });
-  }, []);
+  }, [draft]);
 
   const startChat = useCallback(
     async (text: string, meta?: ComposerSendMeta) => {
@@ -559,7 +609,7 @@ function StudioHomeInner() {
   const isCardActive = useCallback(
     (card: SceneCard) =>
       card.skillIds.every((id) => selectedSkillIds.includes(id)) &&
-      draft.startsWith(card.prompt.slice(0, 12)),
+      (card.prompt ? draft.startsWith(card.prompt.slice(0, 12)) : true),
     [draft, selectedSkillIds],
   );
 
@@ -689,10 +739,10 @@ function StudioHomeInner() {
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
             <div>
               <h2 className="text-[18px] font-semibold tracking-tight text-[#241E36] sm:text-[20px]">
-                能力与 Skills
+                工作台
               </h2>
               <p className="mt-1 text-[13px] text-[#8A8298]">
-                点选后会预填示例并挂载技能，可在上方输入框继续修改。
+                先选分类进入工具和技能，或点精选技能挂到上方输入框。
               </p>
             </div>
             {selectedSkillIds.length > 0 ? (
@@ -704,11 +754,47 @@ function StudioHomeInner() {
                     className="inline-flex items-center gap-1 rounded-full border border-[rgba(15, 23, 42,0.2)] bg-[rgba(15, 23, 42,0.08)] px-2.5 py-1 text-[11px] font-medium text-[#0F172A]"
                   >
                     <Sparkles className="h-3 w-3" />
-                    {id}
+                    {skillLabels[id] || id}
                   </span>
                 ))}
               </div>
             ) : null}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {workbenchCategories.map((category) => {
+              const Icon = category.icon;
+              return (
+                <Link
+                  key={category.id}
+                  href={studioToolCategoryHref(category.id)}
+                  className="studio-cap-card group rounded-[18px] p-4 text-left"
+                >
+                  <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[12px] bg-[rgba(15, 23, 42,0.1)] text-[#0F172A]">
+                    <Icon className="h-5 w-5" strokeWidth={1.8} />
+                  </span>
+                  <p className="text-[15px] font-semibold tracking-tight text-[#241E36]">
+                    {category.name}
+                  </p>
+                  <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-5 text-[#8A8298]">
+                    {category.summary}
+                  </p>
+                  <p className="mt-3 text-[11px] tabular-nums text-[#AAA2B2]">
+                    {category.toolCount} 个工具
+                    {category.skillCount > 0 ? ` · ${category.skillCount} 个技能` : ""}
+                  </p>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="mb-4 mt-10">
+            <h3 className="text-[16px] font-semibold tracking-tight text-[#241E36]">
+              精选 Skills
+            </h3>
+            <p className="mt-1 text-[13px] text-[#8A8298]">
+              点选后挂载技能，在上方描述任务即可。
+            </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
