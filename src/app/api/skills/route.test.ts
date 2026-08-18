@@ -81,9 +81,11 @@ describe("GET /api/skills", () => {
     expect(mocks.listSkillsFiltered).toHaveBeenNthCalledWith(1, {
       q: "内容",
       category: "marketing",
+      catalog: undefined,
       featured: undefined,
       scene: "content-office",
     });
+    expect(payload.catalogs).toEqual(expect.any(Array));
     expect(mocks.listProductionPacksForScene).toHaveBeenCalledWith(
       "content-office",
     );
@@ -111,6 +113,7 @@ describe("GET /api/skills", () => {
     expect(mocks.listSkillsFiltered).toHaveBeenNthCalledWith(1, {
       q: "内容",
       category: "marketing",
+      catalog: undefined,
       featured: undefined,
       scene: "does-not-exist",
     });

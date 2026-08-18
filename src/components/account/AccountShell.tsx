@@ -18,6 +18,7 @@ import {
   Store,
   UsersRound,
   WalletCards,
+  Wrench,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useModals } from "@/components/providers";
@@ -77,13 +78,24 @@ function isActive(pathname: string, item: NavItem) {
 function AccountNav({
   pathname,
   onNavigate,
+  isAdmin = false,
 }: {
   pathname: string;
   onNavigate?: () => void;
+  isAdmin?: boolean;
 }) {
+  const navGroups = isAdmin
+    ? [
+        ...groups,
+        {
+          label: "平台",
+          items: [{ href: "/account/skills", label: "Skill 配置", mobileLabel: "Skill", icon: Wrench }],
+        },
+      ]
+    : groups;
   return (
     <nav aria-label="个人中心导航" className="portal-account-side-nav">
-      {groups.map((group) => (
+      {navGroups.map((group) => (
         <div key={group.label} className="flex flex-col gap-1">
           <p className="portal-account-side-kicker px-2.5 pt-2">{group.label}</p>
           {group.items.map((item) => {
@@ -112,6 +124,7 @@ export default function AccountShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { account, openLogin } = useModals();
   const [notice, setNotice] = useState("");
+  const isAdmin = account?.platform_role === "admin";
   const accountName = account ? account.display_name || account.username : null;
   const accountInitial = accountName ? accountName.slice(0, 1).toUpperCase() : "登";
 
@@ -167,7 +180,7 @@ export default function AccountShell({ children }: { children: ReactNode }) {
           <aside className="portal-account-side">
             <p className="portal-account-side-kicker">Account</p>
             <h2 className="portal-account-side-title">个人中心</h2>
-            <AccountNav pathname={pathname} />
+            <AccountNav pathname={pathname} isAdmin={isAdmin} />
             <div className="portal-account-side-help">
               <p>帮助与支持</p>
               <Link href="/docs" target="_blank" rel="noreferrer">

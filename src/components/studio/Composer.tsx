@@ -80,6 +80,7 @@ import MentionPromptEditor, {
   type MentionPromptEditorHandle,
 } from "./MentionPromptEditor";
 import { type StudioTool } from "@/lib/studio/tool-catalog";
+import { isGenericSkillPrompt } from "@/lib/studio/skill-prompt";
 import SkillChips from "./SkillChips";
 import SkillSlashMenu, {
   activateSlashMenuItem,
@@ -408,7 +409,7 @@ export default function Composer({
       return;
     }
     const saved = loadComposerDraft(draftKey);
-    if (saved) {
+    if (saved && !isGenericSkillPrompt(saved)) {
       if (isControlled) {
         // Only fill if parent has empty draft (don't clobber intentional URL prompt)
         if (!controlledValue?.trim()) onChange?.(saved);
@@ -588,8 +589,9 @@ export default function Composer({
       setSelectedIds((prev) =>
         prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
       );
+      if (isGenericSkillPrompt(draft)) setDraft("");
     },
-    [setSelectedIds],
+    [draft, setDraft, setSelectedIds],
   );
 
   const removeSkill = useCallback(
@@ -633,15 +635,11 @@ export default function Composer({
         const { text, cursor } = editor.replaceRange(slashRange, "");
         // Collapse accidental double spaces from removing /query
         const cleaned = text.replace(/\s{2,}/g, " ");
-        if (cleaned !== text) {
-          setDraft(cleaned);
-          requestAnimationFrame(() => {
-            editor.setCaretOffset(Math.min(cursor, cleaned.length));
-          });
-        } else {
-          setDraft(text);
-          requestAnimationFrame(() => editor.setCaretOffset(cursor));
-        }
+        const next = isGenericSkillPrompt(cleaned) ? "" : cleaned;
+        setDraft(next);
+        requestAnimationFrame(() => {
+          editor.setCaretOffset(Math.min(cursor, next.length));
+        });
       }
       closeMenu();
     },

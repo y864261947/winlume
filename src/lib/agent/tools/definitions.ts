@@ -321,7 +321,7 @@ export const STUDIO_TOOLS = [
     function: {
       name: "remove_background",
       description:
-        "Remove the background from one existing image artifact and return a ready PNG with transparency. Select the subject that best matches the source: product, person, garment, hair, or general_hd. sourceArtifactId must be the exact image artifact id supplied in system context. Do not use generate_image as a substitute for background removal.",
+        "Remove the background from one existing image artifact and return a ready PNG with transparency. Use auto by default; it uses general HD segmentation. Select product, person, garment, or hair only when the user explicitly identifies the subject or needs a specialist edge treatment. sourceArtifactId must be the exact image artifact id supplied in system context. Do not use generate_image as a substitute for background removal.",
       parameters: {
         type: "object",
         properties: {
@@ -332,9 +332,9 @@ export const STUDIO_TOOLS = [
           },
           subject: {
             type: "string",
-            enum: ["product", "person", "garment", "hair", "general_hd"],
+            enum: ["auto", "product", "person", "garment", "hair", "general_hd"],
             description:
-              "Primary subject to segment. Use product when the user does not specify a more precise subject.",
+              "Segmentation mode. Use auto by default; it maps to general HD segmentation. Use a specialist only when its subject is known.",
           },
           outputId: {
             type: "string",

@@ -30,4 +30,11 @@ describe("slash menu tools", () => {
       true,
     );
   });
+
+  it("finds every image editing tool through its common intent", () => {
+    expect(filterStudioTools(tools, "超分")[0]?.id).toBe("image-clarity");
+    expect(filterStudioTools(tools, "去字幕")[0]?.id).toBe("watermark-subtitle-removal");
+    expect(filterStudioTools(tools, "图片融合")[0]?.id).toBe("image-fusion");
+    expect(filterStudioTools(tools, "商品套图")[0]?.id).toBe("ecommerce-image-set");
+  });
 });

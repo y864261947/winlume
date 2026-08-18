@@ -20,6 +20,7 @@ export const platformRoleEnum = pgEnum("platform_role", ["user", "admin"]);
 export const organizationRoleEnum = pgEnum("organization_role", ["owner", "admin", "member", "viewer"]);
 export const apiKeyStatusEnum = pgEnum("api_key_status", ["active", "disabled", "revoked"]);
 export const presetScopeEnum = pgEnum("preset_scope", ["personal", "organization"]);
+export const skillSourceEnum = pgEnum("skill_source", ["bundled", "imported", "user"]);
 
 const createdAt = timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
 const updatedAt = timestamp("updated_at", { withTimezone: true }).defaultNow().notNull();
@@ -209,5 +210,32 @@ export const toolPresets = pgTable(
       "tool_presets_scope_organization_check",
       sql`(${table.scope} = 'personal' AND ${table.organizationId} IS NULL) OR (${table.scope} = 'organization' AND ${table.organizationId} IS NOT NULL)`,
     ),
+  ],
+);
+
+export const studioSkills = pgTable(
+  "studio_skills",
+  {
+    id: varchar("id", { length: 120 }).primaryKey(),
+    name: varchar("name", { length: 160 }).notNull(),
+    description: text("description").notNull().default(""),
+    category: varchar("category", { length: 80 }).notNull().default("general"),
+    triggers: text("triggers").array().notNull().default(sql`ARRAY[]::text[]`),
+    examplePrompt: text("example_prompt"),
+    preview: varchar("preview", { length: 20 }),
+    source: skillSourceEnum("source").notNull().default("bundled"),
+    enabled: boolean("enabled").notNull().default(true),
+    featured: boolean("featured").notNull().default(false),
+    defaultArtifact: varchar("default_artifact", { length: 32 }),
+    systemPrompt: text("system_prompt").notNull().default(""),
+    origin: varchar("origin", { length: 80 }),
+    originPath: text("origin_path"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    index("studio_skills_category_index").on(table.category),
+    index("studio_skills_source_index").on(table.source),
+    index("studio_skills_enabled_index").on(table.enabled),
   ],
 );

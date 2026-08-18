@@ -4,6 +4,8 @@
  * Keep this separate from agent-function schemas: tool pages need stable,
  * serializable display data without exposing provider configuration.
  */
+import type { StudioToolCategoryId } from "./tool-categories";
+
 export type StudioToolId =
   | "background-removal"
   | "image-clarity"
@@ -36,6 +38,7 @@ export type StudioToolParameter =
 export type StudioToolParams = Record<string, string | boolean>;
 
 export const BACKGROUND_REMOVAL_SUBJECTS = [
+  "auto",
   "product",
   "person",
   "garment",
@@ -77,7 +80,7 @@ export type StudioTool = {
   capability?: StudioToolCapabilityId;
   agentToolName: string;
   name: string;
-  category: "图片处理";
+  category: StudioToolCategoryId;
   summary: string;
   description: string;
   inputHint: string;
@@ -106,10 +109,10 @@ export const STUDIO_TOOLS: readonly StudioTool[] = [
     capability: "image.background_removal",
     agentToolName: "remove_background",
     name: "AI 抠图与细分割",
-    category: "图片处理",
-    summary: "按主体类型去除背景，支持商品、人像、服装、头发与通用高清分割。",
+    category: "visual-media",
+    summary: "自动去除背景，也可针对商品、人像、服装或头发切换专用分割模型。",
     description:
-      "选择图片主体类型，生成带透明背景的 PNG，可用于商品图、人物素材和后续合成。",
+      "默认使用通用高清分割生成带透明背景的 PNG；边缘效果不理想时可切换专用模型。",
     inputHint: "支持 PNG、JPG、WebP，单张不超过 2 MB。",
     outputHint: "输出 PNG，透明背景。",
     triggers: [
@@ -131,15 +134,15 @@ export const STUDIO_TOOLS: readonly StudioTool[] = [
       {
         id: "subject",
         type: "select",
-        label: "分割主体",
-        description: "按图片中的主要对象选择，可获得更匹配的边缘效果。",
-        defaultValue: "product",
+        label: "抠图模式",
+        description: "默认使用通用高清分割；可按主体切换阿里云专用模型，改善边缘效果。",
+        defaultValue: "auto",
         options: [
+          { value: "auto", label: "智能识别（通用高清）" },
           { value: "product", label: "商品" },
           { value: "person", label: "人像" },
           { value: "garment", label: "服装" },
           { value: "hair", label: "头发" },
-          { value: "general_hd", label: "通用高清" },
         ],
       },
     ],
@@ -149,7 +152,7 @@ export const STUDIO_TOOLS: readonly StudioTool[] = [
     capability: "image.upscale",
     agentToolName: "upscale_image",
     name: "AI 变清晰",
-    category: "图片处理",
+    category: "visual-media",
     summary: "提升图片清晰度，输出适合展示与发布的高清版本。",
     description:
       "上传低清、压缩或放大后的图片，使用标准或生成式超分辨率生成更清晰的版本。",
@@ -179,7 +182,7 @@ export const STUDIO_TOOLS: readonly StudioTool[] = [
     capability: "image.watermark_text_removal",
     agentToolName: "remove_watermark_or_subtitles",
     name: "清理水印字幕",
-    category: "图片处理",
+    category: "visual-media",
     summary: "移除图片中的水印或画面底部字幕。",
     description:
       "仅用于你拥有或已获授权处理的图片。可分别清理水印与字幕，不作为任意物体擦除工具。",
@@ -215,7 +218,7 @@ export const STUDIO_TOOLS: readonly StudioTool[] = [
     id: "image-fusion",
     agentToolName: "fuse_images",
     name: "AI 融图",
-    category: "图片处理",
+    category: "visual-media",
     summary: "将两张参考图融合为一张连贯的新画面。",
     description:
       "第一张图决定构图与场景，第二张图提供主体或要融合的元素；用文字说明你希望保留和改变的内容。",
@@ -255,7 +258,7 @@ export const STUDIO_TOOLS: readonly StudioTool[] = [
     id: "ecommerce-image-set",
     agentToolName: "generate_ecommerce_image_set",
     name: "AI 电商套图",
-    category: "图片处理",
+    category: "ecommerce-sales",
     summary: "从商品图生成主图、场景图和细节图；可选爆款参考图提取风格方向。",
     description:
       "先生成商品抠图并规划镜头，再分别生成可独立使用的主图、场景图与细节图。参考图只用于构图、光影与氛围，不复制其中的文字或品牌素材。",
@@ -305,6 +308,12 @@ export const STUDIO_TOOLS: readonly StudioTool[] = [
 
 export function listStudioTools(): StudioTool[] {
   return [...STUDIO_TOOLS];
+}
+
+export function listStudioToolsByCategory(
+  categoryId: StudioToolCategoryId,
+): StudioTool[] {
+  return STUDIO_TOOLS.filter((tool) => tool.category === categoryId);
 }
 
 export function getStudioTool(toolId: string): StudioTool | null {

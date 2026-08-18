@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
       { source: "/console/team", destination: "/account/team", permanent: false },
       { source: "/console/personalization", destination: "/account/personalization", permanent: false },
       { source: "/community", destination: "/account/community", permanent: false },
+      { source: "/studio/tools", destination: "/studio/tools/c/content-marketing", permanent: false },
     ];
   },
   /**

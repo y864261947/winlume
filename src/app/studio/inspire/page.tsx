@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Compass, Sparkles } from "lucide-react";
 import type { SkillMeta } from "@/lib/agent/types";
+import { usableComposerPrompt } from "@/lib/studio/skill-prompt";
 
 /**
  * 灵感广场 — demo 对齐：浏览高质量示例提示，一键带入创作。
@@ -35,7 +36,7 @@ export default function StudioInspirePage() {
   }, []);
 
   const items = useMemo(() => {
-    const withExample = skills.filter((s) => s.examplePrompt?.trim());
+    const withExample = skills.filter((s) => usableComposerPrompt(s.examplePrompt));
     const query = q.trim().toLowerCase();
     if (!query) return withExample;
     return withExample.filter((s) =>
@@ -82,7 +83,13 @@ export default function StudioInspirePage() {
             {items.map((skill, i) => (
               <Link
                 key={skill.id}
-                href={`/studio?skill=${encodeURIComponent(skill.id)}&prompt=${encodeURIComponent(skill.examplePrompt ?? "")}`}
+                href={(() => {
+                  const params = new URLSearchParams();
+                  params.set("skill", skill.id);
+                  const prompt = usableComposerPrompt(skill.examplePrompt);
+                  if (prompt) params.set("prompt", prompt);
+                  return `/studio?${params.toString()}`;
+                })()}
                 style={{ animationDelay: `${Math.min(i, 12) * 0.03}s` }}
                 className="studio-glass studio-fade-up group block rounded-[18px] p-5 transition hover:-translate-y-0.5 hover:shadow-lg"
               >

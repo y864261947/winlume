@@ -4,6 +4,7 @@ import {
   initialStudioToolParams,
   isStudioToolImageMimeType,
   listStudioTools,
+  listStudioToolsByCategory,
   toolArtifactSessionId,
   validateStudioToolParams,
 } from "./tool-catalog";
@@ -17,7 +18,15 @@ describe("Studio tool catalog", () => {
       "image-fusion",
       "ecommerce-image-set",
     ]);
-    expect(getStudioTool("background-removal")?.category).toBe("图片处理");
+    expect(getStudioTool("background-removal")?.category).toBe("visual-media");
+    expect(getStudioTool("ecommerce-image-set")?.category).toBe("ecommerce-sales");
+    expect(listStudioToolsByCategory("visual-media").map((tool) => tool.id)).toEqual([
+      "background-removal",
+      "image-clarity",
+      "watermark-subtitle-removal",
+      "image-fusion",
+    ]);
+    expect(listStudioToolsByCategory("legal-finance")).toEqual([]);
     expect(getStudioTool("person-removal")).toBeNull();
     expect(getStudioTool("not-a-tool")).toBeNull();
   });
@@ -29,12 +38,15 @@ describe("Studio tool catalog", () => {
     const fusion = getStudioTool("image-fusion")!;
     const ecommerceSet = getStudioTool("ecommerce-image-set")!;
 
-    expect(initialStudioToolParams(backgroundRemoval)).toEqual({ subject: "product" });
+    expect(initialStudioToolParams(backgroundRemoval)).toEqual({ subject: "auto" });
+    expect(validateStudioToolParams(backgroundRemoval, { subject: "auto" }).params).toEqual({
+      subject: "auto",
+    });
     expect(validateStudioToolParams(backgroundRemoval, { subject: "hair" }).params).toEqual({
       subject: "hair",
     });
     expect(validateStudioToolParams(backgroundRemoval, { subject: "invalid" }).error).toContain(
-      "分割主体",
+      "抠图模式",
     );
     expect(initialStudioToolParams(clarity)).toEqual({ mode: "standard" });
     expect(validateStudioToolParams(clarity, { mode: "invalid" }).error).toContain("增强方式");

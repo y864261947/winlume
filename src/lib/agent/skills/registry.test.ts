@@ -106,6 +106,16 @@ describe("Skill registry scene filtering", () => {
     ]);
   });
 
+  it("filters by the eight-category workbench catalog", async () => {
+    const skills = await listSkillsFiltered({ catalog: "content-marketing" });
+    expect(skills.length).toBeGreaterThan(0);
+    expect(
+      skills.every((skill) =>
+        ["marketing", "paid-media"].includes(skill.category),
+      ),
+    ).toBe(true);
+  });
+
   it("treats an unknown scene as no scene filter", async () => {
     const [allSkills, unknownSceneSkills] = await Promise.all([
       listSkillsFiltered({}),
