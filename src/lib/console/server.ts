@@ -239,11 +239,15 @@ export async function getConsoleWalletDetails(
   };
 }
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
 export async function getConsoleOverview(context: ConsoleRequestContext): Promise<ConsoleOverview> {
-  const [memberships, keys, wallet] = await Promise.all([
+  const [memberships, keys, wallet, personalPersonalities, personalTools] = await Promise.all([
     context.repositories.organizations.listMembershipsForUser(context.userId),
     context.repositories.apiKeys.listForUser(context.userId),
     walletFromCurrentOrganization(context),
+    context.repositories.presets.listPersonalities(context.userId),
+    context.repositories.presets.listTools(context.userId),
   ]);
 
   const organizationMembership = memberships[0] ?? null;
@@ -251,9 +255,42 @@ export async function getConsoleOverview(context: ConsoleRequestContext): Promis
     ? await context.repositories.organizations.findById(organizationMembership.organizationId)
     : null;
 
+  const [members, orgPersonalities, orgTools] = organization
+    ? await Promise.all([
+        context.repositories.organizations.listMembers(organization.id),
+        context.repositories.presets.listPersonalities(context.userId, organization.id),
+        context.repositories.presets.listTools(context.userId, organization.id),
+      ])
+    : [[], [], []];
+
+  const now = Date.now();
+  const activeKeys = keys.filter((key) => key.status === "active" && (!key.expiresAt || key.expiresAt.getTime() > now));
+  const expiringSoonKeys = activeKeys.filter((key) => key.expiresAt && key.expiresAt.getTime() <= now + THIRTY_DAYS_MS);
+  const revokedKeys = keys.filter((key) => key.status === "revoked");
+
+  const roleBreakdown: Record<OrganizationRole, number> = { owner: 0, admin: 0, member: 0, viewer: 0 };
+  for (const member of members) roleBreakdown[member.role] += 1;
+
+  const allPersonalities = [...personalPersonalities, ...orgPersonalities];
+  const allTools = [...personalTools, ...orgTools];
+
   return {
     wallet,
-    apiKeyCount: keys.filter((key) => key.status === "active" && (!key.expiresAt || key.expiresAt.getTime() > Date.now())).length,
+    apiKeyCount: activeKeys.length,
+    keys: {
+      active: activeKeys.length,
+      expiringSoon: expiringSoonKeys.length,
+      revoked: revokedKeys.length,
+    },
+    team: organization
+      ? { memberCount: members.length, roleBreakdown }
+      : null,
+    presets: {
+      personalityCount: allPersonalities.length,
+      toolCount: allTools.length,
+      hasDefaultPersonality: allPersonalities.some((preset) => preset.isDefault),
+      hasDefaultTool: allTools.some((preset) => preset.isDefault),
+    },
     activeOrganization: organization && organizationMembership
       ? { id: organization.id, name: organization.name, role: organizationMembership.role }
       : null,

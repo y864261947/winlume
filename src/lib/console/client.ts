@@ -78,6 +78,14 @@ export function listConsoleKeys(organizationId?: string | null) {
   );
 }
 
+/** Lighter than listConsoleKeys: skips the key list and owner-name lookups when a page only needs the active workspace. */
+export function getConsoleOrganizations(organizationId?: string | null) {
+  return request<{ organizations: ConsoleOrganization[]; organizationId: string | null }>(
+    `/api/console/organizations${organizationQuery(organizationId)}`,
+    { cache: "no-store" },
+  );
+}
+
 export function createConsoleKey(input: {
   name: string;
   organizationId?: string | null;

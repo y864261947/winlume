@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { StatTile } from "@/components/ui/stat-tile";
 import { DataTable } from "@/components/data-table/data-table";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { DataTableFacetedFilter } from "@/components/data-table/data-table-faceted-filter";
@@ -262,13 +263,31 @@ export default function ConsoleKeysContent() {
   const [revoking, setRevoking] = useState<string | null>(null);
   const [batchRevoking, setBatchRevoking] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [keyStats, setKeyStats] = useState({ active: 0, expiringSoon: 0, revoked: 0 });
+
+  function applyKeys(next: ConsoleApiKey[]) {
+    setKeys(next);
+    const soon = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    let active = 0;
+    let expiringSoon = 0;
+    let revoked = 0;
+    for (const key of next) {
+      if (key.status === "active") {
+        active += 1;
+        if (key.expiresAt && new Date(key.expiresAt).getTime() <= soon) expiringSoon += 1;
+      } else if (key.status === "revoked") {
+        revoked += 1;
+      }
+    }
+    setKeyStats({ active, expiringSoon, revoked });
+  }
 
   const load = useCallback(async (nextOrganizationId?: string | null) => {
     setLoading(true);
     setError(null);
     try {
       const result = await listConsoleKeys(nextOrganizationId);
-      setKeys(result.keys);
+      applyKeys(result.keys);
       setOrganizations(result.organizations);
       setOrganizationId(result.organizationId);
       setRowSelection({});
@@ -292,7 +311,7 @@ export default function ConsoleKeysContent() {
     setRevoking(key.id);
     try {
       const result = await revokeConsoleKey(key.id);
-      setKeys((current) => current.map((item) => item.id === result.key.id ? result.key : item));
+      applyKeys(keys.map((item) => item.id === result.key.id ? result.key : item));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "撤销失败，请重试。");
     } finally {
@@ -316,7 +335,7 @@ export default function ConsoleKeysContent() {
         else failures += 1;
       });
       if (revoked.size > 0) {
-        setKeys((current) => current.map((item) => revoked.get(item.id) ?? item));
+        applyKeys(keys.map((item) => revoked.get(item.id) ?? item));
       }
       if (failures > 0) setError(`${failures} 个 Key 撤销失败，请重试。`);
       setRowSelection({});
@@ -447,6 +466,19 @@ export default function ConsoleKeysContent() {
         </Button>
       ) : undefined}
     >
+      {!loading && organizationId && keys.length > 0 ? (
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          <StatTile label="可用" value={keyStats.active} icon={KeyRound} tone="success" className="p-4" />
+          <StatTile
+            label="30 天内到期"
+            value={keyStats.expiringSoon}
+            hint={keyStats.expiringSoon > 0 ? "建议提前轮换" : "暂无临期密钥"}
+            tone={keyStats.expiringSoon > 0 ? "warning" : "default"}
+            className="p-4"
+          />
+          <StatTile label="已撤销" value={keyStats.revoked} tone="default" className="p-4" />
+        </div>
+      ) : null}
       {organizations.length > 1 && organizationId ? (
         <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
           <span>工作区</span>
@@ -516,13 +548,13 @@ export default function ConsoleKeysContent() {
           existing={editing}
           onClose={() => { setShowDialog(false); setEditing(null); }}
           onCreated={(key, secret) => {
-            setKeys((current) => [key, ...current]);
+            applyKeys([key, ...keys]);
             setRevealed(secret);
             setShowDialog(false);
             setEditing(null);
           }}
           onUpdated={(key) => {
-            setKeys((current) => current.map((item) => item.id === key.id ? key : item));
+            applyKeys(keys.map((item) => item.id === key.id ? key : item));
             setShowDialog(false);
             setEditing(null);
           }}

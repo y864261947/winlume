@@ -129,6 +129,21 @@ export type ConsoleOrganizationUsageRollup = {
 export type ConsoleOverview = {
   wallet: ConsoleWallet;
   apiKeyCount: number;
+  keys: {
+    active: number;
+    expiringSoon: number;
+    revoked: number;
+  };
+  team: {
+    memberCount: number;
+    roleBreakdown: Record<ConsoleOrganizationRole, number>;
+  } | null;
+  presets: {
+    personalityCount: number;
+    toolCount: number;
+    hasDefaultPersonality: boolean;
+    hasDefaultTool: boolean;
+  };
   activeOrganization: {
     id: string;
     name: string;

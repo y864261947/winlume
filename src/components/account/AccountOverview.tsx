@@ -1,7 +1,18 @@
 "use client";
 
-import { Activity, Gauge, KeyRound, ReceiptText, UsersRound, WalletCards } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import {
+  Activity,
+  ArrowUpRight,
+  Gauge,
+  KeyRound,
+  ReceiptText,
+  Sparkles,
+  UsersRound,
+  WalletCards,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ConsoleEmptyState, ConsolePage } from "@/components/console/ConsolePage";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +21,7 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { DEFAULT_QUOTA_PER_UNIT } from "@/lib/catalog/plaza-display";
 import { getConsoleOverview, getConsoleUsage, getConsoleUsageCharts } from "@/lib/console/client";
 import type { ConsoleOverview, ConsoleUsageCharts, ConsoleUsageModelSlice, ConsoleUsagePoint } from "@/lib/console/types";
+import { cn } from "@/lib/utils";
 
 const ROLE_LABEL: Record<string, string> = {
   owner: "Owner",
@@ -17,6 +29,8 @@ const ROLE_LABEL: Record<string, string> = {
   member: "Member",
   viewer: "Viewer",
 };
+
+const ROLE_ORDER = ["owner", "admin", "member", "viewer"] as const;
 
 function number(value: number) {
   return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value);
@@ -68,6 +82,54 @@ function TrendSparkline({ points }: { points: ConsoleUsagePoint[] }) {
         ) : null
       ))}
     </svg>
+  );
+}
+
+type RunwayHint = { text: string; tone: "default" | "success" | "warning" };
+
+function runwayHint(available: number, windowCredits: number, windowDays: number): RunwayHint {
+  if (available <= 0) return { text: "余额已耗尽", tone: "warning" };
+  const avgDaily = windowCredits / windowDays;
+  if (avgDaily <= 0) return { text: `近 ${windowDays} 天无消耗`, tone: "default" };
+  const days = available / avgDaily;
+  if (days < 3) return { text: `按当前速度约 ${Math.max(1, Math.floor(days))} 天后耗尽`, tone: "warning" };
+  if (days > 999) return { text: "消耗很低，余额充裕", tone: "success" };
+  return { text: `按当前速度可用约 ${Math.floor(days)} 天`, tone: "success" };
+}
+
+function ModuleSummaryCard({
+  icon: Icon,
+  title,
+  href,
+  tone = "default",
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  href: string;
+  tone?: "default" | "warning";
+  children: ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center gap-2.5">
+        <span
+          className={cn(
+            "grid size-8 shrink-0 place-items-center rounded-lg",
+            tone === "warning" ? "bg-amber-50 text-amber-700" : "bg-canvas text-ink-600",
+          )}
+        >
+          <Icon className="size-4" />
+        </span>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {children}
+        <Link href={href} className="inline-flex items-center gap-1 text-sm font-medium text-ink-700 hover:text-ink-950">
+          查看详情 <ArrowUpRight className="h-3.5 w-3.5" />
+        </Link>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -132,6 +194,12 @@ export default function AccountOverview() {
   const modelMix = useMemo(() => summarizeModels(charts?.byModel ?? []), [charts]);
   const mixTotal = modelMix.reduce((total, item) => total + item.credits, 0);
   const leadModel = modelMix[0] ?? null;
+  const balance = overview
+    ? charts
+      ? runwayHint(overview.wallet.availableCredits, windowCredits, 14)
+      : { text: overview.wallet.currency, tone: "primary" as const }
+    : null;
+  const keysExpiringSoon = overview?.keys.expiringSoon ?? 0;
 
   return (
     <ConsolePage
@@ -154,16 +222,16 @@ export default function AccountOverview() {
             <StatTile
               label="账户余额"
               value={overview ? number(overview.wallet.availableCredits) : "--"}
-              hint={overview?.wallet.currency ?? "CNY"}
+              hint={balance?.text ?? (overview?.wallet.currency ?? "CNY")}
               icon={WalletCards}
-              tone="primary"
+              tone={balance?.tone ?? "primary"}
             />
             <StatTile
               label="可用 API Keys"
               value={overview ? number(overview.apiKeyCount) : "--"}
-              hint="按部署环境分别管理"
+              hint={keysExpiringSoon > 0 ? `${keysExpiringSoon} 个 30 天内到期` : "按部署环境分别管理"}
               icon={KeyRound}
-              tone="success"
+              tone={keysExpiringSoon > 0 ? "warning" : "success"}
             />
             <StatTile
               label="工作区"
@@ -180,6 +248,65 @@ export default function AccountOverview() {
             <Alert>
               <AlertDescription>{statsError}</AlertDescription>
             </Alert>
+          ) : null}
+
+          {overview ? (
+            <div className="grid gap-4 md:grid-cols-3">
+              <ModuleSummaryCard
+                icon={KeyRound}
+                title="API Keys"
+                href="/account/keys"
+                tone={overview.keys.expiringSoon > 0 ? "warning" : "default"}
+              >
+                <div className="flex items-baseline gap-5">
+                  <div>
+                    <p className="font-mono text-xl font-semibold text-ink-950">{number(overview.keys.active)}</p>
+                    <p className="text-xs text-ink-500">可用</p>
+                  </div>
+                  <div>
+                    <p className={cn("font-mono text-xl font-semibold", overview.keys.expiringSoon > 0 ? "text-amber-700" : "text-ink-950")}>
+                      {number(overview.keys.expiringSoon)}
+                    </p>
+                    <p className="text-xs text-ink-500">30 天内到期</p>
+                  </div>
+                  <div>
+                    <p className="font-mono text-xl font-semibold text-ink-500">{number(overview.keys.revoked)}</p>
+                    <p className="text-xs text-ink-500">已撤销</p>
+                  </div>
+                </div>
+              </ModuleSummaryCard>
+
+              <ModuleSummaryCard icon={UsersRound} title="工作区成员" href="/account/team">
+                {overview.team ? (
+                  <div>
+                    <p className="font-mono text-xl font-semibold text-ink-950">
+                      {number(overview.team.memberCount)} <span className="font-sans text-sm font-normal text-ink-500">位成员</span>
+                    </p>
+                    <p className="mt-1 text-xs text-ink-500">
+                      {ROLE_ORDER
+                        .filter((role) => overview.team!.roleBreakdown[role] > 0)
+                        .map((role) => `${ROLE_LABEL[role]} ${overview.team!.roleBreakdown[role]}`)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-ink-500">还没有工作区，被邀请加入后会出现在这里。</p>
+                )}
+              </ModuleSummaryCard>
+
+              <ModuleSummaryCard icon={Sparkles} title="人格与工具" href="/account/personalization">
+                <div className="flex items-baseline gap-5">
+                  <div>
+                    <p className="font-mono text-xl font-semibold text-ink-950">{number(overview.presets.personalityCount)}</p>
+                    <p className="text-xs text-ink-500">人格预设{overview.presets.hasDefaultPersonality ? "" : "（无默认）"}</p>
+                  </div>
+                  <div>
+                    <p className="font-mono text-xl font-semibold text-ink-950">{number(overview.presets.toolCount)}</p>
+                    <p className="text-xs text-ink-500">工具预设{overview.presets.hasDefaultTool ? "" : "（无默认）"}</p>
+                  </div>
+                </div>
+              </ModuleSummaryCard>
+            </div>
           ) : null}
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
