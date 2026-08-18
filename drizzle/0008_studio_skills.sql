@@ -1,6 +1,10 @@
-CREATE TYPE "public"."skill_source" AS ENUM('bundled', 'imported', 'user');
+DO $$ BEGIN
+	CREATE TYPE "public"."skill_source" AS ENUM('bundled', 'imported', 'user');
+EXCEPTION
+	WHEN duplicate_object THEN null;
+END $$;
 --> statement-breakpoint
-CREATE TABLE "studio_skills" (
+CREATE TABLE IF NOT EXISTS "studio_skills" (
 	"id" varchar(120) PRIMARY KEY NOT NULL,
 	"name" varchar(160) NOT NULL,
 	"description" text DEFAULT '' NOT NULL,
@@ -19,8 +23,8 @@ CREATE TABLE "studio_skills" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX "studio_skills_category_index" ON "studio_skills" USING btree ("category");
+CREATE INDEX IF NOT EXISTS "studio_skills_category_index" ON "studio_skills" USING btree ("category");
 --> statement-breakpoint
-CREATE INDEX "studio_skills_source_index" ON "studio_skills" USING btree ("source");
+CREATE INDEX IF NOT EXISTS "studio_skills_source_index" ON "studio_skills" USING btree ("source");
 --> statement-breakpoint
-CREATE INDEX "studio_skills_enabled_index" ON "studio_skills" USING btree ("enabled");
+CREATE INDEX IF NOT EXISTS "studio_skills_enabled_index" ON "studio_skills" USING btree ("enabled");

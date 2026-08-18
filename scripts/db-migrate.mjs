@@ -139,6 +139,12 @@ async function migrationAlreadyApplied(client, tag) {
         AND column_name = 'is_service_account'
     ) AS ok`);
   }
+  if (tag.startsWith("0008_")) {
+    return q(`SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'studio_skills'
+    ) AS ok`);
+  }
   return false;
 }
 
@@ -274,8 +280,10 @@ async function main() {
       let baseline = false;
       if (journalEmpty && usersExists) {
         baseline = await migrationAlreadyApplied(client, migration.tag);
-      } else if (!appliedHashes.has(migration.hash) && lastCreatedAt >= migration.folderMillis) {
-        // Journal has rows but this hash is missing (manual SQL / partial history).
+      } else if (!appliedHashes.has(migration.hash)) {
+        // Hash missing: either a journal gap or the SQL was applied by hand
+        // before the deploy recorded it. Probe known tags even when this
+        // folderMillis is newer than the last journal row.
         baseline = await migrationAlreadyApplied(client, migration.tag);
       }
 
