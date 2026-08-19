@@ -4741,3 +4741,41 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 @media (max-width: 480px) {
   .portal-home { --portal-title-1-size: 25px; --portal-title-1-line: 34px; }
 }
+
+/* Membership level is a compact status marker; quota remains the primary value. */
+.portal-usage-stats .portal-membership-quota > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.portal-membership-quota em {
+  display: inline-flex;
+  align-items: center;
+  min-height: 17px;
+  padding: 0 5px;
+  border: 1px solid rgba(78, 129, 221, .34);
+  border-radius: 999px;
+  color: #245cc6;
+  background: rgba(231, 241, 255, .86);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .03em;
+  line-height: 15px;
+}
+
+/* Tall desktop canvases expand the dashboard rhythm instead of ending in empty background. */
+@media (min-width: 1181px) and (min-height: 900px) {
+  .portal-search-card,
+  .portal-enterprise-card.portal-search-aside {
+    height: clamp(254px, 25vh, 310px);
+  }
+  .portal-search-waves {
+    height: clamp(254px, 25vh, 310px) !important;
+  }
+  .portal-discovery-grid {
+    grid-template-rows: clamp(348px, 34vh, 430px) clamp(180px, 19vh, 235px);
+  }
+}

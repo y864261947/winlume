@@ -891,8 +891,8 @@ export default function ModelMarket() {
               <div className="portal-card-heading"><Image src="/figma-home/usage-icon.svg" alt="" width={20} height={20} /><h2 id="portal-usage-title">账户概览</h2></div>
               <div className="portal-usage-stats">
                 <div><span>余额</span><strong>{balance === "余额同步中" ? "¥168.20" : balance}</strong></div>
-                <div><span>Token</span><strong>1.24M</strong></div>
-                <div><span>本月消费</span><strong>¥36.80</strong></div>
+                <div><span>已消耗 Token</span><strong>1.24M</strong></div>
+                <div className="portal-membership-quota"><span><em>Free</em>会员剩余额度</span><strong>80%</strong></div>
               </div>
               <ArrowLink href="/account/usage">用量明细</ArrowLink>
             </section>
