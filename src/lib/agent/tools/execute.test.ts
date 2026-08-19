@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWebFileStore } from "@/lib/host/web/file-store";
 import { parseCanvasContent } from "@/lib/agent/canvas-content";
+import { getCell, parseSheetContent } from "@/lib/agent/sheet-content";
 import {
   executeListArtifacts,
   executeReadArtifact,
@@ -33,6 +34,10 @@ describe("mimeTypeForKind", () => {
 
   it("maps canvas", () => {
     expect(mimeTypeForKind("canvas")).toContain("canvas");
+  });
+
+  it("maps sheet", () => {
+    expect(mimeTypeForKind("sheet")).toContain("sheet");
   });
 });
 
@@ -354,6 +359,110 @@ describe("executeGenerateCanvas", () => {
         mermaid: "flowchart TD\nA-->B",
         sourceArtifactId: markdown.artifact!.id,
       }),
+      ctx,
+    );
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("executeGenerateSheet", () => {
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  });
+
+  function setup() {
+    const root = mkdtempSync(join(tmpdir(), "wl-sheet-"));
+    dirs.push(root);
+    const store = createWebFileStore(root);
+    return {
+      store,
+      ctx: { userId: "u1", sessionId: "s1", artifacts: store.artifacts },
+    };
+  }
+
+  it("creates a ready workbook from a values grid", async () => {
+    const { ctx, store } = setup();
+    const result = await executeStudioTool(
+      "generate_sheet",
+      JSON.stringify({
+        name: "预算",
+        sheets: [{ name: "收入", values: [["月份", "金额"], ["1月", 100]] }],
+      }),
+      ctx,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.artifact?.kind).toBe("sheet");
+    expect(result.artifact?.status).toBe("ready");
+
+    const buffer = await store.artifacts.readContent("u1", result.artifact!.id);
+    const content = parseSheetContent(buffer!.toString("utf8"));
+    expect(content?.sheets[0]?.name).toBe("收入");
+    expect(getCell(content!.sheets[0]!, 1, 1)?.v).toBe(100);
+  });
+
+  it("patches an existing workbook without wiping earlier cells", async () => {
+    const { ctx, store } = setup();
+    const created = await executeStudioTool(
+      "generate_sheet",
+      JSON.stringify({
+        name: "预算",
+        sheets: [{ name: "收入", values: [["月份", "金额"], ["1月", 100]] }],
+      }),
+      ctx,
+    );
+    const id = created.artifact!.id;
+    const updated = await executeStudioTool(
+      "generate_sheet",
+      JSON.stringify({
+        name: "预算",
+        sourceArtifactId: id,
+        operations: [{ op: "setValues", start: "A3", values: [["2月", 120]] }],
+      }),
+      ctx,
+    );
+
+    expect(updated.ok).toBe(true);
+    expect(updated.artifact?.id).toBe(id);
+    const buffer = await store.artifacts.readContent("u1", id);
+    const content = parseSheetContent(buffer!.toString("utf8"));
+    expect(getCell(content!.sheets[0]!, 1, 1)?.v).toBe(100);
+    expect(getCell(content!.sheets[0]!, 2, 0)?.v).toBe("2月");
+    expect(content?.revision).toBe(2);
+  });
+
+  it("rejects sourceArtifactId pointing at a non-sheet artifact", async () => {
+    const { ctx } = setup();
+    const markdown = await executeWriteArtifact(
+      { name: "doc", kind: "markdown", content: "hi" },
+      ctx,
+    );
+    const result = await executeStudioTool(
+      "generate_sheet",
+      JSON.stringify({
+        name: "x",
+        sourceArtifactId: markdown.artifact!.id,
+        operations: [{ op: "setValues", start: "A1", values: [["1"]] }],
+      }),
+      ctx,
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects a patch with no operations", async () => {
+    const { ctx } = setup();
+    const created = await executeStudioTool(
+      "generate_sheet",
+      JSON.stringify({
+        name: "预算",
+        sheets: [{ name: "收入", values: [["a"]] }],
+      }),
+      ctx,
+    );
+    const result = await executeStudioTool(
+      "generate_sheet",
+      JSON.stringify({ name: "预算", sourceArtifactId: created.artifact!.id }),
       ctx,
     );
     expect(result.ok).toBe(false);

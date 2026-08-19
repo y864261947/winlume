@@ -31,6 +31,7 @@ const availableCatalog = {
     { id: "chat", availability: "available", supportedTools: [] },
     { id: "image.generate", availability: "needs_setup", supportedTools: [] },
     { id: "canvas.generate", availability: "needs_setup", supportedTools: [] },
+    { id: "sheet.generate", availability: "needs_setup", supportedTools: [] },
     { id: "video.generate", availability: "needs_setup", supportedTools: [] },
   ],
 } as const;

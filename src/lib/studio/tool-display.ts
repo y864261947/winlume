@@ -18,6 +18,7 @@ const TOOL_ACTION: Record<string, string> = {
   write_artifact: "保存作品",
   read_artifact: "读取作品",
   list_artifacts: "查看作品列表",
+  generate_sheet: "更新表格",
 };
 
 const KIND_LABEL: Record<string, string> = {
@@ -27,6 +28,8 @@ const KIND_LABEL: Record<string, string> = {
   json: "JSON",
   image: "图片",
   binary: "文件",
+  canvas: "画布",
+  sheet: "表格",
 };
 
 export function toolActionLabel(name: string): string {
@@ -133,6 +136,43 @@ export function friendlyToolView(
     return {
       actionLabel: m ? `已读取「${m[1]}」` : "已读取作品",
       resultLine: undefined,
+    };
+  }
+
+  if (name === "generate_sheet") {
+    if (status === "running") {
+      const fromInput =
+        opts?.input &&
+        typeof opts.input === "object" &&
+        opts.input !== null &&
+        "name" in opts.input &&
+        typeof (opts.input as { name?: unknown }).name === "string"
+          ? String((opts.input as { name: string }).name).trim()
+          : "";
+      return {
+        actionLabel: fromInput ? `正在更新「${fromInput}」` : "正在更新表格",
+      };
+    }
+    if (ok === false) {
+      return {
+        actionLabel: "更新表格失败",
+        resultLine: stripTechnicalNoise(summary) || "表格未能保存",
+      };
+    }
+    const created = summary.match(/Created sheet "([^"]+)"/i);
+    const updated = summary.match(/Updated sheet "([^"]+)"/i);
+    const title = created?.[1] ?? updated?.[1];
+    const id = summary.match(/id=([^,)\s]+)/i)?.[1];
+    return {
+      actionLabel: title
+        ? created
+          ? `已创建表格「${title}」`
+          : `已更新表格「${title}」`
+        : created
+          ? "已创建表格"
+          : "已更新表格",
+      artifactId: id,
+      kindLabel: "表格",
     };
   }
 

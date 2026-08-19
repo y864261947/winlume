@@ -13,6 +13,8 @@ import type {
 } from "@/lib/agent/types";
 import { parseCanvasContent } from "@/lib/agent/canvas-content";
 import { summarizeCanvasElements } from "@/lib/agent/canvas-summary";
+import { parseSheetContent } from "@/lib/agent/sheet-content";
+import { summarizeSheetContent } from "@/lib/agent/sheet-summary";
 import type { ArtifactStore, ProjectStore, SessionStore } from "@/lib/host/ports";
 import type { ToolJobStore } from "@/lib/studio/tool-jobs";
 import {
@@ -63,6 +65,7 @@ export const BASE_POLICY = [
   "Call generate_image when the user asks for an image, illustration, icon, mockup, artwork, or image edit. For edits and compositions, set sourceArtifactIds to every image whose pixels the result depends on, ordered with the base/canvas image first and reference images after it. Preserve the user's requested operation in prompt; an artifact id in prompt never substitutes for uploading that image through sourceArtifactIds. The tool returns immediately with a pending artifact — do not claim it is ready yet or describe what it looks like.",
   "Call generate_ecommerce_image_set when the user asks for multiple independent e-commerce product images, such as a listing image set with hero, scene, and detail shots. Pass the exact product sourceArtifactId and use template=apparel for clothing or accessories. Pass referenceArtifactId only when a second supplied image should guide composition, lighting, palette, or atmosphere; it must never be used to copy readable text, logos, people, or protected visual assets. The tool starts a ToolJob and returns three pending image artifacts; do not claim they are ready in the same turn.",
   "Call generate_canvas when the user asks for a flowchart, mind map, sequence diagram, or another diagram they can edit by hand. Write Mermaid syntax in mermaid; do not invent raw shape coordinates. It returns a pending artifact immediately, so do not claim it is ready. To revise a canvas, set sourceArtifactId and follow the injected structural summary of its current contents first.",
+  "Call generate_sheet when the user asks for a spreadsheet, budget, table they can edit like Excel, or workbook with formulas. Create with sheets + values (use = for formulas). Uploaded .xlsx files are already imported as sheet artifacts in context — do not ask the user to re-upload or convert to CSV. To revise a workbook already in context, set sourceArtifactId and pass operations only — do not rebuild the whole book unless the user explicitly asks to start over. One call patches one workbook; call again for another in-context workbook. Cross-sheet formulas stay inside one workbook. Do not write formulas that reference another workbook.",
   "You can use read_artifact and list_artifacts to inspect previously saved work in this session.",
   // Progress checklist (todo_write) — model decides; user never toggles a mode.
   "For complex multi-step work (3+ distinct stages, multi-piece deliverables, research+write), use todo_write to show a short live checklist (user's language). Create todos first, keep exactly one item in_progress, mark completed immediately when done, then merge status updates as you go.",
@@ -252,6 +255,38 @@ export async function buildCanvasReferenceReminder(
   ].join("\n");
 }
 
+/** Current workbook grids for the open / @-mentioned sheet artifacts. */
+export async function buildSheetReferenceReminder(
+  workbooks: Artifact[],
+  artifacts: ArtifactStore,
+  userId: string,
+): Promise<string> {
+  if (!workbooks.length) return "";
+
+  const blocks: string[] = [];
+  for (const workbook of workbooks) {
+    let summary = "(content unavailable)";
+    try {
+      const contentBuffer = await artifacts.readContent(userId, workbook.id);
+      const content = contentBuffer ? parseSheetContent(contentBuffer.toString("utf8")) : null;
+      summary = content ? summarizeSheetContent(content) : "(workbook unreadable)";
+    } catch {
+      // A stale or unreadable artifact must not abort the user's whole turn.
+    }
+    blocks.push(`@${workbook.name} → id=${workbook.id}\n${summary}`);
+  }
+
+  return [
+    "<system-reminder>",
+    "The following spreadsheet workbook(s) are in context this turn (open in the artifact panel and/or @-mentioned). The grids below already include the user's latest saved cell edits. Read them before writing operations so you do not discard user changes.",
+    ...blocks,
+    "To change one of these, call generate_sheet with sourceArtifactId set to its id and a list of operations. Do not create a new workbook unless the user asks for a separate book. Do not rewrite the whole grid when a patch will do.",
+    "Cross-sheet formulas are allowed inside one workbook. Do not write formulas that reference another workbook.",
+    "The user's message may reference a range as `SheetName!A1:C3` (a chip they pinned from the grid). That prefix names the exact sheet the range is on — pass it as the operation's `sheet`, don't default to the active sheet when it's present.",
+    "</system-reminder>",
+  ].join("\n");
+}
+
 export interface RunAgentTurnOpts {
   userId: string;
   sessionId: string;
@@ -266,7 +301,7 @@ export interface RunAgentTurnOpts {
   skillSelectionMode?: SkillSelectionMode;
   allowedToolNames?: string[];
   /**
-   * Image or canvas artifact ids the user @-referenced in the composer.
+   * Image, canvas, or sheet artifact ids the user @-referenced (or the open sheet).
    * Prefer this over the singular field.
    */
   referencedArtifactIds?: string[];
@@ -431,7 +466,7 @@ export async function* runAgentTurn(
       const found = await artifacts.get(userId, id);
       if (
         found &&
-        (found.kind === "image" || found.kind === "canvas") &&
+        (found.kind === "image" || found.kind === "canvas" || found.kind === "sheet") &&
         found.status !== "failed"
       ) {
         referencedArtifacts.push(found);
@@ -442,9 +477,15 @@ export async function* runAgentTurn(
   }
   const referencedImages = referencedArtifacts.filter((artifact) => artifact.kind === "image");
   const referencedCanvases = referencedArtifacts.filter((artifact) => artifact.kind === "canvas");
+  const referencedSheets = referencedArtifacts.filter((artifact) => artifact.kind === "sheet");
   const artifactReminder = buildReferencedArtifactsReminder(referencedImages);
   const canvasReminder = await buildCanvasReferenceReminder(
     referencedCanvases,
+    artifacts,
+    userId,
+  );
+  const sheetReminder = await buildSheetReferenceReminder(
+    referencedSheets,
     artifacts,
     userId,
   );
@@ -456,6 +497,7 @@ export async function* runAgentTurn(
     projectReminder,
     artifactReminder,
     canvasReminder,
+    sheetReminder,
     workflowReminder,
   ]
     .filter(Boolean)

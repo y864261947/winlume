@@ -8,6 +8,7 @@ export type CapabilityPresetId =
   | "chat-default"
   | "image-default"
   | "canvas-default"
+  | "sheet-default"
   | "video-default";
 
 export type CapabilityPreset = {
@@ -43,6 +44,12 @@ export const CAPABILITY_PRESETS: readonly CapabilityPreset[] = [
     id: "canvas-default",
     label: "画布与图解",
     capability: "canvas.generate",
+    selectsFirstAvailableModel: true,
+  },
+  {
+    id: "sheet-default",
+    label: "表格与预算",
+    capability: "sheet.generate",
     selectsFirstAvailableModel: true,
   },
   {

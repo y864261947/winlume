@@ -13,7 +13,8 @@ export type StudioToolName =
   | "remove_background"
   | "upscale_image"
   | "remove_watermark_or_subtitles"
-  | "generate_canvas";
+  | "generate_canvas"
+  | "generate_sheet";
 
 /** OpenAI tools array passed to streamGatewayChat. */
 export const STUDIO_TOOLS = [
@@ -319,6 +320,111 @@ export const STUDIO_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "generate_sheet",
+      description:
+        "Create or patch an editable spreadsheet workbook in the artifact panel. A workbook may contain multiple worksheets and in-workbook formulas such as 汇总!B2=明细!E10. To create, pass sheets with a values grid (cells starting with = are formulas). To revise a workbook already in context, pass sourceArtifactId and operations only — never replace the whole book unless the user explicitly asks to start over. One call updates one workbook; call again with another sourceArtifactId to patch a second in-context workbook. Do not invent formulas that reference another workbook.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Short human-readable title for the workbook",
+          },
+          outputId: {
+            type: "string",
+            description:
+              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
+          },
+          sourceArtifactId: {
+            type: "string",
+            description:
+              "Existing sheet artifact id to patch. Omit to create a new workbook.",
+          },
+          sheets: {
+            type: "array",
+            description:
+              "Initial worksheets when creating. Each item is a name plus an optional values rectangle.",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "Worksheet tab name" },
+                values: {
+                  type: "array",
+                  description: "Row-major grid. Strings starting with = are formulas.",
+                  items: {
+                    type: "array",
+                    items: {
+                      type: ["string", "number", "boolean", "null"],
+                    },
+                  },
+                },
+                formulas: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      cell: { type: "string", description: "A1 address" },
+                      formula: { type: "string" },
+                    },
+                    required: ["cell", "formula"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ["name"],
+              additionalProperties: false,
+            },
+          },
+          operations: {
+            type: "array",
+            description:
+              "Patches applied in order. Required when sourceArtifactId is set.",
+            items: {
+              type: "object",
+              properties: {
+                op: {
+                  type: "string",
+                  enum: [
+                    "setValues",
+                    "setFormulas",
+                    "clearRange",
+                    "addSheet",
+                    "renameSheet",
+                    "deleteSheet",
+                  ],
+                },
+                sheet: {
+                  type: "string",
+                  description: "Worksheet name or id. Defaults to the active sheet.",
+                },
+                start: { type: "string", description: "A1 start for setValues/setFormulas" },
+                values: {
+                  type: "array",
+                  items: {
+                    type: "array",
+                    items: { type: ["string", "number", "boolean", "null"] },
+                  },
+                },
+                formulas: {
+                  type: "array",
+                  items: { type: "array", items: { type: "string" } },
+                },
+                range: { type: "string", description: "A1 range for clearRange" },
+                name: { type: "string", description: "Sheet name for addSheet/renameSheet" },
+              },
+              required: ["op"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["name"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "remove_background",
       description:
         "Remove the background from one existing image artifact and return a ready PNG with transparency. Use auto by default; it uses general HD segmentation. Select product, person, garment, or hair only when the user explicitly identifies the subject or needs a specialist edge treatment. sourceArtifactId must be the exact image artifact id supplied in system context. Do not use generate_image as a substitute for background removal.",
@@ -424,4 +530,5 @@ export const STUDIO_TOOL_NAMES: readonly StudioToolName[] = [
   "upscale_image",
   "remove_watermark_or_subtitles",
   "generate_canvas",
+  "generate_sheet",
 ] as const;

@@ -11,6 +11,7 @@ import {
   LoaderCircle,
   PanelsTopLeft,
   RefreshCw,
+  Table2,
 } from "lucide-react";
 import type { Artifact, ArtifactKind } from "@/lib/agent/types";
 import { StudioApiError, withUserHeaders } from "@/lib/studio/api";
@@ -27,6 +28,7 @@ const KIND_LABELS: Record<ArtifactKind, string> = {
   "video-analysis": "视频拆解",
   binary: "二进制",
   canvas: "画布",
+  sheet: "表格",
 };
 
 function KindIcon({ kind }: { kind: ArtifactKind }) {
@@ -34,6 +36,7 @@ function KindIcon({ kind }: { kind: ArtifactKind }) {
   if (kind === "json") return <FileJson className={cls} />;
   if (kind === "html") return <FileCode2 className={cls} />;
   if (kind === "canvas") return <PanelsTopLeft className={cls} />;
+  if (kind === "sheet") return <Table2 className={cls} />;
   if (kind === "video" || kind === "video-analysis") {
     return <Clapperboard className={cls} />;
   }

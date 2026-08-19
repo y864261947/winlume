@@ -3,10 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { serializeCanvasContent } from "@/lib/agent/canvas-content";
+import { serializeSheetContent, workbookFromCreateSheets } from "@/lib/agent/sheet-content";
 import { createWebFileStore } from "@/lib/host/web/file-store";
 import type { ArtifactStore } from "@/lib/host/ports";
 import {
   buildCanvasReferenceReminder,
+  buildSheetReferenceReminder,
   buildProjectReminder,
   buildReferencedArtifactReminder,
   buildReferencedArtifactsReminder,
@@ -294,5 +296,42 @@ describe("buildCanvasReferenceReminder", () => {
     const text = await buildCanvasReferenceReminder([canvas], artifacts, "u1");
     expect(text).toContain("损坏画布");
     expect(text).toContain("(content unavailable)");
+  });
+});
+
+describe("buildSheetReferenceReminder", () => {
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("includes the id, name, and current grid", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wl-runtime-sheet-"));
+    dirs.push(root);
+    const store = createWebFileStore(root);
+    const created = workbookFromCreateSheets([
+      { name: "收入", values: [["月份", "金额"], ["1月", 100]] },
+    ]);
+    if (!("content" in created)) throw new Error(created.error);
+    const artifact = await store.artifacts.write(
+      {
+        id: "sheet-1",
+        userId: "u1",
+        sessionId: "s1",
+        name: "预算",
+        kind: "sheet",
+        mimeType: "application/vnd.reizo.sheet+json",
+        storageKey: "",
+        status: "ready",
+        createdAt: new Date().toISOString(),
+      },
+      serializeSheetContent(created.content),
+    );
+
+    const text = await buildSheetReferenceReminder([artifact], store.artifacts, "u1");
+    expect(text).toContain("sheet-1");
+    expect(text).toContain("预算");
+    expect(text).toContain("1月");
+    expect(text).toContain("generate_sheet");
   });
 });

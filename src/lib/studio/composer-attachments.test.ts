@@ -107,6 +107,19 @@ describe("composeOutboundMessage", () => {
     expect(msg).toBe("@图片1");
   });
 
+  it("mentions imported workbooks when there is no draft", () => {
+    const msg = composeOutboundMessage({
+      draft: "",
+      pasted: [],
+      images: [],
+      files: [],
+      videos: [],
+      workbooks: [{ name: "Mintex OE对应" }],
+    });
+    expect(msg).toContain("Mintex OE对应");
+    expect(msg).not.toContain("未内联");
+  });
+
   it("uses the reference-video task prompt when no text is provided", () => {
     const msg = composeOutboundMessage({
       draft: "",

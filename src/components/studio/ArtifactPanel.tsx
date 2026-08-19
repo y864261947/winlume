@@ -15,6 +15,7 @@ import {
   PanelsTopLeft,
   RefreshCw,
   Square,
+  Table2,
 } from "lucide-react";
 import type { Artifact, ArtifactKind } from "@/lib/agent/types";
 import { downloadImageArtifact } from "@/lib/studio/artifact-download";
@@ -29,6 +30,7 @@ const KIND_LABELS: Record<ArtifactKind, string> = {
   "video-analysis": "视频拆解",
   binary: "二进制",
   canvas: "画布",
+  sheet: "表格",
 };
 
 const FILTERS: { key: "all" | ArtifactKind; label: string }[] = [
@@ -41,6 +43,7 @@ const FILTERS: { key: "all" | ArtifactKind; label: string }[] = [
   { key: "video", label: "视频" },
   { key: "video-analysis", label: "拆解" },
   { key: "canvas", label: "画布" },
+  { key: "sheet", label: "表格" },
 ];
 
 function KindIcon({ kind }: { kind: ArtifactKind }) {
@@ -52,6 +55,7 @@ function KindIcon({ kind }: { kind: ArtifactKind }) {
     return <Clapperboard className={cls} />;
   }
   if (kind === "canvas") return <PanelsTopLeft className={cls} />;
+  if (kind === "sheet") return <Table2 className={cls} />;
   return <FileText className={cls} />;
 }
 

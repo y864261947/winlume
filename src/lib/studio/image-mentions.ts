@@ -10,6 +10,15 @@ import { nextUploadImageNames } from "@/lib/studio/composer-attachments";
 const AT_IMAGE_PATTERN = /@图片(\d+)/g;
 const UPLOAD_NAME_PATTERN = /^图片\d+$/;
 
+export function isMentionableArtifact(artifact: Artifact): boolean {
+  return (
+    (artifact.kind === "image" ||
+      artifact.kind === "canvas" ||
+      artifact.kind === "sheet") &&
+    artifact.status !== "failed"
+  );
+}
+
 export type MentionCandidate = {
   /** Stable list key */
   key: string;
@@ -17,7 +26,7 @@ export type MentionCandidate = {
   name: string;
   /** Canvas artifacts intentionally have no image thumbnail. */
   thumbSrc?: string;
-  kind: "image" | "canvas";
+  kind: "image" | "canvas" | "sheet";
   artifactId?: string;
   localId?: string;
   status?: "ready" | "pending" | "failed";
@@ -63,15 +72,17 @@ export function buildMentionCandidates(
   }
 
   for (const a of artifacts) {
-    if ((a.kind !== "image" && a.kind !== "canvas") || a.status === "failed") continue;
+    if (!isMentionableArtifact(a)) continue;
     if (seenArtifact.has(a.id)) continue;
     // Prefer local row when same 图片N name is already an attachment.
     if (UPLOAD_NAME_PATTERN.test(a.name) && seenName.has(a.name)) continue;
+    const kind: MentionCandidate["kind"] =
+      a.kind === "canvas" ? "canvas" : a.kind === "sheet" ? "sheet" : "image";
     out.push({
       key: `artifact:${a.id}`,
       name: a.name,
-      thumbSrc: a.kind === "image" ? `/api/artifacts/${a.id}/raw` : undefined,
-      kind: a.kind,
+      thumbSrc: kind === "image" ? `/api/artifacts/${a.id}/raw` : undefined,
+      kind,
       artifactId: a.id,
       status: a.status ?? "ready",
       source: "artifact",
@@ -140,11 +151,7 @@ export function resolveReferencedArtifactIds(
     if (img.artifactId && img.name) byName.set(img.name, img.artifactId);
   }
   for (const a of artifacts) {
-    if (
-      (a.kind === "image" || a.kind === "canvas") &&
-      a.status !== "failed" &&
-      !byName.has(a.name)
-    ) {
+    if (isMentionableArtifact(a) && !byName.has(a.name)) {
       byName.set(a.name, a.id);
     }
   }

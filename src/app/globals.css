@@ -4404,3 +4404,23 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 @media (max-width: 760px) {
   .portal-home .portal-catalog-filters { align-items: flex-start; flex-direction: column; gap: 7px; }
 }
+
+.reizo-sheet-editor {
+  position: relative;
+  min-height: 36rem;
+  height: 100%;
+  width: 100%;
+}
+.reizo-sheet-editor__host {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.reizo-sheet-editor__host,
+.reizo-sheet-editor__host > *,
+.reizo-sheet-editor__host .univer-h-full,
+.reizo-sheet-editor__host .univer-flex-1 {
+  height: 100%;
+  max-height: 100%;
+}

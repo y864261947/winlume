@@ -28,6 +28,7 @@ import {
   setPendingFirstMessage,
   StudioApiError,
   uploadImageArtifact,
+  uploadSheetArtifact,
   uploadVideoArtifact,
   startVideoAnalysis,
 } from "@/lib/studio/api";
@@ -542,6 +543,15 @@ function StudioHomeInner() {
           await startVideoAnalysis({ sourceArtifactId: source.id, goal: "both" });
         }
 
+        const importedSheetIds: string[] = [];
+        for (const item of meta?.pendingSheetUploads ?? []) {
+          const artifact = await uploadSheetArtifact({
+            sessionId: session.id,
+            file: item.file,
+          });
+          importedSheetIds.push(artifact.id);
+        }
+
         let referencedArtifactIds =
           meta?.referencedArtifactIds?.filter(Boolean) ?? [];
         if (seedArtifactId && !referencedArtifactIds.includes(seedArtifactId)) {
@@ -561,6 +571,12 @@ function StudioHomeInner() {
             [],
           );
           if (fromUploads.length) referencedArtifactIds = fromUploads;
+        }
+        if (importedSheetIds.length) {
+          referencedArtifactIds = [
+            ...referencedArtifactIds,
+            ...importedSheetIds.filter((id) => !referencedArtifactIds.includes(id)),
+          ];
         }
 
         await dockPromise;

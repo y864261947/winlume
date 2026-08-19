@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/lib/auth/session";
 import { parseCanvasContent } from "@/lib/agent/canvas-content";
+import { parseSheetContent } from "@/lib/agent/sheet-content";
 import { publishArtifactEvent } from "@/lib/agent/artifact-events";
 import { webStore } from "@/lib/host/web/store-singleton";
 
@@ -53,9 +54,13 @@ export async function PUT(request: NextRequest, context: IdContext) {
   if (!existing) {
     return NextResponse.json({ error: "Artifact not found" }, { status: 404 });
   }
-  if (existing.kind !== "canvas" && existing.kind !== "video-analysis") {
+  if (
+    existing.kind !== "canvas" &&
+    existing.kind !== "video-analysis" &&
+    existing.kind !== "sheet"
+  ) {
     return NextResponse.json(
-      { error: "Only canvas and video-analysis artifacts can be updated via this endpoint" },
+      { error: "Only canvas, sheet, and video-analysis artifacts can be updated via this endpoint" },
       { status: 400 },
     );
   }
@@ -120,6 +125,41 @@ export async function PUT(request: NextRequest, context: IdContext) {
       artifactId: id,
       status: "ready",
     });
+    return NextResponse.json({ artifact: updated });
+  }
+
+  if (existing.kind === "sheet") {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      return NextResponse.json({ error: "JSON body must be an object" }, { status: 400 });
+    }
+    const serializedContent = (body as { content?: unknown }).content;
+    if (typeof serializedContent !== "string") {
+      return NextResponse.json({ error: "Invalid sheet content" }, { status: 400 });
+    }
+    const incoming = parseSheetContent(serializedContent);
+    if (!incoming) {
+      return NextResponse.json({ error: "Invalid sheet content" }, { status: 400 });
+    }
+    const currentBuffer = await webStore.artifacts.readContent(userId, id);
+    const current = currentBuffer ? parseSheetContent(currentBuffer.toString("utf8")) : null;
+    if (current && current.revision !== incoming.revision) {
+      return NextResponse.json(
+        { error: "Workbook changed; reload before saving again" },
+        { status: 409 },
+      );
+    }
+    const updated = await webStore.artifacts.write(
+      { ...existing, status: "ready", error: undefined },
+      serializedContent,
+    );
+    // Autosave must not broadcast artifact_updated: the open Univer editor
+    // would reload/remount and fight React for the same DOM nodes.
     return NextResponse.json({ artifact: updated });
   }
 

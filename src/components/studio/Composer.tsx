@@ -26,9 +26,11 @@ import {
   ListOrdered,
   LoaderCircle,
   Paperclip,
+  Pin,
   Scissors,
   RotateCw,
   Square,
+  Table2,
   X,
 } from "lucide-react";
 import { fetchPlaza } from "@/lib/catalog";
@@ -45,6 +47,7 @@ import {
   isVideoFile,
   MAX_FILES,
   MAX_IMAGES,
+  MAX_WORKBOOKS,
   MAX_PASTED_BLOCKS,
   MAX_VIDEOS,
   PASTED_COLLAPSED_PX,
@@ -55,6 +58,7 @@ import {
   type ImageAttachment,
   type PastedBlock,
   type VideoAttachment,
+  type WorkbookAttachment,
 } from "@/lib/studio/composer-attachments";
 import {
   clearComposerDraft,
@@ -64,9 +68,20 @@ import {
 import {
   startVideoAnalysis,
   uploadImageArtifact,
+  uploadSheetArtifact,
   uploadVideoArtifact,
 } from "@/lib/studio/api";
 import { REFERENCE_VIDEO_ACCEPT } from "@/lib/studio/video-upload";
+import {
+  subscribeSheetSelection,
+  type SheetSelectionPreview,
+} from "@/lib/studio/sheet-selection";
+import {
+  isLegacyXlsFile,
+  isSpreadsheetFile,
+  MAX_SHEET_UPLOAD_BYTES,
+  workbookTitleFromFileName,
+} from "@/lib/agent/sheet-file";
 import {
   buildMentionCandidates,
   filterMentionCandidates,
@@ -121,6 +136,11 @@ export type ComposerSendMeta = {
     file: File;
     authorized: true;
   }>;
+  pendingSheetUploads?: Array<{
+    localId: string;
+    name: string;
+    file: File;
+  }>;
 };
 
 export type ComposerProps = {
@@ -173,6 +193,10 @@ export type ComposerProps = {
   onVideoUploaded?: (artifact: Artifact) => void;
   /** Called after a pending video-analysis artifact is created. */
   onVideoAnalysisStarted?: (artifact: Artifact) => void;
+  /** Workbook currently open in the artifact panel; auto-included on send. */
+  focusedSheet?: Artifact | null;
+  /** Called after an uploaded .xlsx becomes a sheet artifact. */
+  onSheetUploaded?: (artifact: Artifact) => void;
 };
 
 function PastedBlockCard({
@@ -300,6 +324,8 @@ export default function Composer({
   onImageUploaded,
   onVideoUploaded,
   onVideoAnalysisStarted,
+  focusedSheet = null,
+  onSheetUploaded,
 }: ComposerProps) {
   const isHero = variant === "hero";
   const promptId = useId();
@@ -336,6 +362,7 @@ export default function Composer({
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [videos, setVideos] = useState<VideoAttachment[]>([]);
+  const [workbooks, setWorkbooks] = useState<WorkbookAttachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
   const [submittingAttachments, setSubmittingAttachments] = useState(false);
@@ -348,7 +375,9 @@ export default function Composer({
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragCounter = useRef(0);
   const imagesRef = useRef<ImageAttachment[]>([]);
+  const workbooksRef = useRef<WorkbookAttachment[]>([]);
   const activeSessionIdRef = useRef(sessionId);
+  const [selectionPreview, setSelectionPreview] = useState<SheetSelectionPreview | null>(null);
 
   const isControlled = controlledValue !== undefined;
   const draft = isControlled ? controlledValue : uncontrolled;
@@ -432,6 +461,43 @@ export default function Composer({
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     };
   }, [draft, draftKey, draftHydrated]);
+
+  // Live-follow the cell range selected in the open sheet: shown as a small
+  // "pin to reference" preview, not written into the draft until pinned.
+  useEffect(() => {
+    return subscribeSheetSelection((preview) => {
+      if (preview && (!focusedSheet || focusedSheet.kind !== "sheet" || preview.artifactId !== focusedSheet.id)) {
+        return;
+      }
+      setSelectionPreview(preview);
+    });
+  }, [focusedSheet]);
+
+  // The open sheet changed (or closed) — any stale preview no longer applies.
+  useEffect(() => {
+    setSelectionPreview(null);
+  }, [focusedSheet?.id]);
+
+  const pinSelectionPreview = useCallback(() => {
+    const preview = selectionPreview;
+    const editor = editorRef.current;
+    if (!preview || !editor) return;
+    editor.insertMention(
+      {
+        name: preview.range,
+        // The chip only ever displays the plain range, but the workbook can
+        // have multiple sheets — the model needs the sheet name to know
+        // which one "B3:B14" actually refers to, so it rides along in the
+        // token that's actually sent, invisible in the chip itself.
+        sendName: `${preview.sheetName}!${preview.range}`,
+        title: preview.sheetName,
+        kind: "sheet",
+        artifactId: preview.artifactId,
+      },
+      null,
+    );
+    setSelectionPreview(null);
+  }, [selectionPreview]);
 
   useEffect(() => {
     let cancelled = false;
@@ -784,6 +850,36 @@ export default function Composer({
     [onImageUploaded, sessionId, setComposerImages],
   );
 
+  const uploadOneWorkbook = useCallback(
+    (book: WorkbookAttachment) => {
+      if (!sessionId) return;
+      void uploadSheetArtifact({ sessionId, file: book.file })
+        .then((artifact) => {
+          if (artifact.sessionId !== activeSessionIdRef.current) return;
+          setWorkbooks((prev) =>
+            prev.map((item) =>
+              item.id === book.id
+                ? { ...item, artifactId: artifact.id, uploadFailed: false }
+                : item,
+            ),
+          );
+          onSheetUploaded?.(artifact);
+        })
+        .catch((error: unknown) => {
+          if (sessionId !== activeSessionIdRef.current) return;
+          setWorkbooks((prev) =>
+            prev.map((item) =>
+              item.id === book.id ? { ...item, uploadFailed: true } : item,
+            ),
+          );
+          setAttachError(
+            error instanceof Error ? error.message : "表格导入失败，发送前会再试一次",
+          );
+        });
+    },
+    [onSheetUploaded, sessionId],
+  );
+
   const retryImageUpload = useCallback((imageId: string) => {
     const image = imagesRef.current.find((item) => item.id === imageId);
     if (!image) return;
@@ -792,6 +888,15 @@ export default function Composer({
     ));
     uploadOneImage(image);
   }, [setComposerImages, uploadOneImage]);
+
+  const retryWorkbookUpload = useCallback((bookId: string) => {
+    const book = workbooksRef.current.find((item) => item.id === bookId);
+    if (!book) return;
+    setWorkbooks((prev) =>
+      prev.map((item) => (item.id === bookId ? { ...item, uploadFailed: false } : item)),
+    );
+    uploadOneWorkbook(book);
+  }, [uploadOneWorkbook]);
 
   const addImages = useCallback(
     async (list: File[]) => {
@@ -843,6 +948,32 @@ export default function Composer({
           });
           continue;
         }
+        if (isLegacyXlsFile(file)) {
+          setAttachError("暂不支持旧版 .xls，请另存为 .xlsx 后再导入");
+          continue;
+        }
+        if (isSpreadsheetFile(file)) {
+          if (file.size > MAX_SHEET_UPLOAD_BYTES) {
+            setAttachError(
+              `表格过大（上限 ${Math.floor(MAX_SHEET_UPLOAD_BYTES / 1024 / 1024)} MB）`,
+            );
+            continue;
+          }
+          if (workbooksRef.current.length >= MAX_WORKBOOKS) {
+            setAttachError(`一次最多导入 ${MAX_WORKBOOKS} 个工作簿`);
+            continue;
+          }
+          const next: WorkbookAttachment = {
+            id: crypto.randomUUID(),
+            name: workbookTitleFromFileName(file.name),
+            file,
+            size: file.size,
+          };
+          workbooksRef.current = [...workbooksRef.current, next];
+          setWorkbooks(workbooksRef.current);
+          if (sessionId) uploadOneWorkbook(next);
+          continue;
+        }
         const result = await fileToAttachment(file);
         if (result.pasted) {
           setPastedBlocks((prev) => {
@@ -865,7 +996,7 @@ export default function Composer({
         setAttachError(err instanceof Error ? err.message : "添加文件失败");
       }
     }
-  }, [addImages]);
+  }, [addImages, sessionId, uploadOneWorkbook]);
 
   const handlePaste = useCallback(
     (e: ClipboardEvent<HTMLDivElement>) => {
@@ -965,19 +1096,31 @@ export default function Composer({
     setComposerImages([]);
     setFiles([]);
     setVideos([]);
+    workbooksRef.current = [];
+    setWorkbooks([]);
     setAttachError(null);
   }, [setComposerImages]);
 
   const submit = useCallback(() => {
     if (disabled || submittingAttachments) return;
     if (streaming && queueFull) return;
+
+    // An unpinned live selection rides along automatically at send time —
+    // pinning is only needed to keep a selection around past the next one.
+    const effectiveDraft = selectionPreview
+      ? draft
+        ? `@${selectionPreview.sheetName}!${selectionPreview.range} ${draft}`
+        : `@${selectionPreview.sheetName}!${selectionPreview.range}`
+      : draft;
+
     if (
       !hasComposerPayload({
-        draft,
+        draft: effectiveDraft,
         pasted: pastedBlocks,
         images,
         files,
         videos,
+        workbooks,
       })
     ) {
       return;
@@ -999,7 +1142,7 @@ export default function Composer({
 
         // Session page: finish any @-mentioned uploads before resolving ids.
         if (sessionId) {
-          const pending = resolvePendingLocalMentions(draft, workingImages);
+          const pending = resolvePendingLocalMentions(effectiveDraft, workingImages);
           if (pending.length) {
             const uploaded: ImageAttachment[] = [...workingImages];
             for (const image of pending) {
@@ -1032,6 +1175,35 @@ export default function Composer({
 
           // Video work starts outside the chat process. Do this before the chat
           // turn so the Works panel has durable source + pending analysis rows.
+          const pendingBooks = workbooks.filter((book) => !book.artifactId);
+          if (pendingBooks.length) {
+            const uploaded = [...workbooks];
+            for (const book of pendingBooks) {
+              try {
+                const artifact = await uploadSheetArtifact({
+                  sessionId,
+                  file: book.file,
+                });
+                const idx = uploaded.findIndex((item) => item.id === book.id);
+                if (idx >= 0) {
+                  uploaded[idx] = {
+                    ...uploaded[idx]!,
+                    artifactId: artifact.id,
+                    uploadFailed: false,
+                  };
+                }
+                onSheetUploaded?.(artifact);
+              } catch (error) {
+                setAttachError(
+                  error instanceof Error ? error.message : "表格导入失败",
+                );
+                return;
+              }
+            }
+            workbooksRef.current = uploaded;
+            setWorkbooks(uploaded);
+          }
+
           for (const video of videos) {
             try {
               const source = await uploadVideoArtifact({
@@ -1056,9 +1228,10 @@ export default function Composer({
           }
         }
 
-        const toolDraft = turnTool && !draft.includes(turnTool.composerPrompt)
-          ? `${turnTool.composerPrompt}\n${draft}`.trim()
-          : draft;
+        const toolDraft = turnTool && !effectiveDraft.includes(turnTool.composerPrompt)
+          ? `${turnTool.composerPrompt}\n${effectiveDraft}`.trim()
+          : effectiveDraft;
+        const readyWorkbooks = workbooksRef.current;
         const outbound = composeOutboundMessage({
           draft:
             turnTool?.id === "watermark-subtitle-removal"
@@ -1068,23 +1241,29 @@ export default function Composer({
           images: workingImages,
           files,
           videos,
+          workbooks: readyWorkbooks,
         });
         if (!outbound) return;
 
-        const referencedArtifactIds = resolveReferencedArtifactIds(
-          draft,
-          workingImages,
-          imageArtifacts,
-        );
+        const referencedArtifactIds = [
+          ...resolveReferencedArtifactIds(
+            effectiveDraft,
+            workingImages,
+            imageArtifacts,
+          ),
+          ...readyWorkbooks
+            .map((book) => book.artifactId)
+            .filter((id): id is string => Boolean(id)),
+        ];
 
         const meta: ComposerSendMeta | undefined =
           selectedIds.length ||
           referencedArtifactIds.length ||
-          (!sessionId && (workingImages.length || videos.length))
+          (!sessionId && (workingImages.length || videos.length || readyWorkbooks.length))
             ? {
                 ...(selectedIds.length ? { skillIds: [...selectedIds] } : {}),
                 ...(referencedArtifactIds.length
-                  ? { referencedArtifactIds }
+                  ? { referencedArtifactIds: [...new Set(referencedArtifactIds)] }
                   : {}),
                 ...(!sessionId && workingImages.length
                   ? {
@@ -1104,12 +1283,22 @@ export default function Composer({
                       })),
                     }
                   : {}),
+                ...(!sessionId && readyWorkbooks.length
+                  ? {
+                      pendingSheetUploads: readyWorkbooks.map((book) => ({
+                        localId: book.id,
+                        name: book.name,
+                        file: book.file,
+                      })),
+                    }
+                  : {}),
               }
             : undefined;
 
         void onSend(outbound, meta);
         setDraft("");
         editorRef.current?.clear();
+        setSelectionPreview(null);
         setSelectedIds([]);
         setTurnTool(null);
         setWatermarkRightsConfirmed(false);
@@ -1129,15 +1318,18 @@ export default function Composer({
     streaming,
     queueFull,
     draft,
+    selectionPreview,
     pastedBlocks,
     images,
     files,
     videos,
+    workbooks,
     sessionId,
     imageArtifacts,
     onImageUploaded,
     onVideoUploaded,
     onVideoAnalysisStarted,
+    onSheetUploaded,
     setComposerImages,
     onClearError,
     selectedIds,
@@ -1247,7 +1439,8 @@ export default function Composer({
     pastedBlocks.length > 0 ||
     images.length > 0 ||
     files.length > 0 ||
-    videos.length > 0;
+    videos.length > 0 ||
+    workbooks.length > 0;
 
   return (
     <div
@@ -1348,6 +1541,15 @@ export default function Composer({
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2 px-2 pt-1">
+          {focusedSheet?.kind === "sheet" ? (
+            <span
+              className="studio-liquid-chip inline-flex max-w-[12rem] items-center gap-1 rounded-[10px] px-2 py-1 text-[11px] text-[#241E36]"
+              title={`这一轮会改「${focusedSheet.name}」`}
+            >
+              <Table2 className="h-3 w-3 shrink-0 text-primary-600" />
+              <span className="min-w-0 truncate">正在改「{focusedSheet.name}」</span>
+            </span>
+          ) : null}
           <label htmlFor={modelId} className="sr-only">
             模型
           </label>
@@ -1407,7 +1609,7 @@ export default function Composer({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || submittingAttachments}
-            title="添加附件、图片或参考视频"
+            title="添加附件、图片、Excel 或参考视频"
             className="studio-liquid-chip inline-flex items-center gap-1 rounded-[10px] px-2 py-1 text-xs text-[#615A73] disabled:opacity-50"
           >
             <Paperclip className="h-3.5 w-3.5" />
@@ -1419,7 +1621,7 @@ export default function Composer({
             type="file"
             multiple
             className="hidden"
-            accept={`image/*,${REFERENCE_VIDEO_ACCEPT},.txt,.md,.json,.csv,.log,.html,.css,.js,.ts,.tsx,.py,.yml,.yaml`}
+            accept={`image/*,${REFERENCE_VIDEO_ACCEPT},.xlsx,.xlsm,.txt,.md,.json,.csv,.log,.html,.css,.js,.ts,.tsx,.py,.yml,.yaml`}
             onChange={(e) => {
               const list = Array.from(e.target.files ?? []);
               e.target.value = "";
@@ -1498,7 +1700,7 @@ export default function Composer({
         />
 
         {/* Attachment strip: images, reference videos, and binary file chips. */}
-        {(images.length > 0 || videos.length > 0 || files.length > 0) && (
+        {(images.length > 0 || videos.length > 0 || files.length > 0 || workbooks.length > 0) && (
           <div className="flex flex-wrap gap-2 px-2">
             {images.map((img) => (
               <div
@@ -1609,6 +1811,54 @@ export default function Composer({
                 </button>
               </div>
             ))}
+            {workbooks.map((book) => {
+              // Attachments picked before a session exists queue for upload at
+              // send time (see the sessionId-gated call below) rather than
+              // uploading immediately — don't show it as actively in-flight.
+              const queued = !book.uploadFailed && !book.artifactId && !sessionId;
+              const uploading = !book.uploadFailed && !book.artifactId && !queued;
+              return (
+                <div
+                  key={book.id}
+                  className="inline-flex max-w-[14rem] items-center gap-1.5 rounded-[12px] border border-white/70 bg-white/60 px-2 py-1.5 text-[11px] text-[#241E36]"
+                >
+                  {uploading ? (
+                    <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin text-primary-600" />
+                  ) : (
+                    <Table2 className="h-3.5 w-3.5 shrink-0 text-primary-600" />
+                  )}
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 truncate text-left disabled:cursor-default"
+                    disabled={disabled || !book.uploadFailed}
+                    title={book.uploadFailed ? "导入失败，点击重试" : book.name}
+                    onClick={() => {
+                      if (book.uploadFailed) retryWorkbookUpload(book.id);
+                    }}
+                  >
+                    {book.uploadFailed
+                      ? "导入失败 · "
+                      : book.artifactId
+                        ? "已导入 · "
+                        : queued
+                          ? "待发送 · "
+                          : "导入中 · "}
+                    {book.name}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      workbooksRef.current = workbooksRef.current.filter((item) => item.id !== book.id);
+                      setWorkbooks(workbooksRef.current);
+                    }}
+                    className="rounded p-0.5 text-[#8A8298] hover:text-[#0F172A]"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
             {files.map((f) => (
               <div
                 key={f.id}
@@ -1701,6 +1951,32 @@ export default function Composer({
             >
               清空附件
             </button>
+          </div>
+        ) : null}
+
+        {selectionPreview ? (
+          <div className="flex px-2">
+            <span className="inline-flex max-w-[14rem] items-center gap-1 rounded-[10px] border border-primary-200 bg-primary-50 pl-2 pr-1 py-1 text-[11px] font-medium text-primary-700">
+              <button
+                type="button"
+                onClick={pinSelectionPreview}
+                disabled={disabled}
+                title={`点击固定引用 · ${selectionPreview.sheetName}`}
+                className="inline-flex min-w-0 items-center gap-1 hover:text-primary-900"
+              >
+                <Pin className="h-3 w-3 shrink-0" />
+                <span className="min-w-0 truncate">{selectionPreview.range}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectionPreview(null)}
+                disabled={disabled}
+                title="忽略这个选区"
+                className="shrink-0 rounded p-0.5 text-primary-400 hover:bg-primary-100 hover:text-primary-700 disabled:opacity-40"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
           </div>
         ) : null}
 
