@@ -8,6 +8,24 @@ import { useModals } from "@/components/providers";
 import { formatBalance } from "@/lib/account";
 import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
 
+declare global {
+  interface Window {
+    chatwootSDK?: {
+      run: (config: { websiteToken: string; baseUrl: string }) => void;
+    };
+    $chatwoot?: {
+      toggle: (state?: "open" | "close") => void;
+    };
+    chatwootSettings?: {
+      hideMessageBubble?: boolean;
+    };
+    __reizoChatwootStarted?: boolean;
+  }
+}
+
+const CHATWOOT_BASE_URL = "https://chat.v2api.top";
+const CHATWOOT_WEBSITE_TOKEN = "kZgsMkESfeGDBRWCHcKeTNYS";
+
 type AssetIconProps = { src: string; alt?: string; className?: string };
 
 function AssetIcon({ src, alt = "", className }: AssetIconProps) {
@@ -581,6 +599,7 @@ export default function ModelMarket() {
   const pendingPathRef = useRef<ProductPath["id"] | null>(null);
   const cooldownTimerRef = useRef<number | null>(null);
   const [notice, setNotice] = useState("");
+  const [chatwootReady, setChatwootReady] = useState(false);
   const balance = formatBalance(account?.quota, balanceConfig);
   const activePath = productPaths.find((path) => path.id === activePathId) ?? productPaths[0];
   const stackPaths = stackOrderFrom(activePath.id).slice(0, STACK_VISIBLE);
@@ -610,6 +629,40 @@ export default function ModelMarket() {
         window.clearTimeout(cooldownTimerRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    const onReady = () => setChatwootReady(true);
+    window.addEventListener("chatwoot:ready", onReady);
+
+    if (window.$chatwoot) {
+      onReady();
+    }
+
+    if (!window.__reizoChatwootStarted) {
+      window.__reizoChatwootStarted = true;
+      // Reuse the portal's compact "客服" control as the only launcher.
+      window.chatwootSettings = { ...window.chatwootSettings, hideMessageBubble: true };
+      const loadWidget = () => window.chatwootSDK?.run({
+        websiteToken: CHATWOOT_WEBSITE_TOKEN,
+        baseUrl: CHATWOOT_BASE_URL,
+      });
+      const script = document.getElementById("chatwoot-sdk") as HTMLScriptElement | null;
+
+      if (script) {
+        if (window.chatwootSDK) loadWidget();
+        else script.addEventListener("load", loadWidget, { once: true });
+      } else {
+        const widgetScript = document.createElement("script");
+        widgetScript.id = "chatwoot-sdk";
+        widgetScript.src = `${CHATWOOT_BASE_URL}/packs/js/sdk.js`;
+        widgetScript.async = true;
+        widgetScript.onload = loadWidget;
+        document.head.appendChild(widgetScript);
+      }
+    }
+
+    return () => window.removeEventListener("chatwoot:ready", onReady);
   }, []);
 
   function commitPathSwipe(nextId: ProductPath["id"]) {
@@ -673,6 +726,14 @@ export default function ModelMarket() {
     setSubmittedQuery(query.trim());
     setNotice(query.trim() ? `正在搜索“${query.trim()}”` : "请输入想查找的 AI 能力");
     window.setTimeout(() => setNotice(""), 1800);
+  }
+
+  function openSupportChat() {
+    if (window.$chatwoot) {
+      window.$chatwoot.toggle("open");
+      return;
+    }
+    setNotice(chatwootReady ? "在线客服暂时不可用，请稍后重试" : "在线客服正在连接，请稍后再试");
   }
 
   return (
@@ -1014,7 +1075,7 @@ export default function ModelMarket() {
                 <p className="portal-ed-kicker">Support</p>
                 <h2 id="portal-support-title">问题先查这里，卡住再找人</h2>
                 <p>从创建 Key 到企业部署，把常见决策写清楚。</p>
-                <button type="button" className="portal-ed-support-cta" onClick={() => openLogin("login")}>
+                <button type="button" className="portal-ed-support-cta" onClick={openSupportChat}>
                   联系技术支持
                   <ChevronRight aria-hidden />
                 </button>
@@ -1060,7 +1121,7 @@ export default function ModelMarket() {
         </footer>
       </div>
 
-      <aside className="portal-floating-tools" aria-label="快捷工具"><button type="button" onClick={() => openLogin("login")}><CircleHelp aria-hidden /><span>客服</span></button><span className="portal-floating-divider" aria-hidden /><button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><ArrowUp aria-hidden /><span>顶部</span></button></aside>
+      <aside className="portal-floating-tools" aria-label="快捷工具"><button type="button" onClick={openSupportChat}><CircleHelp aria-hidden /><span>客服</span></button><span className="portal-floating-divider" aria-hidden /><button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><ArrowUp aria-hidden /><span>顶部</span></button></aside>
       <div className={`portal-notice ${notice ? "is-visible" : ""}`} role="status" aria-live="polite">{notice}</div>
     </div>
   );

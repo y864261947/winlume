@@ -4539,3 +4539,21 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   .portal-tools-footer { right: 14px; bottom: 12px; left: 14px; }
   .portal-tools-footer span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+/* Customer service stays inside the portal canvas instead of hanging past its edge. */
+.portal-floating-tools {
+  top: min(760px, 68vh);
+  right: max(40px, calc((100vw - 1680px) / 2 + 40px));
+  width: 52px;
+  padding: 8px 0;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 9px;
+  box-shadow: 0 14px 28px -18px rgba(4, 19, 52, .75);
+}
+.portal-floating-tools button { min-height: 35px; font-size: 12px; }
+.portal-floating-tools svg { width: 16px; height: 16px; }
+.portal-floating-divider { width: 34px; margin: 1px 0; }
+
+@media (max-width: 760px) {
+  .portal-floating-tools { display: flex; right: 12px; width: 48px; }
+}
