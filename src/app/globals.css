@@ -4449,3 +4449,63 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   .portal-discovery-grid > .portal-side-cards { min-height: 176px; margin-top: 10px; }
   .portal-compact-footer { gap: 7px 13px; padding-top: 18px; font-size: 11px; }
 }
+
+/* Three-column personal portal: search + enterprise, then API / model / tools. */
+.portal-brand-mark { display: none; }
+.portal-brand { flex-basis: 132px; }
+.portal-main-links { gap: 26px; }
+.portal-search-row { grid-template-columns: minmax(0, 2.03fr) minmax(400px, 1fr); }
+.portal-search-card { grid-column: 1; height: 254px; }
+.portal-search-aside { grid-column: 2; }
+.portal-search-waves { height: 254px !important; }
+.portal-search-content { padding: 37px 30px 0; }
+.portal-search-content h1 { margin-top: 0; }
+.portal-search-form button { color: #163d88; background: rgba(255,255,255,.92); box-shadow: 0 5px 12px -10px rgba(16, 54, 125, .75); }
+.portal-workbench-button { min-height: 42px; color: #183c82; background: rgba(255,255,255,.83); border: 1px solid rgba(212,225,247,.95); box-shadow: 0 8px 18px -14px rgba(16, 54, 125, .55); }
+.portal-workbench-button:hover { color: #fff; background: var(--portal-blue); }
+.portal-enterprise-card.portal-search-aside {
+  height: 254px;
+  border-color: rgba(78, 137, 255, .65);
+  background: linear-gradient(135deg, #061f77 0%, #07399d 49%, #102b75 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 15px 30px -24px rgba(3, 31, 104, .9);
+}
+.portal-enterprise-card.portal-search-aside .portal-label,
+.portal-enterprise-card.portal-search-aside h2 { color: #fff; }
+.portal-enterprise-card.portal-search-aside p { max-width: 235px; color: rgba(231, 240, 255, .9); }
+.portal-enterprise-card.portal-search-aside img { opacity: .88; }
+.portal-enterprise-card.portal-search-aside .portal-enterprise-button { color: #102c73; background: #fff; box-shadow: 0 12px 22px -16px rgba(0,0,0,.9); }
+.portal-discovery-grid { grid-template-columns: minmax(330px, .87fr) minmax(420px, 1fr) minmax(420px, 1fr); grid-template-rows: 348px 180px; }
+.portal-discovery-grid > .portal-api-card { grid-column: 1; grid-row: 1 / 3; }
+.portal-discovery-grid > .portal-featured-card { grid-column: 2; grid-row: 1; }
+.portal-discovery-grid > .portal-side-cards { grid-column: 2; grid-row: 2; }
+.portal-tools-card { grid-column: 3; grid-row: 1 / 3; padding: 17px 15px 18px; }
+.portal-tools-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.portal-tool-card { display: grid; grid-template-columns: 52px minmax(0, 1fr); grid-template-rows: auto auto; min-height: 92px; align-items: center; padding: 12px; text-align: left; }
+.portal-tool-card img { grid-row: 1 / 3; width: 42px; height: 42px; }
+.portal-tool-card strong { margin: 0; font-size: 14px; line-height: 19px; }
+.portal-tool-card span { display: block; margin: 2px 0 0; font-size: 12px; line-height: 17px; -webkit-line-clamp: 2; }
+.portal-tools-more { display: none; }
+.portal-discovery-grid > .portal-side-cards .portal-usage-card { padding: 18px 20px; }
+.portal-discovery-grid > .portal-side-cards .portal-usage-stats { grid-template-columns: repeat(3, 1fr); margin-top: 19px; }
+.portal-discovery-grid > .portal-side-cards .portal-usage-stats strong { font-size: 21px; }
+
+@media (max-width: 1180px) {
+  .portal-main-links { gap: 16px; }
+  .portal-search-row { grid-template-columns: minmax(0, 1fr) 330px; }
+  .portal-discovery-grid { grid-template-columns: minmax(300px, .92fr) minmax(0, 1.08fr); grid-template-rows: 390px 320px 190px; }
+  .portal-discovery-grid > .portal-api-card { grid-column: 1; grid-row: 1 / 3; }
+  .portal-tools-card { grid-column: 2; grid-row: 1 / 3; }
+  .portal-discovery-grid > .portal-featured-card { grid-column: 1 / 3; grid-row: 3; }
+  .portal-discovery-grid > .portal-side-cards { grid-column: 1 / 3; grid-row: 4; }
+}
+
+@media (max-width: 760px) {
+  .portal-brand-mark { display: none; }
+  .portal-main-links { gap: 18px; }
+  .portal-search-row { grid-template-columns: 1fr; }
+  .portal-search-card, .portal-enterprise-card.portal-search-aside { height: 240px; }
+  .portal-search-waves { height: 240px !important; }
+  .portal-search-content { padding: 27px 17px 0; }
+  .portal-discovery-grid > .portal-featured-card { height: 340px; }
+  .portal-tool-card { min-height: 92px; }
+}

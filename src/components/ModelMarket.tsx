@@ -690,10 +690,11 @@ export default function ModelMarket() {
               <PortalLink href="/products?cate=app">应用工具</PortalLink>
               <PortalLink href="/products?cate=api">模型</PortalLink>
               <PortalLink href="/docs">文档</PortalLink>
-              <PortalLink href="/pricing">计费标准</PortalLink>
+              <PortalLink href="/studio">Agent</PortalLink>
+              <PortalLink href="/products?cate=api">API</PortalLink>
+              <PortalLink href="/docs">支持</PortalLink>
             </nav>
             <div className="portal-user-links">
-              <PortalLink href="/studio"><LayoutGrid aria-hidden />Agent</PortalLink>
               <button type="button" onClick={() => setNotice("暂无新的通知")}><Bell aria-hidden />通知</button>
               {account ? (
                 <PortalLink href="/account" className="portal-account"><span>{(account.display_name || account.username).slice(0, 1).toUpperCase()}</span>{account.display_name || account.username}<ChevronRight aria-hidden /></PortalLink>
@@ -708,7 +709,6 @@ export default function ModelMarket() {
           <section className="portal-search-card" aria-labelledby="portal-search-title">
             <Image className="portal-search-waves" src="/figma-home/search-waves.svg" alt="" fill sizes="710px" priority />
             <div className="portal-search-content">
-              <SectionLabel>REIZO AI HUB</SectionLabel>
               <h1 id="portal-search-title">搜索全部 AI 能力</h1>
               <div className="portal-search-form-row">
                 <form className="portal-search-form" onSubmit={submitSearch}>
@@ -719,12 +719,11 @@ export default function ModelMarket() {
                 <PortalLink href="/studio" className="portal-workbench-button"><LayoutGrid aria-hidden />进入工作台<ChevronRight aria-hidden /></PortalLink>
               </div>
               <div className="portal-chip-list" aria-label="热门能力">
-                {["产品图生成", "财务分析", "短视频创作", "代码生成", "电商运营", "更多"].map((chip) => (
+                {["产品图生成", "财务分析", "短视频创作", "代码生成", "电商运营", "市场调研", "更多"].map((chip) => (
                   <button key={chip} type="button" className={query === chip ? "is-selected" : ""} onClick={() => { setQuery(chip); setSubmittedQuery(chip); }}>{chip}</button>
                 ))}
               </div>
             </div>
-            <div className="portal-search-actions"><ArrowLink href="/products">查看热门搜索</ArrowLink></div>
           </section>
 
           <article className="portal-enterprise-card portal-search-aside" aria-labelledby="portal-enterprise-title">
@@ -742,7 +741,7 @@ export default function ModelMarket() {
           <aside className="portal-api-card" aria-labelledby="portal-api-title">
             <div className="portal-api-card-head">
               <h2 id="portal-api-title">API 类别</h2>
-              <ArrowLink href="/products?cate=api">全部模型</ArrowLink>
+              <ArrowLink href="/products?cate=api">查看全部 API</ArrowLink>
             </div>
             <div className="portal-api-list" role="list">
               {apiCategories.map((item) => (
@@ -769,8 +768,8 @@ export default function ModelMarket() {
 
           <section className="portal-tools-card" aria-labelledby="portal-tools-title">
             <div className="portal-tools-head">
-              <h2 id="portal-tools-title">工具应用</h2>
-              <ArrowLink href="/products?cate=app">全部工具</ArrowLink>
+              <h2 id="portal-tools-title">工具应用分类</h2>
+              <ArrowLink href="/products?cate=app">查看全部工具</ArrowLink>
             </div>
             <div className="portal-tools-grid">
               {toolApplications.map((tool) => (
@@ -856,6 +855,7 @@ export default function ModelMarket() {
               <div className="portal-usage-stats">
                 <div><span>余额</span><strong>{balance === "余额同步中" ? "¥168.20" : balance}</strong></div>
                 <div><span>Token</span><strong>1.24M</strong></div>
+                <div><span>本月消费</span><strong>¥36.80</strong></div>
               </div>
               <ArrowLink href="/account/usage">用量明细</ArrowLink>
             </section>
