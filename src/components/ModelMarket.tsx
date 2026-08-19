@@ -749,9 +749,8 @@ export default function ModelMarket() {
             <nav className="portal-main-links" aria-label="页面导航">
               <PortalLink href="/" className="is-current">首页</PortalLink>
               <PortalLink href="/products?cate=app">应用工具</PortalLink>
-              <PortalLink href="/products?cate=api">模型</PortalLink>
+              <PortalLink href="/products?cate=api">API模型</PortalLink>
               <PortalLink href="/docs">文档</PortalLink>
-              <PortalLink href="/products?cate=api">API</PortalLink>
               <PortalLink href="/pricing">计费标准</PortalLink>
             </nav>
             <PortalLink href="/pricing" className="portal-membership-entry"><Crown aria-hidden />升级会员</PortalLink>
@@ -803,7 +802,7 @@ export default function ModelMarket() {
           <aside className="portal-api-card" aria-labelledby="portal-api-title">
             <div className="portal-api-card-head">
               <h2 id="portal-api-title">API模型</h2>
-              <ArrowLink href="/products?cate=api">查看全部 API</ArrowLink>
+              <ArrowLink href="/products?cate=api">查看全部API模型</ArrowLink>
             </div>
             <div className="portal-api-list" role="list">
               {apiCategories.map((item) => (
@@ -832,10 +831,6 @@ export default function ModelMarket() {
             <div className="portal-tools-head">
               <h2 id="portal-tools-title">应用工具</h2>
               <ArrowLink href="/products?cate=app">查看全部工具</ArrowLink>
-            </div>
-            <div className="portal-tools-footer">
-              <span>按场景进入工作台，快速开始创作</span>
-              <PortalLink href="/products?cate=app">探索更多工具<ChevronRight aria-hidden /></PortalLink>
             </div>
             <div className="portal-tools-grid">
               {toolApplications.map((tool) => (
@@ -1115,9 +1110,6 @@ export default function ModelMarket() {
             ))}
           </footer>
         </div>
-        <footer className="portal-compact-footer">
-          <span>帮助中心</span><span>服务条款</span><span>隐私政策</span><span>关于我们</span><span>© 2026 REIZO AI. All rights reserved.</span>
-        </footer>
       </div>
 
       <aside className="portal-floating-tools" aria-label="快捷工具"><button type="button" onClick={openSupportChat}><CircleHelp aria-hidden /><span>客服</span></button><span className="portal-floating-divider" aria-hidden /><button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><ArrowUp aria-hidden /><span>顶部</span></button></aside>
