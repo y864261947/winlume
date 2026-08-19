@@ -150,6 +150,31 @@ describe("resolveReferencedArtifactIds", () => {
     ];
     expect(resolveReferencedArtifactIds("更新 @上线流程", [], artifacts)).toEqual(["canvas-1"]);
   });
+
+  it("includes workbooks in the mention list", () => {
+    const artifacts: Artifact[] = [
+      {
+        id: "sheet-1",
+        userId: "u",
+        sessionId: "s",
+        name: "预算",
+        kind: "sheet",
+        mimeType: "application/vnd.reizo.sheet+json",
+        storageKey: "",
+        createdAt: "t",
+        status: "ready",
+      },
+    ];
+    expect(buildMentionCandidates([], artifacts)).toEqual([
+      expect.objectContaining({
+        artifactId: "sheet-1",
+        name: "预算",
+        kind: "sheet",
+        thumbSrc: undefined,
+      }),
+    ]);
+    expect(resolveReferencedArtifactIds("改 @预算", [], artifacts)).toEqual(["sheet-1"]);
+  });
 });
 
 describe("resolvePendingLocalMentions", () => {

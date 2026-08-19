@@ -1,7 +1,7 @@
 "use client";
 
 import type { Artifact } from "@/lib/agent/types";
-import { ImageIcon, PanelsTopLeft } from "lucide-react";
+import { ImageIcon, PanelsTopLeft, Table2 } from "lucide-react";
 import { textToSegments } from "@/lib/studio/mention-editor";
 
 const UPLOAD_NAME = /^图片\d+$/;
@@ -28,7 +28,7 @@ export default function MentionRichText({
 }) {
   const byName = new Map<string, Artifact>();
   for (const a of imageArtifacts) {
-    if ((a.kind === "image" || a.kind === "canvas") && a.status !== "failed") {
+    if ((a.kind === "image" || a.kind === "canvas" || a.kind === "sheet") && a.status !== "failed") {
       byName.set(a.name, a);
     }
   }
@@ -36,7 +36,8 @@ export default function MentionRichText({
   const segments = textToSegments(text, (name) => {
     const art = byName.get(name);
     if (art) {
-      const kind: "image" | "canvas" = art.kind === "canvas" ? "canvas" : "image";
+      const kind: "image" | "canvas" | "sheet" =
+        art.kind === "canvas" ? "canvas" : art.kind === "sheet" ? "sheet" : "image";
       return {
         name: art.name,
         thumbSrc: kind === "image" ? `/api/artifacts/${art.id}/raw` : undefined,
@@ -76,7 +77,13 @@ export default function MentionRichText({
           />
         ) : (
           <span className={fallbackIconClass}>
-            {seg.kind === "canvas" ? <PanelsTopLeft className="h-3 w-3" /> : <ImageIcon className="h-3 w-3" />}
+            {seg.kind === "canvas" ? (
+              <PanelsTopLeft className="h-3 w-3" />
+            ) : seg.kind === "sheet" ? (
+              <Table2 className="h-3 w-3" />
+            ) : (
+              <ImageIcon className="h-3 w-3" />
+            )}
           </span>
         );
         const chip = (

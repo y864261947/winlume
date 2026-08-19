@@ -6,9 +6,17 @@
 export type MentionChipMeta = {
   name: string;
   thumbSrc?: string;
-  kind?: "image" | "canvas";
+  kind?: "image" | "canvas" | "sheet";
   artifactId?: string;
   localId?: string;
+  /** Native hover tooltip only — never shown in the chip's own text. */
+  title?: string;
+  /**
+   * Overrides `name` in the serialized `@token` sent to the agent, while the
+   * chip still displays `name`. Use this to disambiguate (e.g. qualify a cell
+   * range with its sheet) without cluttering the visible chip.
+   */
+  sendName?: string;
 };
 
 export type EditorSegment =
@@ -17,7 +25,7 @@ export type EditorSegment =
       type: "mention";
       name: string;
       thumbSrc?: string;
-      kind?: "image" | "canvas";
+      kind?: "image" | "canvas" | "sheet";
       artifactId?: string;
       localId?: string;
     };
@@ -89,6 +97,30 @@ function mergeAdjacentText(segments: EditorSegment[]): EditorSegment[] {
   return out.filter((s) => s.type === "mention" || s.text.length > 0);
 }
 
+const SHEET_CHIP_PALETTE: Array<{ bg: string; border: string }> = [
+  { bg: "#EFF6FF", border: "#BFDBFE" }, // blue
+  { bg: "#F0FDF4", border: "#BBF7D0" }, // green
+  { bg: "#FFFBEB", border: "#FDE68A" }, // amber
+  { bg: "#FAF5FF", border: "#E9D5FF" }, // purple
+  { bg: "#FFF1F2", border: "#FECDD3" }, // rose
+  { bg: "#F0FDFA", border: "#99F6E4" }, // teal
+];
+
+function hashString(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+/** Deterministic pale color per sheet, so pinned ranges from different sheets are easy to tell apart. */
+function sheetChipColor(meta: MentionChipMeta): { bg: string; border: string } | null {
+  if (meta.kind !== "sheet" || !meta.title) return null;
+  const key = `${meta.artifactId ?? ""}:${meta.title}`;
+  return SHEET_CHIP_PALETTE[hashString(key) % SHEET_CHIP_PALETTE.length] ?? null;
+}
+
 export function createMentionChipElement(
   doc: Document,
   meta: MentionChipMeta,
@@ -99,12 +131,19 @@ export function createMentionChipElement(
   if (meta.kind) chip.dataset.mentionKind = meta.kind;
   if (meta.artifactId) chip.dataset.artifactId = meta.artifactId;
   if (meta.localId) chip.dataset.localId = meta.localId;
+  if (meta.sendName) chip.dataset.sendName = meta.sendName;
   // High-contrast white chip so @图片N stays readable on glass composer
   // and (via MentionRichText) on dark user bubbles.
   chip.className =
     "mention-chip inline-flex max-w-[12rem] items-center gap-1.5 rounded-full border border-[rgba(15,23,42,0.14)] bg-white py-1 pl-1 pr-2 align-middle text-[12px] font-semibold leading-none text-[#0F172A] shadow-sm select-none";
   chip.setAttribute("role", "img");
   chip.setAttribute("aria-label", `@${meta.name}`);
+  if (meta.title) chip.title = meta.title;
+  const sheetColor = sheetChipColor(meta);
+  if (sheetColor) {
+    chip.style.backgroundColor = sheetColor.bg;
+    chip.style.borderColor = sheetColor.border;
+  }
 
   if (meta.thumbSrc) {
     const img = doc.createElement("img");
@@ -117,7 +156,8 @@ export function createMentionChipElement(
     const ph = doc.createElement("span");
     ph.className =
       "flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E2E8F0] text-[10px] font-bold text-[#334155]";
-    ph.textContent = meta.kind === "canvas" ? "画" : "图";
+    ph.textContent =
+      meta.kind === "canvas" ? "画" : meta.kind === "sheet" ? "表" : "图";
     chip.appendChild(ph);
   }
 
@@ -138,7 +178,7 @@ export function serializeMentionEditor(root: HTMLElement): string {
     }
     if (!(node instanceof HTMLElement)) return;
     if (node.dataset.mentionName) {
-      out += `@${node.dataset.mentionName}`;
+      out += `@${node.dataset.sendName || node.dataset.mentionName}`;
       return;
     }
     if (node.tagName === "BR") {
@@ -265,7 +305,7 @@ export function setSerializedCaretOffset(root: HTMLElement, offset: number): voi
       return false;
     }
     if (node instanceof HTMLElement && node.dataset.mentionName) {
-      const tokenLen = `@${node.dataset.mentionName}`.length;
+      const tokenLen = `@${node.dataset.sendName || node.dataset.mentionName}`.length;
       if (remaining <= tokenLen) {
         // Caret belongs on/after chip → place after chip (and ZWSP if present)
         const after = node.nextSibling;
@@ -355,6 +395,52 @@ export function insertMentionChipInEditor(
   const text = serializeMentionEditor(root);
   const cursor = getSerializedCaretOffset(root);
   return { text, cursor };
+}
+
+/**
+ * If the caret sits right after a mention chip (only whitespace/ZWSP between
+ * them — e.g. the space auto-inserted after a chip, untouched), delete the
+ * whole chip in one Backspace instead of requiring one press per invisible
+ * character. Returns null when the caret isn't in that position, so the
+ * caller should fall back to native Backspace behavior.
+ */
+export function deleteMentionChipBeforeCaret(
+  root: HTMLElement,
+): { text: string; cursor: number } | null {
+  const doc = root.ownerDocument;
+  const sel = doc.getSelection();
+  if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  const container = range.startContainer;
+
+  const isWhitespaceOrZwsp = (value: string) =>
+    Array.from(value).every((ch) => ch === CHIP_ZWSP || /\s/.test(ch));
+
+  if (container.nodeType === Node.TEXT_NODE) {
+    const before = (container.textContent ?? "").slice(0, range.startOffset);
+    if (!isWhitespaceOrZwsp(before)) return null;
+  } else if (range.startOffset > 0) {
+    return null;
+  }
+
+  let node: Node | null = container.previousSibling;
+  while (node?.nodeType === Node.TEXT_NODE && isWhitespaceOrZwsp(node.textContent ?? "")) {
+    node = node.previousSibling;
+  }
+  if (!(node instanceof HTMLElement) || !node.dataset.mentionName) return null;
+
+  const del = doc.createRange();
+  del.setStartBefore(node);
+  del.setEnd(range.startContainer, range.startOffset);
+  del.deleteContents();
+
+  const caret = doc.createRange();
+  caret.setStart(del.startContainer, del.startOffset);
+  caret.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(caret);
+
+  return { text: serializeMentionEditor(root), cursor: getSerializedCaretOffset(root) };
 }
 
 /** Replace a serialized range with plain text (e.g. remove /query). */

@@ -41,6 +41,7 @@ const KIND_LABELS: Record<ArtifactKind, string> = {
   "video-analysis": "视频拆解",
   binary: "二进制",
   canvas: "画布",
+  sheet: "表格",
 };
 
 export function WorkflowArtifactPicker({

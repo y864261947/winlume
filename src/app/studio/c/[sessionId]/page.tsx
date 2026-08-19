@@ -38,6 +38,8 @@ import {
 } from "@/components/studio/useStudioChat";
 import { useModals } from "@/components/providers";
 import type { Artifact, Message, Project, Session } from "@/lib/agent/types";
+import { isMentionableArtifact } from "@/lib/studio/image-mentions";
+import { flushOpenSheetEdits } from "@/lib/studio/sheet-flush";
 import {
   getArtifact,
   getProject,
@@ -642,6 +644,12 @@ export default function StudioSessionPage() {
     () => artifacts.find((a) => a.id === selectedId) ?? null,
     [artifacts, selectedId],
   );
+  const mentionableArtifacts = useMemo(
+    () => artifacts.filter(isMentionableArtifact),
+    [artifacts],
+  );
+  const focusedSheet =
+    selected?.kind === "sheet" && selected.status !== "failed" ? selected : null;
 
   const handleSelect = useCallback(
     (id: string) => {
@@ -883,9 +891,7 @@ export default function StudioSessionPage() {
               highlightMessageId={highlightMessageId}
               onHighlightConsumed={() => setHighlightMessageId(null)}
               artifactsByMessageId={artifactsByMessageId}
-              imageArtifacts={artifacts.filter(
-                (a) => (a.kind === "image" || a.kind === "canvas") && a.status !== "failed",
-              )}
+              imageArtifacts={mentionableArtifacts}
               onOpenArtifact={openArtifactFromChat}
             />
           )}
@@ -915,13 +921,24 @@ export default function StudioSessionPage() {
         />
       ) : (
         <Composer
-          onSend={(text, meta) =>
-            chat.send(text, {
-              // Turn-only skillIds; runtime merges session pins server-side
-              skillIds: meta?.skillIds,
-              referencedArtifactIds: meta?.referencedArtifactIds,
-            })
-          }
+          onSend={(text, meta) => {
+            void (async () => {
+              try {
+                await flushOpenSheetEdits();
+              } catch {
+                // Don't let a sheet autosave failure (e.g. a stale-revision
+                // conflict) block the message from being sent.
+              }
+              const ids = [...(meta?.referencedArtifactIds ?? [])];
+              if (focusedSheet && !ids.includes(focusedSheet.id)) {
+                ids.push(focusedSheet.id);
+              }
+              chat.send(text, {
+                skillIds: meta?.skillIds,
+                referencedArtifactIds: ids.length ? ids : undefined,
+              });
+            })();
+          }}
           onStop={chat.stop}
           streaming={chat.streaming || (hasHandoff && loading)}
           disabled={showThreadSkeleton || (loading && hasHandoff)}
@@ -941,13 +958,13 @@ export default function StudioSessionPage() {
             hasHandoff && loading ? "正在连接…" : undefined
           }
           shareTransitionName={withTransitionNames ? "studio-composer" : null}
-          imageArtifacts={artifacts.filter(
-            (a) => (a.kind === "image" || a.kind === "canvas") && a.status !== "failed",
-          )}
+          imageArtifacts={mentionableArtifacts}
+          focusedSheet={focusedSheet}
           sessionId={session?.id ?? sessionId}
           onImageUploaded={upsertArtifact}
           onVideoUploaded={upsertArtifact}
           onVideoAnalysisStarted={openPendingVideoAnalysis}
+          onSheetUploaded={openPendingVideoAnalysis}
         />
       )}
     </div>
@@ -975,6 +992,7 @@ export default function StudioSessionPage() {
         onJumpToMessage={jumpToMessage}
         onRetryGeneration={workflowEnabled ? undefined : retryGeneration}
         sessionId={session?.id ?? sessionId}
+        locked={chat.streaming}
         onImageAnnotationRefine={
           workflowEnabled ? undefined : refineImageWithAnnotation
         }
@@ -1107,6 +1125,7 @@ export default function StudioSessionPage() {
                 onJumpToMessage={jumpToMessage}
                 onRetryGeneration={workflowEnabled ? undefined : retryGeneration}
                 sessionId={session?.id ?? sessionId}
+                locked={chat.streaming}
                 onImageAnnotationRefine={
                   workflowEnabled ? undefined : refineImageWithAnnotation
                 }

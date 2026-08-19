@@ -644,6 +644,34 @@ export async function uploadImageAnnotation(body: {
   });
 }
 
+export async function uploadSheetArtifact(input: {
+  sessionId: string;
+  file: File;
+}): Promise<Artifact> {
+  const mime =
+    input.file.type?.split(";", 1)[0]?.trim() ||
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const response = await fetch("/api/artifacts/upload-sheet", {
+    method: "POST",
+    headers: {
+      "content-type": mime,
+      "x-reizo-session-id": input.sessionId,
+      "x-reizo-artifact-name": encodeURIComponent(input.file.name || "workbook.xlsx"),
+    },
+    body: input.file,
+    credentials: "same-origin",
+  });
+  if (response.status === 401) throw new StudioApiError("请先登录", 401);
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
+    throw new StudioApiError(
+      (body as { error?: string }).error || "表格导入失败",
+      response.status,
+    );
+  }
+  return (await parseJson<{ artifact: Artifact }>(response)).artifact;
+}
+
 export async function uploadVideoArtifact(input: {
   sessionId: string;
   file: File;

@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   // The OSS client is used only by Node route handlers. Keeping it external
   // avoids webpack resolving its optional coffee-script compiler dependency.
   serverExternalPackages: ["ali-oss"],
+  transpilePackages: ["@univerjs/presets", "@univerjs/preset-sheets-core"],
   async redirects() {
     return [
       { source: "/console", destination: "/account", permanent: false },

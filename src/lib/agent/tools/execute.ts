@@ -17,6 +17,15 @@ import {
   serializeCanvasContent,
   type CanvasArtifactContent,
 } from "@/lib/agent/canvas-content";
+import {
+  applySheetOperations,
+  parseSheetContent,
+  serializeSheetContent,
+  workbookFromCreateSheets,
+  SHEET_MIME,
+  type SheetCreateSheet,
+  type SheetOperation,
+} from "@/lib/agent/sheet-content";
 import { artifactOutputIdSchema } from "@/lib/agent/skills/contracts";
 import type { ArtifactStore } from "@/lib/host/ports";
 import { toolJobStore } from "@/lib/host/web/tool-job-singleton";
@@ -172,6 +181,69 @@ const generateCanvasSchema = z.object({
 
 export type GenerateCanvasArgs = z.infer<typeof generateCanvasSchema>;
 
+const sheetCellValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+
+const sheetOperationSchema = z.discriminatedUnion("op", [
+  z.object({
+    op: z.literal("setValues"),
+    sheet: z.string().trim().min(1).max(80).optional(),
+    start: z.string().trim().min(2).max(8),
+    values: z.array(z.array(sheetCellValueSchema).max(40)).min(1).max(200),
+  }),
+  z.object({
+    op: z.literal("setFormulas"),
+    sheet: z.string().trim().min(1).max(80).optional(),
+    start: z.string().trim().min(2).max(8),
+    formulas: z.array(z.array(z.string().trim().min(1).max(2_000)).min(1).max(40)).min(1).max(200),
+  }),
+  z.object({
+    op: z.literal("clearRange"),
+    sheet: z.string().trim().min(1).max(80).optional(),
+    range: z.string().trim().min(2).max(20),
+  }),
+  z.object({
+    op: z.literal("addSheet"),
+    name: z.string().trim().min(1).max(80),
+  }),
+  z.object({
+    op: z.literal("renameSheet"),
+    sheet: z.string().trim().min(1).max(80),
+    name: z.string().trim().min(1).max(80),
+  }),
+  z.object({
+    op: z.literal("deleteSheet"),
+    sheet: z.string().trim().min(1).max(80),
+  }),
+]);
+
+const generateSheetSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  outputId: artifactOutputIdSchema.optional(),
+  sourceArtifactId: z.string().trim().min(1).max(128).optional(),
+  sheets: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(80),
+        values: z.array(z.array(sheetCellValueSchema).max(40)).max(200).optional(),
+        formulas: z
+          .array(
+            z.object({
+              cell: z.string().trim().min(2).max(8),
+              formula: z.string().trim().min(1).max(2_000),
+            }),
+          )
+          .max(200)
+          .optional(),
+      }),
+    )
+    .min(1)
+    .max(8)
+    .optional(),
+  operations: z.array(sheetOperationSchema).min(1).max(40).optional(),
+});
+
+export type GenerateSheetArgs = z.infer<typeof generateSheetSchema>;
+
 export type WriteArtifactArgs = z.infer<typeof writeArtifactSchema>;
 export type ReadArtifactArgs = z.infer<typeof readArtifactSchema>;
 export type ListArtifactsArgs = z.infer<typeof listArtifactsSchema>;
@@ -190,6 +262,8 @@ export function mimeTypeForKind(kind: ArtifactKind): string {
       return "application/octet-stream";
     case "canvas":
       return "application/vnd.reizo.canvas+json; charset=utf-8";
+    case "sheet":
+      return SHEET_MIME;
     case "binary":
       return "application/octet-stream";
     default:
@@ -956,6 +1030,124 @@ export async function executeGenerateCanvas(
   }
 }
 
+export async function executeGenerateSheet(
+  rawArgs: unknown,
+  ctx: ToolExecuteContext,
+): Promise<ToolExecuteResult> {
+  const parsed = generateSheetSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return fail(`generate_sheet validation failed: ${formatZodError(parsed.error)}`);
+  }
+
+  const { name, outputId, sourceArtifactId, sheets, operations } = parsed.data;
+  const provenance = resolveArtifactProvenance("sheet", outputId, ctx);
+  if (provenance.error) return fail(provenance.error);
+
+  if (sourceArtifactId) {
+    if (ctx.workflow) {
+      return fail("Workflow sheet outputs must create a new Artifact");
+    }
+    if (!operations?.length) {
+      return fail("Patching a workbook requires operations");
+    }
+    const existing = await ctx.artifacts.get(ctx.userId, sourceArtifactId);
+    if (!existing) return fail(`Source artifact not found: ${sourceArtifactId}`);
+    if (existing.kind !== "sheet") {
+      return fail(`Source artifact is not a sheet: ${sourceArtifactId}`);
+    }
+    const existingBuffer = await ctx.artifacts.readContent(ctx.userId, sourceArtifactId);
+    const existingContent = existingBuffer
+      ? parseSheetContent(existingBuffer.toString("utf8"))
+      : null;
+    if (!existingContent) {
+      return fail("Existing workbook content is unreadable");
+    }
+    const patched = applySheetOperations(existingContent, operations as SheetOperation[]);
+    if ("error" in patched) return fail(patched.error);
+
+    try {
+      const artifact = await ctx.artifacts.write(
+        { ...existing, name, status: "ready", error: undefined },
+        serializeSheetContent(patched.content),
+      );
+      publishArtifactEvent(ctx.userId, {
+        type: "artifact_updated",
+        artifactId: artifact.id,
+        status: "ready",
+      });
+      return {
+        ok: true,
+        summary: `Updated sheet "${artifact.name}" (id=${artifact.id}, revision=${patched.content.revision})`,
+        content: JSON.stringify({
+          id: artifact.id,
+          name: artifact.name,
+          kind: artifact.kind,
+          revision: patched.content.revision,
+        }),
+        artifact,
+        events: [
+          { type: "artifact", artifactId: artifact.id, name: artifact.name, kind: artifact.kind },
+        ],
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "generate_sheet failed";
+      return fail(message);
+    }
+  }
+
+  if (!sheets?.length && !operations?.length) {
+    return fail("Creating a workbook requires sheets or operations");
+  }
+
+  let contentResult = sheets?.length
+    ? workbookFromCreateSheets(sheets as SheetCreateSheet[])
+    : workbookFromCreateSheets([{ name: "Sheet1" }]);
+  if ("error" in contentResult) return fail(contentResult.error);
+  if (operations?.length) {
+    contentResult = applySheetOperations(contentResult.content, operations as SheetOperation[]);
+    if ("error" in contentResult) return fail(contentResult.error);
+  }
+
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  try {
+    const artifact = await ctx.artifacts.write(
+      {
+        id,
+        userId: ctx.userId,
+        sessionId: ctx.sessionId,
+        ...(ctx.projectId ? { projectId: ctx.projectId } : {}),
+        ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
+        name,
+        kind: "sheet",
+        mimeType: mimeTypeForKind("sheet"),
+        storageKey: "",
+        status: "ready",
+        createdAt,
+        ...(provenance.provenance ? { provenance: provenance.provenance } : {}),
+      },
+      serializeSheetContent(contentResult.content),
+    );
+    publishArtifactEvent(ctx.userId, {
+      type: "artifact_updated",
+      artifactId: artifact.id,
+      status: "ready",
+    });
+    return {
+      ok: true,
+      summary: `Created sheet "${artifact.name}" (id=${artifact.id})`,
+      content: JSON.stringify({ id: artifact.id, name: artifact.name, kind: artifact.kind }),
+      artifact,
+      events: [
+        { type: "artifact", artifactId: artifact.id, name: artifact.name, kind: artifact.kind },
+      ],
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "generate_sheet failed";
+    return fail(message);
+  }
+}
+
 export async function executeReadArtifact(
   rawArgs: unknown,
   ctx: ToolExecuteContext,
@@ -1160,6 +1352,8 @@ export async function executeStudioTool(
       return executeRemoveWatermarkOrSubtitles(rawArgs, ctx);
     case "generate_canvas":
       return executeGenerateCanvas(rawArgs, ctx);
+    case "generate_sheet":
+      return executeGenerateSheet(rawArgs, ctx);
     case "read_artifact":
       return executeReadArtifact(rawArgs, ctx);
     case "list_artifacts":

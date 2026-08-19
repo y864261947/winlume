@@ -45,6 +45,11 @@ import {
   type CanvasElement,
 } from "@/lib/agent/canvas-content";
 import {
+  parseSheetContent,
+  resolveSheet,
+  sheetToCsv,
+} from "@/lib/agent/sheet-content";
+import {
   canExportAsDocument,
   exportArtifactAsPdf,
   exportArtifactAsWord,
@@ -74,6 +79,7 @@ const KIND_LABELS: Record<ArtifactKind, string> = {
   "video-analysis": "视频拆解",
   binary: "二进制",
   canvas: "画布",
+  sheet: "表格",
 };
 
 type ViewMode = "preview" | "source";
@@ -122,6 +128,8 @@ export type ArtifactPreviewProps = {
   }) => Promise<"sent" | "queued" | "rejected">;
   /** Needed to persist the short-lived, hidden marked reference image. */
   sessionId?: string;
+  /** Lock the sheet editor while the agent is writing. */
+  locked?: boolean;
   className?: string;
 };
 
@@ -145,6 +153,8 @@ function extensionFor(kind: ArtifactKind, name: string, mimeType?: string): stri
       return ".mp4";
     case "video-analysis":
       return ".json";
+    case "sheet":
+      return ".csv";
     default:
       return ".txt";
   }
@@ -160,6 +170,8 @@ function mimeFor(kind: ArtifactKind): string {
       return "application/json;charset=utf-8";
     case "video-analysis":
       return "application/json;charset=utf-8";
+    case "sheet":
+      return "text/csv;charset=utf-8";
     default:
       return "text/plain;charset=utf-8";
   }
@@ -286,6 +298,16 @@ const Excalidraw = dynamic(
   () => import("@excalidraw/excalidraw").then((module) => module.Excalidraw),
   { ssr: false },
 );
+
+const SheetEditor = dynamic(() => import("./SheetEditor"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex flex-1 items-center justify-center gap-2 px-4 py-10 text-sm text-ink-400">
+      <LoaderCircle className="h-5 w-5 animate-spin" />
+      正在打开表格…
+    </div>
+  ),
+});
 
 type ExcalidrawOnChange = NonNullable<ExcalidrawProps["onChange"]>;
 
@@ -468,6 +490,7 @@ function renderPreview(
     onRetry?: () => void;
     retrying?: boolean;
     onVideoAnalysisPersisted?: () => void;
+    locked?: boolean;
   },
 ): ReactNode {
   switch (artifact.kind) {
@@ -505,6 +528,18 @@ function renderPreview(
             className="max-h-full max-w-full rounded-lg object-contain shadow-sm"
           />
         </div>
+      );
+    }
+    case "sheet": {
+      const parsed = parseSheetContent(content);
+      return (
+        <SheetEditor
+          key={`${artifact.id}:${parsed?.revision ?? 0}`}
+          artifactId={artifact.id}
+          artifactName={artifact.name}
+          content={content}
+          locked={options?.locked}
+        />
       );
     }
     case "canvas":
@@ -617,6 +652,7 @@ export default function ArtifactPreview({
   onRetryGeneration,
   onImageAnnotationRefine,
   sessionId,
+  locked = false,
   className = "",
 }: ArtifactPreviewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("preview");
@@ -631,6 +667,11 @@ export default function ArtifactPreview({
   const [annotationImage, setAnnotationImage] = useState<HTMLImageElement | null>(null);
   const [annotationBusy, setAnnotationBusy] = useState(false);
   const [annotationError, setAnnotationError] = useState<string | null>(null);
+  const activeSheetGrid = useMemo(() => {
+    if (artifact?.kind !== "sheet" || content == null) return null;
+    const parsed = parseSheetContent(content);
+    return parsed ? { grid: resolveSheet(parsed), sheetCount: parsed.sheets.length } : null;
+  }, [artifact, content]);
   const [retryingGeneration, setRetryingGeneration] = useState(false);
 
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -724,7 +765,8 @@ export default function ArtifactPreview({
       artifact.kind !== "binary" &&
       artifact.kind !== "image" &&
       artifact.kind !== "video" &&
-      artifact.kind !== "canvas",
+      artifact.kind !== "canvas" &&
+      artifact.kind !== "sheet",
   );
 
   const hasPreview = Boolean(
@@ -844,6 +886,24 @@ export default function ArtifactPreview({
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = `${artifact.name}.excalidraw.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+    if (artifact.kind === "sheet") {
+      if (content == null) return;
+      const grid = activeSheetGrid?.grid;
+      const csv = grid ? sheetToCsv(grid) : "";
+      const blob = new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      // A multi-sheet workbook only exports its active sheet as CSV; name the
+      // file after that sheet so it's clear the rest of the workbook isn't included.
+      anchor.download =
+        activeSheetGrid && activeSheetGrid.sheetCount > 1 && grid
+          ? `${artifact.name} - ${grid.name}.csv`
+          : `${artifact.name}.csv`;
       anchor.click();
       URL.revokeObjectURL(url);
       return;
@@ -1008,11 +1068,15 @@ export default function ArtifactPreview({
       );
     }
     if (key === "download") {
+      const downloadLabel =
+        artifact?.kind === "sheet" && activeSheetGrid && activeSheetGrid.sheetCount > 1
+          ? "下载当前工作表"
+          : "下载原文件";
       if (inMenu) {
         return (
           <MenuItem key={key} onClick={handleDownload} disabled={busy}>
             <Download className="h-3.5 w-3.5" />
-            下载原文件
+            {downloadLabel}
           </MenuItem>
         );
       }
@@ -1020,7 +1084,7 @@ export default function ArtifactPreview({
         <ToolbarBtn
           key={key}
           onClick={handleDownload}
-          title="下载文件"
+          title={downloadLabel}
           disabled={busy}
         >
           <Download className="h-3.5 w-3.5" />
@@ -1346,7 +1410,7 @@ export default function ArtifactPreview({
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {loading ? (
+        {loading && !(artifact?.kind === "sheet" && content != null) ? (
           <div className="flex items-center gap-2 px-4 py-8 text-sm text-ink-500">
             <LoaderCircle className="h-4 w-4 animate-spin" />
             读取内容…
@@ -1366,7 +1430,15 @@ export default function ArtifactPreview({
         ) : artifact.kind === "html" ? (
           renderPreview(artifact, content, htmlFrame)
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div
+            className={`min-h-0 flex-1 ${
+              artifact.kind === "sheet"
+                ? "relative min-h-[36rem] overflow-hidden"
+                : artifact.kind === "canvas"
+                  ? "overflow-hidden"
+                  : "overflow-y-auto"
+            }`}
+          >
             {renderPreview(artifact, content, htmlFrame, annotationImageRef, {
               onRetry:
                 (artifact.kind === "image" || artifact.kind === "canvas") &&
@@ -1377,6 +1449,7 @@ export default function ArtifactPreview({
                   : undefined,
               retrying: retryingGeneration,
               onVideoAnalysisPersisted: onRefresh,
+              locked,
             })}
           </div>
         )}

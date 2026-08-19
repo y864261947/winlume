@@ -11,6 +11,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import {
+  deleteMentionChipBeforeCaret,
   getSerializedCaretOffset,
   insertMentionChipInEditor,
   renderSegmentsToEditor,
@@ -246,6 +247,23 @@ const MentionPromptEditor = forwardRef<
     emitFromDom();
   };
 
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Backspace" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const el = rootRef.current;
+      const result = el ? deleteMentionChipBeforeCaret(el) : null;
+      if (result) {
+        e.preventDefault();
+        lastEmitted.current = result.text;
+        onChange(result.text);
+        onCaretActivity?.(result.text, result.cursor);
+        if (el) el.dataset.empty = isEmptyEditor(el) ? "true" : "false";
+        autoSize();
+        return;
+      }
+    }
+    onKeyDown?.(e);
+  };
+
   const handleKeyUp = () => {
     if (composingRef.current) return;
     const el = rootRef.current;
@@ -300,7 +318,7 @@ const MentionPromptEditor = forwardRef<
         data-empty="true"
         data-placeholder={placeholder ?? ""}
         onInput={handleInput}
-        onKeyDown={onKeyDown}
+        onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         onClick={handleClick}
         onPaste={handlePasteInternal}

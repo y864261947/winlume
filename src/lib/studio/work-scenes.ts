@@ -28,7 +28,7 @@ export const WORK_SCENES: readonly WorkScene[] = [
       "production-content-draft",
       "production-content-review",
     ],
-    recommendedArtifactKinds: ["markdown", "canvas"],
+    recommendedArtifactKinds: ["markdown", "canvas", "sheet"],
   },
   {
     id: "growth-commerce",

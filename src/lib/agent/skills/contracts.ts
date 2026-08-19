@@ -10,6 +10,7 @@ export const capabilityIdSchema = z.enum([
   "chat",
   "image.generate",
   "canvas.generate",
+  "sheet.generate",
   "video.generate",
 ]);
 
@@ -25,6 +26,7 @@ export const productionToolNameSchema = z.enum([
   "upscale_image",
   "remove_watermark_or_subtitles",
   "generate_canvas",
+  "generate_sheet",
 ]);
 
 export const artifactKindSchema = z.enum([
@@ -37,6 +39,7 @@ export const artifactKindSchema = z.enum([
   "video-analysis",
   "binary",
   "canvas",
+  "sheet",
 ]);
 
 export const artifactOutputIdSchema = z

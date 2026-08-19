@@ -2,6 +2,7 @@ export const CAPABILITY_IDS = [
   "chat",
   "image.generate",
   "canvas.generate",
+  "sheet.generate",
   "video.generate",
 ] as const;
 
@@ -110,6 +111,19 @@ export function buildCapabilityCatalog(
         chat.reason ?? "需要可用的对话模型",
       );
 
+  const sheet = chat.availability === "available"
+    ? {
+        id: "sheet.generate" as const,
+        availability: "available" as const,
+        supportedTools: ["generate_sheet"],
+        effectiveModel: chat.effectiveModel,
+      }
+    : unavailableRecord(
+        "sheet.generate",
+        chat.availability === "degraded" ? "degraded" : "needs_setup",
+        chat.reason ?? "需要可用的对话模型",
+      );
+
   const video = unavailableRecord(
     "video.generate",
     gatewayReachable ? "needs_setup" : "degraded",
@@ -118,7 +132,7 @@ export function buildCapabilityCatalog(
 
   return {
     models,
-    capabilities: [chat, image, canvas, video],
+    capabilities: [chat, image, canvas, sheet, video],
   };
 }
 

@@ -7,29 +7,12 @@ import {
   isSupportedReferenceVideoMime,
   MAX_REFERENCE_VIDEO_BYTES,
 } from "@/lib/studio/video-upload";
+import { parseArtifactName, requestContentLength } from "@/lib/studio/upload-request";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_VIDEO_BYTES = MAX_REFERENCE_VIDEO_BYTES;
-
-function parseName(value: string | null): string | null {
-  if (!value) return null;
-  try {
-    const decoded = decodeURIComponent(value).trim();
-    if (!decoded || decoded.length > 200 || /[\r\n]/.test(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
-
-function contentLength(request: NextRequest): number | null {
-  const raw = request.headers.get("content-length");
-  if (!raw) return null;
-  const value = Number(raw);
-  return Number.isSafeInteger(value) && value >= 0 ? value : null;
-}
 
 /**
  * Store a video as raw request bytes. Using a raw body rather than formData
@@ -42,10 +25,10 @@ export async function POST(request: NextRequest) {
 
   const body = request.body;
   const sessionId = request.headers.get("x-reizo-session-id")?.trim() ?? "";
-  const name = parseName(request.headers.get("x-reizo-artifact-name"));
+  const name = parseArtifactName(request.headers.get("x-reizo-artifact-name"));
   const confirmed = request.headers.get("x-reizo-video-authorized") === "true";
   const mimeType = request.headers.get("content-type")?.split(";", 1)[0]?.toLowerCase() ?? "";
-  const length = contentLength(request);
+  const length = requestContentLength(request);
 
   if (!sessionId || !name || !confirmed || !isSupportedReferenceVideoMime(mimeType) || !body) {
     return NextResponse.json(

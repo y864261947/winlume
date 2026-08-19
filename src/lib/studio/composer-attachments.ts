@@ -17,6 +17,7 @@ export const MAX_PASTED_BLOCKS = 8;
 
 export const MAX_IMAGES = 4;
 export const MAX_FILES = 6;
+export const MAX_WORKBOOKS = 3;
 export const MAX_VIDEOS = 1;
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = MAX_REFERENCE_VIDEO_BYTES;
@@ -56,6 +57,15 @@ export type FileAttachment = {
 };
 
 /** A source video stays as a File until the user submits the composer. */
+export type WorkbookAttachment = {
+  id: string;
+  name: string;
+  file: File;
+  size: number;
+  artifactId?: string;
+  uploadFailed?: boolean;
+};
+
 export type VideoAttachment = {
   id: string;
   name: string;
@@ -299,6 +309,7 @@ export function composeOutboundMessage(opts: {
   images: ImageAttachment[];
   files: FileAttachment[];
   videos: VideoAttachment[];
+  workbooks?: Array<{ name: string }>;
 }): string {
   const parts: string[] = [];
   const draft = opts.draft.trim();
@@ -335,6 +346,12 @@ export function composeOutboundMessage(opts: {
     parts.push("请拆解已上传的参考视频，输出脚本、分镜和可复用结构。");
   }
 
+  if (!draft && opts.workbooks?.length) {
+    parts.push(
+      `请查看刚导入的表格${opts.workbooks.map((book) => `「${book.name}」`).join("、")}。`,
+    );
+  }
+
   return parts.join("\n\n").trim();
 }
 
@@ -344,13 +361,15 @@ export function hasComposerPayload(opts: {
   images: ImageAttachment[];
   files: FileAttachment[];
   videos: VideoAttachment[];
+  workbooks?: Array<{ id: string }>;
 }): boolean {
   return (
     Boolean(opts.draft.trim()) ||
     opts.pasted.length > 0 ||
     opts.images.length > 0 ||
     opts.files.length > 0 ||
-    opts.videos.length > 0
+    opts.videos.length > 0 ||
+    (opts.workbooks?.length ?? 0) > 0
   );
 }
 

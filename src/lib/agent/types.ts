@@ -126,7 +126,8 @@ export type ArtifactKind =
   | "video"
   | "video-analysis"
   | "binary"
-  | "canvas";
+  | "canvas"
+  | "sheet";
 
 export interface WorkflowArtifactOutputContract {
   id: string;

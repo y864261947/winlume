@@ -16,6 +16,11 @@ const catalog = {
       supportedTools: ["generate_canvas"],
     },
     {
+      id: "sheet.generate",
+      availability: "available",
+      supportedTools: ["generate_sheet"],
+    },
+    {
       id: "video.generate",
       availability: "unavailable",
       supportedTools: [],
