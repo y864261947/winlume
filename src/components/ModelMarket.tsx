@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, ChevronLeft, ChevronRight, CircleHelp, LayoutGrid, Search, ArrowUp } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, CircleHelp, Crown, LayoutGrid, Search, ArrowUp } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
 import { formatBalance } from "@/lib/account";
@@ -751,11 +751,10 @@ export default function ModelMarket() {
               <PortalLink href="/products?cate=app">应用工具</PortalLink>
               <PortalLink href="/products?cate=api">模型</PortalLink>
               <PortalLink href="/docs">文档</PortalLink>
-              <PortalLink href="/studio">Agent</PortalLink>
               <PortalLink href="/products?cate=api">API</PortalLink>
-              <PortalLink href="/docs">支持</PortalLink>
               <PortalLink href="/pricing">计费标准</PortalLink>
             </nav>
+            <PortalLink href="/pricing" className="portal-membership-entry"><Crown aria-hidden />升级会员</PortalLink>
             <div className="portal-user-links">
               <button type="button" onClick={() => setNotice("暂无新的通知")}><Bell aria-hidden />通知</button>
               {account ? (
@@ -772,10 +771,11 @@ export default function ModelMarket() {
             <Image className="portal-search-waves" src="/figma-home/search-waves.svg" alt="" fill sizes="710px" priority />
             <div className="portal-search-content">
               <h1 id="portal-search-title">搜索全部 AI 能力</h1>
+              <p className="portal-search-description">从应用、模型到 API，快速找到适合当前任务的能力。</p>
               <div className="portal-search-form-row">
                 <form className="portal-search-form" onSubmit={submitSearch}>
                   <Search aria-hidden />
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 Agent、Skill、Tool、API、应用、模型、行业解决方案..." aria-label="搜索 AI 能力" />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索应用、模型或 API" aria-label="搜索 AI 能力" />
                   <button type="submit"><Search aria-hidden />搜索</button>
                 </form>
                 <PortalLink href="/studio" className="portal-workbench-button"><LayoutGrid aria-hidden />进入工作台<ChevronRight aria-hidden /></PortalLink>
@@ -802,7 +802,7 @@ export default function ModelMarket() {
         <div className="portal-discovery-grid">
           <aside className="portal-api-card" aria-labelledby="portal-api-title">
             <div className="portal-api-card-head">
-              <h2 id="portal-api-title">API 类别</h2>
+              <h2 id="portal-api-title">API模型</h2>
               <ArrowLink href="/products?cate=api">查看全部 API</ArrowLink>
             </div>
             <div className="portal-api-list" role="list">
@@ -830,8 +830,12 @@ export default function ModelMarket() {
 
           <section className="portal-tools-card" aria-labelledby="portal-tools-title">
             <div className="portal-tools-head">
-              <h2 id="portal-tools-title">工具应用分类</h2>
+              <h2 id="portal-tools-title">应用工具</h2>
               <ArrowLink href="/products?cate=app">查看全部工具</ArrowLink>
+            </div>
+            <div className="portal-tools-footer">
+              <span>按场景进入工作台，快速开始创作</span>
+              <PortalLink href="/products?cate=app">探索更多工具<ChevronRight aria-hidden /></PortalLink>
             </div>
             <div className="portal-tools-grid">
               {toolApplications.map((tool) => (
@@ -842,11 +846,6 @@ export default function ModelMarket() {
                 </PortalLink>
               ))}
             </div>
-            <div className="portal-tools-footer">
-              <span>按场景进入工作台，快速开始创作</span>
-              <PortalLink href="/products?cate=app">探索更多工具<ChevronRight aria-hidden /></PortalLink>
-            </div>
-            <PortalLink href="/products?cate=app" className="portal-tools-more">探索更多工具应用<ChevronRight aria-hidden /></PortalLink>
           </section>
 
           <article
