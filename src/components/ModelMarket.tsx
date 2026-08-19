@@ -693,6 +693,7 @@ export default function ModelMarket() {
               <PortalLink href="/studio">Agent</PortalLink>
               <PortalLink href="/products?cate=api">API</PortalLink>
               <PortalLink href="/docs">支持</PortalLink>
+              <PortalLink href="/pricing">计费标准</PortalLink>
             </nav>
             <div className="portal-user-links">
               <button type="button" onClick={() => setNotice("暂无新的通知")}><Bell aria-hidden />通知</button>
@@ -779,6 +780,10 @@ export default function ModelMarket() {
                   <span>{tool.detail}</span>
                 </PortalLink>
               ))}
+            </div>
+            <div className="portal-tools-footer">
+              <span>按场景进入工作台，快速开始创作</span>
+              <PortalLink href="/products?cate=app">探索更多工具<ChevronRight aria-hidden /></PortalLink>
             </div>
             <PortalLink href="/products?cate=app" className="portal-tools-more">探索更多工具应用<ChevronRight aria-hidden /></PortalLink>
           </section>

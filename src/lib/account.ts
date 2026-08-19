@@ -1,3 +1,6 @@
+import { signIn, signOut } from "next-auth/react";
+import { DEFAULT_QUOTA_PER_UNIT } from "@/lib/catalog/plaza-display";
+
 export interface BalanceConfig {
   quota_per_unit?: number;
   quota_display_type?: string;
@@ -75,18 +78,16 @@ export async function logout() {
 
 export function formatBalance(quota: number | undefined, config: BalanceConfig | null) {
   if (typeof quota !== "number") return "余额同步中";
-  const perUnit = config?.quota_per_unit;
+  const isCredits = config?.quota_display_type === "custom" && config.custom_currency_symbol === "credits";
+  const perUnit = isCredits ? DEFAULT_QUOTA_PER_UNIT : config?.quota_per_unit;
   if (!perUnit || perUnit <= 0) return "余额同步中";
   const multiplier = config?.quota_display_type === "custom"
     ? (config.custom_currency_exchange_rate || 1)
     : 1;
   const amount = (quota / perUnit) * multiplier;
-  const symbol = config?.quota_display_type === "custom"
+  const configuredSymbol = config?.quota_display_type === "custom"
     ? (config.custom_currency_symbol || "¥")
     : "$";
-  if (symbol === "credits") {
-    return `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(amount)} credits`;
-  }
+  const symbol = configuredSymbol === "credits" ? "¥" : configuredSymbol;
   return `${symbol}${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(amount)}`;
 }
-import { signIn, signOut } from "next-auth/react";

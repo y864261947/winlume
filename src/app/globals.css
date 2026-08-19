@@ -4509,3 +4509,33 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   .portal-discovery-grid > .portal-featured-card { height: 340px; }
   .portal-tool-card { min-height: 92px; }
 }
+
+/* Keep the signed-in portal identity visible and use the same CNY dashboard rhythm. */
+.portal-brand-mark { display: block; width: 28px; height: 28px; }
+.portal-brand { gap: 8px; }
+.portal-tools-card { padding-bottom: 66px; }
+.portal-tools-footer {
+  position: absolute;
+  right: 15px;
+  bottom: 15px;
+  left: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid rgba(194, 213, 235, .78);
+  border-radius: 8px;
+  color: #65758b;
+  background: linear-gradient(90deg, rgba(240, 248, 255, .78), rgba(255,255,255,.76));
+  font-size: 12px;
+}
+.portal-tools-footer a { display: inline-flex; align-items: center; color: var(--portal-blue); font-weight: 700; white-space: nowrap; }
+.portal-tools-footer svg { width: 14px; height: 14px; }
+
+@media (max-width: 760px) {
+  .portal-brand-mark { display: block; }
+  .portal-tools-card { padding-bottom: 62px; }
+  .portal-tools-footer { right: 14px; bottom: 12px; left: 14px; }
+  .portal-tools-footer span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
