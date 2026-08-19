@@ -89,7 +89,7 @@ const FEATURED_AUTO_MS = 5000;
 const apiCategories: readonly ApiCategory[] = [
   {
     id: "llm",
-    label: "语言大模型",
+    label: "语言推理",
     icon: "/figma-home/icon-chat.svg",
     href: "/products?cate=api",
     brands: [
@@ -101,23 +101,12 @@ const apiCategories: readonly ApiCategory[] = [
     ].slice(0, API_BRAND_LIMIT),
   },
   {
-    id: "image-gen",
-    label: "图片生成",
+    id: "image-processing",
+    label: "图像处理",
     icon: "/figma-home/icon-image.svg",
     href: "/studio?preset=image-default",
     brands: [
-      { label: "Grok", href: "/products?cate=api" },
       { label: "DALL·E", href: "/products?cate=api" },
-      { label: "Glif", href: "/products?cate=api" },
-      { label: "百度", href: "/products?cate=api" },
-    ].slice(0, API_BRAND_LIMIT),
-  },
-  {
-    id: "image-edit",
-    label: "图片处理",
-    icon: "/figma-home/icon-image.svg",
-    href: "/studio?preset=image-default",
-    brands: [
       { label: "Recraft", href: "/products?cate=api" },
       { label: "Vectorizer.AI", href: "/products?cate=api" },
       { label: "阶跃星辰", href: "/products?cate=api" },
@@ -127,7 +116,7 @@ const apiCategories: readonly ApiCategory[] = [
   },
   {
     id: "video",
-    label: "视频生成",
+    label: "视频处理",
     icon: "/figma-home/icon-video.svg",
     href: "/studio?preset=video-default",
     brands: [
@@ -138,20 +127,20 @@ const apiCategories: readonly ApiCategory[] = [
     ].slice(0, API_BRAND_LIMIT),
   },
   {
-    id: "av",
-    label: "音视频处理",
+    id: "audio",
+    label: "音频处理",
     icon: "/figma-home/icon-voice.svg",
     href: "/products?cate=api",
     brands: [
-      { label: "可灵", href: "/products?cate=api" },
-      { label: "微软", href: "/products?cate=api" },
-      { label: "硅基流动", href: "/products?cate=api" },
-      { label: "Minimax", href: "/products?cate=api" },
+      { label: "Whisper", href: "/products?cate=api" },
+      { label: "ElevenLabs", href: "/products?cate=api" },
+      { label: "MiniMax", href: "/products?cate=api" },
+      { label: "Suno", href: "/products?cate=api" },
     ].slice(0, API_BRAND_LIMIT),
   },
   {
     id: "info",
-    label: "信息处理",
+    label: "信息检索",
     icon: "/figma-home/icon-search.svg",
     href: "/products?cate=api",
     brands: [
@@ -163,7 +152,7 @@ const apiCategories: readonly ApiCategory[] = [
   },
   {
     id: "rag",
-    label: "RAG相关",
+    label: "RAG知识库",
     icon: "/figma-home/icon-db.svg",
     href: "/products?cate=api",
     brands: [
@@ -172,18 +161,6 @@ const apiCategories: readonly ApiCategory[] = [
       { label: "国产模型", href: "/products?cate=api" },
       { label: "硅基流动", href: "/products?cate=api" },
       { label: "Google", href: "/products?cate=api" },
-    ].slice(0, API_BRAND_LIMIT),
-  },
-  {
-    id: "tools",
-    label: "工具API",
-    icon: "/figma-home/icon-search.svg",
-    href: "/products?cate=app",
-    brands: [
-      { label: "AI文档编辑器", href: "/products?cate=app" },
-      { label: "AI 3D建模", href: "/products?cate=app" },
-      { label: "AI搜索大师3.0", href: "/products?cate=app" },
-      { label: "AI播客制作", href: "/products?cate=app" },
     ].slice(0, API_BRAND_LIMIT),
   },
 ];
