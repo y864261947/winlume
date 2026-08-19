@@ -2,11 +2,29 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, ChevronLeft, ChevronRight, CircleHelp, LayoutGrid, Search, ArrowUp } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, CircleHelp, Crown, LayoutGrid, Search, ArrowUp } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
 import { formatBalance } from "@/lib/account";
 import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
+
+declare global {
+  interface Window {
+    chatwootSDK?: {
+      run: (config: { websiteToken: string; baseUrl: string }) => void;
+    };
+    $chatwoot?: {
+      toggle: (state?: "open" | "close") => void;
+    };
+    chatwootSettings?: {
+      hideMessageBubble?: boolean;
+    };
+    __reizoChatwootStarted?: boolean;
+  }
+}
+
+const CHATWOOT_BASE_URL = "https://chat.v2api.top";
+const CHATWOOT_WEBSITE_TOKEN = "kZgsMkESfeGDBRWCHcKeTNYS";
 
 type AssetIconProps = { src: string; alt?: string; className?: string };
 
@@ -71,7 +89,7 @@ const FEATURED_AUTO_MS = 5000;
 const apiCategories: readonly ApiCategory[] = [
   {
     id: "llm",
-    label: "语言大模型",
+    label: "语言推理",
     icon: "/figma-home/icon-chat.svg",
     href: "/products?cate=api",
     brands: [
@@ -83,23 +101,12 @@ const apiCategories: readonly ApiCategory[] = [
     ].slice(0, API_BRAND_LIMIT),
   },
   {
-    id: "image-gen",
-    label: "图片生成",
+    id: "image-processing",
+    label: "图像处理",
     icon: "/figma-home/icon-image.svg",
     href: "/studio?preset=image-default",
     brands: [
-      { label: "Grok", href: "/products?cate=api" },
       { label: "DALL·E", href: "/products?cate=api" },
-      { label: "Glif", href: "/products?cate=api" },
-      { label: "百度", href: "/products?cate=api" },
-    ].slice(0, API_BRAND_LIMIT),
-  },
-  {
-    id: "image-edit",
-    label: "图片处理",
-    icon: "/figma-home/icon-image.svg",
-    href: "/studio?preset=image-default",
-    brands: [
       { label: "Recraft", href: "/products?cate=api" },
       { label: "Vectorizer.AI", href: "/products?cate=api" },
       { label: "阶跃星辰", href: "/products?cate=api" },
@@ -109,7 +116,7 @@ const apiCategories: readonly ApiCategory[] = [
   },
   {
     id: "video",
-    label: "视频生成",
+    label: "视频处理",
     icon: "/figma-home/icon-video.svg",
     href: "/studio?preset=video-default",
     brands: [
@@ -120,20 +127,20 @@ const apiCategories: readonly ApiCategory[] = [
     ].slice(0, API_BRAND_LIMIT),
   },
   {
-    id: "av",
-    label: "音视频处理",
+    id: "audio",
+    label: "音频处理",
     icon: "/figma-home/icon-voice.svg",
     href: "/products?cate=api",
     brands: [
-      { label: "可灵", href: "/products?cate=api" },
-      { label: "微软", href: "/products?cate=api" },
-      { label: "硅基流动", href: "/products?cate=api" },
-      { label: "Minimax", href: "/products?cate=api" },
+      { label: "Whisper", href: "/products?cate=api" },
+      { label: "ElevenLabs", href: "/products?cate=api" },
+      { label: "MiniMax", href: "/products?cate=api" },
+      { label: "Suno", href: "/products?cate=api" },
     ].slice(0, API_BRAND_LIMIT),
   },
   {
     id: "info",
-    label: "信息处理",
+    label: "信息检索",
     icon: "/figma-home/icon-search.svg",
     href: "/products?cate=api",
     brands: [
@@ -145,7 +152,7 @@ const apiCategories: readonly ApiCategory[] = [
   },
   {
     id: "rag",
-    label: "RAG相关",
+    label: "RAG知识库",
     icon: "/figma-home/icon-db.svg",
     href: "/products?cate=api",
     brands: [
@@ -154,18 +161,6 @@ const apiCategories: readonly ApiCategory[] = [
       { label: "国产模型", href: "/products?cate=api" },
       { label: "硅基流动", href: "/products?cate=api" },
       { label: "Google", href: "/products?cate=api" },
-    ].slice(0, API_BRAND_LIMIT),
-  },
-  {
-    id: "tools",
-    label: "工具API",
-    icon: "/figma-home/icon-search.svg",
-    href: "/products?cate=app",
-    brands: [
-      { label: "AI文档编辑器", href: "/products?cate=app" },
-      { label: "AI 3D建模", href: "/products?cate=app" },
-      { label: "AI搜索大师3.0", href: "/products?cate=app" },
-      { label: "AI播客制作", href: "/products?cate=app" },
     ].slice(0, API_BRAND_LIMIT),
   },
 ];
@@ -183,6 +178,17 @@ const workScenes = WORK_SCENES.map((scene) => ({
   icon: workSceneIcons[scene.id],
   href: `/studio/skills?scene=${encodeURIComponent(scene.id)}`,
 }));
+
+const toolApplications = [
+  { label: "内容与营销", detail: "文案创作、SEO、社媒运营", icon: "/figma-home/tool-content.svg", href: "/studio/skills?scene=content-office" },
+  { label: "视觉与媒体", detail: "图像处理、视频创作、素材生成", icon: "/figma-home/icon-image.svg", href: "/studio?preset=image-default" },
+  { label: "电商与销售", detail: "商品分析、运营增长、CRM", icon: "/figma-home/tool-commerce.svg", href: "/studio/skills?scene=growth-commerce" },
+  { label: "财务与法务", detail: "合同审查、报表分析、合规助手", icon: "/figma-home/icon-db.svg", href: "/studio/skills?scene=content-office" },
+  { label: "产品与研发", detail: "需求分析、原型设计、PRD", icon: "/figma-home/tool-agent.svg", href: "/studio/skills?scene=agent-automation" },
+  { label: "办公与管理", detail: "PPT、文档处理、会议纪要", icon: "/figma-home/icon-video.svg", href: "/studio/skills?scene=content-office" },
+  { label: "数据与科研", detail: "数据分析、可视化、研究报告", icon: "/figma-home/icon-search.svg", href: "/products?cate=app" },
+  { label: "开发与代码", detail: "代码生成、调试、API 开发", icon: "/figma-home/tool-api.svg", href: "/studio/skills?scene=developer-api" },
+] as const;
 
 const productPaths = [
   {
@@ -570,6 +576,7 @@ export default function ModelMarket() {
   const pendingPathRef = useRef<ProductPath["id"] | null>(null);
   const cooldownTimerRef = useRef<number | null>(null);
   const [notice, setNotice] = useState("");
+  const [chatwootReady, setChatwootReady] = useState(false);
   const balance = formatBalance(account?.quota, balanceConfig);
   const activePath = productPaths.find((path) => path.id === activePathId) ?? productPaths[0];
   const stackPaths = stackOrderFrom(activePath.id).slice(0, STACK_VISIBLE);
@@ -599,6 +606,40 @@ export default function ModelMarket() {
         window.clearTimeout(cooldownTimerRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    const onReady = () => setChatwootReady(true);
+    window.addEventListener("chatwoot:ready", onReady);
+
+    if (window.$chatwoot) {
+      onReady();
+    }
+
+    if (!window.__reizoChatwootStarted) {
+      window.__reizoChatwootStarted = true;
+      // Reuse the portal's compact "客服" control as the only launcher.
+      window.chatwootSettings = { ...window.chatwootSettings, hideMessageBubble: true };
+      const loadWidget = () => window.chatwootSDK?.run({
+        websiteToken: CHATWOOT_WEBSITE_TOKEN,
+        baseUrl: CHATWOOT_BASE_URL,
+      });
+      const script = document.getElementById("chatwoot-sdk") as HTMLScriptElement | null;
+
+      if (script) {
+        if (window.chatwootSDK) loadWidget();
+        else script.addEventListener("load", loadWidget, { once: true });
+      } else {
+        const widgetScript = document.createElement("script");
+        widgetScript.id = "chatwoot-sdk";
+        widgetScript.src = `${CHATWOOT_BASE_URL}/packs/js/sdk.js`;
+        widgetScript.async = true;
+        widgetScript.onload = loadWidget;
+        document.head.appendChild(widgetScript);
+      }
+    }
+
+    return () => window.removeEventListener("chatwoot:ready", onReady);
   }, []);
 
   function commitPathSwipe(nextId: ProductPath["id"]) {
@@ -664,6 +705,14 @@ export default function ModelMarket() {
     window.setTimeout(() => setNotice(""), 1800);
   }
 
+  function openSupportChat() {
+    if (window.$chatwoot) {
+      window.$chatwoot.toggle("open");
+      return;
+    }
+    setNotice(chatwootReady ? "在线客服暂时不可用，请稍后重试" : "在线客服正在连接，请稍后再试");
+  }
+
   return (
     <div className="portal-home">
       <div className="portal-frame">
@@ -677,11 +726,12 @@ export default function ModelMarket() {
             <nav className="portal-main-links" aria-label="页面导航">
               <PortalLink href="/" className="is-current">首页</PortalLink>
               <PortalLink href="/products?cate=app">应用工具</PortalLink>
-              <PortalLink href="/products?cate=api">模型</PortalLink>
+              <PortalLink href="/products?cate=api">API模型</PortalLink>
               <PortalLink href="/docs">文档</PortalLink>
+              <PortalLink href="/pricing">计费标准</PortalLink>
             </nav>
+            <PortalLink href="/pricing" className="portal-membership-entry"><Crown aria-hidden />升级会员</PortalLink>
             <div className="portal-user-links">
-              <PortalLink href="/studio"><LayoutGrid aria-hidden />Agent</PortalLink>
               <button type="button" onClick={() => setNotice("暂无新的通知")}><Bell aria-hidden />通知</button>
               {account ? (
                 <PortalLink href="/account" className="portal-account"><span>{(account.display_name || account.username).slice(0, 1).toUpperCase()}</span>{account.display_name || account.username}<ChevronRight aria-hidden /></PortalLink>
@@ -696,30 +746,29 @@ export default function ModelMarket() {
           <section className="portal-search-card" aria-labelledby="portal-search-title">
             <Image className="portal-search-waves" src="/figma-home/search-waves.svg" alt="" fill sizes="710px" priority />
             <div className="portal-search-content">
-              <SectionLabel>REIZO AI HUB</SectionLabel>
               <h1 id="portal-search-title">搜索全部 AI 能力</h1>
+              <p className="portal-search-description">从应用、模型到 API，快速找到适合当前任务的能力。</p>
               <div className="portal-search-form-row">
                 <form className="portal-search-form" onSubmit={submitSearch}>
                   <Search aria-hidden />
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 AI 应用、智能体、模型 API、图片、视频与行业工具..." aria-label="搜索 AI 能力" />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索应用、模型或 API" aria-label="搜索 AI 能力" />
                   <button type="submit"><Search aria-hidden />搜索</button>
                 </form>
                 <PortalLink href="/studio" className="portal-workbench-button"><LayoutGrid aria-hidden />进入工作台<ChevronRight aria-hidden /></PortalLink>
               </div>
               <div className="portal-chip-list" aria-label="热门能力">
-                {["AI 写作", "图片生成", "视频创作", "文件分析", "编程"].map((chip) => (
+                {["产品图生成", "财务分析", "短视频创作", "代码生成", "电商运营", "市场调研", "更多"].map((chip) => (
                   <button key={chip} type="button" className={query === chip ? "is-selected" : ""} onClick={() => { setQuery(chip); setSubmittedQuery(chip); }}>{chip}</button>
                 ))}
               </div>
             </div>
-            <div className="portal-search-actions"><ArrowLink href="/products">查看热门搜索</ArrowLink></div>
           </section>
 
           <article className="portal-enterprise-card portal-search-aside" aria-labelledby="portal-enterprise-title">
             <SectionLabel>ENTERPRISE</SectionLabel>
             <h2 id="portal-enterprise-title">企业 AI 部署</h2>
-            <p>私有化部署、系统集成与专属服务。</p>
-            <ArrowLink href="/business">查看方案</ArrowLink>
+            <p>私有化部署、系统集成与专属服务，助力企业安全高效落地 AI。</p>
+            <PortalLink href="/business" className="portal-enterprise-button">进入企业版<ChevronRight aria-hidden /></PortalLink>
             <Image src="/figma-home/building.svg" alt="" width={145} height={116} />
           </article>
         </div>
@@ -729,8 +778,8 @@ export default function ModelMarket() {
         <div className="portal-discovery-grid">
           <aside className="portal-api-card" aria-labelledby="portal-api-title">
             <div className="portal-api-card-head">
-              <h2 id="portal-api-title">API 类别</h2>
-              <ArrowLink href="/products?cate=api">全部模型</ArrowLink>
+              <h2 id="portal-api-title">API模型</h2>
+              <ArrowLink href="/products?cate=api">查看全部API模型</ArrowLink>
             </div>
             <div className="portal-api-list" role="list">
               {apiCategories.map((item) => (
@@ -754,6 +803,22 @@ export default function ModelMarket() {
               ))}
             </div>
           </aside>
+
+          <section className="portal-tools-card" aria-labelledby="portal-tools-title">
+            <div className="portal-tools-head">
+              <h2 id="portal-tools-title">应用工具</h2>
+              <ArrowLink href="/products?cate=app">查看全部工具</ArrowLink>
+            </div>
+            <div className="portal-tools-grid">
+              {toolApplications.map((tool) => (
+                <PortalLink href={tool.href} className="portal-tool-card" key={tool.label}>
+                  <AssetIcon src={tool.icon} />
+                  <strong>{tool.label}</strong>
+                  <span>{tool.detail}</span>
+                </PortalLink>
+              ))}
+            </div>
+          </section>
 
           <article
             className="portal-featured-card portal-featured-carousel"
@@ -823,14 +888,14 @@ export default function ModelMarket() {
 
           <div className="portal-side-cards">
             <section className="portal-side-card portal-usage-card" aria-labelledby="portal-usage-title">
-              <div className="portal-card-heading"><Image src="/figma-home/usage-icon.svg" alt="" width={20} height={20} /><h2 id="portal-usage-title">账户用量</h2></div>
+              <div className="portal-card-heading"><Image src="/figma-home/usage-icon.svg" alt="" width={20} height={20} /><h2 id="portal-usage-title">账户概览</h2></div>
               <div className="portal-usage-stats">
                 <div><span>余额</span><strong>{balance === "余额同步中" ? "¥168.20" : balance}</strong></div>
-                <div><span>Token</span><strong>1.24M</strong></div>
+                <div><span>已消耗 Token</span><strong>1.24M</strong></div>
+                <div className="portal-membership-quota"><span><em>Free</em>会员剩余额度</span><strong>80%</strong></div>
               </div>
               <ArrowLink href="/account/usage">用量明细</ArrowLink>
             </section>
-            <article className="portal-side-card portal-pricing-card"><h2>计费标准</h2><p>按实际使用量灵活结算，清晰可见。</p><ArrowLink href="/pricing">查看价格</ArrowLink><Image src="/figma-home/price.svg" alt="" width={118} height={108} /></article>
           </div>
         </div>
 
@@ -981,7 +1046,7 @@ export default function ModelMarket() {
                 <p className="portal-ed-kicker">Support</p>
                 <h2 id="portal-support-title">问题先查这里，卡住再找人</h2>
                 <p>从创建 Key 到企业部署，把常见决策写清楚。</p>
-                <button type="button" className="portal-ed-support-cta" onClick={() => openLogin("login")}>
+                <button type="button" className="portal-ed-support-cta" onClick={openSupportChat}>
                   联系技术支持
                   <ChevronRight aria-hidden />
                 </button>
@@ -1024,7 +1089,7 @@ export default function ModelMarket() {
         </div>
       </div>
 
-      <aside className="portal-floating-tools" aria-label="快捷工具"><button type="button" onClick={() => openLogin("login")}><CircleHelp aria-hidden /><span>客服</span></button><span className="portal-floating-divider" aria-hidden /><button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><ArrowUp aria-hidden /><span>顶部</span></button></aside>
+      <aside className="portal-floating-tools" aria-label="快捷工具"><button type="button" onClick={openSupportChat}><CircleHelp aria-hidden /><span>客服</span></button><span className="portal-floating-divider" aria-hidden /><button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><ArrowUp aria-hidden /><span>顶部</span></button></aside>
       <div className={`portal-notice ${notice ? "is-visible" : ""}`} role="status" aria-live="polite">{notice}</div>
     </div>
   );
