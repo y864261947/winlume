@@ -184,6 +184,17 @@ const workScenes = WORK_SCENES.map((scene) => ({
   href: `/studio/skills?scene=${encodeURIComponent(scene.id)}`,
 }));
 
+const toolApplications = [
+  { label: "内容与营销", detail: "文案创作、SEO、社媒运营", icon: "/figma-home/tool-content.svg", href: "/studio/skills?scene=content-office" },
+  { label: "视觉与媒体", detail: "图像处理、视频创作、素材生成", icon: "/figma-home/icon-image.svg", href: "/studio?preset=image-default" },
+  { label: "电商与销售", detail: "商品分析、运营增长、CRM", icon: "/figma-home/tool-commerce.svg", href: "/studio/skills?scene=growth-commerce" },
+  { label: "财务与法务", detail: "合同审查、报表分析、合规助手", icon: "/figma-home/icon-db.svg", href: "/studio/skills?scene=content-office" },
+  { label: "产品与研发", detail: "需求分析、原型设计、PRD", icon: "/figma-home/tool-agent.svg", href: "/studio/skills?scene=agent-automation" },
+  { label: "办公与管理", detail: "PPT、文档处理、会议纪要", icon: "/figma-home/icon-video.svg", href: "/studio/skills?scene=content-office" },
+  { label: "数据与科研", detail: "数据分析、可视化、研究报告", icon: "/figma-home/icon-search.svg", href: "/products?cate=app" },
+  { label: "开发与代码", detail: "代码生成、调试、API 开发", icon: "/figma-home/tool-api.svg", href: "/studio/skills?scene=developer-api" },
+] as const;
+
 const productPaths = [
   {
     id: "api",
@@ -679,6 +690,7 @@ export default function ModelMarket() {
               <PortalLink href="/products?cate=app">应用工具</PortalLink>
               <PortalLink href="/products?cate=api">模型</PortalLink>
               <PortalLink href="/docs">文档</PortalLink>
+              <PortalLink href="/pricing">计费标准</PortalLink>
             </nav>
             <div className="portal-user-links">
               <PortalLink href="/studio"><LayoutGrid aria-hidden />Agent</PortalLink>
@@ -701,13 +713,13 @@ export default function ModelMarket() {
               <div className="portal-search-form-row">
                 <form className="portal-search-form" onSubmit={submitSearch}>
                   <Search aria-hidden />
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 AI 应用、智能体、模型 API、图片、视频与行业工具..." aria-label="搜索 AI 能力" />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 Agent、Skill、Tool、API、应用、模型、行业解决方案..." aria-label="搜索 AI 能力" />
                   <button type="submit"><Search aria-hidden />搜索</button>
                 </form>
                 <PortalLink href="/studio" className="portal-workbench-button"><LayoutGrid aria-hidden />进入工作台<ChevronRight aria-hidden /></PortalLink>
               </div>
               <div className="portal-chip-list" aria-label="热门能力">
-                {["AI 写作", "图片生成", "视频创作", "文件分析", "编程"].map((chip) => (
+                {["产品图生成", "财务分析", "短视频创作", "代码生成", "电商运营", "更多"].map((chip) => (
                   <button key={chip} type="button" className={query === chip ? "is-selected" : ""} onClick={() => { setQuery(chip); setSubmittedQuery(chip); }}>{chip}</button>
                 ))}
               </div>
@@ -718,8 +730,8 @@ export default function ModelMarket() {
           <article className="portal-enterprise-card portal-search-aside" aria-labelledby="portal-enterprise-title">
             <SectionLabel>ENTERPRISE</SectionLabel>
             <h2 id="portal-enterprise-title">企业 AI 部署</h2>
-            <p>私有化部署、系统集成与专属服务。</p>
-            <ArrowLink href="/business">查看方案</ArrowLink>
+            <p>私有化部署、系统集成与专属服务，助力企业安全高效落地 AI。</p>
+            <PortalLink href="/business" className="portal-enterprise-button">进入企业版<ChevronRight aria-hidden /></PortalLink>
             <Image src="/figma-home/building.svg" alt="" width={145} height={116} />
           </article>
         </div>
@@ -754,6 +766,23 @@ export default function ModelMarket() {
               ))}
             </div>
           </aside>
+
+          <section className="portal-tools-card" aria-labelledby="portal-tools-title">
+            <div className="portal-tools-head">
+              <h2 id="portal-tools-title">工具应用</h2>
+              <ArrowLink href="/products?cate=app">全部工具</ArrowLink>
+            </div>
+            <div className="portal-tools-grid">
+              {toolApplications.map((tool) => (
+                <PortalLink href={tool.href} className="portal-tool-card" key={tool.label}>
+                  <AssetIcon src={tool.icon} />
+                  <strong>{tool.label}</strong>
+                  <span>{tool.detail}</span>
+                </PortalLink>
+              ))}
+            </div>
+            <PortalLink href="/products?cate=app" className="portal-tools-more">探索更多工具应用<ChevronRight aria-hidden /></PortalLink>
+          </section>
 
           <article
             className="portal-featured-card portal-featured-carousel"
@@ -823,14 +852,13 @@ export default function ModelMarket() {
 
           <div className="portal-side-cards">
             <section className="portal-side-card portal-usage-card" aria-labelledby="portal-usage-title">
-              <div className="portal-card-heading"><Image src="/figma-home/usage-icon.svg" alt="" width={20} height={20} /><h2 id="portal-usage-title">账户用量</h2></div>
+              <div className="portal-card-heading"><Image src="/figma-home/usage-icon.svg" alt="" width={20} height={20} /><h2 id="portal-usage-title">账户概览</h2></div>
               <div className="portal-usage-stats">
                 <div><span>余额</span><strong>{balance === "余额同步中" ? "¥168.20" : balance}</strong></div>
                 <div><span>Token</span><strong>1.24M</strong></div>
               </div>
               <ArrowLink href="/account/usage">用量明细</ArrowLink>
             </section>
-            <article className="portal-side-card portal-pricing-card"><h2>计费标准</h2><p>按实际使用量灵活结算，清晰可见。</p><ArrowLink href="/pricing">查看价格</ArrowLink><Image src="/figma-home/price.svg" alt="" width={118} height={108} /></article>
           </div>
         </div>
 
@@ -1022,6 +1050,9 @@ export default function ModelMarket() {
             ))}
           </footer>
         </div>
+        <footer className="portal-compact-footer">
+          <span>帮助中心</span><span>服务条款</span><span>隐私政策</span><span>关于我们</span><span>© 2026 REIZO AI. All rights reserved.</span>
+        </footer>
       </div>
 
       <aside className="portal-floating-tools" aria-label="快捷工具"><button type="button" onClick={() => openLogin("login")}><CircleHelp aria-hidden /><span>客服</span></button><span className="portal-floating-divider" aria-hidden /><button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><ArrowUp aria-hidden /><span>顶部</span></button></aside>

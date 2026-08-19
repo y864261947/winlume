@@ -4404,3 +4404,48 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 @media (max-width: 760px) {
   .portal-home .portal-catalog-filters { align-items: flex-start; flex-direction: column; gap: 7px; }
 }
+
+/* Personal portal dashboard: keep the first screen focused on discovery and action. */
+.portal-enterprise-button { position: absolute; z-index: 1; left: 22px; bottom: 18px; display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 15px; border-radius: 7px; color: #fff; background: linear-gradient(135deg, #0755de, #1475f5); box-shadow: 0 10px 20px -12px rgba(13, 79, 201, .9); font-size: 14px; font-weight: 700; }
+.portal-enterprise-button svg { width: 16px; height: 16px; }
+.portal-discovery-grid { grid-template-columns: minmax(320px, .95fr) minmax(440px, 1.1fr) minmax(400px, 1.14fr); grid-template-rows: 382px 205px; align-items: stretch; }
+.portal-discovery-grid > .portal-api-card { grid-column: 1; grid-row: 1 / 3; }
+.portal-tools-card { grid-column: 2; grid-row: 1 / 3; position: relative; min-width: 0; padding: 17px 18px 46px; overflow: hidden; border: 1px solid var(--portal-line); border-radius: 10px; background: rgba(255, 255, 255, .64); }
+.portal-tools-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.portal-tools-head h2 { font-size: 20px; font-weight: 700; line-height: 27px; }
+.portal-tools-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; margin-top: 19px; }
+.portal-tool-card { display: flex; min-width: 0; min-height: 133px; flex-direction: column; align-items: center; padding: 13px 8px 10px; border: 1px solid rgba(190, 207, 225, .58); border-radius: 11px; color: #17243b; background: rgba(255, 255, 255, .75); box-shadow: 0 7px 18px -18px rgba(27, 71, 137, .8); text-align: center; transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease; }
+.portal-tool-card:hover { border-color: rgba(46, 112, 230, .48); box-shadow: 0 13px 28px -20px rgba(27, 83, 174, .85); transform: translateY(-2px); }
+.portal-tool-card img { width: 38px; height: 38px; object-fit: contain; }
+.portal-tool-card strong { margin-top: 8px; font-size: 13px; line-height: 18px; white-space: nowrap; }
+.portal-tool-card span { display: -webkit-box; margin-top: 4px; overflow: hidden; color: #75849a; font-size: 11px; line-height: 16px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.portal-tools-more { position: absolute; right: 18px; bottom: 17px; display: inline-flex; align-items: center; color: var(--portal-blue); font-size: 13px; font-weight: 700; }
+.portal-tools-more svg { width: 15px; height: 15px; }
+.portal-discovery-grid > .portal-featured-card { grid-column: 3; grid-row: 1; height: auto; min-height: 0; }
+.portal-discovery-grid > .portal-side-cards { grid-column: 3; grid-row: 2; display: block; min-height: 0; }
+.portal-discovery-grid > .portal-side-cards .portal-pricing-card { display: none; }
+.portal-discovery-grid > .portal-side-cards .portal-usage-card { height: 100%; padding: 18px 20px; }
+.portal-discovery-grid > .portal-side-cards .portal-usage-stats { margin-top: 23px; }
+.portal-discovery-grid > .portal-side-cards .portal-usage-card > .portal-arrow-link { bottom: 16px; }
+.portal-industry-section, .portal-ed { display: none; }
+.portal-compact-footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 24px; padding: 23px 12px 14px; color: #7c8ba0; font-size: 12px; }
+.portal-compact-footer span:last-child { color: #97a3b4; }
+
+@media (max-width: 1180px) {
+  .portal-discovery-grid { grid-template-columns: minmax(300px, .9fr) minmax(0, 1.1fr); grid-template-rows: 400px 340px 190px; }
+  .portal-discovery-grid > .portal-api-card { grid-column: 1; grid-row: 1 / 3; }
+  .portal-tools-card { grid-column: 2; grid-row: 1 / 3; }
+  .portal-discovery-grid > .portal-featured-card { grid-column: 1 / 3; grid-row: 3; }
+  .portal-discovery-grid > .portal-side-cards { grid-column: 1 / 3; grid-row: 4; min-height: 184px; }
+}
+
+@media (max-width: 760px) {
+  .portal-enterprise-button { left: 17px; bottom: 13px; min-height: 36px; font-size: 13px; }
+  .portal-discovery-grid { display: block; margin-top: 10px; }
+  .portal-tools-card { min-height: 0; margin-top: 10px; padding: 16px 14px 44px; }
+  .portal-tools-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+  .portal-tool-card { min-height: 120px; }
+  .portal-discovery-grid > .portal-featured-card { height: 340px; margin-top: 10px; }
+  .portal-discovery-grid > .portal-side-cards { min-height: 176px; margin-top: 10px; }
+  .portal-compact-footer { gap: 7px 13px; padding-top: 18px; font-size: 11px; }
+}
