@@ -90,6 +90,7 @@ import {
   resolveReferencedArtifactIds,
   type MentionCandidate,
 } from "@/lib/studio/image-mentions";
+import { splitSheetRangeToken } from "@/lib/studio/mention-editor";
 import ArtifactMentionMenu, { detectAtMention } from "./ArtifactMentionMenu";
 import MentionPromptEditor, {
   type MentionPromptEditorHandle,
@@ -782,14 +783,32 @@ export default function Composer({
   const resolveMentionMeta = useCallback(
     (name: string) => {
       const hit = mentionCandidates.find((c) => c.name === name);
-      if (!hit) return null;
-      return {
-        name: hit.name,
-        thumbSrc: hit.thumbSrc,
-        kind: hit.kind,
-        artifactId: hit.artifactId,
-        localId: hit.localId,
-      };
+      if (hit) {
+        return {
+          name: hit.name,
+          thumbSrc: hit.thumbSrc,
+          kind: hit.kind,
+          artifactId: hit.artifactId,
+          localId: hit.localId,
+        };
+      }
+      // A pinned cell range serializes as "SheetName!A1:B2" — rebuild the
+      // range-only chip pinSelectionPreview originally inserted.
+      const rangeToken = splitSheetRangeToken(name);
+      if (rangeToken) {
+        const sheet = mentionCandidates.find(
+          (c) => c.kind === "sheet" && c.name === rangeToken.sheetName,
+        );
+        if (sheet) {
+          return {
+            name: rangeToken.range,
+            kind: "sheet" as const,
+            artifactId: sheet.artifactId,
+            title: rangeToken.sheetName,
+          };
+        }
+      }
+      return null;
     },
     [mentionCandidates],
   );

@@ -330,7 +330,7 @@ function AssistantMarkdown({
               );
             }
             return (
-              <code className="rounded-md bg-[rgba(15,23,42,0.07)] px-1.5 py-0.5 font-mono text-[12px] text-[#334155]">
+              <code className="mx-0.5 inline-flex items-center rounded-full border border-[rgba(15,23,42,0.14)] bg-[rgba(15,23,42,0.05)] px-2 py-0.5 font-mono text-[12px] font-medium leading-4 text-[#334155]">
                 {children}
               </code>
             );

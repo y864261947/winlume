@@ -180,6 +180,32 @@ describe("live Agent event reduction", () => {
     expect(finalizeLiveAgentState(reduced.state, 5_000)).toBe(reduced.state);
   });
 
+  it("strips a leaked completion sentinel from the final text", () => {
+    const initial = streamingState();
+    initial.assistant.content = "已改好。<CPA_DONE>";
+
+    const reduced = reduceLiveAgentEvent(
+      initial,
+      { type: "done", reason: "completed" },
+      2_500,
+    );
+
+    expect(reduced.state.assistant.content).toBe("已改好。");
+  });
+
+  it("leaves ordinary angle-bracket text alone", () => {
+    const initial = streamingState();
+    initial.assistant.content = "示例代码 <div> 和范围 A1<x<B10 不受影响";
+
+    const reduced = reduceLiveAgentEvent(
+      initial,
+      { type: "done", reason: "completed" },
+      2_500,
+    );
+
+    expect(reduced.state.assistant.content).toBe(initial.assistant.content);
+  });
+
   it("replaces streamed Artifact drafts with the latest snapshot", () => {
     const legacyDraft = reduceLiveAgentEvent(
       streamingState(),

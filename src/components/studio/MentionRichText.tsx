@@ -2,7 +2,11 @@
 
 import type { Artifact } from "@/lib/agent/types";
 import { ImageIcon, PanelsTopLeft, Table2 } from "lucide-react";
-import { textToSegments } from "@/lib/studio/mention-editor";
+import {
+  sheetChipColor,
+  splitSheetRangeToken,
+  textToSegments,
+} from "@/lib/studio/mention-editor";
 
 const UPLOAD_NAME = /^图片\d+$/;
 
@@ -44,6 +48,21 @@ export default function MentionRichText({
         kind,
         artifactId: art.id,
       };
+    }
+    // A pinned cell range serializes as "SheetName!A1:B2" — the chip only
+    // ever displays the range (matching the composer), with the sheet name
+    // riding along as the tooltip/color key.
+    const rangeToken = splitSheetRangeToken(name);
+    if (rangeToken) {
+      const sheet = byName.get(rangeToken.sheetName);
+      if (sheet && sheet.kind === "sheet") {
+        return {
+          name: rangeToken.range,
+          kind: "sheet",
+          artifactId: sheet.id,
+          title: rangeToken.sheetName,
+        };
+      }
     }
     // Always render upload-style labels as chips even before artifacts load.
     if (UPLOAD_NAME.test(name)) {
@@ -92,18 +111,24 @@ export default function MentionRichText({
             <span className="min-w-0 truncate tracking-tight">@{seg.name}</span>
           </>
         );
+        // A pinned range chip carries its sheet name as `title` — color it
+        // like the composer does, and mention the sheet in the tooltip.
+        const color = seg.kind === "sheet" ? sheetChipColor(seg) : null;
+        const style = color ? { backgroundColor: color.bg, borderColor: color.border } : undefined;
+        const tooltip = seg.title ? `${seg.title}!${seg.name}` : `@${seg.name}`;
         return seg.artifactId && onOpenArtifact ? (
           <button
             key={i}
             type="button"
             className={`${chipClass} cursor-pointer hover:border-primary-300 hover:bg-primary-50`}
-            title={`打开 @${seg.name}`}
+            style={style}
+            title={`打开 ${tooltip}`}
             onClick={() => onOpenArtifact(seg.artifactId!)}
           >
             {chip}
           </button>
         ) : (
-          <span key={i} className={chipClass} title={`@${seg.name}`}>
+          <span key={i} className={chipClass} style={style} title={tooltip}>
             {chip}
           </span>
         );

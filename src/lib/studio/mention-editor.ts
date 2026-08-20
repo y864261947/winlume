@@ -28,9 +28,29 @@ export type EditorSegment =
       kind?: "image" | "canvas" | "sheet";
       artifactId?: string;
       localId?: string;
+      title?: string;
     };
 
 const MENTION_TOKEN_RE = /@([^\s@]+)/g;
+/** Longest serialized mention token we'll try to resolve as one @mention. */
+const MAX_MENTION_CANDIDATE_LEN = 220;
+
+const SHEET_RANGE_TOKEN_RE =
+  /^(.+)!([A-Za-z]{1,3}\d{1,7}(?::[A-Za-z]{1,3}\d{1,7})?)$/;
+
+/**
+ * Splits a serialized `SheetName!A1:B2` mention token — the format
+ * Composer's "pin to reference" writes via `sendName` — into its sheet name
+ * and cell range. Returns null for anything else, including a plain
+ * artifact name that simply has no `!`.
+ */
+export function splitSheetRangeToken(
+  token: string,
+): { sheetName: string; range: string } | null {
+  const match = SHEET_RANGE_TOKEN_RE.exec(token);
+  if (!match) return null;
+  return { sheetName: match[1]!, range: match[2]! };
+}
 /** Zero-width space after chips so the caret can sit after them. */
 export const CHIP_ZWSP = "\u200B";
 
@@ -48,6 +68,13 @@ export function segmentsToText(segments: EditorSegment[]): string {
 /**
  * Split serialized prompt into text + mention segments.
  * Only tokens whose name `resolve` accepts become chips; others stay plain text.
+ *
+ * A mention's serialized name can itself contain spaces (an artifact name
+ * like "Mintex 刹车片订单模板", or that plus a "!A1:B2" range suffix), so this
+ * can't just cut at the first whitespace after `@` — it tries the longest
+ * possible token first (bounded by the next `@`, a newline, or a length cap)
+ * and shrinks one character at a time until `resolve` accepts something,
+ * falling through to plain text if nothing ever does.
  */
 export function textToSegments(
   text: string,
@@ -55,31 +82,54 @@ export function textToSegments(
 ): EditorSegment[] {
   if (!text) return [];
   const segments: EditorSegment[] = [];
-  let last = 0;
-  for (const match of text.matchAll(MENTION_TOKEN_RE)) {
-    const full = match[0];
-    const name = match[1] ?? "";
-    const index = match.index ?? 0;
-    if (index > last) {
-      segments.push({ type: "text", text: text.slice(last, index) });
+  let textStart = 0;
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] !== "@") {
+      i += 1;
+      continue;
     }
-    const meta = resolve(name);
-    if (meta) {
+    const start = i + 1;
+    let limit = Math.min(text.length, start + MAX_MENTION_CANDIDATE_LEN);
+    const nextAt = text.indexOf("@", start);
+    if (nextAt !== -1) limit = Math.min(limit, nextAt);
+    const nextNewline = text.indexOf("\n", start);
+    if (nextNewline !== -1) limit = Math.min(limit, nextNewline);
+
+    let meta: MentionChipMeta | null | undefined;
+    let matchedEnd = -1;
+    for (let end = limit; end > start; end -= 1) {
+      const candidate = text.slice(start, end);
+      const found = resolve(candidate);
+      if (found) {
+        meta = found;
+        matchedEnd = end;
+        break;
+      }
+    }
+
+    if (meta && matchedEnd > start) {
+      if (i > textStart) {
+        segments.push({ type: "text", text: text.slice(textStart, i) });
+      }
       segments.push({
         type: "mention",
-        name: meta.name || name,
+        name: meta.name || text.slice(start, matchedEnd),
         thumbSrc: meta.thumbSrc,
         kind: meta.kind,
         artifactId: meta.artifactId,
         localId: meta.localId,
+        title: meta.title,
       });
-    } else {
-      segments.push({ type: "text", text: full });
+      i = matchedEnd;
+      textStart = i;
+      continue;
     }
-    last = index + full.length;
+
+    i += 1;
   }
-  if (last < text.length) {
-    segments.push({ type: "text", text: text.slice(last) });
+  if (textStart < text.length) {
+    segments.push({ type: "text", text: text.slice(textStart) });
   }
   return mergeAdjacentText(segments);
 }
@@ -115,7 +165,7 @@ function hashString(value: string): number {
 }
 
 /** Deterministic pale color per sheet, so pinned ranges from different sheets are easy to tell apart. */
-function sheetChipColor(meta: MentionChipMeta): { bg: string; border: string } | null {
+export function sheetChipColor(meta: MentionChipMeta): { bg: string; border: string } | null {
   if (meta.kind !== "sheet" || !meta.title) return null;
   const key = `${meta.artifactId ?? ""}:${meta.title}`;
   return SHEET_CHIP_PALETTE[hashString(key) % SHEET_CHIP_PALETTE.length] ?? null;
@@ -233,6 +283,12 @@ export function renderSegmentsToEditor(
           kind: seg.kind,
           artifactId: seg.artifactId,
           localId: seg.localId,
+          title: seg.title,
+          // A rehydrated range chip's `name` is just the range (e.g. "C3:C9")
+          // — reconstruct the "SheetName!C3:C9" token so resending after an
+          // edit still tells the agent which sheet it refers to.
+          sendName:
+            seg.kind === "sheet" && seg.title ? `${seg.title}!${seg.name}` : undefined,
         }),
       );
       root.appendChild(doc.createTextNode(CHIP_ZWSP));

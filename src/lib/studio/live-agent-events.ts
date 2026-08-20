@@ -59,6 +59,18 @@ export type LiveAgentEventReduction = {
   effects: LiveAgentEventEffects;
 };
 
+// Some providers/skills leak an internal completion sentinel (e.g. `<CPA_DONE>`)
+// into the final assistant text instead of consuming it as a stop signal.
+// These are always bare, all-caps bracket tokens — nothing a real reply would
+// contain — so stripping them here is safe.
+const PROTOCOL_MARKER_RE = /<\/?[A-Z][A-Z0-9_]{1,40}\/?>/g;
+
+export function stripAgentProtocolMarkers(text: string): string {
+  if (!text) return text;
+  const stripped = text.replace(PROTOCOL_MARKER_RE, "");
+  return stripped === text ? text : stripped.replace(/\s+$/, "");
+}
+
 function reduceArtifactDraft(
   state: LiveAgentStreamState,
   name: string | undefined,
@@ -104,6 +116,7 @@ export function finalizeLiveAgentState(
     ...state,
     assistant: {
       ...assistant,
+      content: stripAgentProtocolMarkers(assistant.content),
       streaming: false,
       streamPhase: "done",
       thinkingDurationSec,

@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   hasMentionToken,
   segmentsToText,
+  splitSheetRangeToken,
   textToSegments,
   type MentionChipMeta,
 } from "./mention-editor";
 
+const SHEET_NAME = "Mintex 刹车片订单模板";
+
 const resolve = (name: string): MentionChipMeta | null => {
-  if (name === "图片1" || name === "图片2" || name === "Sunset") {
+  if (name === "图片1" || name === "图片2" || name === "Sunset" || name === SHEET_NAME) {
     return { name, thumbSrc: `thumb:${name}` };
   }
   return null;
@@ -42,6 +45,52 @@ describe("textToSegments / segmentsToText", () => {
     expect(segs.some((s) => s.type === "mention" && s.name === "Sunset")).toBe(
       true,
     );
+  });
+
+  it("resolves an artifact name containing spaces as one mention", () => {
+    const segs = textToSegments(`@${SHEET_NAME} 改成555`, resolve);
+    expect(segs).toEqual([
+      { type: "mention", name: SHEET_NAME, thumbSrc: `thumb:${SHEET_NAME}` },
+      { type: "text", text: " 改成555" },
+    ]);
+  });
+
+  it("resolves a pinned SheetName!Range token via a custom resolver", () => {
+    const rangeResolve = (name: string): MentionChipMeta | null => {
+      const token = splitSheetRangeToken(name);
+      if (token && token.sheetName === SHEET_NAME) {
+        return { name: token.range, kind: "sheet", title: token.sheetName };
+      }
+      return resolve(name);
+    };
+    const segs = textToSegments(`@${SHEET_NAME}!C3:C9 改成sdsdsd`, rangeResolve);
+    expect(segs).toEqual([
+      {
+        type: "mention",
+        name: "C3:C9",
+        kind: "sheet",
+        title: SHEET_NAME,
+      },
+      { type: "text", text: " 改成sdsdsd" },
+    ]);
+  });
+});
+
+describe("splitSheetRangeToken", () => {
+  it("splits a sheet name and a cell range", () => {
+    expect(splitSheetRangeToken(`${SHEET_NAME}!C3:C9`)).toEqual({
+      sheetName: SHEET_NAME,
+      range: "C3:C9",
+    });
+    expect(splitSheetRangeToken(`${SHEET_NAME}!A1`)).toEqual({
+      sheetName: SHEET_NAME,
+      range: "A1",
+    });
+  });
+
+  it("rejects tokens without a valid trailing range", () => {
+    expect(splitSheetRangeToken(SHEET_NAME)).toBeNull();
+    expect(splitSheetRangeToken(`${SHEET_NAME}!not a range`)).toBeNull();
   });
 });
 
