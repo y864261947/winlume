@@ -4988,3 +4988,56 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
     bottom: 24px;
   }
 }
+
+/* API 长模型名单在需要时展开为局部浮层；默认状态仍保留紧凑的一行浏览。 */
+.portal-home .portal-api-row {
+  position: relative;
+}
+.portal-home .portal-api-brands:hover,
+.portal-home .portal-api-brands:focus-within {
+  position: absolute;
+  z-index: 12;
+  top: 4px;
+  right: 26px;
+  left: calc(8.25rem + 22px);
+  min-height: 36px;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 3px 10px;
+  overflow: visible;
+  padding: 6px 10px;
+  border: 1px solid rgba(183, 207, 235, .94);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 10px 24px -16px rgba(29, 67, 119, .48);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* The icon and title share a deliberate first row; detail text always starts below it. */
+@media (min-width: 1181px) {
+  .portal-home .portal-tool-card {
+    grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-rows: 20px auto;
+    align-content: center;
+    column-gap: 10px;
+    row-gap: 2px;
+  }
+  .portal-home .portal-tool-card img {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    width: var(--portal-category-icon-size);
+    height: var(--portal-category-icon-size);
+  }
+  .portal-home .portal-tool-card strong {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+  }
+  .portal-home .portal-tool-card span {
+    grid-column: 2;
+    grid-row: 2;
+    margin-top: 0;
+  }
+}

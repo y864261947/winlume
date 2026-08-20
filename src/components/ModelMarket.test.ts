@@ -11,14 +11,12 @@ describe("homepage API categories", () => {
 
   it("lists marketplace-style categories and no popular-models block", () => {
     for (const label of [
-      "语言大模型",
-      "图片生成",
-      "图片处理",
-      "视频生成",
-      "音视频处理",
-      "信息处理",
-      "RAG相关",
-      "工具API",
+      "语言推理",
+      "图像处理",
+      "音频处理",
+      "视频处理",
+      "RAG知识库",
+      "信息检索",
     ]) {
       expect(source).toContain(`label: "${label}"`);
     }

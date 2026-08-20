@@ -789,7 +789,11 @@ export default function ModelMarket() {
                     <span>{item.label}</span>
                   </PortalLink>
                   <span className="portal-api-row-divider" aria-hidden />
-                  <div className="portal-api-brands">
+                  <div
+                    className="portal-api-brands"
+                    aria-label={`${item.label}可用模型：${item.brands.map((brand) => brand.label).join("、")}`}
+                    title={`悬停查看全部：${item.brands.map((brand) => brand.label).join("、")}`}
+                  >
                     {item.brands.map((brand) => (
                       <PortalLink key={brand.label} href={brand.href} className="portal-api-brand">
                         {brand.label}
