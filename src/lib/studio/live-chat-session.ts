@@ -16,6 +16,7 @@ import { createExecutionMap } from "@/lib/studio/execution-map";
 import {
   finalizeLiveAgentState,
   reduceLiveAgentEvent,
+  stripAgentProtocolMarkers,
   type ArtifactEventPayload,
   type LiveAgentStreamState,
   type UiChatMessage,
@@ -153,7 +154,7 @@ export function toUiMessages(messages: Message[]): UiChatMessage[] {
     .map((m) => ({
       id: m.id,
       role: m.role,
-      content: m.content,
+      content: m.role === "assistant" ? stripAgentProtocolMarkers(m.content) : m.content,
       ...(m.presentation ? { presentation: m.presentation } : {}),
       toolCalls: m.toolCalls?.map((tc) => {
         const result = resultByCallId.get(tc.id);

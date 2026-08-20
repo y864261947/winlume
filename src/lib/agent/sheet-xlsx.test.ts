@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
-import { getCell } from "./sheet-content";
+import { applySheetOperations, getCell, workbookFromCreateSheets } from "./sheet-content";
 import {
   isLegacyXlsFile,
   isSpreadsheetFile,
   workbookTitleFromFileName,
 } from "./sheet-file";
-import { parseXlsxToSheetContent } from "./sheet-xlsx";
+import { parseXlsxToSheetContent, sheetContentToXlsxBuffer } from "./sheet-xlsx";
 
 async function xlsxBytes(build: (wb: ExcelJS.Workbook) => void): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
@@ -59,5 +59,92 @@ describe("parseXlsxToSheetContent", () => {
   it("rejects an empty buffer", async () => {
     const parsed = await parseXlsxToSheetContent(Buffer.from("not-xlsx"), "bad.xlsx");
     expect("error" in parsed).toBe(true);
+  });
+
+  it("captures font/fill/numFmt/merges/column-width into a Univer snapshot", async () => {
+    const bytes = await xlsxBytes((wb) => {
+      const sheet = wb.addWorksheet("样式");
+      const header = sheet.getCell("A1");
+      header.value = "标题";
+      header.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+      header.numFmt = "0.00%";
+      sheet.getColumn(1).width = 20;
+      sheet.mergeCells("A1:B1");
+    });
+
+    const parsed = await parseXlsxToSheetContent(bytes, "styled.xlsx");
+    expect("content" in parsed).toBe(true);
+    if (!("content" in parsed)) return;
+
+    const snapshot = parsed.content.univerSnapshot as {
+      styles: Record<string, { bl?: number; bg?: { rgb?: string }; n?: { pattern: string } }>;
+      sheets: Record<
+        string,
+        {
+          cellData: Record<string, Record<string, { s?: string }>>;
+          mergeData?: Array<{ startRow: number; endRow: number; startColumn: number; endColumn: number }>;
+          columnData?: Record<string, { w: number }>;
+        }
+      >;
+    };
+    const sheetId = parsed.content.sheets[0]!.id;
+    const worksheet = snapshot.sheets[sheetId]!;
+    const cell = worksheet.cellData["0"]!["0"]!;
+    expect(cell.s).toBeDefined();
+
+    const style = snapshot.styles[cell.s!]!;
+    expect(style.bl).toBe(1);
+    expect(style.bg?.rgb).toBe("#4472C4");
+    expect(style.n?.pattern).toBe("0.00%");
+
+    expect(worksheet.mergeData).toEqual([{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 1 }]);
+    expect(worksheet.columnData?.["0"]?.w).toBeGreaterThan(0);
+  });
+});
+
+describe("sheetContentToXlsxBuffer", () => {
+  it("round-trips a style through import -> agent edit -> export", async () => {
+    const bytes = await xlsxBytes((wb) => {
+      const sheet = wb.addWorksheet("样式");
+      const header = sheet.getCell("A1");
+      header.value = "old";
+      header.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+      sheet.mergeCells("A1:B1");
+    });
+
+    const imported = await parseXlsxToSheetContent(bytes, "styled.xlsx");
+    if (!("content" in imported)) throw new Error(imported.error);
+
+    // Simulate the AI editing a cell — this must not blow away the style.
+    const edited = applySheetOperations(imported.content, [
+      { op: "setValues", start: "A1", values: [["new"]] },
+    ]);
+    if (!("content" in edited)) throw new Error(edited.error);
+
+    const exported = await sheetContentToXlsxBuffer(edited.content);
+    const roundTrip = new ExcelJS.Workbook();
+    await roundTrip.xlsx.load(exported);
+    const worksheet = roundTrip.worksheets[0]!;
+    const cell = worksheet.getCell("A1");
+
+    expect(cell.value).toBe("new");
+    expect(cell.font?.bold).toBe(true);
+    expect((cell.fill as ExcelJS.FillPattern).fgColor?.argb).toBe("FF4472C4");
+    expect(worksheet.model.merges).toEqual(["A1:B1"]);
+  });
+
+  it("falls back to plain values for a workbook with no Univer snapshot", async () => {
+    const created = workbookFromCreateSheets([{ name: "计划", values: [["a", "b"], [1, 2]] }]);
+    if (!("content" in created)) throw new Error(created.error);
+
+    const exported = await sheetContentToXlsxBuffer(created.content);
+    const roundTrip = new ExcelJS.Workbook();
+    await roundTrip.xlsx.load(exported);
+    const worksheet = roundTrip.worksheets[0]!;
+
+    expect(worksheet.getCell("A1").value).toBe("a");
+    expect(worksheet.getCell("B2").value).toBe(2);
   });
 });

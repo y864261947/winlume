@@ -75,6 +75,20 @@ describe("live-chat-session seed reconcile", () => {
     expect(after.messages.map((m) => m.id)).toEqual(["srv-u", "srv-a"]);
   });
 
+  it("strips a leaked completion sentinel from reloaded assistant history", () => {
+    const sessionId = `${sid}-marker-strip`;
+    seedLiveChatFromServer(sessionId, [
+      serverMsg({ id: "srv-u", role: "user", content: "改成 555" }),
+      serverMsg({
+        id: "srv-a",
+        role: "assistant",
+        content: "已改好。<CPA_DONE>",
+      }),
+    ]);
+    const after = getLiveChatSnapshot(sessionId);
+    expect(after.messages.find((m) => m.id === "srv-a")?.content).toBe("已改好。");
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });

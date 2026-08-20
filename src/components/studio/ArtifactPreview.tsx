@@ -44,11 +44,7 @@ import {
   type CanvasArtifactContent,
   type CanvasElement,
 } from "@/lib/agent/canvas-content";
-import {
-  parseSheetContent,
-  resolveSheet,
-  sheetToCsv,
-} from "@/lib/agent/sheet-content";
+import { parseSheetContent } from "@/lib/agent/sheet-content";
 import {
   canExportAsDocument,
   exportArtifactAsPdf,
@@ -667,11 +663,6 @@ export default function ArtifactPreview({
   const [annotationImage, setAnnotationImage] = useState<HTMLImageElement | null>(null);
   const [annotationBusy, setAnnotationBusy] = useState(false);
   const [annotationError, setAnnotationError] = useState<string | null>(null);
-  const activeSheetGrid = useMemo(() => {
-    if (artifact?.kind !== "sheet" || content == null) return null;
-    const parsed = parseSheetContent(content);
-    return parsed ? { grid: resolveSheet(parsed), sheetCount: parsed.sheets.length } : null;
-  }, [artifact, content]);
   const [retryingGeneration, setRetryingGeneration] = useState(false);
 
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -891,21 +882,10 @@ export default function ArtifactPreview({
       return;
     }
     if (artifact.kind === "sheet") {
-      if (content == null) return;
-      const grid = activeSheetGrid?.grid;
-      const csv = grid ? sheetToCsv(grid) : "";
-      const blob = new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
-      anchor.href = url;
-      // A multi-sheet workbook only exports its active sheet as CSV; name the
-      // file after that sheet so it's clear the rest of the workbook isn't included.
-      anchor.download =
-        activeSheetGrid && activeSheetGrid.sheetCount > 1 && grid
-          ? `${artifact.name} - ${grid.name}.csv`
-          : `${artifact.name}.csv`;
+      anchor.href = `/api/artifacts/${encodeURIComponent(artifact.id)}/xlsx`;
+      anchor.download = `${artifact.name}.xlsx`;
       anchor.click();
-      URL.revokeObjectURL(url);
       return;
     }
     if (content == null) return;
@@ -1068,10 +1048,7 @@ export default function ArtifactPreview({
       );
     }
     if (key === "download") {
-      const downloadLabel =
-        artifact?.kind === "sheet" && activeSheetGrid && activeSheetGrid.sheetCount > 1
-          ? "下载当前工作表"
-          : "下载原文件";
+      const downloadLabel = artifact?.kind === "sheet" ? "下载为 Excel" : "下载原文件";
       if (inMenu) {
         return (
           <MenuItem key={key} onClick={handleDownload} disabled={busy}>

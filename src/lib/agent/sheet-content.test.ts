@@ -93,14 +93,53 @@ describe("applySheetOperations", () => {
     expect("error" in patched).toBe(true);
   });
 
-  it("drops the Univer snapshot so the client rebuilds from compact cells", () => {
+  it("preserves an existing cell's style when the agent edits its value", () => {
     const base = emptyWorkbook();
-    base.univerSnapshot = { id: "stale" };
+    base.univerSnapshot = {
+      id: "wb",
+      sheetOrder: ["sheet-1"],
+      sheets: {
+        "sheet-1": {
+          id: "sheet-1",
+          cellData: { "0": { "0": { v: "old", t: 1, s: "style-1" } } },
+        },
+      },
+    };
     const patched = applySheetOperations(base, [
-      { op: "setValues", start: "A1", values: [["x"]] },
+      { op: "setValues", start: "A1", values: [["new"]] },
     ]);
     if (!("content" in patched)) throw new Error(patched.error);
-    expect(patched.content.univerSnapshot).toBeUndefined();
+    const snapshot = patched.content.univerSnapshot as {
+      sheets: Record<string, { cellData: Record<string, Record<string, unknown>> }>;
+    };
+    expect(snapshot.sheets["sheet-1"]!.cellData["0"]!["0"]).toEqual({
+      v: "new",
+      t: 1,
+      s: "style-1",
+    });
+    // the original snapshot object passed in must not be mutated in place
+    const original = base.univerSnapshot as typeof snapshot;
+    expect(original.sheets["sheet-1"]!.cellData["0"]!["0"]).toMatchObject({ v: "old" });
+  });
+
+  it("clearing a range drops the value but keeps the cell's style", () => {
+    const base = emptyWorkbook();
+    base.univerSnapshot = {
+      id: "wb",
+      sheetOrder: ["sheet-1"],
+      sheets: {
+        "sheet-1": {
+          id: "sheet-1",
+          cellData: { "0": { "0": { v: "old", t: 1, s: "style-1" } } },
+        },
+      },
+    };
+    const patched = applySheetOperations(base, [{ op: "clearRange", range: "A1" }]);
+    if (!("content" in patched)) throw new Error(patched.error);
+    const snapshot = patched.content.univerSnapshot as {
+      sheets: Record<string, { cellData: Record<string, Record<string, unknown>> }>;
+    };
+    expect(snapshot.sheets["sheet-1"]!.cellData["0"]!["0"]).toEqual({ s: "style-1" });
   });
 });
 
