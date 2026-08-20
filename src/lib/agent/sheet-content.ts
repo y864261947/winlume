@@ -356,8 +356,10 @@ export function applySheetOperations(
     ...content,
     sheets: content.sheets.map((sheet) => cloneGrid(sheet)),
     revision: content.revision + 1,
+    ...(content.univerSnapshot !== undefined
+      ? { univerSnapshot: cloneUniverSnapshot(content.univerSnapshot) }
+      : {}),
   };
-  delete next.univerSnapshot;
 
   for (const [index, operation] of operations.entries()) {
     const applied = applyOne(next, operation);
@@ -383,6 +385,7 @@ function applyOne(
       if (!operation.values.length) return { error: "values must not be empty" };
       const written = writeValues(sheet, start, operation.values);
       if ("error" in written) return written;
+      mirrorValuesToSnapshot(content, sheet, start, operation.values);
       return { content };
     }
     case "setFormulas": {
@@ -393,6 +396,7 @@ function applyOne(
       if (!operation.formulas.length) return { error: "formulas must not be empty" };
       const written = writeFormulas(sheet, start, operation.formulas);
       if ("error" in written) return written;
+      mirrorFormulasToSnapshot(content, sheet, start, operation.formulas);
       return { content };
     }
     case "clearRange": {
@@ -401,6 +405,7 @@ function applyOne(
       const range = parseA1Range(operation.range);
       if (!range) return { error: `Invalid range: ${operation.range}` };
       clearRange(sheet, range.start, range.end);
+      mirrorClearToSnapshot(content, sheet, range.start, range.end);
       return { content };
     }
     case "addSheet": {
@@ -420,6 +425,12 @@ function applyOne(
         columnCount: 20,
         cells: {},
       });
+      const workbook = asUniverWorkbook(content.univerSnapshot);
+      if (workbook) {
+        workbook.sheets ??= {};
+        workbook.sheets[id] = { id, name, rowCount: 100, columnCount: 20, cellData: {} };
+        workbook.sheetOrder = [...(workbook.sheetOrder ?? []), id];
+      }
       return { content };
     }
     case "renameSheet": {
@@ -435,6 +446,8 @@ function applyOne(
         return { error: `Duplicate sheet name: ${name}` };
       }
       sheet.name = name;
+      const worksheet = asUniverWorkbook(content.univerSnapshot)?.sheets?.[sheet.id];
+      if (worksheet) worksheet.name = name;
       return { content };
     }
     case "deleteSheet": {
@@ -444,6 +457,11 @@ function applyOne(
       content.sheets = content.sheets.filter((item) => item.id !== sheet.id);
       if (content.activeSheetId === sheet.id) {
         content.activeSheetId = content.sheets[0]!.id;
+      }
+      const workbook = asUniverWorkbook(content.univerSnapshot);
+      if (workbook?.sheets) {
+        delete workbook.sheets[sheet.id];
+        workbook.sheetOrder = (workbook.sheetOrder ?? []).filter((id) => id !== sheet.id);
       }
       return { content };
     }
@@ -657,6 +675,108 @@ type UniverWorkbook = {
   sheetOrder?: string[];
   sheets?: Record<string, UniverWorksheet>;
 };
+
+function cloneUniverSnapshot(snapshot: unknown): unknown {
+  if (snapshot === undefined) return undefined;
+  return JSON.parse(JSON.stringify(snapshot)) as unknown;
+}
+
+function asUniverWorkbook(snapshot: unknown): UniverWorkbook | undefined {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return undefined;
+  return snapshot as UniverWorkbook;
+}
+
+/**
+ * Writes a compact-grid cell into the raw Univer snapshot, at the same
+ * row/col, without touching that cell's existing style id (`s`) — so agent
+ * edits don't blow away formatting the way discarding the whole snapshot did.
+ */
+function patchUniverCell(
+  worksheet: UniverWorksheet,
+  row: number,
+  col: number,
+  cell: SheetCell | undefined,
+): void {
+  worksheet.cellData ??= {};
+  const rowKey = String(row);
+  const colKey = String(col);
+  const preservedStyle = worksheet.cellData[rowKey]?.[colKey]?.s;
+
+  if (!cell) {
+    if (preservedStyle === undefined) {
+      const cellRow = worksheet.cellData[rowKey];
+      if (cellRow) {
+        delete cellRow[colKey];
+        if (Object.keys(cellRow).length === 0) delete worksheet.cellData[rowKey];
+      }
+    } else {
+      worksheet.cellData[rowKey] ??= {};
+      worksheet.cellData[rowKey]![colKey] = { s: preservedStyle };
+    }
+    return;
+  }
+
+  const next: UniverCell = {};
+  if (cell.f) next.f = cell.f;
+  if (cell.v !== undefined) {
+    next.v = cell.v;
+    next.t = typeof cell.v === "number" ? 2 : typeof cell.v === "boolean" ? 3 : 1;
+  }
+  if (preservedStyle !== undefined) next.s = preservedStyle;
+  worksheet.cellData[rowKey] ??= {};
+  worksheet.cellData[rowKey]![colKey] = next;
+}
+
+function mirrorValuesToSnapshot(
+  content: SheetArtifactContent,
+  sheet: SheetGrid,
+  start: A1Address,
+  values: SheetCellValue[][],
+): void {
+  const worksheet = asUniverWorkbook(content.univerSnapshot)?.sheets?.[sheet.id];
+  if (!worksheet) return;
+  for (let r = 0; r < values.length; r += 1) {
+    const row = values[r] ?? [];
+    for (let c = 0; c < row.length; c += 1) {
+      const rowIndex = start.row + r;
+      const colIndex = start.col + c;
+      patchUniverCell(worksheet, rowIndex, colIndex, getCell(sheet, rowIndex, colIndex));
+    }
+  }
+}
+
+function mirrorFormulasToSnapshot(
+  content: SheetArtifactContent,
+  sheet: SheetGrid,
+  start: A1Address,
+  formulas: string[][],
+): void {
+  const worksheet = asUniverWorkbook(content.univerSnapshot)?.sheets?.[sheet.id];
+  if (!worksheet) return;
+  for (let r = 0; r < formulas.length; r += 1) {
+    const row = formulas[r] ?? [];
+    for (let c = 0; c < row.length; c += 1) {
+      const rowIndex = start.row + r;
+      const colIndex = start.col + c;
+      patchUniverCell(worksheet, rowIndex, colIndex, getCell(sheet, rowIndex, colIndex));
+    }
+  }
+}
+
+function mirrorClearToSnapshot(
+  content: SheetArtifactContent,
+  sheet: SheetGrid,
+  start: A1Address,
+  end: A1Address,
+): void {
+  const worksheet = asUniverWorkbook(content.univerSnapshot)?.sheets?.[sheet.id];
+  if (!worksheet) return;
+  for (let row = start.row; row <= end.row; row += 1) {
+    for (let col = start.col; col <= end.col; col += 1) {
+      patchUniverCell(worksheet, row, col, undefined);
+    }
+  }
+}
 
 export function compactToUniverSnapshot(
   content: SheetArtifactContent,
