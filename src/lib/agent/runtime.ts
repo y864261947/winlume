@@ -9,6 +9,7 @@ import type {
   Artifact,
   Message,
   ToolCallRecord,
+  UIMessagePart,
   WorkflowExecutionContext,
 } from "@/lib/agent/types";
 import { parseCanvasContent } from "@/lib/agent/canvas-content";
@@ -534,7 +535,15 @@ export async function* runAgentTurn(
       break;
     }
 
+    // Minted up front (not at persist time) and reported immediately so the
+    // client can reassign its optimistic id in place instead of remounting
+    // once this message round-trips through reconciliation.
+    const roundMessageId = randomUUID();
+    yield { type: "message_start", messageId: roundMessageId };
+
     let assistantText = "";
+    let thinkingText = "";
+    const thinkingStartedAt = Date.now();
     let completedToolCalls: { id: string; name: string; arguments: string }[] =
       [];
     let streamError = false;
@@ -565,6 +574,7 @@ export async function* runAgentTurn(
         }
 
         if (chunk.kind === "thinking") {
+          thinkingText += chunk.text;
           yield { type: "thinking", text: chunk.text };
           continue;
         }
@@ -650,15 +660,29 @@ export async function* runAgentTurn(
       break;
     }
 
+    const thinkingDurationSec = thinkingText
+      ? Math.max(1, Math.round((Date.now() - thinkingStartedAt) / 1_000))
+      : undefined;
+    const roundParts: UIMessagePart[] = [
+      ...(thinkingText ? [{ type: "reasoning", text: thinkingText } as const] : []),
+      ...(assistantText ? [{ type: "text", text: assistantText } as const] : []),
+    ];
+    const roundMetadata =
+      thinkingDurationSec !== undefined
+        ? { model, thinkingDurationSec }
+        : { model };
+
     // Final text reply (no tools this round)
     if (!completedToolCalls.length) {
       if (assistantText) {
         lastAssistantText = assistantText;
         const assistantMessage: Message = {
-          id: randomUUID(),
+          id: roundMessageId,
           sessionId,
           role: "assistant",
           content: assistantText,
+          ...(roundParts.length ? { parts: roundParts } : {}),
+          metadata: roundMetadata,
           createdAt: nowIso(),
         };
         lastAssistantMessageId = assistantMessage.id;
@@ -670,7 +694,7 @@ export async function* runAgentTurn(
     }
 
     // Persist assistant message that requested tools (may include intermediate text)
-    const assistantId = randomUUID();
+    const assistantId = roundMessageId;
     if (assistantText) {
       lastAssistantText = assistantText;
       lastAssistantMessageId = assistantId;
@@ -688,6 +712,8 @@ export async function* runAgentTurn(
         role: "assistant",
         content: assistantText,
         toolCalls: toolCallRecords,
+        ...(roundParts.length ? { parts: roundParts } : {}),
+        metadata: roundMetadata,
         createdAt: nowIso(),
       },
     ]);

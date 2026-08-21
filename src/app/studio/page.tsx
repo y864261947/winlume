@@ -21,10 +21,12 @@ import Composer, {
   type ComposerSendMeta,
 } from "@/components/studio/Composer";
 import { useModals } from "@/components/providers";
-import type { Project, SkillMeta } from "@/lib/agent/types";
+import type { Project, Session, SkillMeta } from "@/lib/agent/types";
 import {
-  createSession,
+  failPendingFirstMessage,
   getProject,
+  notifyPendingFirstMessageStatus,
+  resolvePendingFirstMessage,
   setPendingFirstMessage,
   StudioApiError,
   uploadImageArtifact,
@@ -289,6 +291,26 @@ function StudioHomeInner() {
   /** FLIP composer to bottom dock before route change (visual only). */
   const [docking, setDocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Blanket safety net: no matter which awaited step in `startChat` stalls
+   * without rejecting, the composer must self-heal instead of staying
+   * disabled forever with no feedback. There's no `createSession` network
+   * call to hang on any more (the session is minted client-side and only
+   * created server-side inside the same request that starts the turn), so
+   * this now only catches the dock animation's own fallback timer path or
+   * an edge case neither covers. Cleared on unmount (i.e. once navigation
+   * to the session page actually happens), so it never fires against a
+   * page the user has left.
+   */
+  useEffect(() => {
+    if (!starting) return;
+    const id = window.setTimeout(() => {
+      setStarting(false);
+      setDocking(false);
+      setError((prev) => prev ?? "进入对话超时，请重试");
+    }, 20_000);
+    return () => window.clearTimeout(id);
+  }, [starting]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [capabilityPresetId, setCapabilityPresetId] = useState<string | null>(null);
   const [featuredSkills, setFeaturedSkills] = useState<SkillMeta[] | null>(null);
@@ -483,33 +505,62 @@ function StudioHomeInner() {
             ? selectedSkillIds
             : undefined;
 
-      // 1) Slide composer to bottom (FLIP) while creating session
-      // 2) Upload local images and reference video after the session exists
-      // 3) View Transition navigate — shared studio-composer morph
+      // A client-minted id, committed to immediately: no network round trip
+      // stands between clicking send and the message appearing. The server
+      // only learns this session exists on the `prepared.commit(...)` call
+      // below (`bootstrap`), which creates it with this exact id.
+      const sessionId = crypto.randomUUID();
+      const title =
+        message.replace(/\s+/g, " ").length > 40
+          ? `${message.replace(/\s+/g, " ").slice(0, 40)}…`
+          : message.replace(/\s+/g, " ");
+      const requestModel = model.trim() || getDefaultModel();
+      const requestProjectId = project?.id || projectId || undefined;
+      const syntheticSession: Session = {
+        id: sessionId,
+        userId: account.id,
+        title: title || "新对话",
+        model: requestModel,
+        ...(requestProjectId ? { projectId: requestProjectId } : {}),
+        ...(capabilityPresetId ? { capabilityPresetId } : {}),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
       setStarting(true);
       setError(null);
+      let handedOff = false;
       try {
-        const title =
-          message.replace(/\s+/g, " ").length > 40
-            ? `${message.replace(/\s+/g, " ").slice(0, 40)}…`
-            : message.replace(/\s+/g, " ");
-        const requestModel = model.trim() || getDefaultModel();
-        const sessionPromise = createSession({
+        await flipComposerToDock(setDocking);
+        setPendingFirstMessage({
+          sessionId,
+          message,
           model: requestModel,
-          title: title || "新对话",
-          projectId: project?.id || projectId || undefined,
           capabilityPresetId: capabilityPresetId ?? undefined,
+          skillIds,
+          session: syntheticSession,
         });
-        const dockPromise = flipComposerToDock(setDocking);
-        const session = await sessionPromise;
+        setSelectedSkillIds([]);
+        clearComposerDraft("home");
+        // Keep draft until unmount so composer shared-element still has content.
+        handedOff = true;
+        router.push(`/studio/c/${sessionId}`, {
+          transitionTypes: ["studio-handoff"],
+        });
+
+        // Everything below still runs after navigation (a floating async
+        // function isn't tied to this component's mount) — only the final
+        // resolvePendingFirstMessage needs a listener, and the session page
+        // registers one immediately on mount, well before uploads finish.
 
         // Persist home-composer images under 图片N so @图片1 stays meaningful.
         const uploads = meta?.pendingImageUploads ?? [];
         const asAttachments: ImageAttachment[] = [];
+        if (uploads.length) notifyPendingFirstMessageStatus(sessionId, "正在上传图片引用…");
         for (const item of uploads) {
           try {
             const artifact = await uploadImageArtifact({
-              sessionId: session.id,
+              sessionId,
               name: item.name,
               dataUrl: item.dataUrl,
             });
@@ -533,10 +584,13 @@ function StudioHomeInner() {
         }
 
         // Files cannot cross the sessionStorage handoff. Persist the authorized
-        // source and create its analysis job before navigating to the session.
+        // source and create its analysis job before the model receives the turn.
+        if (meta?.pendingVideoUploads?.length) {
+          notifyPendingFirstMessageStatus(sessionId, "正在准备视频参考…");
+        }
         for (const item of meta?.pendingVideoUploads ?? []) {
           const source = await uploadVideoArtifact({
-            sessionId: session.id,
+            sessionId,
             file: item.file,
             authorized: item.authorized,
           });
@@ -544,9 +598,12 @@ function StudioHomeInner() {
         }
 
         const importedSheetIds: string[] = [];
+        if (meta?.pendingSheetUploads?.length) {
+          notifyPendingFirstMessageStatus(sessionId, "正在导入表格附件…");
+        }
         for (const item of meta?.pendingSheetUploads ?? []) {
           const artifact = await uploadSheetArtifact({
-            sessionId: session.id,
+            sessionId,
             file: item.file,
           });
           importedSheetIds.push(artifact.id);
@@ -579,33 +636,48 @@ function StudioHomeInner() {
           ];
         }
 
-        await dockPromise;
-        setPendingFirstMessage({
-          sessionId: session.id,
-          message,
+        notifyPendingFirstMessageStatus(sessionId, "正在理解需求…");
+        // The session page owns the actual send from here — it's the only
+        // mounted useChat instance that can call sendMessage. This also
+        // implicitly creates the session server-side (bootstrap), with the
+        // id already committed to and navigated to above.
+        resolvePendingFirstMessage(sessionId, {
           model: requestModel,
-          capabilityPresetId: session.capabilityPresetId,
+          capabilityPresetId: capabilityPresetId ?? undefined,
           skillIds,
           referencedArtifactIds: referencedArtifactIds.length
             ? referencedArtifactIds
             : undefined,
-          session,
-        });
-        setSelectedSkillIds([]);
-        clearComposerDraft("home");
-        // Keep draft until unmount so composer shared-element still has content.
-        router.push(`/studio/c/${session.id}`, {
-          transitionTypes: ["studio-handoff"],
+          projectId: requestProjectId,
+          bootstrapTitle: syntheticSession.title,
         });
       } catch (err) {
-        setDocking(false);
+        const errMessage = err instanceof Error ? err.message : "创建会话失败";
+        if (handedOff) {
+          failPendingFirstMessage(sessionId, errMessage);
+          // Already navigated to the session page — it owns recovery from
+          // here (the failure above already reported into it). Resetting
+          // home-page state after handoff would be a no-op on an
+          // unmounting component anyway.
+          if (err instanceof StudioApiError && err.status === 401) {
+            openLogin("login");
+          }
+          return;
+        }
         if (err instanceof StudioApiError && err.status === 401) {
           setError("请先登录后再开始对话");
           openLogin("login");
         } else {
-          setError(err instanceof Error ? err.message : "创建会话失败");
+          setError(errMessage);
         }
-        setStarting(false);
+        // Never lose what the user typed — Composer already cleared its
+        // draft optimistically before this async work even started.
+        setDraft(message);
+      } finally {
+        if (!handedOff) {
+          setStarting(false);
+          setDocking(false);
+        }
       }
     },
     [
@@ -728,6 +800,13 @@ function StudioHomeInner() {
               value={draft}
               onChange={setDraft}
               onSend={startChat}
+              onPrepareSend={() => {
+                // The home page has no session id yet, so it cannot create a
+                // thread bubble until createSession resolves. It can still
+                // acknowledge the click before Composer starts local work.
+                if (account) setStarting(true);
+                return null;
+              }}
               disabled={starting}
               model={model}
               onModelChange={setModel}

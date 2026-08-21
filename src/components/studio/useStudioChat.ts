@@ -16,6 +16,7 @@ import {
   emptyLiveChatSnapshot,
   getLiveChatSnapshot,
   MAX_MESSAGE_QUEUE_SIZE,
+  prepareLiveChatTurn,
   removeLiveChatQueueItem,
   seedLiveChatFromServer,
   sendLiveChat,
@@ -27,6 +28,7 @@ import {
   type ArtifactEventPayload,
   type LiveChatSnapshot,
   type QueuedMessage,
+  type PreparedLiveChatTurn,
   type StreamPhase,
   type UiChatMessage,
   type UiToolCall,
@@ -83,6 +85,8 @@ export type UseStudioChatResult = {
       referencedArtifactId?: string;
     },
   ) => Promise<"sent" | "queued" | "rejected">;
+  /** Immediately acknowledges a Composer submission before client preflight. */
+  prepare: (text: string, label?: string) => PreparedLiveChatTurn | null;
   startWorkflow: (
     stage: WorkflowLiveStage,
   ) => Promise<"sent" | "rejected">;
@@ -190,6 +194,14 @@ export function useStudioChat(
     [sessionId, skillIdsProp],
   );
 
+  const prepare = useCallback(
+    (text: string, label?: string): PreparedLiveChatTurn | null => {
+      if (!sessionId) return null;
+      return prepareLiveChatTurn(sessionId, text, label);
+    },
+    [sessionId],
+  );
+
   const stop = useCallback(() => {
     if (!sessionId) return;
     stopLiveChat(sessionId);
@@ -239,6 +251,7 @@ export function useStudioChat(
       setModel,
       setMessages,
       send,
+      prepare,
       startWorkflow,
       attachWorkflowRun,
       stop,
@@ -258,6 +271,7 @@ export function useStudioChat(
       setModel,
       setMessages,
       send,
+      prepare,
       startWorkflow,
       attachWorkflowRun,
       stop,

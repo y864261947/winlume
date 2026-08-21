@@ -32,13 +32,12 @@ import { useResizablePanel } from "@/components/studio/useResizablePanel";
 import { WorkflowControlBar } from "@/components/studio/workflow/WorkflowControlBar";
 import { WorkflowStageRail } from "@/components/studio/workflow/WorkflowStageRail";
 import { useSessionWorkflow } from "@/components/studio/workflow/useSessionWorkflow";
-import {
-  useStudioChat,
-  type ArtifactEventPayload,
-} from "@/components/studio/useStudioChat";
+import { useStudioChatV2 as useStudioChat } from "@/components/studio/useStudioChatV2";
+import type { ArtifactEventPayload } from "@/components/studio/useStudioChat";
 import { useModals } from "@/components/providers";
 import type { Artifact, Message, Project, Session } from "@/lib/agent/types";
 import { isMentionableArtifact } from "@/lib/studio/image-mentions";
+import { afterNextPaint } from "@/lib/studio/next-paint";
 import { flushOpenSheetEdits } from "@/lib/studio/sheet-flush";
 import {
   getArtifact,
@@ -48,6 +47,7 @@ import {
   patchSession,
   peekPendingFirstMessage,
   readHandoffBootstrap,
+  registerPendingFirstMessageListener,
   takePendingFirstMessage,
   StudioApiError,
 } from "@/lib/studio/api";
@@ -524,7 +524,13 @@ export default function StudioSessionPage() {
           setLoadError("请先登录后查看会话");
           openLogin("login");
         } else if (err instanceof StudioApiError && err.status === 404) {
-          setLoadError("会话不存在或无权访问");
+          // A client-minted session id (see /studio's startChat) navigates
+          // here before the server has ever heard of it — it only gets
+          // created inside the POST /api/chat that starts the first turn.
+          // A 404 here just means that POST hasn't landed yet, not that the
+          // session doesn't exist; the handoff bootstrap above already
+          // painted a usable local session, so there's nothing to correct.
+          if (!pending) setLoadError("会话不存在或无权访问");
         } else {
           setLoadError(err instanceof Error ? err.message : "加载会话失败");
         }
@@ -594,7 +600,12 @@ export default function StudioSessionPage() {
     };
   }, [selectedId]);
 
-  // Auto-send first message handed off from /studio home
+  // Auto-send first message handed off from /studio home. The home page
+  // already started uploads/video-analysis/sheet-import and will deliver the
+  // fully-resolved send params via registerPendingFirstMessageListener once
+  // those finish (possibly after this effect runs — uploads take real time,
+  // this mount does not) — chat.prepare() below paints the optimistic bubble
+  // immediately either way, matching the home page's already-shown one.
   useEffect(() => {
     if (loading || !session || session.workflow || pendingSentRef.current) return;
     const pending = takePendingFirstMessage(session.id);
@@ -603,11 +614,23 @@ export default function StudioSessionPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- consuming the one-shot handoff transitions the persisted live store.
     setHasHandoff(false);
     if (pending.model) chat.setModel(pending.model);
-    void chat.send(pending.message, {
-      model: pending.model ?? chat.model,
-      capabilityPresetId: session.capabilityPresetId,
-      skillIds: pending.skillIds,
-      referencedArtifactIds: pending.referencedArtifactIds,
+
+    const prepared = chat.prepare(pending.message, "正在理解需求…");
+    if (!prepared) return;
+
+    return registerPendingFirstMessageListener(session.id, {
+      onStatus: (label) => prepared.setStatus(label),
+      onFail: (message) => prepared.fail(message),
+      onResolve: (overrides) => {
+        void prepared.commit(pending.message, {
+          model: overrides.model ?? pending.model,
+          capabilityPresetId: overrides.capabilityPresetId ?? session.capabilityPresetId,
+          skillIds: overrides.skillIds ?? pending.skillIds,
+          referencedArtifactIds: overrides.referencedArtifactIds ?? pending.referencedArtifactIds,
+          projectId: overrides.projectId,
+          bootstrap: overrides.bootstrapTitle ? { title: overrides.bootstrapTitle } : undefined,
+        });
+      },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once after load
   }, [loading, session]);
@@ -923,21 +946,56 @@ export default function StudioSessionPage() {
         <Composer
           onSend={(text, meta) => {
             void (async () => {
+              // A current reply means this message takes the queue fallback
+              // instead of an immediate prepared turn. Keep the prior
+              // consistency guarantee before that queued request is created.
               try {
                 await flushOpenSheetEdits();
               } catch {
-                // Don't let a sheet autosave failure (e.g. a stale-revision
-                // conflict) block the message from being sent.
+                // Preserve existing queue behavior on a save conflict. The
+                // active turn is still authoritative and the editor exposes
+                // the save error for a deliberate retry.
               }
               const ids = [...(meta?.referencedArtifactIds ?? [])];
               if (focusedSheet && !ids.includes(focusedSheet.id)) {
                 ids.push(focusedSheet.id);
               }
-              chat.send(text, {
+              await chat.send(text, {
                 skillIds: meta?.skillIds,
                 referencedArtifactIds: ids.length ? ids : undefined,
               });
             })();
+          }}
+          onPrepareSend={(text) => {
+            const prepared = chat.prepare(text);
+            if (!prepared) return null;
+            return {
+              setStatus: prepared.setStatus,
+              fail: prepared.fail,
+              commit: async (outbound, meta) => {
+                const ids = [...(meta?.referencedArtifactIds ?? [])];
+                if (focusedSheet && !ids.includes(focusedSheet.id)) {
+                  ids.push(focusedSheet.id);
+                }
+                prepared.setStatus(
+                  focusedSheet ? "正在同步表格…" : "正在确认上下文…",
+                );
+                await afterNextPaint();
+                try {
+                  await flushOpenSheetEdits();
+                } catch (error) {
+                  prepared.fail(
+                    error instanceof Error ? error.message : "表格同步失败，请重试",
+                  );
+                  return;
+                }
+                prepared.setStatus("正在理解需求…");
+                return prepared.commit(outbound, {
+                  skillIds: meta?.skillIds,
+                  referencedArtifactIds: ids.length ? ids : undefined,
+                });
+              },
+            };
           }}
           onStop={chat.stop}
           streaming={chat.streaming || (hasHandoff && loading)}

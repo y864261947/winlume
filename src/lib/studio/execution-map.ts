@@ -10,6 +10,7 @@ import {
   todoStatusToStepStatus,
   type TodoStatus,
 } from "@/lib/agent/todo-state";
+import { toolActionLabel } from "@/lib/studio/tool-display";
 
 export type ExecutionStepStatus = "done" | "active" | "pending";
 
@@ -53,7 +54,10 @@ const LABELS: Record<string, string> = {
 
 function toolLabel(toolName: string, override?: string): string {
   if (override?.trim()) return override.trim();
-  return LABELS[toolName] ?? "调用工具";
+  // Reuse the richer per-tool map ToolGroup already shows, so the plan
+  // checklist says "AI 抠图" / "生成图片" instead of a generic "调用工具"
+  // for every tool it doesn't have its own entry for.
+  return LABELS[toolName] ?? toolActionLabel(toolName);
 }
 
 function markActiveDone(steps: ExecutionStep[]): ExecutionStep[] {

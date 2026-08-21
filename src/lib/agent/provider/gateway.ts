@@ -45,6 +45,16 @@ export interface StreamGatewayChatParams {
   chatPath?: string;
   /** Inject fetch (tests) */
   fetchImpl?: typeof fetch;
+  /**
+   * Ask a reasoning-capable model to actually return its reasoning as
+   * `reasoning_content` deltas instead of only reporting a token count in
+   * `usage.completion_tokens_details.reasoning_tokens`. Not in this
+   * gateway's documented parameter list, but confirmed working (undocumented
+   * passthrough to the upstream provider) — probed directly against
+   * v2api.top / gpt-5.5 on 2026-08-21. Omit for models that don't support
+   * it; unset (default) sends nothing and preserves prior behavior.
+   */
+  reasoningEffort?: "low" | "medium" | "high";
 }
 
 export type GatewayChatStream = (
@@ -297,6 +307,9 @@ export async function* streamGatewayChat(
   };
   if (params.tools != null) body.tools = params.tools;
   if (params.tool_choice != null) body.tool_choice = params.tool_choice;
+  const reasoningEffort =
+    params.reasoningEffort ?? process.env.REIZO_REASONING_EFFORT;
+  if (reasoningEffort) body.reasoning_effort = reasoningEffort;
 
   let response: Response;
   try {

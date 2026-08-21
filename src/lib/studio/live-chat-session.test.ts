@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   attachWorkflowRun,
   getLiveChatSnapshot,
+  prepareLiveChatTurn,
   sendLiveChat,
   seedLiveChatFromServer,
   startWorkflowLiveChat,
@@ -91,6 +92,160 @@ describe("live-chat-session seed reconcile", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("acknowledges a prepared Composer turn before any request starts", () => {
+    const sessionId = `${sid}-prepared-visible`;
+
+    const prepared = prepareLiveChatTurn(sessionId, "把总价改成 555");
+
+    expect(prepared).not.toBeNull();
+    expect(getLiveChatSnapshot(sessionId)).toMatchObject({
+      streaming: true,
+      messages: [
+        { role: "user", content: "把总价改成 555" },
+        {
+          role: "assistant",
+          content: "",
+          streaming: true,
+          streamPhase: "preparing",
+          activityLabel: "正在准备发送…",
+        },
+      ],
+    });
+
+    prepared?.setStatus("正在同步表格…");
+    expect(getLiveChatSnapshot(sessionId).messages[1]).toMatchObject({
+      streamPhase: "preparing",
+      activityLabel: "正在同步表格…",
+    });
+    stopLiveChat(sessionId);
+  });
+
+  it("reuses a pending-user- optimistic bubble instead of duplicating it", () => {
+    const sessionId = `${sid}-reuse-pending-bubble`;
+    // Mirrors readHandoffBootstrap's synchronous layout-effect seed on the
+    // session page, painted before prepareLiveChatTurn ever runs.
+    setLiveChatMessages(sessionId, [
+      { id: `pending-user-${sessionId}`, role: "user", content: "写一份周报" },
+    ]);
+
+    const prepared = prepareLiveChatTurn(sessionId, "写一份周报");
+
+    expect(prepared).not.toBeNull();
+    const messages = getLiveChatSnapshot(sessionId).messages;
+    const userMessages = messages.filter((m) => m.role === "user");
+    expect(userMessages).toHaveLength(1);
+    expect(userMessages[0]?.id).toBe(`pending-user-${sessionId}`);
+    stopLiveChat(sessionId);
+  });
+
+  it("does not reuse the optimistic bubble when the text differs", () => {
+    const sessionId = `${sid}-no-reuse-mismatched-text`;
+    setLiveChatMessages(sessionId, [
+      { id: `pending-user-${sessionId}`, role: "user", content: "写一份周报" },
+    ]);
+
+    const prepared = prepareLiveChatTurn(sessionId, "改成写一份月报");
+
+    expect(prepared).not.toBeNull();
+    const userMessages = getLiveChatSnapshot(sessionId).messages.filter(
+      (m) => m.role === "user",
+    );
+    expect(userMessages).toHaveLength(2);
+    stopLiveChat(sessionId);
+  });
+
+  it("promotes a prepared turn into SSE without duplicating its bubbles", async () => {
+    const sessionId = `${sid}-prepared-commit`;
+    const requests: Array<{ url: string; body: unknown }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        requests.push({
+          url: String(input),
+          body: typeof init?.body === "string" ? JSON.parse(init.body) : init?.body,
+        });
+        return new Response('data: {"type":"done","reason":"completed"}\n\n', {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }),
+    );
+
+    const prepared = prepareLiveChatTurn(sessionId, "修改表格");
+    const before = getLiveChatSnapshot(sessionId).messages.map((message) => message.id);
+
+    await expect(
+      prepared?.commit("修改表格", { referencedArtifactIds: ["sheet-1"] }),
+    ).resolves.toBe("sent");
+
+    expect(requests).toEqual([
+      {
+        url: "/api/chat",
+        body: {
+          sessionId,
+          message: "修改表格",
+          model: expect.any(String),
+          referencedArtifactIds: ["sheet-1"],
+        },
+      },
+    ]);
+    const after = getLiveChatSnapshot(sessionId);
+    expect(after.messages).toHaveLength(2);
+    expect(after.messages.map((message) => message.id)).toEqual(before);
+    expect(after.messages[1]).toMatchObject({
+      streaming: false,
+      streamPhase: "done",
+    });
+  });
+
+  it("keeps a visible failure when prepared input cannot be synchronized", () => {
+    const sessionId = `${sid}-prepared-failure`;
+    const prepared = prepareLiveChatTurn(sessionId, "请修改表格");
+
+    prepared?.fail("表格同步失败，请重试");
+
+    expect(getLiveChatSnapshot(sessionId)).toMatchObject({
+      streaming: false,
+      error: "表格同步失败，请重试",
+      messages: [
+        { role: "user", content: "请修改表格" },
+        {
+          role: "assistant",
+          streaming: false,
+          streamPhase: "done",
+          activityLabel: "表格同步失败，请重试",
+          activityTone: "error",
+        },
+      ],
+    });
+  });
+
+  it("keeps a visible assistant failure when the prepared request cannot connect", async () => {
+    const sessionId = `${sid}-prepared-transport-failure`;
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new Error("AI 服务暂不可用");
+    }));
+
+    const prepared = prepareLiveChatTurn(sessionId, "请修改表格");
+
+    await expect(prepared?.commit("请修改表格")).resolves.toBe("sent");
+
+    expect(getLiveChatSnapshot(sessionId)).toMatchObject({
+      streaming: false,
+      error: "AI 服务暂不可用",
+      messages: [
+        { role: "user", content: "请修改表格" },
+        {
+          role: "assistant",
+          streaming: false,
+          streamPhase: "done",
+          activityLabel: "AI 服务暂不可用",
+          activityTone: "error",
+        },
+      ],
+    });
   });
 
   it("preserves Workflow presentation metadata when seeding server history", () => {
