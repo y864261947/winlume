@@ -139,6 +139,24 @@ async function migrationAlreadyApplied(client, tag) {
         AND column_name = 'is_service_account'
     ) AS ok`);
   }
+  if (tag.startsWith("0005_")) {
+    return q(`SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'enterprise_billing_requests'
+    ) AS ok`);
+  }
+  if (tag.startsWith("0006_")) {
+    return q(`SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'channels'
+    ) AS ok`);
+  }
+  if (tag.startsWith("0007_")) {
+    return q(`SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'team_new_api_mapping'
+    ) AS ok`);
+  }
   if (tag.startsWith("0008_")) {
     return q(`SELECT EXISTS (
       SELECT 1 FROM information_schema.tables

@@ -1,8 +1,8 @@
 # Deploy Reizo Studio to its dedicated directory on the production host.
 #
 # Required GitHub repo secrets:
-#   DEPLOY_HOST              e.g. 104.160.47.89
-#   DEPLOY_USER              e.g. root
+#   DEPLOY_HOST              15.204.123.217 (current Reizo public runtime)
+#   DEPLOY_USER              ubuntu (passwordless sudo for systemctl)
 #   DEPLOY_SSH_PRIVATE_KEY   Ed25519 private key authorized on the deploy host
 # Native platform secrets (DATABASE_URL, AUTH_SECRET, REIZO_GATEWAY_URL,
 # REIZO_GATEWAY_INTERNAL_TOKEN) are pre-provisioned on the host. The
@@ -66,6 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           scp -i ~/.ssh/id_ed25519 \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
             reizo-deploy.tar.gz \
             "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/reizo-deploy.tar.gz"
 
@@ -77,13 +78,14 @@ jobs:
           set -euo pipefail
           # shellcheck disable=SC2087
           ssh -i ~/.ssh/id_ed25519 \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
             bash -s <<'REMOTE'
           set -euo pipefail
           # Brand cutover: stop both old WinLume and new Reizo units so port
           # 3001 is free and we never run two generations at once.
-          systemctl stop reizo || true
-          systemctl stop winlume || true
+          sudo -n systemctl stop reizo || true
+          sudo -n systemctl stop winlume || true
 
           # Prefer existing Reizo release; otherwise seed previous from WinLume.
           rm -rf /opt/reizo.previous
@@ -113,10 +115,10 @@ jobs:
           # Auth mode value also renamed with the brand.
           sed -i 's/^REIZO_AUTH_MODE=winlume$/REIZO_AUTH_MODE=reizo/' /opt/reizo/.env || true
           if [ -f /etc/winlume/web.env ] && [ ! -f /etc/reizo/web.env ]; then
-            mkdir -p /etc/reizo
-            cp /etc/winlume/web.env /etc/reizo/web.env
-            sed -i 's/WINLUME_/REIZO_/g' /etc/reizo/web.env
-            sed -i 's/^REIZO_AUTH_MODE=winlume$/REIZO_AUTH_MODE=reizo/' /etc/reizo/web.env || true
+            sudo -n mkdir -p /etc/reizo
+            sudo -n cp /etc/winlume/web.env /etc/reizo/web.env
+            sudo -n sed -i 's/WINLUME_/REIZO_/g' /etc/reizo/web.env
+            sudo -n sed -i 's/^REIZO_AUTH_MODE=winlume$/REIZO_AUTH_MODE=reizo/' /etc/reizo/web.env || true
           fi
 
           # Native releases must not inherit the retired legacy-auth-mode
@@ -165,7 +167,7 @@ jobs:
           echo 'Running database migrations…'
           (cd /opt/reizo && node scripts/db-migrate.mjs)
           echo 'Database migrations complete.'
-          cat > /etc/systemd/system/reizo.service <<'UNIT'
+          sudo -n tee /etc/systemd/system/reizo.service >/dev/null <<'UNIT'
           [Unit]
           Description=Reizo Next.js Studio
           After=network.target
@@ -187,10 +189,10 @@ jobs:
           [Install]
           WantedBy=multi-user.target
           UNIT
-          systemctl daemon-reload
-          systemctl enable reizo
-          systemctl disable winlume 2>/dev/null || true
-          systemctl restart reizo
+          sudo -n systemctl daemon-reload
+          sudo -n systemctl enable reizo
+          sudo -n systemctl disable winlume 2>/dev/null || true
+          sudo -n systemctl restart reizo
           # next-server may need a few seconds after systemd reports active
           code="000"
           for i in 1 2 3 4 5 6 7 8 9 10; do
@@ -202,7 +204,7 @@ jobs:
             fi
           done
           if [ "$code" != "200" ]; then
-            systemctl status reizo --no-pager -n 30 || true
+            sudo -n systemctl status reizo --no-pager -n 30 || true
             tail -80 /var/log/reizo.log || true
             exit 1
           fi
