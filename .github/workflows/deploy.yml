@@ -88,7 +88,8 @@ jobs:
           sudo -n systemctl stop winlume || true
 
           # Prefer existing Reizo release; otherwise seed previous from WinLume.
-          rm -rf /opt/reizo.previous
+          # reizo.service runs as root, so its Next image cache may be root-owned.
+          sudo -n rm -rf /opt/reizo.previous
           if [ -d /opt/reizo ]; then
             mv /opt/reizo /opt/reizo.previous
           elif [ -d /opt/winlume ]; then
