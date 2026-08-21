@@ -33,5 +33,23 @@ describe("homepage API categories", () => {
     expect(source).not.toMatch(/label:\s*"通用接口"/);
     expect(source).toContain("API_BRAND_LIMIT = 5");
   });
+
+  it("opens content destinations in a new tab while keeping primary navigation in place", () => {
+    expect(source).toContain('target = "_blank"');
+    expect(source).toContain('rel={target === "_blank" ? "noopener noreferrer" : undefined}');
+    expect(source).toContain('href="/" target="_self" className="portal-brand"');
+    expect(source).toContain('href="/products?cate=api" target="_self"');
+  });
+
+  it("includes the first-visit three-step product guide", () => {
+    expect(source).toContain("PORTAL_ONBOARDING_STORAGE_KEY");
+    expect(source).toContain("Agent 智能工作台");
+    expect(source).toContain("API 模型中心");
+    expect(source).toContain("AI应用工具与Skills技能");
+    expect(source).toContain("portal-onboarding-card");
+    expect(source).toContain("data-onboarding-target=\"agent\"");
+    expect(source).toContain("data-onboarding-target=\"api\"");
+    expect(source).toContain("data-onboarding-target=\"tools\"");
+  });
 });
 

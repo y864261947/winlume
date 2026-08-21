@@ -25,6 +25,37 @@ declare global {
 
 const CHATWOOT_BASE_URL = "https://chat.v2api.top";
 const CHATWOOT_WEBSITE_TOKEN = "kZgsMkESfeGDBRWCHcKeTNYS";
+const PORTAL_ONBOARDING_STORAGE_KEY = "reizo-portal-onboarding-v1";
+
+const onboardingSteps = [
+  {
+    target: "agent" as const,
+    title: "Agent 智能工作台",
+    lead: "与 AI 对话，制作你要的素材。",
+    body: "支持内容创作、文件处理、数据分析、办公协作、代码开发等多场景任务，创建属于你的工作流。",
+  },
+  {
+    target: "api" as const,
+    title: "API 模型中心",
+    lead: "接入全球领先 AI 模型能力。",
+    body: "按需调用语言、图像、视频、音频、知识库等模型，灵活满足开发与应用接入需求。",
+  },
+  {
+    target: "tools" as const,
+    title: "AI应用工具与Skills技能",
+    lead: "300+ 应用工具 · 2600+ Skills 技能。",
+    body: "覆盖电商、营销、财务、法务、科研、办公、开发等多行业场景的一键式 AI 指令，快速找到适合你的 AI 能力。",
+  },
+] as const;
+
+type OnboardingPlacement = {
+  left: number;
+  top: number;
+  lineLeft: number;
+  lineTop: number;
+  lineWidth: number;
+  lineAngle: number;
+};
 
 type AssetIconProps = { src: string; alt?: string; className?: string };
 
@@ -38,12 +69,21 @@ type PortalLinkProps = {
   className?: string;
   onClick?: () => void;
   tabIndex?: number;
+  target?: "_blank" | "_self";
   "aria-hidden"?: boolean;
 };
 
-function PortalLink({ href, children, className, onClick, tabIndex, "aria-hidden": ariaHidden }: PortalLinkProps) {
+function PortalLink({ href, children, className, onClick, tabIndex, target = "_blank", "aria-hidden": ariaHidden }: PortalLinkProps) {
   return (
-    <Link href={href} className={className} onClick={onClick} tabIndex={tabIndex} aria-hidden={ariaHidden}>
+    <Link
+      href={href}
+      className={className}
+      onClick={onClick}
+      tabIndex={tabIndex}
+      target={target}
+      rel={target === "_blank" ? "noopener noreferrer" : undefined}
+      aria-hidden={ariaHidden}
+    >
       {children}
     </Link>
   );
@@ -577,6 +617,8 @@ export default function ModelMarket() {
   const cooldownTimerRef = useRef<number | null>(null);
   const [notice, setNotice] = useState("");
   const [chatwootReady, setChatwootReady] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
+  const [onboardingPlacement, setOnboardingPlacement] = useState<OnboardingPlacement | null>(null);
   const balance = formatBalance(account?.quota, balanceConfig);
   const activePath = productPaths.find((path) => path.id === activePathId) ?? productPaths[0];
   const stackPaths = stackOrderFrom(activePath.id).slice(0, STACK_VISIBLE);
@@ -584,6 +626,62 @@ export default function ModelMarket() {
   useEffect(() => {
     activePathIdRef.current = activePathId;
   }, [activePathId]);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(PORTAL_ONBOARDING_STORAGE_KEY)) return;
+    } catch {
+      // Private browsing can disable storage; the guide still works for this visit.
+    }
+
+    const timer = window.setTimeout(() => setOnboardingStep(0), 520);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (onboardingStep == null) {
+      setOnboardingPlacement(null);
+      return;
+    }
+
+    const step = onboardingSteps[onboardingStep];
+    const selector = `[data-onboarding-target="${step.target}"]`;
+    const updatePlacement = () => {
+      const target = document.querySelector(selector);
+      if (!target) return;
+
+      const rect = target.getBoundingClientRect();
+      const cardWidth = Math.min(344, window.innerWidth - 32);
+      const cardHeight = 278;
+      const targetOnRight = step.target === "tools";
+      const preferredLeft = targetOnRight ? rect.left - cardWidth - 28 : rect.right + 28;
+      const left = Math.max(16, Math.min(preferredLeft, window.innerWidth - cardWidth - 16));
+      const top = Math.max(84, Math.min(rect.top + Math.min(34, rect.height * .18), window.innerHeight - cardHeight - 16));
+      const targetX = targetOnRight ? rect.left : rect.right;
+      const targetY = Math.max(74, Math.min(rect.top + rect.height * .5, window.innerHeight - 42));
+      const lineStartX = targetOnRight ? left + cardWidth : left;
+      const lineStartY = top + 132;
+      const dx = targetX - lineStartX;
+      const dy = targetY - lineStartY;
+
+      setOnboardingPlacement({
+        left,
+        top,
+        lineLeft: lineStartX,
+        lineTop: lineStartY,
+        lineWidth: Math.max(24, Math.hypot(dx, dy)),
+        lineAngle: Math.atan2(dy, dx) * (180 / Math.PI),
+      });
+    };
+
+    updatePlacement();
+    window.addEventListener("resize", updatePlacement);
+    window.addEventListener("scroll", updatePlacement, true);
+    return () => {
+      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("scroll", updatePlacement, true);
+    };
+  }, [onboardingStep]);
 
   const stepFeatured = useCallback((delta: number) => {
     setFeaturedIndex((current) => {
@@ -713,22 +811,39 @@ export default function ModelMarket() {
     setNotice(chatwootReady ? "在线客服暂时不可用，请稍后重试" : "在线客服正在连接，请稍后再试");
   }
 
+  function completeOnboarding() {
+    try {
+      window.localStorage.setItem(PORTAL_ONBOARDING_STORAGE_KEY, "complete");
+    } catch {
+      // Keep the dismissed state for the active React session if storage is unavailable.
+    }
+    setOnboardingStep(null);
+  }
+
+  function changeOnboardingStep(next: number) {
+    if (next >= onboardingSteps.length) {
+      completeOnboarding();
+      return;
+    }
+    setOnboardingStep(Math.max(0, next));
+  }
+
   return (
     <div className="portal-home">
       <div className="portal-frame">
         <div className="portal-nav-shell">
           <div className="portal-nav-shell-fill" aria-hidden />
           <header className="portal-nav" aria-label="主导航">
-            <PortalLink href="/" className="portal-brand">
+            <PortalLink href="/" target="_self" className="portal-brand" aria-label="返回首页">
               <Image className="portal-brand-mark" src="/brand/reizo-mark.png" alt="" width={32} height={32} priority />
               Reizo
             </PortalLink>
             <nav className="portal-main-links" aria-label="页面导航">
-              <PortalLink href="/" className="is-current">首页</PortalLink>
-              <PortalLink href="/products?cate=app">应用工具</PortalLink>
-              <PortalLink href="/products?cate=api">API模型</PortalLink>
-              <PortalLink href="/docs">文档</PortalLink>
-              <PortalLink href="/pricing">计费标准</PortalLink>
+              <PortalLink href="/" target="_self" className="is-current">首页</PortalLink>
+              <PortalLink href="/products?cate=app" target="_self">应用工具</PortalLink>
+              <PortalLink href="/products?cate=api" target="_self">API模型</PortalLink>
+              <PortalLink href="/docs" target="_self">文档</PortalLink>
+              <PortalLink href="/pricing" target="_self">计费标准</PortalLink>
             </nav>
             <PortalLink href="/pricing" className="portal-membership-entry"><Crown aria-hidden />升级会员</PortalLink>
             <div className="portal-user-links">
@@ -743,7 +858,7 @@ export default function ModelMarket() {
         </div>
 
         <div className="portal-search-row">
-          <section className="portal-search-card" aria-labelledby="portal-search-title">
+          <section className={`portal-search-card${onboardingStep === 0 ? " is-onboarding-target" : ""}`} data-onboarding-target="agent" aria-labelledby="portal-search-title">
             <Image className="portal-search-waves" src="/figma-home/search-waves.svg" alt="" fill sizes="710px" priority />
             <div className="portal-search-content">
               <h1 id="portal-search-title">搜索全部 AI 能力</h1>
@@ -776,7 +891,7 @@ export default function ModelMarket() {
         {submittedQuery && <p className="portal-search-result" role="status">已为你准备“{submittedQuery}”相关能力，先从下面的工具分类开始。</p>}
 
         <div className="portal-discovery-grid">
-          <aside className="portal-api-card" aria-labelledby="portal-api-title">
+          <aside className={`portal-api-card${onboardingStep === 1 ? " is-onboarding-target" : ""}`} data-onboarding-target="api" aria-labelledby="portal-api-title">
             <div className="portal-api-card-head">
               <h2 id="portal-api-title">API模型</h2>
               <ArrowLink href="/products?cate=api">查看全部API模型</ArrowLink>
@@ -808,7 +923,7 @@ export default function ModelMarket() {
             </div>
           </aside>
 
-          <section className="portal-tools-card" aria-labelledby="portal-tools-title">
+          <section className={`portal-tools-card${onboardingStep === 2 ? " is-onboarding-target" : ""}`} data-onboarding-target="tools" aria-labelledby="portal-tools-title">
             <div className="portal-tools-head">
               <h2 id="portal-tools-title">应用工具</h2>
               <ArrowLink href="/products?cate=app">查看全部工具</ArrowLink>
@@ -1091,9 +1206,51 @@ export default function ModelMarket() {
             ))}
           </footer>
         </div>
-      </div>
+        </div>
 
-      <aside className="portal-floating-tools" aria-label="快捷工具"><button type="button" onClick={openSupportChat}><CircleHelp aria-hidden /><span>客服</span></button><span className="portal-floating-divider" aria-hidden /><button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><ArrowUp aria-hidden /><span>顶部</span></button></aside>
+        {onboardingStep != null ? (
+          <div className="portal-onboarding" role="dialog" aria-modal="true" aria-labelledby="portal-onboarding-title" aria-describedby="portal-onboarding-description">
+            <div className="portal-onboarding-scrim" aria-hidden />
+            {onboardingPlacement ? (
+              <span
+                className="portal-onboarding-line"
+                aria-hidden
+                style={{
+                  left: onboardingPlacement.lineLeft,
+                  top: onboardingPlacement.lineTop,
+                  width: onboardingPlacement.lineWidth,
+                  transform: `rotate(${onboardingPlacement.lineAngle}deg)`,
+                }}
+              />
+            ) : null}
+            <section
+              className="portal-onboarding-card"
+              style={onboardingPlacement ? { left: onboardingPlacement.left, top: onboardingPlacement.top } : undefined}
+            >
+              <div className="portal-onboarding-progress">{onboardingStep + 1}/{onboardingSteps.length}</div>
+              <div className="portal-onboarding-title-row">
+                <span className={`portal-onboarding-icon is-${onboardingSteps[onboardingStep].target}`} aria-hidden>
+                  {onboardingStep === 0 ? <LayoutGrid /> : onboardingStep === 1 ? <Search /> : <Crown />}
+                </span>
+                <h2 id="portal-onboarding-title">{onboardingSteps[onboardingStep].title}</h2>
+              </div>
+              <p className="portal-onboarding-lead">{onboardingSteps[onboardingStep].lead}</p>
+              <p id="portal-onboarding-description" className="portal-onboarding-copy">{onboardingSteps[onboardingStep].body}</p>
+              <div className="portal-onboarding-dots" aria-label={`第 ${onboardingStep + 1} 步，共 ${onboardingSteps.length} 步`}>
+                {onboardingSteps.map((step, index) => <i key={step.target} className={index === onboardingStep ? "is-active" : ""} />)}
+              </div>
+              <div className="portal-onboarding-actions">
+                <button type="button" className="portal-onboarding-skip" onClick={completeOnboarding}>跳过引导</button>
+                <div>
+                  {onboardingStep > 0 ? <button type="button" className="portal-onboarding-back" onClick={() => changeOnboardingStep(onboardingStep - 1)}>上一步</button> : null}
+                  <button type="button" className="portal-onboarding-next" onClick={() => changeOnboardingStep(onboardingStep + 1)}>{onboardingStep === onboardingSteps.length - 1 ? "开始使用" : "下一步"}</button>
+                </div>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        <aside className="portal-floating-tools" aria-label="快捷工具"><button type="button" onClick={openSupportChat}><CircleHelp aria-hidden /><span>客服</span></button><span className="portal-floating-divider" aria-hidden /><button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><ArrowUp aria-hidden /><span>顶部</span></button></aside>
       <div className={`portal-notice ${notice ? "is-visible" : ""}`} role="status" aria-live="polite">{notice}</div>
     </div>
   );
