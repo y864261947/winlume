@@ -65,6 +65,7 @@ import {
   loadComposerDraft,
   saveComposerDraft,
 } from "@/lib/studio/composer-draft";
+import { afterNextPaint } from "@/lib/studio/next-paint";
 import {
   startVideoAnalysis,
   uploadImageArtifact,
@@ -144,6 +145,13 @@ export type ComposerSendMeta = {
   }>;
 };
 
+/** A live turn already visible in the thread while the Composer prepares inputs. */
+export type ComposerSendPreparation = {
+  setStatus: (label: string) => void;
+  fail: (message: string) => void;
+  commit: (text: string, meta?: ComposerSendMeta) => void | Promise<void | string>;
+};
+
 export type ComposerProps = {
   value?: string;
   onChange?: (value: string) => void;
@@ -151,6 +159,11 @@ export type ComposerProps = {
     text: string,
     meta?: ComposerSendMeta,
   ) => void | Promise<void | string>;
+  /**
+   * Optionally creates an optimistic user + activity pair before local work
+   * (uploads, workbook sync, or other preflight) begins.
+   */
+  onPrepareSend?: (text: string) => ComposerSendPreparation | null;
   onStop?: () => void;
   streaming?: boolean;
   disabled?: boolean;
@@ -301,6 +314,7 @@ export default function Composer({
   value: controlledValue,
   onChange,
   onSend,
+  onPrepareSend,
   onStop,
   streaming = false,
   disabled = false,
@@ -1154,15 +1168,37 @@ export default function Composer({
     }
     onClearError?.();
 
+    const toolDraft = turnTool && !effectiveDraft.includes(turnTool.composerPrompt)
+      ? `${turnTool.composerPrompt}\n${effectiveDraft}`.trim()
+      : effectiveDraft;
+    const outbound = composeOutboundMessage({
+      draft:
+        turnTool?.id === "watermark-subtitle-removal"
+          ? `${toolDraft}\n我确认拥有处理此图片及移除相关内容的必要权利。`
+          : toolDraft,
+      pasted: pastedBlocks,
+      images,
+      files,
+      videos,
+      workbooks,
+    });
+    if (!outbound) return;
+
+    const preparation = onPrepareSend?.(outbound) ?? null;
+
     void (async () => {
       setSubmittingAttachments(true);
       try {
+        // The thread must visibly acknowledge the turn before any upload or
+        // workbook work monopolizes the main thread.
+        await afterNextPaint();
         let workingImages = images;
 
         // Session page: finish any @-mentioned uploads before resolving ids.
         if (sessionId) {
           const pending = resolvePendingLocalMentions(effectiveDraft, workingImages);
           if (pending.length) {
+            preparation?.setStatus("正在上传图片引用…");
             const uploaded: ImageAttachment[] = [...workingImages];
             for (const image of pending) {
               try {
@@ -1196,6 +1232,7 @@ export default function Composer({
           // turn so the Works panel has durable source + pending analysis rows.
           const pendingBooks = workbooks.filter((book) => !book.artifactId);
           if (pendingBooks.length) {
+            preparation?.setStatus("正在导入表格附件…");
             const uploaded = [...workbooks];
             for (const book of pendingBooks) {
               try {
@@ -1216,6 +1253,9 @@ export default function Composer({
                 setAttachError(
                   error instanceof Error ? error.message : "表格导入失败",
                 );
+                preparation?.fail(
+                  error instanceof Error ? error.message : "表格导入失败",
+                );
                 return;
               }
             }
@@ -1225,6 +1265,7 @@ export default function Composer({
 
           for (const video of videos) {
             try {
+              preparation?.setStatus("正在准备视频参考…");
               const source = await uploadVideoArtifact({
                 sessionId,
                 file: video.file,
@@ -1242,27 +1283,17 @@ export default function Composer({
                   ? error.message
                   : "参考视频上传或拆解任务创建失败",
               );
+              preparation?.fail(
+                error instanceof Error
+                  ? error.message
+                  : "参考视频上传或拆解任务创建失败",
+              );
               return;
             }
           }
         }
 
-        const toolDraft = turnTool && !effectiveDraft.includes(turnTool.composerPrompt)
-          ? `${turnTool.composerPrompt}\n${effectiveDraft}`.trim()
-          : effectiveDraft;
         const readyWorkbooks = workbooksRef.current;
-        const outbound = composeOutboundMessage({
-          draft:
-            turnTool?.id === "watermark-subtitle-removal"
-              ? `${toolDraft}\n我确认拥有处理此图片及移除相关内容的必要权利。`
-              : toolDraft,
-          pasted: pastedBlocks,
-          images: workingImages,
-          files,
-          videos,
-          workbooks: readyWorkbooks,
-        });
-        if (!outbound) return;
 
         const referencedArtifactIds = [
           ...resolveReferencedArtifactIds(
@@ -1314,7 +1345,12 @@ export default function Composer({
               }
             : undefined;
 
-        void onSend(outbound, meta);
+        if (preparation) {
+          preparation.setStatus("正在连接 AI…");
+          void preparation.commit(outbound, meta);
+        } else {
+          void onSend(outbound, meta);
+        }
         setDraft("");
         editorRef.current?.clear();
         setSelectionPreview(null);
@@ -1327,6 +1363,10 @@ export default function Composer({
         setMentionRange(null);
         if (draftKey) clearComposerDraft(draftKey);
         focusComposer();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "准备消息时发生错误";
+        setAttachError(message);
+        preparation?.fail(message);
       } finally {
         setSubmittingAttachments(false);
       }
@@ -1351,6 +1391,7 @@ export default function Composer({
     onSheetUploaded,
     setComposerImages,
     onClearError,
+    onPrepareSend,
     selectedIds,
     turnTool,
     watermarkRightsConfirmed,
