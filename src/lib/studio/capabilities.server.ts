@@ -58,6 +58,7 @@ async function fetchConfiguredFamilies(
   try {
     const response = await fetchImpl(joinGatewayPath(baseUrl, "/capabilities"), {
       cache: "no-store",
+      signal: AbortSignal.timeout(3_000),
     });
     if (!response.ok) return { reachable: false, families: new Set() };
 
@@ -88,6 +89,7 @@ async function fetchGatewayModelIds(
     const response = await fetchImpl(joinGatewayPath(baseUrl, "/v1/models"), {
       headers,
       cache: "no-store",
+      signal: AbortSignal.timeout(3_000),
     });
     if (!response.ok) return [];
 

@@ -18,7 +18,9 @@ export default function ChatThreadSkeleton() {
           >
             <span className="mt-0.5 h-8 w-8 shrink-0 animate-pulse rounded-full bg-white/60" />
             <div
-              className={`h-16 max-w-[min(100%,42rem)] animate-pulse rounded-[18px] bg-white/50 ${width}`}
+              className={`h-16 max-w-[min(100%,42rem)] animate-pulse rounded-[18px] ${
+                i === 0 ? "bg-white/50" : "bg-white/35"
+              } ${width}`}
             />
           </div>
         ))}

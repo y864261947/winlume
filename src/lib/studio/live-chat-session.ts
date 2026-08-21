@@ -12,7 +12,7 @@ import type {
   Message,
   WorkflowRunIntent,
 } from "@/lib/agent/types";
-import { createExecutionMap } from "@/lib/studio/execution-map";
+import { createExecutionMap, reduceExecutionMap } from "@/lib/studio/execution-map";
 import {
   finalizeLiveAgentState,
   reduceLiveAgentEvent,
@@ -53,6 +53,17 @@ export type QueuedMessage = {
   createdAt: number;
 };
 
+export type PreparedLiveChatTurn = {
+  id: string;
+  setStatus: (label: string) => void;
+  fail: (message: string) => void;
+  /** Start the server turn after client-side inputs are ready. */
+  commit: (
+    text: string,
+    overrides?: SendOverrides,
+  ) => Promise<"sent" | "rejected">;
+};
+
 export type LiveChatSnapshot = {
   sessionId: string;
   messages: UiChatMessage[];
@@ -75,6 +86,14 @@ type Entry = {
   hooks: UiHooks;
   /** Serialize turn starts for this session (queue drain). */
   starting: boolean;
+  prepared: PreparedTurn | null;
+};
+
+type PreparedTurn = {
+  id: string;
+  userMessageId: string;
+  assistantMessageId: string;
+  startedAt: number;
 };
 
 const entries = new Map<string, Entry>();
@@ -126,6 +145,21 @@ function summarizeToolContent(
   return { ok: true, summary: rawContent };
 }
 
+/** Best-effort parse of a persisted todo_write/declare_plan tool result's todos snapshot. */
+function planTodosFromToolResult(
+  rawContent: string | undefined,
+): Array<{ id: string; content: string; status: "pending" | "in_progress" | "completed" | "cancelled" }> | undefined {
+  if (!rawContent) return undefined;
+  try {
+    const parsed = JSON.parse(rawContent) as { todos?: unknown };
+    return Array.isArray(parsed.todos)
+      ? (parsed.todos as ReturnType<typeof planTodosFromToolResult>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Reconstructs the same folded view a live turn shows: each tool call's
  * result gets merged back onto its parent assistant message (matching what
@@ -133,6 +167,12 @@ function summarizeToolContent(
  * tool-role receipt message — never rendered as its own bubble live — is
  * dropped so a reloaded session looks identical to the just-streamed one
  * instead of surfacing raw JSON receipts.
+ *
+ * Reasoning text and the plan checklist are read back from `parts`/`metadata`
+ * (persisted since Phase 1) and from the todo_write tool result's raw todos
+ * snapshot — both are static reconstructions of what a live turn already
+ * looked like, not a live-vs-server merge, so there is nothing ephemeral
+ * left to lose on reconciliation.
  */
 export function toUiMessages(messages: Message[]): UiChatMessage[] {
   const callNameById = new Map<string, string>();
@@ -142,32 +182,56 @@ export function toUiMessages(messages: Message[]): UiChatMessage[] {
     }
   }
   const resultByCallId = new Map<string, { ok: boolean; summary: string }>();
+  const rawContentByCallId = new Map<string, string>();
   for (const m of messages) {
     if (m.role === "tool" && m.toolCallId) {
       const name = callNameById.get(m.toolCallId) ?? "tool";
       resultByCallId.set(m.toolCallId, summarizeToolContent(name, m.content));
+      rawContentByCallId.set(m.toolCallId, m.content);
     }
   }
 
   return messages
     .filter((m) => m.role !== "tool")
-    .map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.role === "assistant" ? stripAgentProtocolMarkers(m.content) : m.content,
-      ...(m.presentation ? { presentation: m.presentation } : {}),
-      toolCalls: m.toolCalls?.map((tc) => {
-        const result = resultByCallId.get(tc.id);
-        return {
-          id: tc.id,
-          name: tc.name,
-          input: tc.arguments,
-          resultSummary: result?.summary ?? tc.result,
-          ok: result ? result.ok : tc.result !== undefined ? true : undefined,
-          status: "done" as const,
-        };
-      }),
-    }));
+    .map((m) => {
+      const reasoningPart =
+        m.role === "assistant" ? m.parts?.find((p) => p.type === "reasoning") : undefined;
+      const todoCall = m.toolCalls?.find(
+        (tc) => tc.name === "todo_write" || tc.name === "declare_plan",
+      );
+      const todos = todoCall
+        ? planTodosFromToolResult(rawContentByCallId.get(todoCall.id))
+        : undefined;
+      const executionSteps = todos?.length
+        ? reduceExecutionMap(
+            reduceExecutionMap(createExecutionMap(), { type: "plan", todos }),
+            { type: "finish" },
+          )
+        : undefined;
+
+      return {
+        id: m.id,
+        role: m.role,
+        content: m.role === "assistant" ? stripAgentProtocolMarkers(m.content) : m.content,
+        ...(m.presentation ? { presentation: m.presentation } : {}),
+        ...(reasoningPart ? { thinking: reasoningPart.text } : {}),
+        ...(m.metadata?.thinkingDurationSec !== undefined
+          ? { thinkingDurationSec: m.metadata.thinkingDurationSec }
+          : {}),
+        ...(executionSteps ? { executionSteps } : {}),
+        toolCalls: m.toolCalls?.map((tc) => {
+          const result = resultByCallId.get(tc.id);
+          return {
+            id: tc.id,
+            name: tc.name,
+            input: tc.arguments,
+            resultSummary: result?.summary ?? tc.result,
+            ok: result ? result.ok : tc.result !== undefined ? true : undefined,
+            status: "done" as const,
+          };
+        }),
+      };
+    });
 }
 
 function ensureEntry(sessionId: string, model?: string): Entry {
@@ -186,6 +250,7 @@ function ensureEntry(sessionId: string, model?: string): Entry {
       listeners: new Set(),
       hooks: {},
       starting: false,
+      prepared: null,
     };
     entries.set(sessionId, entry);
   }
@@ -294,6 +359,128 @@ export function clearLiveChatQueue(sessionId: string): void {
   patchSnapshot(entry, { queue: [] });
 }
 
+function assistantPreparingMessage(
+  id: string,
+  label: string,
+  startedAt: number,
+): UiChatMessage {
+  return {
+    id,
+    role: "assistant",
+    content: "",
+    streaming: true,
+    streamPhase: "preparing",
+    streamStartedAt: startedAt,
+    activityLabel: label,
+  };
+}
+
+function updatePreparedAssistant(
+  entry: Entry,
+  prepared: PreparedTurn,
+  patch: Partial<UiChatMessage>,
+): void {
+  patchSnapshot(entry, {
+    messages: entry.snapshot.messages.map((message) =>
+      message.id === prepared.assistantMessageId
+        ? { ...message, ...patch }
+        : message,
+    ),
+  });
+}
+
+/**
+ * Acknowledge a Composer submission before client-side preflight work begins.
+ * The returned handle owns one optimistic user + assistant pair; `commit`
+ * promotes it into the regular SSE turn so the user never sees a silent gap.
+ */
+export function prepareLiveChatTurn(
+  sessionId: string,
+  text: string,
+  label = "正在准备发送…",
+): PreparedLiveChatTurn | null {
+  const trimmed = text.trim();
+  if (!trimmed || !sessionId) return null;
+
+  const entry = ensureEntry(sessionId);
+  if (entry.prepared || entry.controller || entry.snapshot.streaming) return null;
+
+  const startedAt = Date.now();
+  // The session page's layout effect may have already synchronously painted
+  // a `pending-user-${sessionId}` bubble (readHandoffBootstrap, before any
+  // React effect runs) for this exact handed-off text. Reuse that bubble's
+  // id instead of appending a second, duplicate one.
+  const lastMessage = entry.snapshot.messages[entry.snapshot.messages.length - 1];
+  const reuseOptimistic =
+    lastMessage?.role === "user" &&
+    lastMessage.id.startsWith("pending-user-") &&
+    lastMessage.content === trimmed;
+  const prepared: PreparedTurn = {
+    id: clientId("prepared"),
+    userMessageId: reuseOptimistic ? lastMessage.id : clientId("user"),
+    assistantMessageId: clientId("assistant"),
+    startedAt,
+  };
+  entry.prepared = prepared;
+  patchSnapshot(entry, {
+    error: null,
+    streaming: true,
+    messages: [
+      ...entry.snapshot.messages,
+      ...(reuseOptimistic
+        ? []
+        : [{ id: prepared.userMessageId, role: "user" as const, content: trimmed }]),
+      assistantPreparingMessage(prepared.assistantMessageId, label, startedAt),
+    ],
+  });
+
+  const ownsPreparedTurn = () => entry.prepared?.id === prepared.id;
+  return {
+    id: prepared.id,
+    setStatus: (nextLabel) => {
+      if (!ownsPreparedTurn()) return;
+      updatePreparedAssistant(entry, prepared, {
+        activityLabel: nextLabel,
+        activityTone: "neutral",
+        streaming: true,
+        streamPhase: "preparing",
+      });
+    },
+    fail: (message) => {
+      if (!ownsPreparedTurn()) return;
+      entry.prepared = null;
+      updatePreparedAssistant(entry, prepared, {
+        activityLabel: message,
+        activityTone: "error",
+        streaming: false,
+        streamPhase: "done",
+      });
+      patchSnapshot(entry, { streaming: false, error: message });
+      notifyIdleIfQuiet(sessionId, entry);
+      queueMicrotask(() => {
+        void drainQueue(sessionId);
+      });
+    },
+    commit: async (nextText, overrides) => {
+      if (!ownsPreparedTurn()) return "rejected";
+      const nextTrimmed = nextText.trim();
+      if (!nextTrimmed) {
+        entry.prepared = null;
+        updatePreparedAssistant(entry, prepared, {
+          activityLabel: "消息内容为空，未发送",
+          activityTone: "error",
+          streaming: false,
+          streamPhase: "done",
+        });
+        patchSnapshot(entry, { streaming: false });
+        return "rejected";
+      }
+      entry.prepared = null;
+      return runLiveTurn(sessionId, nextTrimmed, overrides, prepared);
+    },
+  };
+}
+
 /**
  * Seed / reconcile with server history.
  * Never clobber an active stream or a richer live buffer (mid-generation leave).
@@ -319,6 +506,12 @@ export function seedLiveChatFromServer(
     return;
   }
 
+  // thinking/executionSteps/toolCalls are reconstructed by toUiMessages from
+  // persisted parts/metadata (Phase 1), so a server-reconciled message is
+  // simply authoritative now — no ephemeral-field merge needed. What
+  // shouldPreferLiveMessages still guards against is a different problem:
+  // a client-temp-id turn the server hasn't reflected yet (send race), not
+  // ephemeral field loss.
   patchSnapshot(entry, {
     messages: toUiMessages(serverMessages),
     error: entry.snapshot.error,
@@ -363,6 +556,7 @@ export function stopLiveChat(sessionId: string): void {
   const entry = entries.get(sessionId);
   if (!entry) return;
   // Local reader abort + explicit server-side turn cancel
+  entry.prepared = null;
   entry.controller?.abort();
   entry.controller = null;
   void stopChatTurn(sessionId).catch(() => {
@@ -377,6 +571,9 @@ export function stopLiveChat(sessionId: string): void {
             streaming: false,
             streamPhase: "done" as const,
             artifactDraft: undefined,
+            ...(m.streamPhase === "preparing"
+              ? { activityLabel: "已停止发送" }
+              : {}),
           }
         : m,
     ),
@@ -390,6 +587,13 @@ export type SendOverrides = {
   referencedArtifactIds?: string[];
   /** @deprecated Use referencedArtifactIds */
   referencedArtifactId?: string;
+  projectId?: string;
+  /**
+   * `sessionId` is a client-minted id (`crypto.randomUUID()`) the caller
+   * already navigated to before the server had ever heard of it — create
+   * the session with that exact id on this turn instead of 404ing.
+   */
+  bootstrap?: { title?: string };
 };
 
 export type WorkflowLiveStage = {
@@ -809,6 +1013,7 @@ async function runLiveTurn(
   sessionId: string,
   text: string,
   overrides?: SendOverrides,
+  prepared?: PreparedTurn,
 ): Promise<"sent" | "rejected"> {
   const entry = ensureEntry(sessionId);
   if (entry.controller || entry.starting) return "rejected";
@@ -821,13 +1026,17 @@ async function runLiveTurn(
     const requestSkillIds = overrides?.skillIds;
     const requestReferencedArtifactIds = overrides?.referencedArtifactIds;
     const requestReferencedArtifactId = overrides?.referencedArtifactId;
+    const requestProjectId = overrides?.projectId?.trim();
+    const requestBootstrap = overrides?.bootstrap;
 
     const userMsg: UiChatMessage = {
-      id: clientId("user"),
+      id: prepared?.userMessageId ?? clientId("user"),
       role: "user",
       content: text,
     };
-    const assistantId = clientId("assistant");
+    let assistantId = prepared?.assistantMessageId ?? clientId("assistant");
+    // Preflight has its own visible elapsed time. Reset when the model starts
+    // so the later thinking duration measures the server turn only.
     const streamStartedAt = Date.now();
     const assistantMsg: UiChatMessage = {
       id: assistantId,
@@ -849,6 +1058,13 @@ async function runLiveTurn(
       model: requestModel,
       messages: (() => {
         const prev = entry.snapshot.messages;
+        if (prepared) {
+          return prev.map((message) => {
+            if (message.id === userMsg.id) return userMsg;
+            if (message.id === assistantId) return assistantMsg;
+            return message;
+          });
+        }
         const last = prev[prev.length - 1];
         const dropOptimistic =
           last?.role === "user" &&
@@ -878,12 +1094,28 @@ async function runLiveTurn(
       applyStreamState(finalizeLiveAgentState(streamState, Date.now()));
     };
 
+    const finalizeAssistantWithFailure = (message: string): void => {
+      const finalized = finalizeLiveAgentState(streamState, Date.now());
+      applyStreamState({
+        ...finalized,
+        assistant: {
+          ...finalized.assistant,
+          activityLabel: message,
+          activityTone: "error",
+        },
+      });
+    };
+
+    let transportFailure: string | null = null;
+
     try {
       await streamChat(
         {
           sessionId,
           message: text,
           model: requestModel,
+          ...(requestProjectId ? { projectId: requestProjectId } : {}),
+          ...(requestBootstrap ? { bootstrap: requestBootstrap } : {}),
           ...(requestCapabilityPresetId
             ? { capabilityPresetId: requestCapabilityPresetId }
             : {}),
@@ -901,6 +1133,25 @@ async function runLiveTurn(
             // Always read hooks from entry so remounted page receives events.
             const hooks = entry.hooks;
             const reduced = reduceLiveAgentEvent(streamState, event, Date.now());
+            // Reassign the optimistic id to the server-committed one in place
+            // so later map()s by assistantId hit the same message instead of
+            // orphaning it once this turn is reconciled from persisted history.
+            if (
+              reduced.effects.messageId &&
+              reduced.effects.messageId !== assistantId
+            ) {
+              const oldId = assistantId;
+              assistantId = reduced.effects.messageId;
+              streamState = {
+                ...streamState,
+                assistant: { ...streamState.assistant, id: assistantId },
+              };
+              patchSnapshot(entry, {
+                messages: entry.snapshot.messages.map((m) =>
+                  m.id === oldId ? { ...m, id: assistantId } : m,
+                ),
+              });
+            }
             applyStreamState(reduced.state);
             if (reduced.effects.sessionId) {
               hooks.onSession?.(reduced.effects.sessionId);
@@ -918,6 +1169,7 @@ async function runLiveTurn(
       if (controller.signal.aborted) {
         /* user stopped or intentional abort */
       } else if (err instanceof StudioApiError && err.status === 401) {
+        transportFailure = err.message;
         patchSnapshot(entry, { error: err.message });
         entry.hooks.onUnauthorized?.();
       } else if (err instanceof Error && err.name === "AbortError") {
@@ -925,15 +1177,16 @@ async function runLiveTurn(
       } else {
         const message =
           err instanceof Error ? err.message : "发送失败，请稍后重试";
+        transportFailure = message;
         patchSnapshot(entry, { error: message });
       }
-      finalizeAssistant();
     } finally {
       if (entry.controller === controller) {
         entry.controller = null;
       }
       // Ensure assistant closed even if stream ended without done event
-      finalizeAssistant();
+      if (transportFailure) finalizeAssistantWithFailure(transportFailure);
+      else finalizeAssistant();
       patchSnapshot(entry, { streaming: false });
       notifyIdleIfQuiet(sessionId, entry);
       queueMicrotask(() => {

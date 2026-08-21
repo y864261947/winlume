@@ -70,6 +70,41 @@ export interface WorkflowMessagePresentation {
   intent: WorkflowRunIntent;
 }
 
+/**
+ * AI-SDK-shaped message parts, persisted so a completed turn's reasoning/tool
+ * detail survives reload without client-side reconciliation guesswork. Kept
+ * as a local union (not an import of `ai`'s `UIMessagePart`) so L2/L3 stay
+ * decoupled from the AI SDK dependency — the shape only needs to be
+ * compatible with it, not literally sourced from it.
+ */
+export type UIMessagePart =
+  | { type: "text"; text: string }
+  | { type: "reasoning"; text: string }
+  | {
+      type: `tool-${string}`;
+      toolCallId: string;
+      state: "input-streaming" | "input-available" | "output-available" | "output-error";
+      input?: unknown;
+      output?: unknown;
+      errorText?: string;
+    }
+  | {
+      type: "data-plan";
+      id: "plan";
+      data: {
+        todos: Array<{
+          id: string;
+          content: string;
+          status: "pending" | "in_progress" | "completed" | "cancelled";
+        }>;
+      };
+    }
+  | {
+      type: "data-artifact";
+      id: string;
+      data: { artifactId: string; name: string; kind: ArtifactKind };
+    };
+
 export interface Message {
   id: string;
   sessionId: string;
@@ -82,6 +117,13 @@ export interface Message {
   /** For role "tool": links to the assistant tool_call id */
   toolCallId?: string;
   attachmentIds?: string[];
+  /** Reasoning/tool/plan detail, persisted so it survives reload. */
+  parts?: UIMessagePart[];
+  metadata?: {
+    model?: string;
+    thinkingDurationSec?: number;
+    skillIds?: string[];
+  };
   createdAt: string;
 }
 
@@ -192,6 +234,13 @@ export type AgentSseEvent =
         | "cancelled";
     }
   | { type: "session"; sessionId: string }
+  /**
+   * Emitted once, before any text_delta/thinking/tool_call for a given
+   * assistant message, reporting the id the server has already committed to
+   * persisting. Lets the client reassign its optimistic id in place instead
+   * of remounting when the message is later reconciled from disk.
+   */
+  | { type: "message_start"; messageId: string }
   | { type: "text_delta"; text: string }
   | { type: "thinking"; text: string }
   | { type: "tool_call"; id: string; name: string; input: unknown }

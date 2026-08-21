@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
+import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 import { getCurrentUserId } from "@/lib/auth/session";
 import type { AgentSseEvent, SessionWorkflowBinding } from "@/lib/agent/types";
+import { createAgentEventTranslator } from "@/lib/agent/ui-stream";
+import { isTerminalStatus, sseFrame, toClientEvent, uiSseFrame } from "@/lib/agent/sse-stream";
 import {
   RunCoordinatorError,
   RunPolicyError,
@@ -36,23 +39,6 @@ import type { StudioToolName } from "@/lib/agent/tools/definitions";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function sseFrame(event: AgentSseEvent, sequence?: number): string {
-  const id = sequence === undefined ? "" : `id: ${sequence}\n`;
-  return `${id}data: ${JSON.stringify(event)}\n\n`;
-}
-
-function isTerminalStatus(status: RunStatus): boolean {
-  return status === "completed" || status === "failed" || status === "cancelled";
-}
-
-function toClientEvent(runId: string, event: RunEvent): AgentSseEvent | null {
-  if (event.type === "agent.event") return event.payload.event;
-  if (event.type === "run.status_changed") {
-    return { type: "run", runId, status: event.payload.to };
-  }
-  return null;
-}
-
 function responseForRunError(error: unknown): Response {
   if (error instanceof RunPolicyError) {
     return Response.json(
@@ -85,7 +71,17 @@ type ChatBody = {
   referencedArtifactIds?: string[];
   /** @deprecated Use referencedArtifactIds */
   referencedArtifactId?: string;
+  /**
+   * The client already committed to `sessionId` before the server knew
+   * about it — it navigated to `/studio/c/${sessionId}` optimistically,
+   * with zero network round trips first. Create the session with exactly
+   * this id instead of 404ing. Absent, `sessionId` must already exist
+   * (unchanged legacy behavior).
+   */
+  bootstrap?: { title?: string };
 };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * POST /api/chat - create a durable agent run and stream its persisted events.
@@ -97,6 +93,12 @@ export async function POST(request: NextRequest) {
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Opt-in AI SDK wire protocol (Phase 2). Default stays the legacy
+  // AgentSseEvent stream; nothing depends on this yet.
+  const useUiProtocol =
+    request.headers.get("x-reizo-protocol") === "ui" ||
+    new URL(request.url).searchParams.get("protocol") === "ui";
 
   let body: ChatBody;
   try {
@@ -181,6 +183,42 @@ export async function POST(request: NextRequest) {
       ...(projectId ? { projectId } : {}),
     });
     sessionId = session.id;
+  } else if (body.bootstrap) {
+    // The client minted this id itself (crypto.randomUUID()) and already
+    // navigated to it. Trust it only if it's shaped like one of ours — this
+    // is the one path where a client picks its own primary key.
+    if (!UUID_RE.test(sessionId)) {
+      return Response.json({ error: "Invalid session id" }, { status: 400 });
+    }
+    if (workflowAction) {
+      return Response.json(
+        { error: "Workflow action requires a validated Session" },
+        { status: 400 },
+      );
+    }
+    if (projectId) {
+      const project = await webStore.projects.getProject(userId, projectId);
+      if (!project) {
+        return Response.json({ error: "Project not found" }, { status: 404 });
+      }
+    }
+    const existing = await webStore.sessions.getSession(userId, sessionId);
+    if (existing) {
+      return Response.json({ error: "Session already exists" }, { status: 409 });
+    }
+    const title = body.bootstrap.title?.trim() || "新对话";
+    const session = await webStore.sessions.createSession({
+      id: sessionId,
+      userId,
+      title,
+      model,
+      ...(projectId ? { projectId } : {}),
+      ...(requestedCapabilityPresetId
+        ? { capabilityPresetId: requestedCapabilityPresetId }
+        : {}),
+    });
+    projectId = session.projectId;
+    model = session.model;
   } else {
     const existing = await webStore.sessions.getSession(userId, sessionId);
     if (!existing) {
@@ -436,14 +474,25 @@ export async function POST(request: NextRequest) {
         }
       };
 
+      const translateEvent = useUiProtocol ? createAgentEventTranslator() : null;
+
       const emit = (event: AgentSseEvent, sequence?: number) => {
         if (closed) return;
         try {
-          controller.enqueue(encoder.encode(sseFrame(event, sequence)));
+          const frame = translateEvent
+            ? uiSseFrame(translateEvent(event), sequence)
+            : sseFrame(event, sequence);
+          if (frame) controller.enqueue(encoder.encode(frame));
         } catch {
           close();
         }
       };
+
+      // First frame, always: the canonical session id. Usually a no-op echo
+      // of what the client already sent — but when this POST bootstrapped a
+      // client-minted id (see `bootstrap` above), this is the client's only
+      // positive confirmation the id it already navigated to is now real.
+      emit({ type: "session", sessionId });
 
       const flush = async () => {
         if (flushing) {
@@ -495,12 +544,18 @@ export async function POST(request: NextRequest) {
 
   return new Response(stream, {
     status: 200,
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-      "X-Run-ID": runId,
-    },
+    headers: useUiProtocol
+      ? {
+          ...UI_MESSAGE_STREAM_HEADERS,
+          "X-Accel-Buffering": "no",
+          "X-Run-ID": runId,
+        }
+      : {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+          "X-Run-ID": runId,
+        },
   });
 }

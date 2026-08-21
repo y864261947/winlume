@@ -77,6 +77,27 @@ async function toStudioApiError(
   );
 }
 
+/**
+ * `fetch` with a hard deadline. Without this, a gateway that accepts the TCP
+ * connection and then goes silent leaves the caller's promise pending
+ * forever — no error, nothing to catch, just a permanently stuck UI.
+ */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  timeoutMessage: string,
+): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      throw new StudioApiError(timeoutMessage, 408, "timeout");
+    }
+    throw err;
+  }
+}
+
 async function parseJson<T>(response: Response): Promise<T> {
   const text = await response.text();
   if (!text) {
@@ -115,12 +136,17 @@ export async function createSession(input?: {
   projectId?: string;
   capabilityPresetId?: string;
 }): Promise<Session> {
-  const response = await fetch("/api/sessions", {
-    method: "POST",
-    headers: withUserHeaders(),
-    body: JSON.stringify(input ?? {}),
-    credentials: "same-origin",
-  });
+  const response = await fetchWithTimeout(
+    "/api/sessions",
+    {
+      method: "POST",
+      headers: withUserHeaders(),
+      body: JSON.stringify(input ?? {}),
+      credentials: "same-origin",
+    },
+    15_000,
+    "创建会话超时，请检查网络后重试",
+  );
   if (response.status === 401) {
     throw new StudioApiError("请先登录", 401);
   }
@@ -473,6 +499,7 @@ export async function deleteSession(id: string): Promise<void> {
 
 export type ChatRequestBody = {
   sessionId?: string;
+  projectId?: string;
   message?: string;
   /** Server-owned Workflow Session action; Stage details are derived server-side. */
   workflowAction?: "start";
@@ -485,6 +512,12 @@ export type ChatRequestBody = {
   referencedArtifactIds?: string[];
   /** @deprecated Use referencedArtifactIds */
   referencedArtifactId?: string;
+  /**
+   * `sessionId` is a client-minted id the caller already navigated to —
+   * create the session with that exact id instead of requiring it to
+   * already exist. See `/api/chat`'s `ChatBody.bootstrap`.
+   */
+  bootstrap?: { title?: string };
 };
 
 /** Explicit server-side stop (disconnect alone does not cancel generation). */
@@ -609,12 +642,17 @@ export type UploadImageArtifactBody = {
 export async function uploadImageArtifact(
   body: UploadImageArtifactBody,
 ): Promise<Artifact> {
-  const response = await fetch("/api/artifacts/upload-image", {
-    method: "POST",
-    headers: withUserHeaders(),
-    body: JSON.stringify(body),
-    credentials: "same-origin",
-  });
+  const response = await fetchWithTimeout(
+    "/api/artifacts/upload-image",
+    {
+      method: "POST",
+      headers: withUserHeaders(),
+      body: JSON.stringify(body),
+      credentials: "same-origin",
+    },
+    30_000,
+    "图片上传超时，请检查网络后重试",
+  );
 
   if (response.status === 401) {
     throw new StudioApiError("请先登录", 401);
@@ -651,16 +689,21 @@ export async function uploadSheetArtifact(input: {
   const mime =
     input.file.type?.split(";", 1)[0]?.trim() ||
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  const response = await fetch("/api/artifacts/upload-sheet", {
-    method: "POST",
-    headers: {
-      "content-type": mime,
-      "x-reizo-session-id": input.sessionId,
-      "x-reizo-artifact-name": encodeURIComponent(input.file.name || "workbook.xlsx"),
+  const response = await fetchWithTimeout(
+    "/api/artifacts/upload-sheet",
+    {
+      method: "POST",
+      headers: {
+        "content-type": mime,
+        "x-reizo-session-id": input.sessionId,
+        "x-reizo-artifact-name": encodeURIComponent(input.file.name || "workbook.xlsx"),
+      },
+      body: input.file,
+      credentials: "same-origin",
     },
-    body: input.file,
-    credentials: "same-origin",
-  });
+    60_000,
+    "表格上传超时，请检查网络后重试",
+  );
   if (response.status === 401) throw new StudioApiError("请先登录", 401);
   if (!response.ok) {
     const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
@@ -677,17 +720,22 @@ export async function uploadVideoArtifact(input: {
   file: File;
   authorized: boolean;
 }): Promise<Artifact> {
-  const response = await fetch("/api/artifacts/upload-video", {
-    method: "POST",
-    headers: {
-      "content-type": referenceVideoMimeType(input.file),
-      "x-reizo-session-id": input.sessionId,
-      "x-reizo-artifact-name": encodeURIComponent(input.file.name || "参考视频.mp4"),
-      "x-reizo-video-authorized": String(input.authorized),
+  const response = await fetchWithTimeout(
+    "/api/artifacts/upload-video",
+    {
+      method: "POST",
+      headers: {
+        "content-type": referenceVideoMimeType(input.file),
+        "x-reizo-session-id": input.sessionId,
+        "x-reizo-artifact-name": encodeURIComponent(input.file.name || "参考视频.mp4"),
+        "x-reizo-video-authorized": String(input.authorized),
+      },
+      body: input.file,
+      credentials: "same-origin",
     },
-    body: input.file,
-    credentials: "same-origin",
-  });
+    120_000,
+    "视频上传超时，请检查网络后重试",
+  );
   if (response.status === 401) throw new StudioApiError("请先登录", 401);
   if (!response.ok) {
     const body = await parseJson<{ error?: string }>(response).catch(() => ({}));
@@ -860,6 +908,93 @@ function readPendingFirstMessage(
     return data;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Resolved send parameters for a handed-off first message — computed on the
+ * home page (after uploads/video-analysis/sheet-import and @-mention
+ * resolution finish) and delivered to the session page, which is the only
+ * place that can actually call `sendMessage` (useChat's state is per-mount,
+ * unlike the legacy module store — there is no way to "pre-start" a turn
+ * from a page that's about to unmount).
+ */
+export type ResolvedFirstMessageOverrides = {
+  model?: string;
+  capabilityPresetId?: string;
+  skillIds?: string[];
+  referencedArtifactIds?: string[];
+  projectId?: string;
+  bootstrapTitle?: string;
+};
+
+type PendingFirstMessageListener = {
+  onStatus?: (label: string) => void;
+  onResolve: (overrides: ResolvedFirstMessageOverrides) => void;
+  onFail: (message: string) => void;
+};
+
+/**
+ * In-memory only (module-level, survives the client-side route change same
+ * as the legacy store did) — this is same-tab coordination between two
+ * mounted components, not persistence, so sessionStorage doesn't apply.
+ */
+const pendingFirstMessageListeners = new Map<string, PendingFirstMessageListener>();
+const resolvedFirstMessages = new Map<string, ResolvedFirstMessageOverrides>();
+const failedFirstMessages = new Map<string, string>();
+
+/**
+ * Registers the session page's callbacks for a specific handoff. If the home
+ * page already resolved or failed before this attaches — a text-only first
+ * message with no uploads can resolve in under a millisecond, likely before
+ * the session page finishes mounting — replay it immediately instead of
+ * losing it.
+ */
+export function registerPendingFirstMessageListener(
+  sessionId: string,
+  listener: PendingFirstMessageListener,
+): () => void {
+  pendingFirstMessageListeners.set(sessionId, listener);
+  const failure = failedFirstMessages.get(sessionId);
+  if (failure !== undefined) {
+    failedFirstMessages.delete(sessionId);
+    listener.onFail(failure);
+  } else {
+    const resolved = resolvedFirstMessages.get(sessionId);
+    if (resolved) {
+      resolvedFirstMessages.delete(sessionId);
+      listener.onResolve(resolved);
+    }
+  }
+  return () => {
+    if (pendingFirstMessageListeners.get(sessionId) === listener) {
+      pendingFirstMessageListeners.delete(sessionId);
+    }
+  };
+}
+
+export function notifyPendingFirstMessageStatus(sessionId: string, label: string): void {
+  pendingFirstMessageListeners.get(sessionId)?.onStatus?.(label);
+}
+
+export function resolvePendingFirstMessage(
+  sessionId: string,
+  overrides: ResolvedFirstMessageOverrides,
+): void {
+  const listener = pendingFirstMessageListeners.get(sessionId);
+  if (listener) {
+    listener.onResolve(overrides);
+  } else {
+    resolvedFirstMessages.set(sessionId, overrides);
+  }
+}
+
+export function failPendingFirstMessage(sessionId: string, message: string): void {
+  const listener = pendingFirstMessageListeners.get(sessionId);
+  if (listener) {
+    listener.onFail(message);
+  } else {
+    failedFirstMessages.set(sessionId, message);
   }
 }
 

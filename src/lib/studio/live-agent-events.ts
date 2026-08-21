@@ -18,7 +18,7 @@ export type UiToolCall = {
   status: "running" | "done";
 };
 
-export type StreamPhase = "thinking" | "tool" | "producing" | "done";
+export type StreamPhase = "preparing" | "thinking" | "tool" | "producing" | "done";
 
 export type UiChatMessage = {
   id: string;
@@ -30,6 +30,9 @@ export type UiChatMessage = {
   toolCalls?: UiToolCall[];
   streamPhase?: StreamPhase;
   streamStartedAt?: number;
+  /** Human-readable client or transport activity before the model emits SSE. */
+  activityLabel?: string;
+  activityTone?: "neutral" | "error";
   thinkingDurationSec?: number;
   artifactDraft?: { name?: string; text: string };
   executionSteps?: ExecutionStep[];
@@ -52,6 +55,8 @@ export type LiveAgentEventEffects = {
   terminal?: Extract<AgentSseEvent, { type: "done" }>["reason"];
   sessionId?: string;
   run?: Extract<AgentSseEvent, { type: "run" }>;
+  /** Server-committed id for the in-flight assistant message; reassign the optimistic id to this. */
+  messageId?: string;
 };
 
 export type LiveAgentEventReduction = {
@@ -139,6 +144,10 @@ export function reduceLiveAgentEvent(
 
   if (event.type === "run") {
     return { state, effects: { run: event } };
+  }
+
+  if (event.type === "message_start") {
+    return { state, effects: { messageId: event.messageId } };
   }
 
   if (event.type === "done") {

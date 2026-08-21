@@ -19,6 +19,13 @@ const TOOL_ACTION: Record<string, string> = {
   read_artifact: "读取作品",
   list_artifacts: "查看作品列表",
   generate_sheet: "更新表格",
+  generate_image: "生成图片",
+  fuse_images: "融合图片",
+  generate_ecommerce_image_set: "生成电商套图",
+  remove_background: "AI 抠图",
+  upscale_image: "AI 变清晰",
+  remove_watermark_or_subtitles: "清理水印字幕",
+  generate_canvas: "生成画布图",
 };
 
 const KIND_LABEL: Record<string, string> = {
