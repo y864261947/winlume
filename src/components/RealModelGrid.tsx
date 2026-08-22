@@ -20,6 +20,8 @@ export type RealModelGridProps = {
   onStats?: (stats: { total: number; filtered: number; models: PlazaModel[] }) => void;
   /** Lets the surrounding catalog restore its selected filters. */
   onClearFilters?: () => void;
+  selectedModelName?: string;
+  onSelectModel?: (model: PlazaModel) => void;
 };
 
 export function RealModelGrid({
@@ -30,6 +32,8 @@ export function RealModelGrid({
   capability = "all",
   onStats,
   onClearFilters,
+  selectedModelName,
+  onSelectModel,
 }: RealModelGridProps) {
   const [models, setModels] = useState<PlazaModel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,7 +147,7 @@ export function RealModelGrid({
   return (
     <div className={gridClass}>
       {visible.map((model) => (
-        <ModelPlazaCard key={model.model_name} model={model} />
+        <ModelPlazaCard key={model.model_name} model={model} selected={selectedModelName === model.model_name} onSelect={onSelectModel} />
       ))}
     </div>
   );

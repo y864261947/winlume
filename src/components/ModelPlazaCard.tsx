@@ -26,9 +26,11 @@ type Props = {
   model: PlazaModel;
   /** Optional docs URL; when omitted the docs button is hidden */
   docsHref?: string;
+  selected?: boolean;
+  onSelect?: (model: PlazaModel) => void;
 };
 
-export function ModelPlazaCard({ model, docsHref }: Props) {
+export function ModelPlazaCard({ model, docsHref, selected, onSelect }: Props) {
   const vendor = resolvePlazaVendor(model, {
     name: model.vendor_name,
     logo: model.vendor_logo,
@@ -43,7 +45,7 @@ export function ModelPlazaCard({ model, docsHref }: Props) {
   const favorite = favorites.includes(favoriteId);
 
   return (
-    <article className="portal-model-plaza-card group relative flex h-full flex-col overflow-hidden">
+    <article className={`portal-model-plaza-card group relative flex h-full flex-col overflow-hidden${selected ? " is-selected" : ""}`}>
       {/* Hero */}
       <div
         className="relative flex h-36 items-center justify-center px-4 sm:h-40"
@@ -118,6 +120,7 @@ export function ModelPlazaCard({ model, docsHref }: Props) {
           )}
         </div>
         <div className="portal-model-plaza-actions mt-3 flex gap-2">
+          {onSelect ? <button type="button" className="portal-model-plaza-docs" onClick={() => onSelect(model)}>查看详情</button> : null}
           {docsHref ? (
             <a
               href={docsHref}

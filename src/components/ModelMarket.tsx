@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, ChevronLeft, ChevronRight, CircleHelp, Crown, LayoutGrid, Search, ArrowUp } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { BarChart3, Bell, ChevronLeft, ChevronRight, CircleHelp, Code2, Crown, FileImage, LayoutGrid, Search, ArrowUp, Presentation, ShoppingBag, Video } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
 import { formatBalance } from "@/lib/account";
@@ -106,6 +107,15 @@ type ApiCategory = {
 
 /** Max brand chips per row (homepage density). */
 const API_BRAND_LIMIT = 5;
+
+const searchSuggestions = [
+  { label: "产品图生成", icon: FileImage },
+  { label: "短视频创作", icon: Video },
+  { label: "PPT 生成", icon: Presentation },
+  { label: "财务分析", icon: BarChart3 },
+  { label: "代码生成", icon: Code2 },
+  { label: "电商运营", icon: ShoppingBag },
+] as const;
 
 /** Hardcoded Model Review carousel slides (generated banners in public/). */
 const FEATURED_SLIDES = [
@@ -601,7 +611,8 @@ function swipeDirection(fromId: ProductPath["id"], toId: ProductPath["id"]): "le
 }
 
 export default function ModelMarket() {
-  const { account, balanceConfig, openLogin } = useModals();
+  const router = useRouter();
+  const { account, balanceConfig, openLogin, openMembership } = useModals();
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [featuredIndex, setFeaturedIndex] = useState(0);
@@ -619,6 +630,7 @@ export default function ModelMarket() {
   const [chatwootReady, setChatwootReady] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
   const [onboardingPlacement, setOnboardingPlacement] = useState<OnboardingPlacement | null>(null);
+  const [activeApiId, setActiveApiId] = useState<string | null>(null);
   const balance = formatBalance(account?.quota, balanceConfig);
   const activePath = productPaths.find((path) => path.id === activePathId) ?? productPaths[0];
   const stackPaths = stackOrderFrom(activePath.id).slice(0, STACK_VISIBLE);
@@ -798,9 +810,14 @@ export default function ModelMarket() {
 
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmittedQuery(query.trim());
-    setNotice(query.trim() ? `正在搜索“${query.trim()}”` : "请输入想查找的 AI 能力");
-    window.setTimeout(() => setNotice(""), 1800);
+    const normalized = query.trim();
+    setSubmittedQuery(normalized);
+    if (!normalized) {
+      setNotice("请输入任务、模型或应用名称");
+      window.setTimeout(() => setNotice(""), 1800);
+      return;
+    }
+    router.push(`/products?cate=app&q=${encodeURIComponent(normalized)}`);
   }
 
   function openSupportChat() {
@@ -845,7 +862,7 @@ export default function ModelMarket() {
               <PortalLink href="/docs" target="_self">文档</PortalLink>
               <PortalLink href="/pricing" target="_self">计费标准</PortalLink>
             </nav>
-            <PortalLink href="/pricing" className="portal-membership-entry"><Crown aria-hidden />升级会员</PortalLink>
+            <button type="button" className="portal-membership-entry" onClick={openMembership}><Crown aria-hidden />升级会员</button>
             <div className="portal-user-links">
               <button type="button" onClick={() => setNotice("暂无新的通知")}><Bell aria-hidden />通知</button>
               {account ? (
@@ -861,20 +878,21 @@ export default function ModelMarket() {
           <section className={`portal-search-card${onboardingStep === 0 ? " is-onboarding-target" : ""}`} data-onboarding-target="agent" aria-labelledby="portal-search-title">
             <Image className="portal-search-waves" src="/figma-home/search-waves.svg" alt="" fill sizes="710px" priority />
             <div className="portal-search-content">
-              <h1 id="portal-search-title">搜索全部 AI 能力</h1>
-              <p className="portal-search-description">从应用、模型到 API，快速找到适合当前任务的能力。</p>
+              <h1 id="portal-search-title">找到适合你的 <em>AI</em> 能力</h1>
+              <p className="portal-search-description">按任务、场景或关键词搜索，快速找到可直接使用的模型、工具与 Skills。</p>
               <div className="portal-search-form-row">
                 <form className="portal-search-form" onSubmit={submitSearch}>
                   <Search aria-hidden />
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索应用、模型或 API" aria-label="搜索 AI 能力" />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务、应用、模型或 API，例如：产品图、财务分析、PPT" aria-label="搜索 AI 能力" />
                   <button type="submit"><Search aria-hidden />搜索</button>
                 </form>
                 <PortalLink href="/studio" className="portal-workbench-button"><LayoutGrid aria-hidden />进入工作台<ChevronRight aria-hidden /></PortalLink>
               </div>
               <div className="portal-chip-list" aria-label="热门能力">
-                {["产品图生成", "财务分析", "短视频创作", "代码生成", "电商运营", "市场调研", "更多"].map((chip) => (
-                  <button key={chip} type="button" className={query === chip ? "is-selected" : ""} onClick={() => { setQuery(chip); setSubmittedQuery(chip); }}>{chip}</button>
+                {searchSuggestions.map(({ label, icon: Icon }) => (
+                  <button key={label} type="button" className={query === label ? "is-selected" : ""} onClick={() => { setQuery(label); setSubmittedQuery(label); router.push(`/products?cate=app&q=${encodeURIComponent(label)}`); }}><Icon aria-hidden />{label}</button>
                 ))}
+                <button type="button" onClick={() => router.push("/products?cate=app")}><LayoutGrid aria-hidden />更多</button>
               </div>
             </div>
           </section>
@@ -898,7 +916,17 @@ export default function ModelMarket() {
             </div>
             <div className="portal-api-list" role="list">
               {apiCategories.map((item) => (
-                <div key={item.id} className="portal-api-row" role="listitem">
+                <div
+                  key={item.id}
+                  className="portal-api-row"
+                  role="listitem"
+                  onMouseEnter={() => setActiveApiId(item.id)}
+                  onMouseLeave={() => setActiveApiId(null)}
+                  onFocusCapture={() => setActiveApiId(item.id)}
+                  onBlurCapture={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setActiveApiId(null);
+                  }}
+                >
                   <PortalLink href={item.href} className="portal-api-row-label">
                     <AssetIcon src={item.icon} />
                     <span>{item.label}</span>
@@ -918,6 +946,23 @@ export default function ModelMarket() {
                   <PortalLink href={item.href} className="portal-api-row-more" aria-label={`${item.label}更多`}>
                     <ChevronRight aria-hidden />
                   </PortalLink>
+                  {activeApiId === item.id ? (
+                    <div className="portal-api-touch-card" role="dialog" aria-label={`${item.label}热门模型`}>
+                      <div className="portal-api-touch-head">
+                        <div><AssetIcon src={item.icon} /><strong>{item.label}</strong><span>{item.brands.length}+ 个热门能力</span></div>
+                        <PortalLink href={item.href}>查看全部<ChevronRight aria-hidden /></PortalLink>
+                      </div>
+                      <div className="portal-api-touch-grid">
+                        {item.brands.map((brand) => (
+                          <PortalLink key={brand.label} href={brand.href}>
+                            <span>{brand.label.slice(0, 1)}</span>
+                            <strong>{brand.label}</strong>
+                            <small>{item.label}能力</small>
+                          </PortalLink>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -1013,7 +1058,7 @@ export default function ModelMarket() {
                 <div><span>已消耗 Token</span><strong>1.24M</strong></div>
                 <div className="portal-membership-quota"><span><em>Free</em>会员剩余额度</span><strong>80%</strong></div>
               </div>
-              <ArrowLink href="/account/usage">用量明细</ArrowLink>
+              <ArrowLink href="/account">进入个人中心</ArrowLink>
             </section>
           </div>
         </div>

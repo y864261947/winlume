@@ -7,6 +7,7 @@ import {
   Bell,
   BookOpen,
   ChevronRight,
+  Code2,
   KeyRound,
   LayoutGrid,
   Menu,
@@ -23,7 +24,7 @@ function isActive(pathname: string, href: string) {
 
 export default function DocsShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { account, openLogin } = useModals();
+  const { account, openLogin, openMembership } = useModals();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
@@ -74,7 +75,7 @@ export default function DocsShell({ children }: { children: ReactNode }) {
       <div className="docs-side-group">
         <p className="docs-side-label">文档</p>
         <Link
-          href="/docs/api"
+          href="/docs"
           className={
             pathname === "/docs" || pathname === "/docs/api"
               ? "is-active docs-side-link"
@@ -83,8 +84,9 @@ export default function DocsShell({ children }: { children: ReactNode }) {
           onClick={() => setOpen(false)}
         >
           <BookOpen aria-hidden className="docs-side-ico" />
-          API 参考
+          快速开始
         </Link>
+        <Link href="/docs/api" className={pathname === "/docs/api" ? "is-active docs-side-link" : "docs-side-link"} onClick={() => setOpen(false)}><Code2 aria-hidden className="docs-side-ico" />API 参考</Link>
         <Link href="/account/keys" className="docs-side-link" onClick={() => setOpen(false)}>
           <KeyRound aria-hidden className="docs-side-ico" />
           API Keys
@@ -155,12 +157,13 @@ export default function DocsShell({ children }: { children: ReactNode }) {
             <nav className="portal-main-links" aria-label="页面导航">
               <Link href="/">首页</Link>
               <Link href="/products?cate=app">应用工具</Link>
-              <Link href="/products?cate=api">模型</Link>
+              <Link href="/products?cate=api">API模型</Link>
               <Link href="/docs" className="is-current">
                 文档
               </Link>
             </nav>
             <div className="portal-user-links">
+              <button type="button" className="portal-membership-entry" onClick={openMembership}>升级会员</button>
               <Link href="/studio">
                 <LayoutGrid aria-hidden />
                 Agent

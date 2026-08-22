@@ -4,6 +4,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import LoginModal from "./LoginModal";
 import SearchModal from "./SearchModal";
 import OnboardingModal from "./OnboardingModal";
+import MembershipModal from "./MembershipModal";
 import type { Product } from "@/data/products";
 import type { Audience } from "@/data/audience";
 import { getAccount, getBalanceConfig, logout as logoutRequest, type Account, type BalanceConfig } from "@/lib/account";
@@ -17,6 +18,7 @@ interface ModalContextValue {
   openLogin: (mode?: LoginMode) => void;
   closeLogin: () => void;
   openSearch: () => void;
+  openMembership: () => void;
   /**
    * Open real Studio (no fake ExperienceModal runs).
    * Optional target preselects model via `?model=`.
@@ -57,6 +59,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginMode, setLoginMode] = useState<LoginMode>("login");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [membershipOpen, setMembershipOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   // 初始为空、挂载后再读 localStorage，避免 SSR 与客户端首帧不一致（hydration mismatch）
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -91,6 +94,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const openLogin = useCallback((mode: LoginMode = "login") => { setLoginMode(mode); setLoginOpen(true); }, []);
   const closeLogin = useCallback(() => setLoginOpen(false), []);
   const openSearch = useCallback(() => setSearchOpen(true), []);
+  const openMembership = useCallback(() => setMembershipOpen(true), []);
   /** Neutralized: marketing “立即体验” goes to Studio, not the mock ExperienceModal. */
   const openExperience = useCallback((target?: ExperienceTarget) => {
     const modelName =
@@ -160,13 +164,14 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   // 遮罩 / ESC 仅关闭，不写入"已完成"，下次访问还会再弹
   const dismissOnboarding = useCallback(() => setOnboardingOpen(false), []);
 
-  const value = useMemo<ModalContextValue>(() => ({ openLogin, closeLogin, openSearch, openExperience, favorites, toggleFavorite, account, accountLoading, balanceConfig, refreshAccount, completeLogin, signOut, audience, industryPrefs, selectAudience }), [openLogin, closeLogin, openSearch, openExperience, favorites, toggleFavorite, account, accountLoading, balanceConfig, refreshAccount, completeLogin, signOut, audience, industryPrefs, selectAudience]);
+  const value = useMemo<ModalContextValue>(() => ({ openLogin, closeLogin, openSearch, openMembership, openExperience, favorites, toggleFavorite, account, accountLoading, balanceConfig, refreshAccount, completeLogin, signOut, audience, industryPrefs, selectAudience }), [openLogin, closeLogin, openSearch, openMembership, openExperience, favorites, toggleFavorite, account, accountLoading, balanceConfig, refreshAccount, completeLogin, signOut, audience, industryPrefs, selectAudience]);
 
   return (
     <ModalContext.Provider value={value}>
       {children}
       <LoginModal open={loginOpen} initialMode={loginMode} onClose={closeLogin} />
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <MembershipModal open={membershipOpen} onClose={() => setMembershipOpen(false)} />
       <OnboardingModal open={onboardingOpen} onComplete={completeOnboarding} onDismiss={dismissOnboarding} />
     </ModalContext.Provider>
   );

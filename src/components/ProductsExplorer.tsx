@@ -25,11 +25,13 @@ import {
   vendorsPresentIn,
 } from "@/lib/catalog/plaza-filters";
 import type { PlazaModel } from "@/lib/catalog";
+import { modelDescription, modelPriceLines, modelTags, resolvePlazaVendor } from "@/lib/catalog/plaza-display";
 
 interface Props {
   initialCate?: string;
   initialTag?: string;
   initialBrand?: string;
+  initialQuery?: string;
 }
 
 type ViewMode = "models" | "apps";
@@ -42,21 +44,23 @@ function resolveMode(initialCate?: string): ViewMode {
 export default function ProductsExplorer({
   initialCate,
   initialTag,
+  initialQuery,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const { account, balanceConfig, openLogin } = useModals();
+  const { account, balanceConfig, openLogin, openMembership } = useModals();
 
-  const [mode, setMode] = useState<ViewMode>(() => resolveMode(initialCate));
+  const mode = resolveMode(initialCate);
   const [appTag, setAppTag] = useState<string | undefined>(
     initialCate === "app" ? initialTag : undefined,
   );
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery ?? "");
   const [vendorKey, setVendorKey] = useState<string | undefined>();
   const [capability, setCapability] = useState<PlazaCapabilityFilter>("all");
   const [plazaModels, setPlazaModels] = useState<PlazaModel[]>([]);
   const [plazaStats, setPlazaStats] = useState({ total: 0, filtered: 0 });
   const [notice, setNotice] = useState("");
+  const [selectedModel, setSelectedModel] = useState<PlazaModel | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -66,14 +70,16 @@ export default function ProductsExplorer({
     } else {
       params.set("cate", "api");
     }
+    if (query.trim()) params.set("q", query.trim());
     const qs = params.toString();
     router.replace(qs ? `/products?${qs}` : "/products", { scroll: false });
-  }, [mode, appTag, router]);
+  }, [mode, appTag, query, router]);
 
   const onPlazaStats = useCallback(
     (stats: { total: number; filtered: number; models: PlazaModel[] }) => {
       setPlazaStats({ total: stats.total, filtered: stats.filtered });
       setPlazaModels(stats.models);
+      setSelectedModel((current) => current ?? stats.models[0] ?? null);
     },
     [],
   );
@@ -95,17 +101,6 @@ export default function ProductsExplorer({
   };
 
   const hasModelFilters = Boolean(query || vendorKey || capability !== "all");
-
-  function selectMode(next: ViewMode) {
-    setMode(next);
-    setQuery("");
-    if (next === "models") {
-      setVendorKey(undefined);
-      setCapability("all");
-    } else {
-      setAppTag(undefined);
-    }
-  }
 
   const navCurrent = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -138,11 +133,13 @@ export default function ProductsExplorer({
                 href="/products?cate=api"
                 className={mode === "models" ? "is-current" : undefined}
               >
-                模型
+                API模型
               </Link>
               <Link href="/docs">文档</Link>
+              <Link href="/pricing">计费标准</Link>
             </nav>
             <div className="portal-user-links">
+              <button type="button" className="portal-membership-entry" onClick={openMembership}>升级会员</button>
               <Link href="/studio">
                 <LayoutGrid aria-hidden />
                 Agent
@@ -179,6 +176,24 @@ export default function ProductsExplorer({
           </p>
         ) : null}
 
+        <div className="portal-directory-layout">
+          <aside className="portal-directory-side">
+            <h2>{mode === "models" ? "API模型" : "工具分类"}</h2>
+            <button type="button" className={!appTag && capability === "all" ? "is-active" : undefined} onClick={() => mode === "models" ? resetModelFilters() : setAppTag(undefined)}>
+              {mode === "models" ? "全部模型" : "全部应用"}<ChevronRight aria-hidden />
+            </button>
+            {mode === "models" ? (
+              [
+                ["llm", "语言推理"], ["image", "图像处理"], ["audio", "音频处理"],
+                ["video", "视频处理"], ["embed", "RAG知识库"], ["other", "信息检索"],
+              ].map(([id, label]) => (
+                <button key={id} type="button" className={capability === id ? "is-active" : undefined} onClick={() => setCapability(id as PlazaCapabilityFilter)}>{label}<ChevronRight aria-hidden /></button>
+              ))
+            ) : appCategories.map((category) => (
+              <button key={category.slug} type="button" className={appTag === category.slug ? "is-active" : undefined} onClick={() => setAppTag(category.slug)}>{category.name}<ChevronRight aria-hidden /></button>
+            ))}
+          </aside>
+          <div className="portal-directory-main">
         {/* Hero — mode is switched via top nav (AI 应用 / API) */}
         <section className="portal-catalog-hero">
           <p className="portal-label">Catalog</p>
@@ -188,27 +203,6 @@ export default function ProductsExplorer({
               ? "统一查看已导入定价目录中的模型；选好后可带着模型直接进入工作台继续使用。"
               : "精选应用与工具，按场景挑选；进入工作台后仍可修改提示词与模型。"}
           </p>
-          <div className="portal-catalog-modebar" role="tablist" aria-label="目录子菜单">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === "apps"}
-              className={mode === "apps" ? "is-active" : undefined}
-              onClick={() => selectMode("apps")}
-            >
-              <strong>应用工具</strong><span>按工作场景挑选</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === "models"}
-              className={mode === "models" ? "is-active" : undefined}
-              onClick={() => selectMode("models")}
-            >
-              <strong>模型 API</strong><span>按能力与厂商筛选</span>
-            </button>
-          </div>
-
           <form
             className="portal-catalog-search"
             onSubmit={(event) => event.preventDefault()}
@@ -319,6 +313,7 @@ export default function ProductsExplorer({
               )}
             </div>
 
+            <div className={`portal-model-directory${selectedModel ? " has-detail" : ""}`}>
             <RealModelGrid
               limit={240}
               compact
@@ -327,7 +322,23 @@ export default function ProductsExplorer({
               capability={capability}
               onStats={onPlazaStats}
               onClearFilters={resetModelFilters}
+              selectedModelName={selectedModel?.model_name}
+              onSelectModel={setSelectedModel}
             />
+            {selectedModel ? (() => {
+              const vendor = resolvePlazaVendor(selectedModel, { name: selectedModel.vendor_name, logo: selectedModel.vendor_logo });
+              const price = modelPriceLines(selectedModel);
+              return <aside className="portal-model-detail">
+                <button type="button" className="portal-model-detail-close" onClick={() => setSelectedModel(null)}><X aria-hidden /></button>
+                <div className="portal-model-detail-brand"><img src={vendor.logo} alt="" /><div><h2>{selectedModel.model_name}</h2><span>{vendor.brandLabel}</span></div></div>
+                <p>{modelDescription(selectedModel, vendor)}</p>
+                <div className="portal-model-detail-tags">{modelTags(selectedModel).map((tag) => <span key={tag.label}>{tag.label}</span>)}</div>
+                <dl><div><dt>计费方式</dt><dd>{price.kind === "fixed" || price.kind === "tiered" ? price.text : `${price.input} / ${price.output}`}</dd></div><div><dt>调用协议</dt><dd>HTTPS / JSON</dd></div><div><dt>端点能力</dt><dd>{selectedModel.supported_endpoint_types?.join("、") || "标准模型调用"}</dd></div></dl>
+                <h3>适合场景</h3><ul><li>复杂推理与问题解答</li><li>内容生成与信息处理</li><li>Agent 与自动化任务</li></ul>
+                <div className="portal-model-detail-actions"><Link href="/docs/api">查看 API 文档</Link><Link href={`/studio?model=${encodeURIComponent(selectedModel.model_name)}`}>立即调用 API</Link></div>
+              </aside>;
+            })() : null}
+            </div>
           </>
         ) : (
           <>
@@ -404,6 +415,8 @@ export default function ProductsExplorer({
             )}
           </>
         )}
+          </div>
+        </div>
       </div>
     </div>
   );

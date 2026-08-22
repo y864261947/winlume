@@ -20,12 +20,14 @@ export default async function ProductsPage({
   const cate = pick(sp.cate);
   const tag = pick(sp.tag);
   const brand = pick(sp.brand);
+  const query = pick(sp.q);
   return (
     <ProductsExplorer
       key={`${cate ?? ""}-${tag ?? ""}-${brand ?? ""}`}
       initialCate={cate}
       initialTag={tag}
       initialBrand={brand}
+      initialQuery={query}
     />
   );
 }

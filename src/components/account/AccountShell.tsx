@@ -9,6 +9,7 @@ import {
   Building2,
   ChevronRight,
   CircleHelp,
+  ClipboardList,
   KeyRound,
   LayoutDashboard,
   LayoutGrid,
@@ -40,8 +41,12 @@ type NavGroup = {
 
 const groups: NavGroup[] = [
   {
-    label: "账户",
-    items: [{ href: "/account", label: "概览", mobileLabel: "账户", icon: LayoutDashboard, exact: true }],
+    label: "用户中心",
+    items: [
+      { href: "/account", label: "个人中心", mobileLabel: "个人", icon: LayoutDashboard, exact: true },
+      { href: "/account/tasks", label: "任务进度", mobileLabel: "任务", icon: ClipboardList },
+      { href: "/account/usage", label: "消费记录", mobileLabel: "消费", icon: Receipt },
+    ],
   },
   {
     label: "接入",
@@ -50,9 +55,9 @@ const groups: NavGroup[] = [
   {
     label: "计费",
     items: [
-      { href: "/account/wallet", aliases: ["/account/usage"], label: "钱包与用量", mobileLabel: "钱包", icon: WalletCards },
+      { href: "/account/wallet", label: "钱包与充值", mobileLabel: "钱包", icon: WalletCards },
       { href: "/account/logs", label: "请求日志", mobileLabel: "日志", icon: ScrollText },
-      { href: "/account/pricing", label: "我的计费", mobileLabel: "计费", icon: Receipt },
+      { href: "/account/pricing", label: "会员购买", mobileLabel: "会员", icon: Receipt },
       { href: "/account/enterprise", label: "对公结算", mobileLabel: "对公", icon: Building2 },
     ],
   },
@@ -122,7 +127,7 @@ function AccountNav({
 
 export default function AccountShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { account, openLogin } = useModals();
+  const { account, openLogin, openMembership } = useModals();
   const [notice, setNotice] = useState("");
   const isAdmin = account?.platform_role === "admin";
   const accountName = account ? account.display_name || account.username : null;
@@ -141,10 +146,11 @@ export default function AccountShell({ children }: { children: ReactNode }) {
             <nav className="portal-main-links" aria-label="页面导航">
               <Link href="/">首页</Link>
               <Link href="/products?cate=app">应用工具</Link>
-              <Link href="/products?cate=api">模型</Link>
+              <Link href="/products?cate=api">API模型</Link>
               <Link href="/docs">文档</Link>
             </nav>
             <div className="portal-user-links">
+              <button type="button" className="portal-membership-entry" onClick={openMembership}>升级会员</button>
               <Link href="/studio">
                 <LayoutGrid aria-hidden />
                 Agent
