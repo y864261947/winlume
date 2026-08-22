@@ -135,6 +135,96 @@ export const PLAZA_VENDORS: PlazaVendor[] = [
     heroDark: true,
   },
   {
+    id: 13,
+    key: "baidu",
+    name: "百度智能云",
+    brandLabel: "ERNIE 文心",
+    logo: "/vendors/baidu.svg",
+    color: "#2f6bff",
+    heroGradient: "linear-gradient(145deg, #e6efff 0%, #c9dbff 50%, #9fbeff 100%)",
+  },
+  {
+    id: 14,
+    key: "bytedance",
+    name: "字节跳动",
+    brandLabel: "豆包",
+    logo: "/vendors/bytedance.svg",
+    color: "#00a6ff",
+    heroGradient: "linear-gradient(145deg, #e0f5ff 0%, #b9eaff 50%, #8ddcff 100%)",
+  },
+  {
+    id: 15,
+    key: "tencent",
+    name: "腾讯混元",
+    brandLabel: "腾讯混元",
+    logo: "/vendors/tencent.svg",
+    color: "#0874e8",
+    heroGradient: "linear-gradient(145deg, #e7f2ff 0%, #c6e1ff 50%, #9fcbff 100%)",
+  },
+  {
+    id: 16,
+    key: "baichuan",
+    name: "百川智能",
+    brandLabel: "Baichuan",
+    logo: "/vendors/baichuan.svg",
+    color: "#f05a28",
+    heroGradient: "linear-gradient(145deg, #fff0e9 0%, #ffd9c8 50%, #ffc0a5 100%)",
+  },
+  {
+    id: 17,
+    key: "stepfun",
+    name: "阶跃星辰",
+    brandLabel: "StepFun",
+    logo: "/vendors/stepfun.svg",
+    color: "#516dff",
+    heroGradient: "linear-gradient(145deg, #e8ebff 0%, #d0d8ff 50%, #b8c5ff 100%)",
+  },
+  {
+    id: 18,
+    key: "microsoft",
+    name: "Microsoft",
+    brandLabel: "Microsoft",
+    logo: "/vendors/microsoft.svg",
+    color: "#1473e6",
+    heroGradient: "linear-gradient(145deg, #eaf4ff 0%, #cfe7ff 50%, #afd6ff 100%)",
+  },
+  {
+    id: 19,
+    key: "cohere",
+    name: "Cohere",
+    brandLabel: "Cohere",
+    logo: "/vendors/cohere.svg",
+    color: "#39594d",
+    heroGradient: "linear-gradient(145deg, #edf6ef 0%, #d3ead8 50%, #b7dcbf 100%)",
+  },
+  {
+    id: 20,
+    key: "jina",
+    name: "Jina AI",
+    brandLabel: "Jina AI",
+    logo: "/vendors/jina.svg",
+    color: "#ef4444",
+    heroGradient: "linear-gradient(145deg, #fff0f0 0%, #ffd7d7 50%, #ffbcbc 100%)",
+  },
+  {
+    id: 21,
+    key: "black-forest",
+    name: "Black Forest Labs",
+    brandLabel: "FLUX",
+    logo: "/vendors/black-forest.svg",
+    color: "#0d1117",
+    heroGradient: "linear-gradient(145deg, #f1f3f5 0%, #dfe4ea 50%, #cbd3dd 100%)",
+  },
+  {
+    id: 22,
+    key: "stability",
+    name: "Stability AI",
+    brandLabel: "Stability AI",
+    logo: "/vendors/stability.svg",
+    color: "#6146ff",
+    heroGradient: "linear-gradient(145deg, #eeeaff 0%, #ddd5ff 50%, #c9bdff 100%)",
+  },
+  {
     id: 99,
     key: "other",
     name: "Other",
@@ -227,6 +317,17 @@ export function inferVendorFromModel(modelName: string): PlazaVendor {
   if (name.includes("360gpt") || name.startsWith("360")) {
     return getVendorByKey("360");
   }
+
+  if (name.includes("ernie") || name.includes("baidu") || name.includes("wenxin")) return getVendorByKey("baidu");
+  if (name.includes("doubao") || name.includes("byte")) return getVendorByKey("bytedance");
+  if (name.includes("hunyuan") || name.includes("tencent")) return getVendorByKey("tencent");
+  if (name.includes("baichuan")) return getVendorByKey("baichuan");
+  if (name.includes("step") || name.includes("stepfun")) return getVendorByKey("stepfun");
+  if (name.includes("copilot") || name.includes("azure")) return getVendorByKey("microsoft");
+  if (name.includes("cohere") || name.includes("command-r")) return getVendorByKey("cohere");
+  if (name.includes("jina") || name.includes("rerank")) return getVendorByKey("jina");
+  if (name.includes("flux")) return getVendorByKey("black-forest");
+  if (name.includes("stable-diffusion") || name.includes("stability")) return getVendorByKey("stability");
 
   return getVendorByKey("other");
 }

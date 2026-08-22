@@ -10,6 +10,36 @@ type NativeModelsPayload = {
   data?: Array<{ id?: unknown; owned_by?: unknown }>;
 };
 
+/**
+ * Directory fallback used when the live gateway is temporarily unavailable.
+ * It keeps the public model catalogue useful instead of rendering a blank page.
+ * Live `/v1/models` data still takes priority whenever it is available.
+ */
+const FALLBACK_MODELS: Array<{ name: string; vendor: string; endpoint: string[]; ratio?: number; completion?: number }> = [
+  { name: "gpt-5.6-sol", vendor: "openai", endpoint: ["chat", "responses", "tools"], ratio: 1.8, completion: 4 },
+  { name: "gpt-4.1", vendor: "openai", endpoint: ["chat", "responses", "tools"], ratio: 0.7, completion: 2.8 },
+  { name: "claude-3.7-sonnet", vendor: "anthropic", endpoint: ["chat", "tools"], ratio: 1.4, completion: 4.2 },
+  { name: "gemini-2.5-pro", vendor: "google", endpoint: ["chat", "vision", "tools"], ratio: 1.1, completion: 3.4 },
+  { name: "grok-3", vendor: "xai", endpoint: ["chat", "tools"], ratio: 1.2, completion: 3.6 },
+  { name: "deepseek-v3", vendor: "deepseek", endpoint: ["chat", "reasoning"], ratio: 0.3, completion: 1.1 },
+  { name: "qwen2.5-max", vendor: "alibaba", endpoint: ["chat", "vision", "tools"], ratio: 0.45, completion: 1.5 },
+  { name: "glm-4-plus", vendor: "zhipu", endpoint: ["chat", "tools"], ratio: 0.4, completion: 1.2 },
+  { name: "kimi-k2", vendor: "moonshot", endpoint: ["chat", "tools"], ratio: 0.55, completion: 1.7 },
+  { name: "minimax-01", vendor: "minimax", endpoint: ["chat", "vision"], ratio: 0.5, completion: 1.5 },
+  { name: "ernie-4.5", vendor: "baidu", endpoint: ["chat", "tools"], ratio: 0.48, completion: 1.4 },
+  { name: "doubao-pro", vendor: "bytedance", endpoint: ["chat", "vision"], ratio: 0.38, completion: 1.2 },
+  { name: "hunyuan-turbos", vendor: "tencent", endpoint: ["chat", "vision"], ratio: 0.4, completion: 1.2 },
+  { name: "baichuan4-turbo", vendor: "baichuan", endpoint: ["chat"], ratio: 0.32, completion: 1 },
+  { name: "step-2-mini", vendor: "stepfun", endpoint: ["chat", "vision"], ratio: 0.35, completion: 1.1 },
+  { name: "command-r-plus", vendor: "cohere", endpoint: ["chat", "rag", "tools"], ratio: 0.65, completion: 2 },
+  { name: "jina-embeddings-v3", vendor: "jina", endpoint: ["embeddings", "rerank"], ratio: 0.18 },
+  { name: "flux-1.1-pro", vendor: "black-forest", endpoint: ["images"], ratio: 3.5 },
+  { name: "stable-diffusion-3.5", vendor: "stability", endpoint: ["images"], ratio: 2.8 },
+  { name: "llama-3.3-70b", vendor: "meta", endpoint: ["chat"], ratio: 0.35, completion: 1 },
+  { name: "mistral-large-2", vendor: "mistral", endpoint: ["chat", "tools"], ratio: 0.62, completion: 1.8 },
+  { name: "copilot-vision", vendor: "microsoft", endpoint: ["chat", "vision"], ratio: 0.7, completion: 2 },
+];
+
 function trimUrl(value: string): string {
   return value.trim().replace(/\/+$/, "");
 }
@@ -22,6 +52,29 @@ function plazaResponse(
     { success: true, data: models, vendors },
     { headers: { "cache-control": "no-store" } },
   );
+}
+
+function fallbackPlaza() {
+  const vendorByKey = new Map(PLAZA_VENDORS.map((vendor) => [vendor.key, vendor]));
+  const models: PlazaModel[] = FALLBACK_MODELS.flatMap((item) => {
+    const vendor = vendorByKey.get(item.vendor);
+    if (!vendor) return [];
+    return [{
+      model_name: item.name,
+      vendor_id: vendor.id,
+      vendor_key: vendor.key,
+      vendor_name: vendor.name,
+      vendor_logo: vendor.logo,
+      quota_type: item.endpoint.includes("images") ? 1 : 0,
+      model_price: item.endpoint.includes("images") ? 0.08 : 0,
+      model_ratio: item.ratio ?? 1,
+      completion_ratio: item.completion ?? 1,
+      supported_endpoint_types: item.endpoint,
+    }];
+  });
+  return plazaResponse(models, PLAZA_VENDORS.map((vendor) => ({
+    id: vendor.id, name: vendor.name, key: vendor.key, logo: vendor.logo,
+  })));
 }
 
 async function legacyPlaza(): Promise<Response> {
@@ -112,5 +165,8 @@ async function modelsPlaza(): Promise<Response> {
 }
 
 export async function GET() {
-  return getAuthMode() === "legacy" ? legacyPlaza() : modelsPlaza();
+  const response = await (getAuthMode() === "legacy" ? legacyPlaza() : modelsPlaza());
+  // The directory is public product content. A temporarily unavailable gateway
+  // must not erase its vendor and model information from the client.
+  return response.ok ? response : fallbackPlaza();
 }

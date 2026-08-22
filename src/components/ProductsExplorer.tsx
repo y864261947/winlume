@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
+import ApplicationDirectory from "@/components/ApplicationDirectory";
 import { RealModelGrid } from "@/components/RealModelGrid";
 import { useModals } from "@/components/providers";
 import { categoriesByCate, type CateSlug } from "@/data/taxonomy";
@@ -44,6 +45,7 @@ function resolveMode(initialCate?: string): ViewMode {
 export default function ProductsExplorer({
   initialCate,
   initialTag,
+  initialBrand,
   initialQuery,
 }: Props) {
   const router = useRouter();
@@ -55,7 +57,7 @@ export default function ProductsExplorer({
     initialCate === "app" ? initialTag : undefined,
   );
   const [query, setQuery] = useState(initialQuery ?? "");
-  const [vendorKey, setVendorKey] = useState<string | undefined>();
+  const [vendorKey, setVendorKey] = useState<string | undefined>(initialBrand);
   const [capability, setCapability] = useState<PlazaCapabilityFilter>("all");
   const [plazaModels, setPlazaModels] = useState<PlazaModel[]>([]);
   const [plazaStats, setPlazaStats] = useState({ total: 0, filtered: 0 });
@@ -176,6 +178,9 @@ export default function ProductsExplorer({
           </p>
         ) : null}
 
+        {mode === "apps" ? (
+          <ApplicationDirectory initialQuery={initialQuery} />
+        ) : (
         <div className="portal-directory-layout">
           <aside className="portal-directory-side">
             <h2>{mode === "models" ? "API模型" : "工具分类"}</h2>
@@ -417,6 +422,7 @@ export default function ProductsExplorer({
         )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

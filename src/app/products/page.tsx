@@ -23,7 +23,7 @@ export default async function ProductsPage({
   const query = pick(sp.q);
   return (
     <ProductsExplorer
-      key={`${cate ?? ""}-${tag ?? ""}-${brand ?? ""}`}
+      key={`${cate ?? ""}-${tag ?? ""}-${brand ?? ""}-${query ?? ""}`}
       initialCate={cate}
       initialTag={tag}
       initialBrand={brand}

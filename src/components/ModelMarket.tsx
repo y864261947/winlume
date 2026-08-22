@@ -93,6 +93,8 @@ function PortalLink({ href, children, className, onClick, tabIndex, target = "_b
 type ApiBrandLink = {
   label: string;
   href: string;
+  icon: string;
+  description: string;
 };
 
 type ApiCategory = {
@@ -105,8 +107,12 @@ type ApiCategory = {
   href: string;
 };
 
-/** Max brand chips per row (homepage density). */
-const API_BRAND_LIMIT = 5;
+const apiProvider = (label: string, key: string, description: string): ApiBrandLink => ({
+  label,
+  icon: `/vendors/${key}.svg`,
+  description,
+  href: `/products?cate=api&brand=${encodeURIComponent(key)}`,
+});
 
 const searchSuggestions = [
   { label: "产品图生成", icon: FileImage },
@@ -135,7 +141,7 @@ const FEATURED_SLIDES = [
 
 const FEATURED_AUTO_MS = 5000;
 
-/** Home API category rows: hardcoded marketplace brands (no generic filler labels). */
+/** Homepage API categories. Expanded cards deliberately expose real vendor choices. */
 const apiCategories: readonly ApiCategory[] = [
   {
     id: "llm",
@@ -143,38 +149,35 @@ const apiCategories: readonly ApiCategory[] = [
     icon: "/figma-home/icon-chat.svg",
     href: "/products?cate=api",
     brands: [
-      { label: "OpenAI", href: "/products?cate=api" },
-      { label: "Anthropic", href: "/products?cate=api" },
-      { label: "Gemini", href: "/products?cate=api" },
-      { label: "Grok", href: "/products?cate=api" },
-      { label: "通义千问", href: "/products?cate=api" },
-    ].slice(0, API_BRAND_LIMIT),
+      apiProvider("OpenAI", "openai", "GPT 与多模态通用模型"), apiProvider("Anthropic", "anthropic", "Claude 长文本与推理模型"),
+      apiProvider("Gemini", "google", "Google 多模态模型"), apiProvider("Grok", "xai", "xAI 实时推理模型"),
+      apiProvider("通义千问", "alibaba", "阿里云 Qwen 系列"), apiProvider("DeepSeek", "deepseek", "推理与代码模型"),
+      apiProvider("智谱清言", "zhipu", "GLM 中文大模型"), apiProvider("Kimi", "moonshot", "长上下文模型"),
+      apiProvider("豆包", "bytedance", "字节通用模型"), apiProvider("腾讯混元", "tencent", "腾讯多模态模型"),
+      apiProvider("文心", "baidu", "百度 ERNIE 模型"), apiProvider("百川", "baichuan", "百川通用模型"),
+    ],
   },
   {
     id: "image-processing",
     label: "图像处理",
     icon: "/figma-home/icon-image.svg",
-    href: "/studio?preset=image-default",
+    href: "/products?cate=api",
     brands: [
-      { label: "DALL·E", href: "/products?cate=api" },
-      { label: "Recraft", href: "/products?cate=api" },
-      { label: "Vectorizer.AI", href: "/products?cate=api" },
-      { label: "阶跃星辰", href: "/products?cate=api" },
-      { label: "BRIA", href: "/products?cate=api" },
-      { label: "Bagel", href: "/products?cate=api" },
-    ].slice(0, API_BRAND_LIMIT),
+      apiProvider("OpenAI", "openai", "DALL·E 图像生成"), apiProvider("FLUX", "black-forest", "高质量文生图模型"),
+      apiProvider("Stability AI", "stability", "Stable Diffusion 系列"), apiProvider("Gemini", "google", "Imagen 图像生成"),
+      apiProvider("阶跃星辰", "stepfun", "图像与视觉理解"), apiProvider("腾讯混元", "tencent", "混元图像创作"),
+    ],
   },
   {
     id: "video",
     label: "视频处理",
     icon: "/figma-home/icon-video.svg",
-    href: "/studio?preset=video-default",
+    href: "/products?cate=api",
     brands: [
-      { label: "OpenAI", href: "/products?cate=api" },
-      { label: "Luma AI", href: "/products?cate=api" },
-      { label: "Genmo", href: "/products?cate=api" },
-      { label: "昆仑万维", href: "/products?cate=api" },
-    ].slice(0, API_BRAND_LIMIT),
+      apiProvider("OpenAI", "openai", "Sora 视频生成"), apiProvider("腾讯混元", "tencent", "图生视频与特效"),
+      apiProvider("字节跳动", "bytedance", "Seedance 视频创作"), apiProvider("通义千问", "alibaba", "Wan 视频模型"),
+      apiProvider("MiniMax", "minimax", "海螺视频生成"),
+    ],
   },
   {
     id: "audio",
@@ -182,11 +185,10 @@ const apiCategories: readonly ApiCategory[] = [
     icon: "/figma-home/icon-voice.svg",
     href: "/products?cate=api",
     brands: [
-      { label: "Whisper", href: "/products?cate=api" },
-      { label: "ElevenLabs", href: "/products?cate=api" },
-      { label: "MiniMax", href: "/products?cate=api" },
-      { label: "Suno", href: "/products?cate=api" },
-    ].slice(0, API_BRAND_LIMIT),
+      apiProvider("OpenAI", "openai", "Whisper 与语音合成"), apiProvider("MiniMax", "minimax", "语音与音乐生成"),
+      apiProvider("字节跳动", "bytedance", "实时语音能力"), apiProvider("腾讯混元", "tencent", "语音识别与合成"),
+      apiProvider("Google", "google", "多语言语音模型"),
+    ],
   },
   {
     id: "info",
@@ -194,11 +196,9 @@ const apiCategories: readonly ApiCategory[] = [
     icon: "/figma-home/icon-search.svg",
     href: "/products?cate=api",
     brands: [
-      { label: "Jina", href: "/products?cate=api" },
-      { label: "Exa", href: "/products?cate=api" },
-      { label: "博查AI", href: "/products?cate=api" },
-      { label: "Search1API", href: "/products?cate=api" },
-    ].slice(0, API_BRAND_LIMIT),
+      apiProvider("Jina AI", "jina", "检索、重排与阅读"), apiProvider("Cohere", "cohere", "联网检索与重排"),
+      apiProvider("Google", "google", "全球搜索与知识理解"), apiProvider("Microsoft", "microsoft", "Bing 检索能力"),
+    ],
   },
   {
     id: "rag",
@@ -206,12 +206,10 @@ const apiCategories: readonly ApiCategory[] = [
     icon: "/figma-home/icon-db.svg",
     href: "/products?cate=api",
     brands: [
-      { label: "OpenAI", href: "/products?cate=api" },
-      { label: "Jina", href: "/products?cate=api" },
-      { label: "国产模型", href: "/products?cate=api" },
-      { label: "硅基流动", href: "/products?cate=api" },
-      { label: "Google", href: "/products?cate=api" },
-    ].slice(0, API_BRAND_LIMIT),
+      apiProvider("OpenAI", "openai", "Embedding 向量模型"), apiProvider("Jina AI", "jina", "Embedding 与 Rerank"),
+      apiProvider("Cohere", "cohere", "企业级 RAG 模型"), apiProvider("通义千问", "alibaba", "中文知识库检索"),
+      apiProvider("智谱清言", "zhipu", "知识问答与向量能力"),
+    ],
   },
 ];
 
@@ -932,12 +930,8 @@ export default function ModelMarket() {
                     <span>{item.label}</span>
                   </PortalLink>
                   <span className="portal-api-row-divider" aria-hidden />
-                  <div
-                    className="portal-api-brands"
-                    aria-label={`${item.label}可用模型：${item.brands.map((brand) => brand.label).join("、")}`}
-                    title={`悬停查看全部：${item.brands.map((brand) => brand.label).join("、")}`}
-                  >
-                    {item.brands.map((brand) => (
+                  <div className="portal-api-brands" aria-label={`${item.label}可用模型：${item.brands.map((brand) => brand.label).join("、")}`}>
+                    {item.brands.slice(0, 4).map((brand) => (
                       <PortalLink key={brand.label} href={brand.href} className="portal-api-brand">
                         {brand.label}
                       </PortalLink>
@@ -955,9 +949,9 @@ export default function ModelMarket() {
                       <div className="portal-api-touch-grid">
                         {item.brands.map((brand) => (
                           <PortalLink key={brand.label} href={brand.href}>
-                            <span>{brand.label.slice(0, 1)}</span>
+                            <span><Image src={brand.icon} alt="" width={28} height={28} /></span>
                             <strong>{brand.label}</strong>
-                            <small>{item.label}能力</small>
+                            <small>{brand.description}</small>
                           </PortalLink>
                         ))}
                       </div>
