@@ -11,11 +11,13 @@ import {
   LayoutGrid,
   LoaderCircle,
   LogOut,
+  Moon,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
   Settings2,
   Sparkles,
+  Sun,
   UserRound,
   Wallet,
   Wrench,
@@ -112,10 +114,14 @@ function usePersistedOpen(key: string, fallback = true) {
 
 export default function StudioSidebar({
   temporary = false,
+  theme,
+  onThemeChange,
   onRequestCollapse,
   onRequestExpand,
 }: {
   temporary?: boolean;
+  theme: "dark" | "light";
+  onThemeChange: (theme: "dark" | "light") => void;
   onRequestCollapse?: () => void;
   onRequestExpand?: () => void;
 }) {
@@ -255,6 +261,15 @@ export default function StudioSidebar({
             {site.name}
           </span>
         </Link>
+        <button
+          type="button"
+          onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")}
+          title={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+          aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+          className="studio-theme-toggle inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-[background-color,color,transform] duration-150 active:scale-[0.97]"
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
         {temporary ? (
           <button
             type="button"
@@ -537,7 +552,7 @@ export default function StudioSidebar({
               side="top"
               align="start"
               sideOffset={8}
-              className="w-[214px] rounded-[18px] border border-[#d4cec4] bg-[#fffdfb] p-1.5 shadow-[0_20px_50px_-16px_rgba(36,30,54,0.45),0_1px_0_rgba(255,255,255,0.8)_inset]"
+              className="studio-account-menu w-[214px] rounded-[18px] border border-[#d4cec4] bg-[#fffdfb] p-1.5 shadow-[0_20px_50px_-16px_rgba(36,30,54,0.45),0_1px_0_rgba(255,255,255,0.8)_inset]"
             >
               <DropdownMenuGroup>
                 <DropdownMenuItem

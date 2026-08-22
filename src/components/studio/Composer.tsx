@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BorderBeam } from "border-beam";
 import {
   useCallback,
   useEffect,
@@ -1833,22 +1834,32 @@ export default function Composer({
         share="studio-morph"
         default="none"
       >
-      <PromptInput
-        className={`studio-liquid-glass composer-reference-surface relative mx-auto flex w-full flex-col gap-2 ${
-          isHero ? "max-w-none p-3.5 sm:p-4" : "max-w-3xl p-2.5 sm:p-3"
-        }`}
-        inputGroupClassName="h-auto flex-col items-stretch !overflow-visible !border-0 !bg-transparent !shadow-none"
-        manageAttachments={false}
-        resetOnSubmit={false}
-        data-variant={isHero ? "hero" : "session"}
-        data-drag-over={dragOver ? "true" : "false"}
-        onSubmit={onPromptSubmit}
-        onDragEnter={onDragEnter}
-        onDragLeave={onDragLeave}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-      >
-        <PromptInputBody>
+        <BorderBeam
+          active={!disabled}
+          borderRadius={24}
+          className={`composer-border-beam mx-auto w-full ${
+            isHero ? "max-w-none" : "max-w-3xl"
+          }`}
+          colorVariant="colorful"
+          size="md"
+          theme="dark"
+        >
+          <PromptInput
+            className={`studio-liquid-glass composer-reference-surface relative flex w-full flex-col gap-2 ${
+              isHero ? "max-w-none p-3.5 sm:p-4" : "max-w-3xl p-2.5 sm:p-3"
+            }`}
+            inputGroupClassName="h-auto flex-col items-stretch !overflow-visible !border-0 !bg-transparent !shadow-none"
+            manageAttachments={false}
+            resetOnSubmit={false}
+            data-variant={isHero ? "hero" : "session"}
+            data-drag-over={dragOver ? "true" : "false"}
+            onSubmit={onPromptSubmit}
+            onDragEnter={onDragEnter}
+            onDragLeave={onDragLeave}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+          >
+            <PromptInputBody>
         <input name="message" type="hidden" value={draft} readOnly />
         {dragOver ? (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-[rgba(15,23,42,0.06)] text-sm font-medium text-[#0F172A] backdrop-blur-[2px]">
@@ -2748,8 +2759,9 @@ export default function Composer({
             }}
             menuRef={mentionMenuRef}
           />
-        </PromptInputFooter>
-      </PromptInput>
+            </PromptInputFooter>
+          </PromptInput>
+        </BorderBeam>
       </StudioViewTransition>
     </div>
   );

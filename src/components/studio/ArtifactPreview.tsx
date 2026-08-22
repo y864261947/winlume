@@ -54,6 +54,7 @@ import ImageAnnotationOverlay, {
   type ImageAnnotationSubmit,
 } from "@/components/studio/ImageAnnotationOverlay";
 import RetryableError from "@/components/studio/RetryableError";
+import { useStudioTheme } from "@/components/studio/StudioShell";
 import VideoAnalysisPreview from "@/components/studio/VideoAnalysisPreview";
 import { downloadImageArtifact } from "@/lib/studio/artifact-download";
 import {
@@ -330,6 +331,7 @@ async function persistCanvas(
 }
 
 function CanvasBody({ artifactId, content }: { artifactId: string; content: string }) {
+  const theme = useStudioTheme();
   const [parsed, setParsed] = useState<CanvasArtifactContent | null>(() =>
     parseCanvasContent(content),
   );
@@ -456,6 +458,7 @@ function CanvasBody({ artifactId, content }: { artifactId: string; content: stri
         key={`${artifactId}:${parsed.convertedFromMermaid ?? "unconverted"}`}
         initialData={initialData}
         onChange={handleChange}
+        theme={theme}
       />
     </div>
   );

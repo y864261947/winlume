@@ -14,6 +14,7 @@ import {
 } from "@/lib/agent/sheet-content";
 import { registerSheetFlusher } from "@/lib/studio/sheet-flush";
 import { publishSheetSelection } from "@/lib/studio/sheet-selection";
+import { useStudioTheme } from "./StudioShell";
 
 import "@univerjs/preset-sheets-core/lib/index.css";
 
@@ -39,6 +40,38 @@ type UniverAPI = {
     callback: (payload: UniverEventPayload) => void,
   ) => { dispose: () => void };
   createWorkbook: (data: Record<string, unknown>) => { save: () => unknown };
+};
+
+const studioDarkUniverTheme = {
+  ...defaultTheme,
+  white: "#101722",
+  black: "#F8FAFC",
+  primary: {
+    ...defaultTheme.primary,
+    50: "#111B2B",
+    100: "#15243A",
+    200: "#233654",
+    300: "#3A5C84",
+    400: "#7DD3FC",
+    500: "#38BDF8",
+    600: "#0EA5E9",
+    700: "#0284C7",
+    800: "#0369A1",
+    900: "#075985",
+  },
+  gray: {
+    ...defaultTheme.gray,
+    50: "#101722",
+    100: "#172131",
+    200: "#263246",
+    300: "#52627A",
+    400: "#718096",
+    500: "#94A3B8",
+    600: "#CBD5E1",
+    700: "#D1D5DB",
+    800: "#E5E7EB",
+    900: "#F8FAFC",
+  },
 };
 
 type Props = {
@@ -112,6 +145,7 @@ export default function SheetEditor({
   content,
   locked = false,
 }: Props) {
+  const studioTheme = useStudioTheme();
   const hostRef = useRef<HTMLDivElement>(null);
   const parsedRef = useRef<SheetArtifactContent | null>(parseSheetContent(content));
   const nameRef = useRef(artifactName);
@@ -222,7 +256,7 @@ export default function SheetEditor({
 
   useEffect(() => {
     const host = hostRef.current;
-    const parsed = parseSheetContent(content);
+    const parsed = parsedRef.current ?? parseSheetContent(content);
     if (!host || !parsed) {
       setInitError("表格内容无法打开");
       return;
@@ -258,7 +292,7 @@ export default function SheetEditor({
           locales: {
             [LocaleType.ZH_CN]: sheetsZhCN,
           },
-          theme: defaultTheme,
+          theme: studioTheme === "dark" ? studioDarkUniverTheme : defaultTheme,
           presets: [
             UniverSheetsCorePreset({
               container: host,
@@ -354,6 +388,18 @@ export default function SheetEditor({
     let resizeObserver: ResizeObserver | null = null;
 
     return () => {
+      // A theme switch recreates Univer. Snapshot a dirty workbook first so
+      // the recreated instance starts from the user's latest grid state.
+      if (!lockedRef.current && dirtyRef.current) {
+        const serialized = captureContent();
+        if (serialized) {
+          void persistSheet(artifactId, serialized).catch((error: unknown) => {
+            if (!disposed) {
+              setSaveError(error instanceof Error ? error.message : "保存表格失败");
+            }
+          });
+        }
+      }
       disposed = true;
       workbookRef.current = null;
       window.clearTimeout(startTimer);
@@ -365,9 +411,9 @@ export default function SheetEditor({
       publishSheetSelection(null);
       disposeUniverLater(univer, host);
     };
-    // Recreate only when the workbook identity/revision (parent key) changes.
+    // Recreate when the workbook identity/revision or Studio theme changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artifactId]);
+  }, [artifactId, studioTheme]);
 
   if (initError) {
     return <p className="px-4 py-6 text-sm text-rose-600">{initError}</p>;

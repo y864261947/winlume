@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   createContext,
   useContext,
   useEffect,
@@ -16,6 +17,13 @@ import StudioViewTransition from "./StudioViewTransition";
 
 type HeaderSlotCtx = { setHeader: (node: ReactNode) => void };
 const HeaderSlotContext = createContext<HeaderSlotCtx | null>(null);
+export type StudioTheme = "dark" | "light";
+const StudioThemeContext = createContext<StudioTheme>("dark");
+const STUDIO_THEME_STORAGE_KEY = "reizo:studio-theme";
+
+export function useStudioTheme(): StudioTheme {
+  return useContext(StudioThemeContext);
+}
 
 /**
  * Lets a page publish its header into the layout-level slot instead of
@@ -38,6 +46,7 @@ export function useStudioHeaderSlot(content: ReactNode) {
 /** Full-height workbench chrome — demo warm canvas + glass sidebar (no marketing chrome). */
 export default function StudioShell({ children }: { children: ReactNode }) {
   const [header, setHeader] = useState<ReactNode>(null);
+  const [theme, setTheme] = useState<StudioTheme>("dark");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarPeekRendered, setSidebarPeekRendered] = useState(false);
@@ -51,6 +60,29 @@ export default function StudioShell({ children }: { children: ReactNode }) {
   // wipes the header via its unmount-style cleanup even though nothing
   // actually unmounted.
   const headerSlotCtx = useMemo(() => ({ setHeader }), []);
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem(STUDIO_THEME_STORAGE_KEY);
+    if (storedTheme === "light") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- restores an explicit Studio preference after the dark default renders.
+      setTheme("light");
+    }
+  }, []);
+
+  const updateTheme = useCallback((nextTheme: StudioTheme) => {
+    setTheme(nextTheme);
+    window.localStorage.setItem(STUDIO_THEME_STORAGE_KEY, nextTheme);
+  }, []);
+
+  useEffect(() => {
+    const documentRoot = document.documentElement;
+    documentRoot.dataset.studioTheme = theme;
+    return () => {
+      if (documentRoot.dataset.studioTheme === theme) {
+        delete documentRoot.dataset.studioTheme;
+      }
+    };
+  }, [theme]);
 
   const clearSidebarPeekTimer = () => {
     if (!sidebarPeekTimerRef.current) return;
@@ -108,7 +140,11 @@ export default function StudioShell({ children }: { children: ReactNode }) {
 
   return (
     <HeaderSlotContext.Provider value={headerSlotCtx}>
-      <div className="studio-root relative flex h-dvh min-h-0 w-full overflow-hidden">
+      <StudioThemeContext.Provider value={theme}>
+        <div
+          className="studio-root relative flex h-dvh min-h-0 w-full overflow-hidden"
+          data-theme={theme}
+        >
         <div className="studio-blob studio-blob-a" aria-hidden />
         <div className="studio-blob studio-blob-b" aria-hidden />
         <div className="studio-blob studio-blob-c" aria-hidden />
@@ -146,6 +182,8 @@ export default function StudioShell({ children }: { children: ReactNode }) {
             </div>
           ) : (
             <StudioSidebar
+              theme={theme}
+              onThemeChange={updateTheme}
               onRequestCollapse={() => {
                 collapseSidebar();
                 setMobileSidebarOpen(false);
@@ -157,7 +195,12 @@ export default function StudioShell({ children }: { children: ReactNode }) {
               className="studio-sidebar-peek absolute inset-y-0 left-0 w-[248px]"
               data-active={sidebarPeekActive}
             >
-              <StudioSidebar temporary onRequestExpand={expandSidebar} />
+              <StudioSidebar
+                temporary
+                theme={theme}
+                onThemeChange={updateTheme}
+                onRequestExpand={expandSidebar}
+              />
             </div>
           ) : null}
         </div>
@@ -188,7 +231,8 @@ export default function StudioShell({ children }: { children: ReactNode }) {
           </StudioViewTransition>
           {children}
         </div>
-      </div>
+        </div>
+      </StudioThemeContext.Provider>
     </HeaderSlotContext.Provider>
   );
 }
