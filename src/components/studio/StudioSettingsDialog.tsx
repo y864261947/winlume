@@ -57,7 +57,7 @@ export default function StudioSettingsDialog({
 
   return (
     <Modal open={open} onClose={onClose} label="设置" size="onboarding">
-      <div className="flex h-[min(560px,calc(100dvh-4rem))] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_28px_80px_-24px_rgba(36,30,54,0.4)]">
+      <div className="studio-settings-dialog flex h-[min(560px,calc(100dvh-4rem))] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_28px_80px_-24px_rgba(36,30,54,0.4)]">
         <div className="flex shrink-0 items-center justify-between px-5 py-3.5">
           <h2 className="text-sm font-medium text-[#241E36]">设置</h2>
           <ModalCloseButton onClose={onClose} />

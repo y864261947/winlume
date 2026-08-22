@@ -64,7 +64,7 @@ export default function ProjectDialog({
     <Modal open={open} onClose={close} label="创建项目">
       <form
         onSubmit={submit}
-        className="overflow-hidden rounded-[22px] bg-white shadow-[0_28px_80px_-24px_rgba(36,30,54,0.4)]"
+        className="studio-project-dialog overflow-hidden rounded-[22px] bg-white shadow-[0_28px_80px_-24px_rgba(36,30,54,0.4)]"
       >
         <div className="flex items-start gap-3 border-b border-[#ece7df] px-5 py-4">
           <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#f3efe8] text-[#0F172A]">
