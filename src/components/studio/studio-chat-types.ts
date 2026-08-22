@@ -1,5 +1,6 @@
 import type { ArtifactKind, Message } from "@/lib/agent/types";
 import type { StudioUIMessage } from "@/lib/studio/ui-message-adapter";
+import type { ComposerOptions } from "@/lib/studio/composer-options";
 
 export const MAX_MESSAGE_QUEUE_SIZE = 5;
 
@@ -18,6 +19,7 @@ export type StudioQueuedMessage = {
   referencedArtifactIds?: string[];
   /** @deprecated Use referencedArtifactIds. */
   referencedArtifactId?: string;
+  composerOptions?: ComposerOptions;
   createdAt: number;
 };
 
@@ -37,6 +39,7 @@ export type StudioSendOverrides = {
   skillIds?: string[];
   referencedArtifactIds?: string[];
   referencedArtifactId?: string;
+  composerOptions?: ComposerOptions;
   projectId?: string;
   bootstrap?: { title?: string };
 };

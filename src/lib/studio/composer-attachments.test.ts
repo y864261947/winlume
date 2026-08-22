@@ -60,6 +60,19 @@ describe("composeOutboundMessage", () => {
     ).toBe(true);
   });
 
+  it("allows sending an imported workbook without a text draft", () => {
+    expect(
+      hasComposerPayload({
+        draft: "",
+        pasted: [],
+        images: [],
+        files: [],
+        videos: [],
+        workbooks: [{ id: "sheet-1" }],
+      }),
+    ).toBe(true);
+  });
+
   it("does not dump --- 图片 --- blobs into the outbound message", () => {
     const msg = composeOutboundMessage({
       draft: "将@图片1 和@图片2 合并起来",

@@ -34,6 +34,8 @@ export interface AgentExecutionInput {
   allowedToolNames?: string[];
   referencedArtifactIds?: string[];
   referencedArtifactId?: string;
+  /** Turn-scoped UI metadata such as Composer generation settings. */
+  metadata?: Record<string, unknown>;
   sessions: SessionStore;
   projects?: ProjectStore;
   artifacts: ArtifactStore;

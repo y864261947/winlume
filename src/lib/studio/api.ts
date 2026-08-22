@@ -10,6 +10,7 @@ import type {
   Session,
 } from "@/lib/agent/types";
 import { referenceVideoMimeType } from "@/lib/studio/video-upload";
+import type { ComposerOptions } from "@/lib/studio/composer-options";
 
 const PENDING_FIRST_MESSAGE_KEY = "reizo:pending-first-message";
 
@@ -331,6 +332,7 @@ export type ChatRequestBody = {
   model?: string;
   /** Session-bound, server-validated capability launch intent. */
   capabilityPresetId?: string;
+  composerOptions?: ComposerOptions;
   executionMode?: "studio" | "ai-sdk" | "codex";
   skillIds?: string[];
   /** Image artifact ids the user @-referenced in the composer. */
@@ -580,6 +582,7 @@ export type PendingFirstMessage = {
   message: string;
   model?: string;
   capabilityPresetId?: string;
+  composerOptions?: ComposerOptions;
   /** Per-message skill ids; injected into system prompt on send. */
   skillIds?: string[];
   /** Image artifact ids @-mentioned in the first message. */
@@ -658,6 +661,7 @@ function readPendingFirstMessage(
 export type ResolvedFirstMessageOverrides = {
   model?: string;
   capabilityPresetId?: string;
+  composerOptions?: ComposerOptions;
   skillIds?: string[];
   referencedArtifactIds?: string[];
   projectId?: string;

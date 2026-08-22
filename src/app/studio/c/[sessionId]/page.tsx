@@ -609,6 +609,7 @@ export default function StudioSessionPage() {
         void prepared.commit(pending.message, {
           model: overrides.model ?? pending.model,
           capabilityPresetId: overrides.capabilityPresetId ?? session.capabilityPresetId,
+          composerOptions: overrides.composerOptions ?? pending.composerOptions,
           skillIds: overrides.skillIds ?? pending.skillIds,
           referencedArtifactIds: overrides.referencedArtifactIds ?? pending.referencedArtifactIds,
           projectId: overrides.projectId,
@@ -929,6 +930,7 @@ export default function StudioSessionPage() {
               }
               await chat.send(text, {
                 skillIds: meta?.skillIds,
+                composerOptions: meta?.composerOptions,
                 referencedArtifactIds: ids.length ? ids : undefined,
               });
             })();
@@ -959,6 +961,7 @@ export default function StudioSessionPage() {
                 prepared.setStatus("正在理解需求…");
                 return prepared.commit(outbound, {
                   skillIds: meta?.skillIds,
+                  composerOptions: meta?.composerOptions,
                   referencedArtifactIds: ids.length ? ids : undefined,
                 });
               },
@@ -969,6 +972,7 @@ export default function StudioSessionPage() {
           disabled={showThreadSkeleton || (loading && hasHandoff)}
           model={chat.model}
           onModelChange={chat.setModel}
+          capabilityPresetId={session?.capabilityPresetId}
           pinnedSkillIds={pinnedSkillIds}
           onPinnedSkillIdsChange={(ids) => {
             void onPinnedSkillIdsChange(ids);

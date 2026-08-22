@@ -22,6 +22,10 @@ import {
   unregisterTurn,
 } from "@/lib/agent/turn-registry";
 import { webStore } from "@/lib/host/web/store-singleton";
+import {
+  normalizeComposerOptions,
+  toolNamesForComposerMode,
+} from "@/lib/studio/composer-options";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,6 +61,7 @@ type ChatBody = {
   referencedArtifactIds?: string[];
   /** @deprecated Use referencedArtifactIds */
   referencedArtifactId?: string;
+  composerOptions?: unknown;
   /**
    * The client already committed to `sessionId` before the server knew
    * about it — it navigated to `/studio/c/${sessionId}` optimistically,
@@ -87,7 +92,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  let message = typeof body.message === "string" ? body.message.trim() : "";
+  const message = typeof body.message === "string" ? body.message.trim() : "";
   if (!message) {
     return Response.json({ error: "message is required" }, { status: 400 });
   }
@@ -107,13 +112,13 @@ export async function POST(request: NextRequest) {
   const executionMode = normalizeExecutionMode(
     body.executionMode ?? process.env.REIZO_AGENT_EXECUTION_MODE,
   );
-  let skillIds = Array.isArray(body.skillIds)
+  const skillIds = Array.isArray(body.skillIds)
     ? body.skillIds
         .filter((id): id is string => typeof id === "string")
         .map((id) => id.trim())
         .filter(Boolean)
     : undefined;
-  let referencedArtifactIds = [
+  const referencedArtifactIds = [
     ...(Array.isArray(body.referencedArtifactIds)
       ? body.referencedArtifactIds
       : []),
@@ -123,6 +128,22 @@ export async function POST(request: NextRequest) {
   ]
     .filter((id): id is string => typeof id === "string" && id.trim().length > 0)
     .map((id) => id.trim());
+  const composerOptions = normalizeComposerOptions(body.composerOptions);
+  if (body.composerOptions !== undefined && !composerOptions) {
+    return Response.json(
+      { error: "无效的 Composer 参数", code: "invalid_composer_options" },
+      { status: 400 },
+    );
+  }
+  if (composerOptions?.mode === "video") {
+    return Response.json(
+      { error: "视频生成服务尚未接入", code: "video_generation_unavailable" },
+      { status: 400 },
+    );
+  }
+  const allowedToolNames = composerOptions
+    ? toolNamesForComposerMode(composerOptions.mode)
+    : undefined;
 
   let sessionId =
     typeof body.sessionId === "string" && body.sessionId.trim()
@@ -253,8 +274,12 @@ export async function POST(request: NextRequest) {
           message,
           executionMode,
           model,
+          ...(allowedToolNames ? { allowedToolNames: [...allowedToolNames] } : {}),
           ...(skillIds?.length ? { skillIds } : {}),
           ...(referencedArtifactIds.length ? { referencedArtifactIds } : {}),
+          ...(composerOptions
+            ? { metadata: { composerOptions } }
+            : {}),
         },
       });
       runId = submitted.run.id;

@@ -24,11 +24,20 @@ import {
   Image as ImageIcon,
   ListOrdered,
   LoaderCircle,
+  Mic,
+  MicOff,
+  MessageSquare,
   Paperclip,
   Pin,
   Scissors,
   RotateCw,
+  RectangleHorizontal,
+  RectangleVertical,
+  SlidersHorizontal,
+  Square,
   Table2,
+  Workflow,
+  Zap,
   X,
 } from "lucide-react";
 import { fetchPlaza } from "@/lib/catalog";
@@ -94,7 +103,20 @@ import ArtifactMentionMenu, { detectAtMention } from "./ArtifactMentionMenu";
 import MentionPromptEditor, {
   type MentionPromptEditorHandle,
 } from "./MentionPromptEditor";
-import { type StudioTool } from "@/lib/studio/tool-catalog";
+import {
+  initialStudioToolParams,
+  type StudioTool,
+  type StudioToolParams,
+  validateStudioToolParams,
+} from "@/lib/studio/tool-catalog";
+import {
+  capabilityPresetForMode,
+  IMAGE_SIZE_OPTIONS,
+  modeForCapabilityPreset,
+  type ComposerMode,
+  type ComposerOptions,
+  type ImageSize,
+} from "@/lib/studio/composer-options";
 import { isGenericSkillPrompt } from "@/lib/studio/skill-prompt";
 import SkillChips from "./SkillChips";
 import SkillSlashMenu, {
@@ -109,8 +131,20 @@ import {
   PromptInputBody,
   PromptInputFooter,
   PromptInputSubmit,
-  PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   MAX_MESSAGE_QUEUE_SIZE,
   type StudioQueuedMessage,
@@ -126,7 +160,57 @@ const FALLBACK_MODELS = [
 const PLAZA_LIMIT = 30;
 const DRAFT_DEBOUNCE_MS = 400;
 
+type BrowserSpeechRecognition = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+};
+
+type BrowserSpeechRecognitionWindow = Window & {
+  SpeechRecognition?: new () => BrowserSpeechRecognition;
+  webkitSpeechRecognition?: new () => BrowserSpeechRecognition;
+};
+
+const COMPOSER_MODE_ITEMS: ReadonlyArray<{
+  id: ComposerMode;
+  label: string;
+  title: string;
+}> = [
+  { id: "chat", label: "对话", title: "纯文字对话" },
+  { id: "image", label: "图片", title: "图片创作与编辑" },
+  { id: "video", label: "视频", title: "视频生成（服务尚未接入）" },
+  { id: "canvas", label: "画布", title: "生成或更新可编辑画布" },
+  { id: "sheet", label: "表格", title: "生成或更新可编辑表格" },
+];
+
+function ComposerModeIcon({ mode }: { mode: ComposerMode }) {
+  if (mode === "image") return <ImageIcon className="h-3.5 w-3.5" />;
+  if (mode === "video") return <Clapperboard className="h-3.5 w-3.5" />;
+  if (mode === "canvas") return <Workflow className="h-3.5 w-3.5" />;
+  if (mode === "sheet") return <Table2 className="h-3.5 w-3.5" />;
+  return <MessageSquare className="h-3.5 w-3.5" />;
+}
+
+function ImageSizeIcon({ value }: { value: ImageSize }) {
+  if (value === "1536x1024") {
+    return <RectangleHorizontal className="h-4 w-4 shrink-0 text-[#536DA8]" />;
+  }
+  if (value === "1024x1536") {
+    return <RectangleVertical className="h-4 w-4 shrink-0 text-[#536DA8]" />;
+  }
+  return <Square className="h-4 w-4 shrink-0 text-[#536DA8]" />;
+}
+
 export type ComposerSendMeta = {
+  /** Turn-scoped Composer mode and generation settings. */
+  composerOptions?: ComposerOptions;
+  /** Optional launch preset retained for session bootstrap compatibility. */
+  capabilityPresetId?: string;
   skillIds?: string[];
   /** Server artifact ids resolved from @图片N (and other @names) in the prompt. */
   referencedArtifactIds?: string[];
@@ -219,6 +303,9 @@ export type ComposerProps = {
   focusedSheet?: Artifact | null;
   /** Called after an uploaded .xlsx becomes a sheet artifact. */
   onSheetUploaded?: (artifact: Artifact) => void;
+  /** Initial capability launch intent; mode changes remain turn-scoped. */
+  capabilityPresetId?: string | null;
+  onCapabilityPresetChange?: (id: string | null) => void;
 };
 
 function PastedBlockCard({
@@ -328,7 +415,7 @@ export default function Composer({
   disabled = false,
   model,
   onModelChange,
-  placeholder = "描述你想完成的任务…",
+  placeholder = "输入需求，或输入 @ 引用产物、/选择技能",
   allowCustomModel = true,
   error,
   onClearError,
@@ -350,6 +437,8 @@ export default function Composer({
   onVideoAnalysisStarted,
   focusedSheet = null,
   onSheetUploaded,
+  capabilityPresetId,
+  onCapabilityPresetChange,
 }: ComposerProps) {
   const isHero = variant === "hero";
   const promptId = useId();
@@ -361,6 +450,16 @@ export default function Composer({
   const [modelOptions, setModelOptions] = useState<string[]>([...FALLBACK_MODELS]);
   const [modelsLoading, setModelsLoading] = useState(true);
   const [customMode, setCustomMode] = useState(false);
+  const [composerMode, setComposerMode] = useState<ComposerMode>(() =>
+    modeForCapabilityPreset(capabilityPresetId),
+  );
+  const [imageSize, setImageSize] = useState<ImageSize>("1024x1024");
+  const [imageCount, setImageCount] = useState<1 | 2 | 3 | 4>(1);
+  const [capabilityAvailability, setCapabilityAvailability] = useState<
+    Partial<Record<ComposerMode, "available" | "degraded" | "needs_setup" | "unavailable">>
+  >({});
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [voiceListening, setVoiceListening] = useState(false);
   const [allSkills, setAllSkills] = useState<SkillMeta[]>([]);
   const [departments, setDepartments] = useState<SkillDepartment[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(true);
@@ -374,7 +473,7 @@ export default function Composer({
     null,
   );
   const [turnTool, setTurnTool] = useState<StudioTool | null>(null);
-  const [watermarkRightsConfirmed, setWatermarkRightsConfirmed] = useState(false);
+  const [turnToolParams, setTurnToolParams] = useState<StudioToolParams>({});
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionIndex, setMentionIndex] = useState(0);
@@ -401,7 +500,13 @@ export default function Composer({
   const imagesRef = useRef<ImageAttachment[]>([]);
   const workbooksRef = useRef<WorkbookAttachment[]>([]);
   const activeSessionIdRef = useRef(sessionId);
+  const voiceRecognitionRef = useRef<{ stop: () => void } | null>(null);
   const [selectionPreview, setSelectionPreview] = useState<SheetSelectionPreview | null>(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- capability launch intent is an external prop.
+    setComposerMode(modeForCapabilityPreset(capabilityPresetId));
+  }, [capabilityPresetId]);
 
   const isControlled = controlledValue !== undefined;
   const draft = isControlled ? controlledValue : uncontrolled;
@@ -590,6 +695,50 @@ export default function Composer({
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/capabilities", { credentials: "same-origin" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("capabilities");
+        return response.json() as Promise<{
+          capabilities?: Array<{ id?: string; availability?: string }>;
+        }>;
+      })
+      .then((catalog) => {
+        if (cancelled) return;
+        const next: Partial<Record<ComposerMode, "available" | "degraded" | "needs_setup" | "unavailable">> = {};
+        for (const capability of catalog.capabilities ?? []) {
+          const mode =
+            capability.id === "image.generate"
+              ? "image"
+              : capability.id === "video.generate"
+                ? "video"
+                : capability.id === "canvas.generate"
+                  ? "canvas"
+                  : capability.id === "sheet.generate"
+                    ? "sheet"
+                    : null;
+          if (
+            mode &&
+            (capability.availability === "available" ||
+              capability.availability === "degraded" ||
+              capability.availability === "needs_setup" ||
+              capability.availability === "unavailable")
+          ) {
+            next[mode] = capability.availability;
+          }
+        }
+        setCapabilityAvailability(next);
+      })
+      .catch(() => {
+        // Keep the controls usable when the capability probe is unavailable;
+        // the server remains authoritative when the turn is submitted.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Keep select list as primary UX — never auto-switch to free-text mode.
   useEffect(() => {
     if (model && !modelOptions.includes(model) && !customMode) {
@@ -662,6 +811,7 @@ export default function Composer({
       images,
       files,
       videos,
+      workbooks,
     }) &&
     !disabled &&
     !submittingAttachments &&
@@ -713,6 +863,7 @@ export default function Composer({
 
   const pickSkillFromMenu = useCallback(
     (skill: SkillMeta) => {
+      setSettingsOpen(false);
       if (!slashRange) {
         toggleSkill(skill.id);
         return;
@@ -738,8 +889,9 @@ export default function Composer({
 
   const pickToolFromMenu = useCallback(
     (tool: StudioTool) => {
+      setSettingsOpen(false);
       setTurnTool(tool);
-      setWatermarkRightsConfirmed(false);
+      setTurnToolParams(initialStudioToolParams(tool));
       const editor = editorRef.current;
       if (slashRange && editor) {
         const { text, cursor } = editor.replaceRange(slashRange, "");
@@ -757,6 +909,7 @@ export default function Composer({
 
   const openSkillMenu = useCallback(
     (query = "", range: { start: number; end: number } | null = null) => {
+      setSettingsOpen(false);
       setMenuQuery(query);
       setSlashRange(range);
       setMenuView({ kind: "root" });
@@ -776,6 +929,7 @@ export default function Composer({
         setMenuView({ kind: "root" });
         return;
       }
+      setSettingsOpen(false);
       const token = match[0];
       const slashLocal = token.lastIndexOf("/");
       const start = cursor - token.length + slashLocal;
@@ -786,6 +940,7 @@ export default function Composer({
   );
 
   const detectMention = useCallback((text: string, cursor: number) => {
+    setSettingsOpen(false);
     const hit = detectAtMention(text, cursor);
     if (!hit) {
       setMentionOpen(false);
@@ -1171,10 +1326,14 @@ export default function Composer({
       setAttachError("请先确认你拥有该参考视频的使用授权");
       return;
     }
-    if (turnTool?.id === "watermark-subtitle-removal" && !watermarkRightsConfirmed) {
-      setAttachError("请先确认你拥有处理此图片及移除相关内容的必要权利");
+    const validatedToolParams = turnTool
+      ? validateStudioToolParams(turnTool, turnToolParams)
+      : { params: undefined };
+    if (turnTool && !validatedToolParams.params) {
+      setAttachError(validatedToolParams.error ?? "请补充工具参数");
       return;
     }
+    const toolParams = validatedToolParams.params ?? {};
     onClearError?.();
 
     const toolDraft = turnTool && !effectiveDraft.includes(turnTool.composerPrompt)
@@ -1182,7 +1341,8 @@ export default function Composer({
       : effectiveDraft;
     const outbound = composeOutboundMessage({
       draft:
-        turnTool?.id === "watermark-subtitle-removal"
+        turnTool?.id === "watermark-subtitle-removal" &&
+        validatedToolParams.params?.rightsConfirmed === true
           ? `${toolDraft}\n我确认拥有处理此图片及移除相关内容的必要权利。`
           : toolDraft,
       pasted: pastedBlocks,
@@ -1315,11 +1475,25 @@ export default function Composer({
             .filter((id): id is string => Boolean(id)),
         ];
 
+        const effectiveMode = turnTool ? "image" : composerMode;
         const meta: ComposerSendMeta | undefined =
           selectedIds.length ||
           referencedArtifactIds.length ||
+          effectiveMode !== "chat" ||
           (!sessionId && (workingImages.length || videos.length || readyWorkbooks.length))
             ? {
+                ...(effectiveMode !== "chat"
+                  ? {
+                      composerOptions: {
+                        mode: effectiveMode,
+                        ...(effectiveMode === "image" ? { size: imageSize, count: imageCount } : {}),
+                        ...(turnTool
+                          ? { toolId: turnTool.id, toolParams }
+                          : {}),
+                      },
+                      capabilityPresetId: capabilityPresetForMode(effectiveMode) ?? undefined,
+                    }
+                  : {}),
                 ...(selectedIds.length ? { skillIds: [...selectedIds] } : {}),
                 ...(referencedArtifactIds.length
                   ? { referencedArtifactIds: [...new Set(referencedArtifactIds)] }
@@ -1365,7 +1539,9 @@ export default function Composer({
         setSelectionPreview(null);
         setSelectedIds([]);
         setTurnTool(null);
-        setWatermarkRightsConfirmed(false);
+        setTurnToolParams({});
+        setComposerMode("chat");
+        onCapabilityPresetChange?.(null);
         clearAttachments();
         closeMenu();
         setMentionOpen(false);
@@ -1402,8 +1578,12 @@ export default function Composer({
     onClearError,
     onPrepareSend,
     selectedIds,
+    composerMode,
+    imageSize,
+    imageCount,
+    onCapabilityPresetChange,
     turnTool,
-    watermarkRightsConfirmed,
+    turnToolParams,
     onSend,
     setDraft,
     setSelectedIds,
@@ -1510,6 +1690,60 @@ export default function Composer({
     videos.length > 0 ||
     workbooks.length > 0;
 
+  const selectComposerMode = useCallback(
+    (next: ComposerMode) => {
+      if (next === "video") return;
+      const availability = capabilityAvailability[next];
+      if (availability === "needs_setup" || availability === "unavailable") return;
+      setComposerMode(next);
+      onCapabilityPresetChange?.(capabilityPresetForMode(next));
+      if (next !== "image") {
+        setImageSize("1024x1024");
+        setImageCount(1);
+      }
+    },
+    [capabilityAvailability, onCapabilityPresetChange],
+  );
+
+  const toggleVoice = useCallback(() => {
+    setSettingsOpen(false);
+    if (voiceListening) {
+      voiceRecognitionRef.current?.stop();
+      return;
+    }
+    const speechWindow = window as BrowserSpeechRecognitionWindow;
+    const Recognition =
+      speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    if (!Recognition) {
+      setAttachError("当前浏览器不支持语音输入");
+      return;
+    }
+    const recognition = new Recognition();
+    recognition.lang = "zh-CN";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim();
+      if (transcript) setDraft(draft ? `${draft} ${transcript}` : transcript);
+    };
+    recognition.onerror = () => {
+      setVoiceListening(false);
+      setAttachError("语音输入未能识别，请重试");
+    };
+    recognition.onend = () => {
+      setVoiceListening(false);
+      voiceRecognitionRef.current = null;
+    };
+    voiceRecognitionRef.current = recognition;
+    setAttachError(null);
+    setVoiceListening(true);
+    recognition.start();
+  }, [draft, setDraft, voiceListening]);
+
+  useEffect(() => {
+    return () => voiceRecognitionRef.current?.stop();
+  }, []);
+
   return (
     <div
       className={
@@ -1600,10 +1834,10 @@ export default function Composer({
         default="none"
       >
       <PromptInput
-        className={`studio-liquid-glass relative mx-auto flex w-full flex-col gap-2 ${
+        className={`studio-liquid-glass composer-reference-surface relative mx-auto flex w-full flex-col gap-2 ${
           isHero ? "max-w-none p-3.5 sm:p-4" : "max-w-3xl p-2.5 sm:p-3"
         }`}
-        inputGroupClassName="h-auto flex-col items-stretch !border-0 !bg-transparent !shadow-none"
+        inputGroupClassName="h-auto flex-col items-stretch !overflow-visible !border-0 !bg-transparent !shadow-none"
         manageAttachments={false}
         resetOnSubmit={false}
         data-variant={isHero ? "hero" : "session"}
@@ -1622,7 +1856,107 @@ export default function Composer({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-2 px-2 pt-1">
+        {(images.length > 0 || videos.length > 0 || workbooks.length > 0 || files.length > 0 || focusedSheet?.kind === "sheet") ? (
+          <div className="composer-context-strip flex min-w-0 items-center gap-1.5 overflow-x-auto px-2 pt-1">
+            {focusedSheet?.kind === "sheet" ? (
+              <span className="composer-context-tab composer-context-tab-active">
+                <Table2 className="h-3.5 w-3.5 shrink-0 text-[#7CD3FC]" />
+                <span className="max-w-[10rem] truncate">{focusedSheet.name}</span>
+              </span>
+            ) : null}
+            {images.map((image) => (
+              <span key={image.id} className="composer-context-tab">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (image.uploadFailed) {
+                      retryImageUpload(image.id);
+                      return;
+                    }
+                    editorRef.current?.insertMention(
+                      {
+                        name: image.name,
+                        thumbSrc: image.dataUrl,
+                        artifactId: image.artifactId,
+                        localId: image.id,
+                      },
+                      null,
+                    );
+                  }}
+                  className="flex min-w-0 items-center gap-2 text-left"
+                  title={image.uploadFailed ? "上传失败，点击重试" : `引用 @${image.name}`}
+                >
+                  <ImageIcon className="h-3.5 w-3.5 shrink-0 text-[#FBBF24]" />
+                  <span className="max-w-[9rem] truncate">{image.name}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComposerImages((previous) => previous.filter((item) => item.id !== image.id))}
+                  className="composer-context-tab-remove"
+                  title={`移除 ${image.name}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {workbooks.map((book) => (
+              <span key={book.id} className="composer-context-tab">
+                <Table2 className="h-3.5 w-3.5 shrink-0 text-[#4ADE80]" />
+                <span className="max-w-[10rem] truncate">{book.name}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    workbooksRef.current = workbooksRef.current.filter((item) => item.id !== book.id);
+                    setWorkbooks(workbooksRef.current);
+                  }}
+                  className="composer-context-tab-remove"
+                  title={`移除 ${book.name}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {videos.map((video) => (
+              <span key={video.id} className="composer-context-tab composer-context-tab-video">
+                <Clapperboard className="h-3.5 w-3.5 shrink-0 text-[#C4B5FD]" />
+                <span className="max-w-[9rem] truncate">{video.name}</span>
+                <label className="inline-flex shrink-0 items-center gap-1 text-[10px] text-[#615A73]" title="确认视频使用授权">
+                  <Checkbox
+                    checked={video.authorized}
+                    disabled={disabled || submittingAttachments}
+                    onCheckedChange={(checked) => setVideos((previous) => previous.map((item) => item.id === video.id ? { ...item, authorized: checked === true } : item))}
+                    className="size-3.5 rounded-[4px] border-[rgba(36,30,54,0.18)] bg-white/70 data-[state=checked]:border-[#536DA8] data-[state=checked]:bg-[#536DA8]"
+                  />
+                  授权
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setVideos((previous) => previous.filter((item) => item.id !== video.id))}
+                  className="composer-context-tab-remove"
+                  title={`移除 ${video.name}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {files.map((file) => (
+              <span key={file.id} className="composer-context-tab">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-[#CBD5E1]" />
+                <span className="max-w-[9rem] truncate">{file.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setFiles((previous) => previous.filter((item) => item.id !== file.id))}
+                  className="composer-context-tab-remove"
+                  title={`移除 ${file.name}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="hidden">
           {focusedSheet?.kind === "sheet" ? (
             <span
               className="studio-liquid-chip inline-flex max-w-[12rem] items-center gap-1 rounded-[10px] px-2 py-1 text-[11px] text-[#241E36]"
@@ -1631,6 +1965,78 @@ export default function Composer({
               <Table2 className="h-3 w-3 shrink-0 text-primary-600" />
               <span className="min-w-0 truncate">正在改「{focusedSheet.name}」</span>
             </span>
+          ) : null}
+          <div
+            className="flex min-w-0 max-w-full items-center overflow-x-auto rounded-[10px] border border-white/70 bg-white/35 p-0.5"
+            role="tablist"
+            aria-label="Composer 模式"
+          >
+            {COMPOSER_MODE_ITEMS.map((item) => {
+              const unavailable =
+                item.id === "video" ||
+                capabilityAvailability[item.id] === "needs_setup" ||
+                capabilityAvailability[item.id] === "unavailable";
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={composerMode === item.id}
+                  aria-label={item.title}
+                  title={unavailable ? `${item.title} · 暂不可用` : item.title}
+                  disabled={disabled || unavailable}
+                  onClick={() => selectComposerMode(item.id)}
+                  className={`inline-flex h-7 shrink-0 items-center gap-1 rounded-[8px] px-2 text-[11px] font-medium transition ${
+                    composerMode === item.id
+                      ? "bg-[rgba(15,23,42,0.10)] text-[#0F172A] shadow-sm"
+                      : "text-[#615A73] hover:bg-white/60"
+                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                >
+                  <ComposerModeIcon mode={item.id} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {composerMode === "image" ? (
+            <div className="flex min-w-0 items-center gap-1.5">
+              <label className="sr-only" htmlFor={`${modelId}-image-size`}>
+                图片尺寸
+              </label>
+              <select
+                id={`${modelId}-image-size`}
+                value={imageSize}
+                disabled={disabled}
+                onChange={(event) => setImageSize(event.target.value as ImageSize)}
+                className="studio-liquid-chip max-w-[10rem] appearance-none rounded-[10px] px-2 py-1 text-[11px] text-[#241E36] disabled:opacity-50"
+                title="图片比例与尺寸"
+              >
+                {IMAGE_SIZE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <label className="sr-only" htmlFor={`${modelId}-image-count`}>
+                图片数量
+              </label>
+              <select
+                id={`${modelId}-image-count`}
+                value={imageCount}
+                disabled={disabled}
+                onChange={(event) =>
+                  setImageCount(Number(event.target.value) as 1 | 2 | 3 | 4)
+                }
+                className="studio-liquid-chip rounded-[10px] px-2 py-1 text-[11px] text-[#241E36] disabled:opacity-50"
+                title="生成数量"
+              >
+                {[1, 2, 3, 4].map((count) => (
+                  <option key={count} value={count}>
+                    {count} 张
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : null}
           <label htmlFor={modelId} className="sr-only">
             模型
@@ -1745,7 +2151,7 @@ export default function Composer({
                 disabled={disabled}
                 onClick={() => {
                   setTurnTool(null);
-                  setWatermarkRightsConfirmed(false);
+                  setTurnToolParams({});
                 }}
                 className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-white/70 disabled:opacity-50"
                 title="取消工具"
@@ -1753,21 +2159,49 @@ export default function Composer({
                 <X className="h-3 w-3" />
               </button>
             </span>
-            {turnTool.id === "watermark-subtitle-removal" ? (
-              <label className="inline-flex items-center gap-1.5 text-xs text-[#615A73]">
-                <input
-                  type="checkbox"
-                  checked={watermarkRightsConfirmed}
-                  disabled={disabled}
-                  onChange={(event) => {
-                    setWatermarkRightsConfirmed(event.target.checked);
-                    if (event.target.checked) setAttachError(null);
-                  }}
-                  className="h-3.5 w-3.5 accent-[#0F172A]"
-                />
-                我确认拥有处理此图片及移除相关内容的必要权利
-              </label>
-            ) : null}
+            {turnTool.parameters.map((field) =>
+              field.type === "select" ? (
+                <label key={field.id} className="inline-flex items-center gap-1.5 text-xs text-[#615A73]">
+                  <span className="sr-only">{field.label}</span>
+                  <select
+                    value={String(turnToolParams[field.id] ?? field.defaultValue ?? "")}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      setTurnToolParams((previous) => ({
+                        ...previous,
+                        [field.id]: event.target.value,
+                      }));
+                      setAttachError(null);
+                    }}
+                    className="studio-liquid-chip rounded-[10px] px-2 py-1 text-[11px] text-[#241E36]"
+                    title={field.description}
+                  >
+                    {field.options.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {field.label}: {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label key={field.id} className="inline-flex items-center gap-1.5 text-xs text-[#615A73]">
+                  <input
+                    type="checkbox"
+                    checked={turnToolParams[field.id] === true}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      setTurnToolParams((previous) => ({
+                        ...previous,
+                        [field.id]: event.target.checked,
+                      }));
+                      if (event.target.checked) setAttachError(null);
+                    }}
+                    className="h-3.5 w-3.5 accent-[#0F172A]"
+                  />
+                  {field.label}
+                </label>
+              ),
+            )}
           </div>
         ) : null}
 
@@ -1783,7 +2217,7 @@ export default function Composer({
 
         {/* Attachment strip: images, reference videos, and binary file chips. */}
         {(images.length > 0 || videos.length > 0 || files.length > 0 || workbooks.length > 0) && (
-          <div className="flex flex-wrap gap-2 px-2">
+          <div className="hidden">
             {images.map((img) => (
               <div
                 key={img.id}
@@ -1989,7 +2423,7 @@ export default function Composer({
         ) : null}
 
         {hasAttachments ? (
-          <div className="flex items-center gap-2 px-2">
+          <div className="hidden">
             <span className="inline-flex items-center gap-1 text-[10px] text-[#8A8298]">
               {videos.length > 0 ? (
                 <Clapperboard className="h-3 w-3" />
@@ -2061,10 +2495,7 @@ export default function Composer({
             </span>
           </div>
         ) : null}
-        </PromptInputBody>
-
-        <PromptInputFooter className="relative flex w-full items-end gap-2 px-0 py-0">
-          <PromptInputTools className="relative flex min-w-0 flex-1 items-end gap-2">
+        <div className="composer-editor-row">
           <label className="sr-only" htmlFor={promptId}>
             输入你的需求
           </label>
@@ -2091,57 +2522,201 @@ export default function Composer({
             }
             maxHeight={isHero ? 220 : 160}
             minHeightClass={
-              isHero ? "min-h-[4.5rem] py-3 text-[15px] leading-7" : "min-h-[2.75rem] py-2 text-sm leading-6"
+              isHero
+                ? "min-h-[4.5rem] py-3 text-[15px] leading-7"
+                : "min-h-[2.75rem] py-2 text-sm leading-6"
             }
             className="disabled:opacity-60"
             aria-controls={menuOpen || mentionOpen ? menuId : undefined}
             aria-expanded={menuOpen || mentionOpen}
             aria-autocomplete="list"
           />
-          </PromptInputTools>
-          {streaming ? (
-            <>
-              <PromptInputSubmit
-                status="ready"
-                disabled={!canSend}
-                title={
-                  submittingAttachments
-                    ? "正在上传附件"
-                    : queueFull
-                      ? "队列已满"
-                      : "加入队列"
-                }
-                className="studio-send-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-white transition disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {submittingAttachments ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ListOrdered className="h-4 w-4" />
-                )}
-                <span className="sr-only">加入队列</span>
-              </PromptInputSubmit>
-              <PromptInputSubmit
-                status="streaming"
-                onStop={() => onStop?.()}
-                title="停止生成"
-                className="studio-liquid-chip flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-[#615A73]"
-              />
-            </>
-          ) : (
-            <PromptInputSubmit
-              status={submittingAttachments ? "submitted" : "ready"}
-              disabled={!canSend}
-              title={submittingAttachments ? "正在上传附件" : "发送"}
-              className="studio-send-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+        </div>
+        </PromptInputBody>
+
+        <PromptInputFooter className="composer-footer relative flex w-full items-end gap-2 px-0 py-0">
+          <div className="composer-footer-tools flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled || submittingAttachments}
+              className="composer-icon-button"
+              title="添加附件、图片、Excel 或参考视频"
+              aria-label="添加附件、图片、Excel 或参考视频"
             >
-              {submittingAttachments ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <ArrowUp className="h-4 w-4" />
-              )}
-              <span className="sr-only">发送</span>
-            </PromptInputSubmit>
-          )}
+              <Paperclip className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSettingsOpen(false);
+                focusComposer();
+                openSkillMenu();
+              }}
+              disabled={disabled || skillsLoading}
+              className={`composer-icon-button ${selectedIds.length ? "composer-icon-button-active" : ""}`}
+              title="选择 Skill（也可以输入 /）"
+              aria-label="选择 Skill"
+            >
+              <Zap className="h-[18px] w-[18px]" />
+            </button>
+          </div>
+          <div className="composer-footer-actions relative flex shrink-0 items-center gap-1.5">
+            <Popover
+              open={settingsOpen}
+              onOpenChange={(open) => {
+                setSettingsOpen(open);
+                if (open) {
+                  closeMenu();
+                  setMentionOpen(false);
+                  setMentionRange(null);
+                  setMentionQuery("");
+                }
+              }}
+            >
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  className={`composer-icon-button ${settingsOpen ? "composer-icon-button-active" : ""}`}
+                  title="高级设置"
+                  aria-label="高级设置"
+                >
+                  <SlidersHorizontal className="h-[18px] w-[18px]" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                side="top"
+                className="composer-settings-popover w-[21rem] max-w-[calc(100vw-2rem)]"
+              >
+                <div className="composer-settings-heading">
+                  <span>高级设置</span>
+                </div>
+                <label className="composer-settings-field">
+                  <span>模型</span>
+                  {customMode && allowCustomModel ? (
+                    <input
+                      type="text"
+                      value={model}
+                      onChange={(event) => onModelChange(event.target.value)}
+                      placeholder="输入模型名称"
+                      disabled={disabled}
+                    />
+                  ) : (
+                    <Select
+                      value={modelOptions.includes(model) ? model : modelOptions[0] ?? model}
+                      onValueChange={(value) => {
+                        if (value === "__custom__") {
+                          setCustomMode(true);
+                          return;
+                        }
+                        onModelChange(value);
+                      }}
+                      disabled={disabled || modelsLoading}
+                    >
+                      <SelectTrigger className="!h-[2.65rem] !w-full min-w-0 rounded-[10px] border-line bg-white/70 text-[#241E36]">
+                        <SelectValue placeholder="选择模型" />
+                      </SelectTrigger>
+                      <SelectContent position="popper" align="end">
+                        {modelOptions.map((name) => (
+                          <SelectItem key={name} value={name}>{name}</SelectItem>
+                        ))}
+                        {allowCustomModel ? <SelectItem value="__custom__">自定义模型</SelectItem> : null}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </label>
+                {customMode && allowCustomModel ? (
+                  <button type="button" className="composer-settings-reset" onClick={() => setCustomMode(false)}>
+                    使用模型列表
+                  </button>
+                ) : null}
+                {composerMode === "image" ? (
+                  <div className="composer-settings-grid">
+                    <label className="composer-settings-field">
+                      <span>比例与尺寸</span>
+                      <Select value={imageSize} disabled={disabled} onValueChange={(value) => setImageSize(value as ImageSize)}>
+                        <SelectTrigger className="!h-[2.65rem] !w-full min-w-0 rounded-[10px] border-line bg-white/70 text-[#241E36]"><SelectValue /></SelectTrigger>
+                        <SelectContent position="popper" align="end">
+                          {IMAGE_SIZE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              <span className="inline-flex items-center gap-2">
+                                <ImageSizeIcon value={option.value} />
+                                <span>{option.label}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </label>
+                    <label className="composer-settings-field">
+                      <span>生成数量</span>
+                      <Select value={String(imageCount)} disabled={disabled} onValueChange={(value) => setImageCount(Number(value) as 1 | 2 | 3 | 4)}>
+                        <SelectTrigger className="!h-[2.65rem] !w-full min-w-0 rounded-[10px] border-line bg-white/70 text-[#241E36]"><SelectValue /></SelectTrigger>
+                        <SelectContent position="popper" align="end">
+                          {[1, 2, 3, 4].map((count) => <SelectItem key={count} value={String(count)}>{count} 张</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </label>
+                  </div>
+                ) : null}
+              </PopoverContent>
+            </Popover>
+            <Select
+              value={composerMode}
+              disabled={disabled}
+              onValueChange={(value) => {
+                setSettingsOpen(false);
+                selectComposerMode(value as ComposerMode);
+              }}
+            >
+              <SelectTrigger className="composer-output-select h-[2.65rem] w-auto min-w-[8.5rem] rounded-[12px] border-white/78 bg-white/68 px-3 text-[#241E36] shadow-none">
+                <SelectValue placeholder="自动 / 对话" />
+              </SelectTrigger>
+              <SelectContent position="popper" align="end">
+                <SelectItem value="chat">自动 / 对话</SelectItem>
+                <SelectItem value="image" disabled={capabilityAvailability.image === "needs_setup" || capabilityAvailability.image === "unavailable"}>图片</SelectItem>
+                <SelectItem value="video" disabled>视频（未接入）</SelectItem>
+                <SelectItem value="canvas" disabled={capabilityAvailability.canvas === "needs_setup" || capabilityAvailability.canvas === "unavailable"}>画布</SelectItem>
+                <SelectItem value="sheet" disabled={capabilityAvailability.sheet === "needs_setup" || capabilityAvailability.sheet === "unavailable"}>表格</SelectItem>
+              </SelectContent>
+            </Select>
+            <button
+              type="button"
+              onClick={toggleVoice}
+              disabled={disabled}
+              className={`composer-icon-button ${voiceListening ? "composer-icon-button-recording" : ""}`}
+              title={voiceListening ? "停止语音输入" : "语音输入"}
+              aria-label={voiceListening ? "停止语音输入" : "语音输入"}
+            >
+              {voiceListening ? <MicOff className="h-[18px] w-[18px]" /> : <Mic className="h-[18px] w-[18px]" />}
+            </button>
+            {streaming ? (
+              <>
+                <PromptInputSubmit
+                  status="ready"
+                  disabled={!canSend}
+                  title={submittingAttachments ? "正在上传附件" : queueFull ? "队列已满" : "加入队列"}
+                  className="composer-send-button composer-send-button-queue"
+                >
+                  {submittingAttachments ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ListOrdered className="h-4 w-4" />}
+                  <span className="sr-only">加入队列</span>
+                </PromptInputSubmit>
+                <PromptInputSubmit status="streaming" onStop={() => onStop?.()} title="停止生成" className="composer-stop-button" />
+              </>
+            ) : (
+              <PromptInputSubmit
+                status={submittingAttachments ? "submitted" : "ready"}
+                disabled={!canSend}
+                title={submittingAttachments ? "正在上传附件" : "发送"}
+                className="composer-send-button"
+              >
+                {submittingAttachments ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
+                <span className="sr-only">发送</span>
+              </PromptInputSubmit>
+            )}
+          </div>
 
           <SkillSlashMenu
             open={menuOpen}
