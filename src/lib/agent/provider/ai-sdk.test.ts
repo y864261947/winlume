@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { streamAiSdkGatewayChat, toAiSdkMessages } from "./ai-sdk";
+import { streamAiSdkGatewayChat, toAiSdkMessages, toAiSdkPrompt } from "./ai-sdk";
 import type { ChatChunk } from "./gateway";
 
 describe("AI SDK gateway adapter", () => {
@@ -24,8 +24,8 @@ describe("AI SDK gateway adapter", () => {
       { role: "tool", tool_call_id: "call-1", content: "saved" },
     ]);
 
-    expect(messages[0]).toEqual({ role: "system", content: "system" });
-    expect(messages[2]).toMatchObject({
+    expect(messages[0]).toMatchObject({ role: "user", content: "write something" });
+    expect(messages[1]).toMatchObject({
       role: "assistant",
       content: [
         { type: "text", text: "working" },
@@ -37,7 +37,7 @@ describe("AI SDK gateway adapter", () => {
         },
       ],
     });
-    expect(messages[3]).toMatchObject({
+    expect(messages[2]).toMatchObject({
       role: "tool",
       content: [
         {
@@ -47,6 +47,19 @@ describe("AI SDK gateway adapter", () => {
         },
       ],
     });
+  });
+
+  it("moves every system message into instructions", () => {
+    const prompt = toAiSdkPrompt([
+      { role: "system", content: "base policy" },
+      { role: "user", content: "hello" },
+      { role: "system", content: "<system-reminder>context</system-reminder>" },
+    ]);
+
+    expect(prompt.instructions).toBe(
+      "base policy\n\n<system-reminder>context</system-reminder>",
+    );
+    expect(prompt.messages).toEqual([{ role: "user", content: "hello" }]);
   });
 
   it("uses an empty object for malformed historical tool JSON", () => {
@@ -70,6 +83,30 @@ describe("AI SDK gateway adapter", () => {
 });
 
 describe("streamAiSdkGatewayChat auth", () => {
+  it("accepts system messages by sending them through instructions", async () => {
+    const fetchImpl = vi.fn(async () => new Response("data: [DONE]\n\n", {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    }));
+    const chunks: ChatChunk[] = [];
+
+    for await (const chunk of streamAiSdkGatewayChat({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "base policy" },
+        { role: "user", content: "hello" },
+      ],
+      baseUrl: "https://gateway.test",
+      chatPath: "/v1/chat/completions",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(chunks).not.toContainEqual(expect.objectContaining({ kind: "error" }));
+  });
+
   it("ignores userId/internalToken and legacy env vars, sending only the Authorization bearer token", async () => {
     vi.stubEnv("REIZO_AUTH_MODE", "reizo");
     vi.stubEnv("NEW_API_URL", "https://retired-new-api.example");

@@ -20,8 +20,11 @@ import {
 import type { Artifact } from "@/lib/agent/types";
 import type { StudioUIMessage } from "@/lib/studio/ui-message-adapter";
 import MentionRichText from "./MentionRichText";
+import ArtifactStatus from "./ArtifactStatus";
 import { FileStack, Sparkles, UserRound } from "lucide-react";
 import { LOADING_WORDS, nextLoadingWordIndex } from "@/lib/studio/loading-words";
+import { getToolPresentation, isResultTool } from "@/lib/studio/tool-presentation";
+import { showsMessageAvatar } from "@/lib/studio/chat-message-presentation";
 
 export type ChatThreadProps = {
   /** Canonical AI SDK messages. This is the only production message model. */
@@ -153,6 +156,7 @@ function DirectPartsBubble({
   onOpenArtifact,
   relatedArtifacts,
   highlighted,
+  showAvatar,
 }: {
   message: StudioUIMessage;
   streaming: boolean;
@@ -160,10 +164,26 @@ function DirectPartsBubble({
   onOpenArtifact?: (artifactId: string) => void;
   relatedArtifacts?: Artifact[];
   highlighted: boolean;
+  showAvatar: boolean;
 }) {
   const isUser = message.role === "user";
   const isActive = streaming && message.role === "assistant";
   const preparing = message.metadata?.preparing;
+  const toolNames = message.parts.flatMap((part) => {
+    if (part.type === "dynamic-tool") return [part.toolName];
+    if (part.type.startsWith("tool-")) return [part.type.slice(5)];
+    return [];
+  });
+  const resultToolName = toolNames.find(isResultTool);
+  const artifactPart = message.parts.find(
+    (part): part is Extract<StudioPart, { type: "data-artifact" }> =>
+      part.type === "data-artifact",
+  );
+  const draftPart = message.parts.find(
+    (part): part is Extract<StudioPart, { type: "data-draft" }> =>
+      part.type === "data-draft",
+  );
+  const compactWriteArtifact = resultToolName === "write_artifact";
   const textParts = message.parts.filter(
     (part): part is Extract<StudioPart, { type: "text" }> => part.type === "text",
   );
@@ -176,17 +196,19 @@ function DirectPartsBubble({
         highlighted ? "rounded-[20px] bg-[rgba(51,65,85,0.10)] py-2 ring-2 ring-[rgba(51,65,85,0.35)]" : ""
       }`}
     >
-      <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
-        <span
-          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-            isUser
-              ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white shadow-[0_4px_10px_-4px_rgba(15,23,42,0.55)]"
-              : "bg-white/80 text-[#0F172A] ring-1 ring-white/90"
-          }`}
-          aria-hidden
-        >
-          {isUser ? <UserRound className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-        </span>
+      <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : showAvatar ? "" : "-mt-3 pl-11"}`}>
+        {showAvatar ? (
+          <span
+            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+              isUser
+                ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white shadow-[0_4px_10px_-4px_rgba(15,23,42,0.55)]"
+                : "bg-white/80 text-[#0F172A] ring-1 ring-white/90"
+            }`}
+            aria-hidden
+          >
+            {isUser ? <UserRound className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+          </span>
+        ) : null}
         <MessageContent
           className={`min-w-0 max-w-[min(100%,42rem)] overflow-visible text-sm leading-6 ${
             isUser ? "studio-user-bubble rounded-[18px] px-4 py-3 shadow-md" : "bg-transparent p-0 text-[#0F172A]"
@@ -238,6 +260,7 @@ function DirectPartsBubble({
               );
             }
             if (part.type === "data-artifact") {
+              if (compactWriteArtifact) return null;
               return (
                 <button
                   key={key}
@@ -251,7 +274,7 @@ function DirectPartsBubble({
               );
             }
             if (part.type === "data-draft") {
-              return <ArtifactDraftPreview key={key} name={part.data.name} text={part.data.text} />;
+              return compactWriteArtifact ? null : <ArtifactDraftPreview key={key} name={part.data.name} text={part.data.text} />;
             }
             if (part.type === "data-tool-log") {
               return (
@@ -262,12 +285,36 @@ function DirectPartsBubble({
             }
             if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
               const tool = part as unknown as ToolPart;
+              const toolName = tool.type === "dynamic-tool"
+                ? tool.toolName
+                : tool.type.replace(/^tool-/, "");
+              if (isResultTool(toolName)) {
+                return (
+                  <ArtifactStatus
+                    key={key}
+                    toolName={toolName}
+                    state={tool.state}
+                    artifactName={artifactPart?.data.name ?? draftPart?.data.name}
+                    onOpenArtifact={
+                      artifactPart
+                        ? () => onOpenArtifact?.(artifactPart.data.artifactId)
+                        : undefined
+                    }
+                  />
+                );
+              }
               return (
-                <Tool key={key} className="mb-2">
+                <Tool key={key} className="mb-2 max-w-xl overflow-hidden rounded-[12px] border-line/70 bg-white/35 shadow-none">
                   {tool.type === "dynamic-tool" ? (
-                    <ToolHeader type="dynamic-tool" state={tool.state} toolName={tool.toolName} />
+                    <ToolHeader
+                      type="dynamic-tool"
+                      state={tool.state}
+                      toolName={tool.toolName}
+                      title={getToolPresentation(tool.toolName).label}
+                      className="px-3 py-2.5"
+                    />
                   ) : (
-                    <ToolHeader type={tool.type} state={tool.state} />
+                    <ToolHeader type={tool.type} state={tool.state} className="px-3 py-2.5" />
                   )}
                   <ToolContent>
                     {"input" in tool && tool.input !== undefined ? <ToolInput input={tool.input} /> : null}
@@ -357,6 +404,7 @@ export default function ChatThread({
               key={message.id}
               message={message}
               streaming={streaming && index === messages.length - 1}
+              showAvatar={showsMessageAvatar(messages, index)}
               highlighted={activeHighlight === message.id}
               relatedArtifacts={artifactsByMessageId?.get(message.id)}
               imageArtifacts={imageArtifacts}

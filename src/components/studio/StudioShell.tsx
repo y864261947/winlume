@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { PanelLeftOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import StudioSidebar from "./StudioSidebar";
 import StudioViewTransition from "./StudioViewTransition";
 
@@ -39,6 +39,7 @@ export function useStudioHeaderSlot(content: ReactNode) {
 export default function StudioShell({ children }: { children: ReactNode }) {
   const [header, setHeader] = useState<ReactNode>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarPeekRendered, setSidebarPeekRendered] = useState(false);
   const [sidebarPeekActive, setSidebarPeekActive] = useState(false);
   const sidebarPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -112,9 +113,10 @@ export default function StudioShell({ children }: { children: ReactNode }) {
         <div className="studio-blob studio-blob-b" aria-hidden />
         <div className="studio-blob studio-blob-c" aria-hidden />
         <div
-          className={`relative z-[2] block h-full shrink-0 transition-[width] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] ${
+          className={`studio-sidebar-container relative z-[2] block h-full shrink-0 transition-[width] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] ${
             sidebarCollapsed ? "w-[52px]" : "w-[248px]"
           }`}
+          data-mobile-open={mobileSidebarOpen ? "true" : "false"}
           onPointerEnter={(event) => {
             if (event.pointerType === "mouse") showSidebarPeek();
           }}
@@ -143,7 +145,12 @@ export default function StudioShell({ children }: { children: ReactNode }) {
               </button>
             </div>
           ) : (
-            <StudioSidebar onRequestCollapse={collapseSidebar} />
+            <StudioSidebar
+              onRequestCollapse={() => {
+                collapseSidebar();
+                setMobileSidebarOpen(false);
+              }}
+            />
           )}
           {sidebarCollapsed && sidebarPeekRendered ? (
             <div
@@ -154,6 +161,22 @@ export default function StudioShell({ children }: { children: ReactNode }) {
             </div>
           ) : null}
         </div>
+        <button
+          type="button"
+          className="studio-mobile-nav-toggle fixed left-3 top-3 z-[60] inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/90 text-[#615A73] shadow-md backdrop-blur"
+          onClick={() => {
+            if (sidebarCollapsed) setSidebarCollapsed(false);
+            setMobileSidebarOpen((open) => !open);
+          }}
+          aria-label={mobileSidebarOpen ? "关闭导航" : "打开导航"}
+          title={mobileSidebarOpen ? "关闭导航" : "打开导航"}
+        >
+          {mobileSidebarOpen ? (
+            <PanelLeftClose className="h-4 w-4" />
+          ) : (
+            <PanelLeftOpen className="h-4 w-4" />
+          )}
+        </button>
         <div className="relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col">
           <StudioViewTransition name="studio-header-slot">
             <div

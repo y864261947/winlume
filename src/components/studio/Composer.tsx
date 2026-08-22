@@ -1603,7 +1603,7 @@ export default function Composer({
         className={`studio-liquid-glass relative mx-auto flex w-full flex-col gap-2 ${
           isHero ? "max-w-none p-3.5 sm:p-4" : "max-w-3xl p-2.5 sm:p-3"
         }`}
-        inputGroupClassName="h-auto flex-col items-stretch border-0 bg-transparent shadow-none"
+        inputGroupClassName="h-auto flex-col items-stretch !border-0 !bg-transparent !shadow-none"
         manageAttachments={false}
         resetOnSubmit={false}
         data-variant={isHero ? "hero" : "session"}
