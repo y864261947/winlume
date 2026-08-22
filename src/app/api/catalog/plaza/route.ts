@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getGatewayBaseUrl } from "@/lib/agent/provider/gateway";
+import { getCurrentUserId } from "@/lib/auth/session";
+import { resolveStudioToken } from "@/lib/agent/provider/studio-token";
 import { getAuthMode } from "@/lib/platform/auth";
 import { inferVendorFromModel, PLAZA_VENDORS } from "@/lib/catalog/vendors";
 import type { PlazaModel } from "@/lib/catalog";
@@ -48,10 +50,22 @@ async function legacyPlaza(): Promise<Response> {
  */
 async function modelsPlaza(): Promise<Response> {
   const gatewayUrl = getGatewayBaseUrl();
-  const adminToken = process.env.NEW_API_ADMIN_TOKEN?.trim();
+  let authToken =
+    process.env.REIZO_SERVICE_KEY?.trim() ||
+    process.env.REIZO_GATEWAY_TOKEN?.trim() ||
+    process.env.NEW_API_ADMIN_TOKEN?.trim() ||
+    "";
+  const userId = await getCurrentUserId();
+  if (userId) {
+    try {
+      authToken = await resolveStudioToken(userId);
+    } catch {
+      // Fall back to the server-level token for unauthenticated/public callers.
+    }
+  }
   const headers: Record<string, string> = {};
-  if (adminToken) {
-    headers.Authorization = `Bearer ${adminToken}`;
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
   }
 
   try {

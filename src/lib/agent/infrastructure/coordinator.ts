@@ -388,6 +388,7 @@ export class RunCoordinator {
         allowedToolNames: executionRun.input.allowedToolNames,
         referencedArtifactIds: executionRun.input.referencedArtifactIds,
         referencedArtifactId: executionRun.input.referencedArtifactIds?.[0],
+        metadata: executionRun.input.metadata,
         sessions: this.sessions,
         projects: this.projects,
         artifacts: this.artifacts,

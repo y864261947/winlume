@@ -167,6 +167,78 @@ describe("POST /api/chat", () => {
     expect(stream).not.toContain('"type":"text_delta"');
   });
 
+  it("turns Composer image settings into a tool allowlist and run metadata", async () => {
+    const run = {
+      id: "run-image-1",
+      userId: "user-1",
+      sessionId: "session-1",
+      status: "completed",
+    };
+    mocks.getCurrentUserId.mockResolvedValue("user-1");
+    mocks.getSession.mockResolvedValue({
+      id: "session-1",
+      userId: "user-1",
+      model: "gpt-4o-mini",
+    });
+    mocks.registerTurn.mockReturnValue({ controller: new AbortController() });
+    mocks.coordinator.submit.mockResolvedValue({
+      run,
+      queueJobId: "job-image-1",
+      created: true,
+      policy: { allowed: true },
+    });
+    mocks.coordinator.replay.mockResolvedValue([]);
+    mocks.coordinator.getRun.mockResolvedValue(run);
+    mocks.getAgentRunService.mockReturnValue({
+      coordinator: mocks.coordinator,
+      findActiveSessionRun: vi.fn().mockResolvedValue(null),
+      start: mocks.start,
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          message: "生成一张产品图",
+          composerOptions: { mode: "image", size: "1536x1024", count: 2 },
+        }),
+      }) as never,
+    );
+    await response.text();
+
+    expect(mocks.coordinator.submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          allowedToolNames: expect.arrayContaining(["generate_image"]),
+          metadata: {
+            composerOptions: { mode: "image", size: "1536x1024", count: 2 },
+          },
+        }),
+      }),
+    );
+  });
+
+  it("rejects video generation while the capability is not configured", async () => {
+    mocks.getCurrentUserId.mockResolvedValue("user-1");
+
+    const response = await POST(
+      new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "session-1",
+          message: "生成视频",
+          composerOptions: { mode: "video" },
+        }),
+      }) as never,
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.coordinator.submit).not.toHaveBeenCalled();
+  });
+
   it("reconnects to an active idempotent run without submitting a second turn", async () => {
     const run = {
       id: "run-active",

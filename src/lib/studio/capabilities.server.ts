@@ -9,8 +9,9 @@ type LoadCapabilityCatalogDeps = {
   /** Test-only override; production reads the server environment. */
   baseUrl?: string;
   /**
-   * Test-only override for the Bearer token used on /v1/models.
-   * Production uses NEW_API_ADMIN_TOKEN (new-api is the models authority).
+   * Test-only override for the Bearer token used on /v1/models. Production
+   * prefers the current user's Studio token, then service/legacy gateway
+   * tokens, and finally the admin PAT for public fallback callers.
    */
   authToken?: string;
   /** @deprecated use authToken — retained for call-site compatibility. */
@@ -30,6 +31,15 @@ type FamilyProbe = {
   families: Set<string>;
 };
 
+function configuredFamiliesFromModelIds(modelIds: readonly string[]): Set<string> {
+  const families = new Set(["openai"]);
+  const hasImageModel = modelIds.some((id) => /(^|[-_/])image([-_/]|$)/i.test(id));
+  if (hasImageModel || process.env.REIZO_IMAGE_MODEL?.trim()) {
+    families.add("images");
+  }
+  return families;
+}
+
 function joinGatewayPath(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, "")}${path}`;
 }
@@ -38,6 +48,9 @@ function resolveAuthToken(deps: LoadCapabilityCatalogDeps): string {
   return (
     deps.authToken?.trim() ||
     deps.internalToken?.trim() ||
+    process.env.REIZO_SERVICE_KEY?.trim() ||
+    // Compatibility for local environments that still carry the pre-service-account token.
+    process.env.REIZO_GATEWAY_TOKEN?.trim() ||
     process.env.NEW_API_ADMIN_TOKEN?.trim() ||
     ""
   );
@@ -63,6 +76,12 @@ async function fetchConfiguredFamilies(
     if (!response.ok) return { reachable: false, families: new Set() };
 
     const payload = (await safeJson(response)) as GatewayCapabilitiesPayload | null;
+    // new-api serves its web app shell at /capabilities (HTTP 200), which is
+    // not the gateway capability contract. Treat non-JSON/non-contract data as
+    // an unavailable probe so the authenticated /v1/models fallback runs.
+    if (!payload || !Array.isArray(payload.configured)) {
+      return { reachable: false, families: new Set() };
+    }
     const configured = Array.isArray(payload?.configured) ? payload.configured : [];
     const families = new Set(
       configured.flatMap((entry) => {
@@ -110,8 +129,8 @@ async function fetchGatewayModelIds(
  * credential-shaped error text.
  *
  * Base URL resolution matches Task 10 (`getGatewayBaseUrl`: REIZO_GATEWAY_URL →
- * NEW_API_URL → localhost). Model listing uses NEW_API_ADMIN_TOKEN as Bearer
- * (Go gateway internal token retired with §9 decommission).
+ * NEW_API_URL → localhost). Model listing uses the current user's Studio token
+ * or the configured gateway fallback token.
  */
 export async function loadCapabilityCatalog(
   deps: LoadCapabilityCatalogDeps = {},
@@ -133,7 +152,7 @@ export async function loadCapabilityCatalog(
       });
     }
     return buildCapabilityCatalog({
-      configuredFamilies: new Set(["openai"]),
+      configuredFamilies: configuredFamiliesFromModelIds(modelIds),
       modelIds,
     });
   }

@@ -47,6 +47,10 @@ import {
   repairDanglingInStore,
 } from "@/lib/agent/dangling";
 import { compactMessagesForGateway } from "@/lib/agent/compact";
+import {
+  composerOptionsReminder,
+  normalizeComposerOptions,
+} from "@/lib/studio/composer-options";
 
 /** Max gateway rounds that may request tools in a single user turn. */
 export const MAX_TOOL_ROUNDS = 8;
@@ -305,6 +309,8 @@ export interface RunAgentTurnOpts {
   referencedArtifactIds?: string[];
   /** @deprecated Use referencedArtifactIds */
   referencedArtifactId?: string;
+  /** Turn-scoped UI metadata such as Composer generation settings. */
+  metadata?: Record<string, unknown>;
   model?: string;
   sessions: SessionStore;
   projects?: ProjectStore;
@@ -330,6 +336,52 @@ export function selectStudioTools(allowedToolNames?: readonly string[]) {
   if (allowedToolNames === undefined) return [...STUDIO_TOOLS];
   const allowed = new Set(allowedToolNames);
   return STUDIO_TOOLS.filter((tool) => allowed.has(tool.function.name));
+}
+
+function applyComposerGenerationOptions(
+  toolName: string,
+  rawInput: unknown,
+  rawOptions: unknown,
+): unknown {
+  const options = normalizeComposerOptions(rawOptions);
+  if (!options || options.mode !== "image") return rawInput;
+  const generationTool =
+    toolName === "generate_image" ||
+    toolName === "fuse_images" ||
+    toolName === "generate_ecommerce_image_set";
+  const specialistTool =
+    toolName === "remove_background" ||
+    toolName === "upscale_image" ||
+    toolName === "remove_watermark_or_subtitles";
+  if (!generationTool && !specialistTool) {
+    return rawInput;
+  }
+  if (!rawInput || typeof rawInput !== "object" || Array.isArray(rawInput)) {
+    return rawInput;
+  }
+  const toolParams = options.toolParams ?? {};
+  const toolOverrides: Record<string, string | boolean> = {};
+  if (options.toolId === "background-removal" && typeof toolParams.subject === "string") {
+    toolOverrides.subject = toolParams.subject;
+  }
+  if (options.toolId === "image-clarity" && typeof toolParams.mode === "string") {
+    toolOverrides.mode = toolParams.mode;
+  }
+  if (options.toolId === "watermark-subtitle-removal") {
+    if (typeof toolParams.target === "string") toolOverrides.target = toolParams.target;
+    if (toolParams.rightsConfirmed === true) toolOverrides.rightsConfirmed = true;
+  }
+  if (options.toolId === "ecommerce-image-set" && typeof toolParams.template === "string") {
+    toolOverrides.template = toolParams.template;
+  }
+  return {
+    ...(rawInput as Record<string, unknown>),
+    ...toolOverrides,
+    ...(generationTool && options.size ? { size: options.size } : {}),
+    ...(toolName === "generate_image" && options.count
+      ? { count: options.count }
+      : {}),
+  };
 }
 
 /**
@@ -474,6 +526,7 @@ export async function* runAgentTurn(
     artifactReminder,
     canvasReminder,
     sheetReminder,
+    composerOptionsReminder(opts.metadata?.composerOptions),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -708,6 +761,11 @@ export async function* runAgentTurn(
       } catch {
         parsedInput = { _raw: call.arguments };
       }
+      parsedInput = applyComposerGenerationOptions(
+        call.name,
+        parsedInput,
+        opts.metadata?.composerOptions,
+      );
       yield {
         type: "tool_call",
         id: call.id,
@@ -749,6 +807,11 @@ export async function* runAgentTurn(
       } catch {
         parsedInput = { _raw: call.arguments };
       }
+      parsedInput = applyComposerGenerationOptions(
+        call.name,
+        parsedInput,
+        opts.metadata?.composerOptions,
+      );
       if (allowedToolNames && !allowedToolNames.has(call.name)) {
         const message = `Tool is not allowed for this Run: ${call.name}`;
         return {
@@ -757,17 +820,21 @@ export async function* runAgentTurn(
           result: { ok: false, summary: message, content: message },
         };
       }
-      const result = await executeStudioTool(call.name, call.arguments, {
-        userId,
-        sessionId,
-        ...(projectId ? { projectId } : {}),
-        ...(opts.runId ? { runId: opts.runId } : {}),
-        artifacts,
-        ...(opts.toolJobs ? { toolJobs: opts.toolJobs } : {}),
-        messageId: assistantId,
-        todoState,
-        userIntent: opts.userText,
-      });
+      const result = await executeStudioTool(
+        call.name,
+        JSON.stringify(parsedInput),
+        {
+          userId,
+          sessionId,
+          ...(projectId ? { projectId } : {}),
+          ...(opts.runId ? { runId: opts.runId } : {}),
+          artifacts,
+          ...(opts.toolJobs ? { toolJobs: opts.toolJobs } : {}),
+          messageId: assistantId,
+          todoState,
+          userIntent: opts.userText,
+        },
+      );
       return { call, parsedInput, result };
     };
 

@@ -260,6 +260,7 @@ export function useStudioChat(
             model: overrides?.model ?? model,
             skillIds: overrides?.skillIds ?? skillIdsProp,
             capabilityPresetId: overrides?.capabilityPresetId,
+            composerOptions: overrides?.composerOptions,
             referencedArtifactIds: overrides?.referencedArtifactIds,
             referencedArtifactId: overrides?.referencedArtifactId,
             projectId: overrides?.projectId,
@@ -286,6 +287,7 @@ export function useStudioChat(
     void doSend(next.content, {
       model: next.model,
       capabilityPresetId: next.capabilityPresetId,
+      composerOptions: next.composerOptions,
       skillIds: next.skillIds,
       referencedArtifactIds: next.referencedArtifactIds,
       referencedArtifactId: next.referencedArtifactId,
@@ -385,6 +387,7 @@ export function useStudioChat(
               model: overrides?.model ?? model,
               skillIds: overrides?.skillIds ?? skillIdsProp,
               capabilityPresetId: overrides?.capabilityPresetId,
+              composerOptions: overrides?.composerOptions,
               referencedArtifactIds: overrides?.referencedArtifactIds,
               referencedArtifactId: overrides?.referencedArtifactId,
               projectId: overrides?.projectId,

@@ -86,4 +86,56 @@ describe("loadCapabilityCatalog", () => {
       catalog.capabilities.find((entry) => entry.id === "chat")?.availability,
     ).toBe("available");
   });
+
+  it("treats a new-api HTML shell as an unavailable capability probe", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("<!doctype html><html></html>", { status: 200 }))
+      .mockResolvedValueOnce(Response.json({ data: [{ id: "gpt-chat" }, { id: "gpt-image-2" }] }));
+
+    const catalog = await loadCapabilityCatalog({
+      baseUrl: "https://v2api.top",
+      authToken: "user-studio-token",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    expect(catalog.models).toEqual(["gpt-chat", "gpt-image-2"]);
+    expect(catalog.capabilities.find((entry) => entry.id === "chat")?.availability).toBe("available");
+    expect(catalog.capabilities.find((entry) => entry.id === "image.generate")?.availability).toBe("available");
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      "https://v2api.top/v1/models",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer user-studio-token" },
+      }),
+    );
+  });
+
+  it("uses the legacy gateway token when no user token is supplied", async () => {
+    const original = process.env.REIZO_GATEWAY_TOKEN;
+    process.env.REIZO_GATEWAY_TOKEN = "legacy-gateway-token";
+    try {
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(new Response("<!doctype html>", { status: 200 }))
+        .mockResolvedValueOnce(Response.json({ data: [{ id: "gpt-chat" }] }));
+
+      const catalog = await loadCapabilityCatalog({
+        baseUrl: "https://v2api.top",
+        fetchImpl: fetchImpl as typeof fetch,
+      });
+
+      expect(catalog.capabilities.find((entry) => entry.id === "chat")?.availability).toBe("available");
+      expect(fetchImpl).toHaveBeenNthCalledWith(
+        2,
+        "https://v2api.top/v1/models",
+        expect.objectContaining({
+          headers: { Authorization: "Bearer legacy-gateway-token" },
+        }),
+      );
+    } finally {
+      if (original === undefined) delete process.env.REIZO_GATEWAY_TOKEN;
+      else process.env.REIZO_GATEWAY_TOKEN = original;
+    }
+  });
 });

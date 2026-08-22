@@ -504,6 +504,8 @@ function StudioHomeInner() {
           : selectedSkillIds.length
             ? selectedSkillIds
             : undefined;
+      const selectedCapabilityPresetId =
+        meta?.capabilityPresetId ?? capabilityPresetId;
 
       // A client-minted id, committed to immediately: no network round trip
       // stands between clicking send and the message appearing. The server
@@ -522,7 +524,9 @@ function StudioHomeInner() {
         title: title || "新对话",
         model: requestModel,
         ...(requestProjectId ? { projectId: requestProjectId } : {}),
-        ...(capabilityPresetId ? { capabilityPresetId } : {}),
+        ...(selectedCapabilityPresetId
+          ? { capabilityPresetId: selectedCapabilityPresetId }
+          : {}),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -536,7 +540,8 @@ function StudioHomeInner() {
           sessionId,
           message,
           model: requestModel,
-          capabilityPresetId: capabilityPresetId ?? undefined,
+          capabilityPresetId: selectedCapabilityPresetId ?? undefined,
+          composerOptions: meta?.composerOptions,
           skillIds,
           session: syntheticSession,
         });
@@ -643,7 +648,8 @@ function StudioHomeInner() {
         // id already committed to and navigated to above.
         resolvePendingFirstMessage(sessionId, {
           model: requestModel,
-          capabilityPresetId: capabilityPresetId ?? undefined,
+          capabilityPresetId: selectedCapabilityPresetId ?? undefined,
+          composerOptions: meta?.composerOptions,
           skillIds,
           referencedArtifactIds: referencedArtifactIds.length
             ? referencedArtifactIds
@@ -810,6 +816,8 @@ function StudioHomeInner() {
               disabled={starting}
               model={model}
               onModelChange={setModel}
+              capabilityPresetId={capabilityPresetId}
+              onCapabilityPresetChange={setCapabilityPresetId}
               skillIds={selectedSkillIds}
               onSkillIdsChange={setSelectedSkillIds}
               error={error}
@@ -817,8 +825,8 @@ function StudioHomeInner() {
               draftKey="home"
               placeholder={
                 starting
-                  ? "正在进入对话…"
-                  : "描述你想完成的事，或点下方能力卡片…"
+                ? "正在进入对话…"
+                  : "输入需求，或输入 @ 引用产物、/选择技能"
               }
             />
           </div>
