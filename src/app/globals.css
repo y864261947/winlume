@@ -634,6 +634,52 @@ button:not(:disabled) {
   transform: translate3d(0, 0, 0);
 }
 
+.studio-mobile-nav-toggle {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .studio-sidebar-container {
+    position: relative;
+    width: 0 !important;
+    overflow: visible;
+  }
+
+  .studio-sidebar-container[data-mobile-open="true"] {
+    width: 248px !important;
+  }
+
+  .studio-sidebar-container > aside {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 248px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-100%);
+    transition: opacity 160ms ease, transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .studio-sidebar-container[data-mobile-open="true"] > aside {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  .studio-sidebar-container > .studio-sidebar-rail,
+  .studio-sidebar-container > .studio-sidebar-peek {
+    display: none;
+  }
+
+  .studio-mobile-nav-toggle {
+    display: inline-flex;
+  }
+
+  .studio-composer-dock {
+    padding-right: 0.75rem;
+    padding-left: 0.75rem;
+  }
+}
+
 /*
  * Liquid Glass — Apple-style material for the studio composer.
  * Layers: frosted fill · vibrancy blur · specular rim · contact shadow · soft refraction sheen.
@@ -669,16 +715,10 @@ button:not(:disabled) {
   isolation: isolate;
   /* no overflow:hidden — slash menu opens above the shell */
   border-radius: 26px;
-  /* Lighter frost so blur + ambient show through (floating card) */
-  background:
-    linear-gradient(
-      160deg,
-      rgba(255, 255, 255, 0.72) 0%,
-      rgba(255, 255, 255, 0.48) 46%,
-      rgba(241, 245, 249, 0.42) 100%
-    );
-  backdrop-filter: blur(48px) saturate(200%);
-  -webkit-backdrop-filter: blur(48px) saturate(200%);
+  /* Keep the composer readable when backdrop-filter is unavailable or weak. */
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
   border: 1px solid rgba(255, 255, 255, 0.78);
   /* Deep ambient + close contact shadow = “悬空卡片” */
   box-shadow:
@@ -722,7 +762,7 @@ button:not(:disabled) {
       rgba(205, 248, 247, 0.22),
       transparent 52%
     );
-  opacity: 1;
+  opacity: 0.42;
   transition: opacity 200ms var(--lg-ease-out);
 }
 
@@ -767,13 +807,7 @@ button:not(:disabled) {
 /* Focus: brighten material only — no gray outer ring */
 .studio-liquid-glass:focus-within {
   border-color: rgba(255, 255, 255, 0.92);
-  background:
-    linear-gradient(
-      160deg,
-      rgba(255, 255, 255, 0.8) 0%,
-      rgba(255, 255, 255, 0.56) 46%,
-      rgba(241, 245, 249, 0.5) 100%
-    );
+  background: rgba(255, 255, 255, 0.94);
   box-shadow:
     0 1.5px 0 rgba(255, 255, 255, 1) inset,
     0 -0.5px 0 rgba(15, 23, 42, 0.04) inset,
@@ -798,13 +832,7 @@ button:not(:disabled) {
 /* Drag-over: brighter material + mint tint (no hard gray ring) */
 .studio-liquid-glass[data-drag-over="true"] {
   border-color: rgba(255, 255, 255, 0.95);
-  background:
-    linear-gradient(
-      155deg,
-      rgba(255, 255, 255, 0.88) 0%,
-      rgba(236, 254, 255, 0.7) 50%,
-      rgba(224, 242, 254, 0.62) 100%
-    );
+  background: rgba(239, 251, 252, 0.94);
   box-shadow:
     0 1.5px 0 rgba(255, 255, 255, 1) inset,
     0 0 0 0.5px rgba(45, 212, 191, 0.25),
@@ -843,9 +871,9 @@ button:not(:disabled) {
 /* Micro-controls on glass: fill-only, no gray border flash */
 .studio-liquid-chip {
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.42);
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
   transition:
     background 160ms var(--lg-ease-out, cubic-bezier(0.23, 1, 0.32, 1)),

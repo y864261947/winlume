@@ -82,6 +82,13 @@ function reasoningFromRawChunk(rawValue: unknown): string | undefined {
 export function toAiSdkMessages(messages: GatewayChatMessage[]): ModelMessage[] {
   const toolNames = new Map<string, string>();
   return messages.map((message) => {
+    // AI SDK 7 requires system content in the top-level `instructions`
+    // option. Keep this conversion focused on conversational messages so
+    // callers cannot accidentally reintroduce system roles into `messages`.
+    if (message.role === "system") {
+      return null;
+    }
+
     if (message.role === "assistant" && message.tool_calls?.length) {
       for (const call of message.tool_calls) {
         toolNames.set(call.id, call.function.name);
@@ -115,7 +122,24 @@ export function toAiSdkMessages(messages: GatewayChatMessage[]): ModelMessage[] 
     }
 
     return { role: message.role, content: message.content ?? "" } as ModelMessage;
-  });
+  }).filter((message): message is ModelMessage => message !== null);
+}
+
+/** Split the OpenAI-compatible prompt into AI SDK's instructions/messages shape. */
+export function toAiSdkPrompt(messages: GatewayChatMessage[]): {
+  instructions?: string;
+  messages: ModelMessage[];
+} {
+  const instructions = messages
+    .filter((message) => message.role === "system")
+    .map((message) => message.content ?? "")
+    .filter(Boolean)
+    .join("\n\n");
+
+  return {
+    ...(instructions ? { instructions } : {}),
+    messages: toAiSdkMessages(messages),
+  };
 }
 
 function parseJson(value: string): unknown {
@@ -177,10 +201,12 @@ export async function* streamAiSdkGatewayChat(
     const calls: { id: string; name: string; arguments: string }[] = [];
     const pendingRawReasoning: string[] = [];
     const reasoning = reasoningEffortFor(params);
+    const prompt = toAiSdkPrompt(params.messages);
     let failed = false;
     const result = streamText({
       model: modelFor(params),
-      messages: toAiSdkMessages(params.messages),
+      messages: prompt.messages,
+      ...(prompt.instructions ? { instructions: prompt.instructions } : {}),
       tools: aiSdkTools(params.tools),
       ...(reasoning ? { reasoning } : {}),
       include: { rawChunks: true },
