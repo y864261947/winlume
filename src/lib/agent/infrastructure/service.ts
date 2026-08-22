@@ -2,19 +2,6 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { AgentExecutionMode } from "@/lib/agent/executor/types";
 import { webStore } from "@/lib/host/web/store-singleton";
-import { getProductionPack } from "@/lib/agent/production-packs/registry";
-import { resolveProductionPackAvailability } from "@/lib/agent/production-packs/availability";
-import {
-  resolveWorkflowAllowedTools,
-  selectedWorkflowModel,
-} from "@/lib/agent/production-packs/execution-policy";
-import {
-  ProductionWorkflowExecution,
-  type AuthenticatedProductionWorkflowCommand,
-  type ProductionWorkflowCommandResult,
-  type ProductionWorkflowProjection,
-} from "@/lib/agent/production-packs/workflow-execution";
-import { loadCapabilityCatalog } from "@/lib/studio/capabilities.server";
 import { RunCoordinator } from "./coordinator";
 import type { StaticRunPolicyConfig, ToolApprovalMode } from "./policy";
 import { createStaticRunPolicy } from "./policy";
@@ -29,20 +16,12 @@ export interface AgentRunService {
   start(): void;
   cancelSession(userId: string, sessionId: string): Promise<AgentRun | null>;
   findActiveSessionRun(userId: string, sessionId: string): Promise<AgentRun | null>;
-  getWorkflowProjection(
-    userId: string,
-    sessionId: string,
-  ): Promise<ProductionWorkflowProjection>;
-  executeWorkflowCommand(
-    command: AuthenticatedProductionWorkflowCommand,
-  ): Promise<ProductionWorkflowCommandResult>;
 }
 
 class LocalAgentRunService implements AgentRunService {
   readonly coordinator: RunCoordinator;
   private readonly queue: RunQueue;
   private readonly store: RunStore;
-  private readonly productionWorkflow: ProductionWorkflowExecution;
   private readonly workerId = `web-${process.pid}-${randomUUID()}`;
   private readonly workerController = new AbortController();
   private workerPromise: Promise<void> | null = null;
@@ -51,36 +30,12 @@ class LocalAgentRunService implements AgentRunService {
     const root = process.env.REIZO_DATA_DIR ?? path.join(process.cwd(), "data");
     this.store = createFileRunStore(path.join(root, "runs"));
     this.queue = createInProcessRunQueue();
-    this.productionWorkflow = new ProductionWorkflowExecution({
-      runs: this.store,
-      sessions: webStore.sessions,
-      artifacts: webStore.artifacts,
-      getPack: getProductionPack,
-      submitRun: async (input) => {
-        const submitted = await this.coordinator.submit(input);
-        return { run: submitted.run, created: submitted.created };
-      },
-      resolveStageExecution: async (pack, stage) => {
-        const catalog = await loadCapabilityCatalog();
-        const availability = resolveProductionPackAvailability(pack, catalog);
-        if (!availability.available) {
-          throw new Error("Pack requirements are unavailable");
-        }
-        const allowedTools = await resolveWorkflowAllowedTools(pack, stage, catalog);
-        if (!allowedTools) throw new Error("Pack execution policy is unavailable");
-        return {
-          model: selectedWorkflowModel(catalog),
-          allowedTools,
-        };
-      },
-    });
     this.coordinator = new RunCoordinator({
       store: this.store,
       queue: this.queue,
       sessions: webStore.sessions,
       projects: webStore.projects,
       artifacts: webStore.artifacts,
-      productionWorkflow: this.productionWorkflow,
       policy: createStaticRunPolicy(policyFromEnvironment()),
       leaseTtlMs: readPositiveInteger("REIZO_RUN_LEASE_MS", 30_000),
       retryDelayMs: (attempt) => Math.min(30_000, 500 * 2 ** Math.max(0, attempt - 1)),
@@ -118,28 +73,12 @@ class LocalAgentRunService implements AgentRunService {
     return this.coordinator.cancel(run.id, userId);
   }
 
-  getWorkflowProjection(
-    userId: string,
-    sessionId: string,
-  ): Promise<ProductionWorkflowProjection> {
-    return this.productionWorkflow.getProjection(userId, sessionId);
-  }
-
-  async executeWorkflowCommand(
-    command: AuthenticatedProductionWorkflowCommand,
-  ): Promise<ProductionWorkflowCommandResult> {
-    const result = await this.productionWorkflow.executeCommand(command);
-    if (result.created) this.start();
-    return result;
-  }
-
   private async recoverAndRun(): Promise<void> {
     const maxAttempts = readPositiveInteger("REIZO_RUN_MAX_ATTEMPTS", 3);
     await recoverLocalRunQueue({
       store: this.store,
       queue: this.queue,
       maxAttempts,
-      workflowFinalizer: this.productionWorkflow,
     });
     await this.coordinator.runWorker({
       workerId: this.workerId,
@@ -152,7 +91,6 @@ export interface RecoverLocalRunQueueOptions {
   store: RunStore;
   queue: RunQueue;
   maxAttempts: number;
-  workflowFinalizer?: Pick<ProductionWorkflowExecution, "completeRun">;
 }
 
 /**
@@ -168,24 +106,10 @@ export async function recoverLocalRunQueue({
   store,
   queue,
   maxAttempts,
-  workflowFinalizer,
 }: RecoverLocalRunQueueOptions): Promise<void> {
   const candidates = await store.listRuns({ statuses: ["queued", "running"] });
   for (const run of candidates) {
     if (run.status === "running") {
-      if (run.metadata?.production && workflowFinalizer) {
-        const events = await store.listEvents(run.id);
-        const completed = events.some(
-          (event) =>
-            event.type === "agent.event" &&
-            event.payload.event.type === "done" &&
-            event.payload.event.reason === "completed",
-        );
-        if (completed) {
-          await workflowFinalizer.completeRun(run.id);
-          continue;
-        }
-      }
       await store.transitionRun(run.id, "failed", {
         reason: "Worker process stopped before the run completed",
         error: {

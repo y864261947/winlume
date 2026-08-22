@@ -58,7 +58,6 @@ function previewText(message: Message) {
 function visiblePreviewMessages(messages: Message[]) {
   return messages.filter((message) => {
     if (message.role !== "user" && message.role !== "assistant") return false;
-    if (message.presentation?.kind === "workflow_run") return false;
     return Boolean(message.content.trim());
   });
 }

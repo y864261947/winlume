@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 import { getCurrentUserId } from "@/lib/auth/session";
-import type { AgentSseEvent, SessionWorkflowBinding } from "@/lib/agent/types";
+import type { AgentSseEvent } from "@/lib/agent/types";
 import { createAgentEventTranslator } from "@/lib/agent/ui-stream";
-import { isTerminalStatus, sseFrame, toClientEvent, uiSseFrame } from "@/lib/agent/sse-stream";
+import { isTerminalStatus, toClientEvent, uiSseFrame } from "@/lib/agent/sse-stream";
 import {
   RunCoordinatorError,
   RunPolicyError,
@@ -21,20 +21,7 @@ import {
   registerTurn,
   unregisterTurn,
 } from "@/lib/agent/turn-registry";
-import { getProductionPack } from "@/lib/agent/production-packs/registry";
-import { resolveProductionPackAvailability } from "@/lib/agent/production-packs/availability";
-import {
-  resolveWorkflowAllowedTools,
-  selectedWorkflowModel,
-} from "@/lib/agent/production-packs/execution-policy";
-import { parseWorkflowSessionBinding } from "@/lib/agent/production-packs/session-binding";
-import {
-  prepareFirstProductionStage,
-  serializeProductionRunMetadata,
-} from "@/lib/agent/production-packs/run-metadata";
 import { webStore } from "@/lib/host/web/store-singleton";
-import { loadCapabilityCatalog } from "@/lib/studio/capabilities.server";
-import type { StudioToolName } from "@/lib/agent/tools/definitions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,7 +52,6 @@ type ChatBody = {
   model?: string;
   capabilityPresetId?: string;
   executionMode?: AgentExecutionMode;
-  workflowAction?: "start";
   skillIds?: string[];
   /** Multi @-mention image artifact ids (preferred). */
   referencedArtifactIds?: string[];
@@ -75,8 +61,8 @@ type ChatBody = {
    * The client already committed to `sessionId` before the server knew
    * about it — it navigated to `/studio/c/${sessionId}` optimistically,
    * with zero network round trips first. Create the session with exactly
-   * this id instead of 404ing. Absent, `sessionId` must already exist
-   * (unchanged legacy behavior).
+   * this id instead of 404ing. Without `bootstrap`, `sessionId` must already
+   * exist.
    */
   bootstrap?: { title?: string };
 };
@@ -94,12 +80,6 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Opt-in AI SDK wire protocol (Phase 2). Default stays the legacy
-  // AgentSseEvent stream; nothing depends on this yet.
-  const useUiProtocol =
-    request.headers.get("x-reizo-protocol") === "ui" ||
-    new URL(request.url).searchParams.get("protocol") === "ui";
-
   let body: ChatBody;
   try {
     body = (await request.json()) as ChatBody;
@@ -107,12 +87,8 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (body.workflowAction !== undefined && body.workflowAction !== "start") {
-    return Response.json({ error: "Invalid workflow action" }, { status: 400 });
-  }
-  const workflowAction = body.workflowAction;
   let message = typeof body.message === "string" ? body.message.trim() : "";
-  if (!message && workflowAction !== "start") {
+  if (!message) {
     return Response.json({ error: "message is required" }, { status: 400 });
   }
 
@@ -154,15 +130,8 @@ export async function POST(request: NextRequest) {
       : "";
   let projectId = requestedProjectId;
   let model = requestedModel ?? "gpt-4o-mini";
-  let sessionWorkflow: SessionWorkflowBinding | undefined;
 
   if (!sessionId) {
-    if (workflowAction) {
-      return Response.json(
-        { error: "Workflow action requires a validated Session" },
-        { status: 400 },
-      );
-    }
     if (requestedCapabilityPresetId) {
       return Response.json(
         { error: "Capability preset requires a validated session" },
@@ -189,12 +158,6 @@ export async function POST(request: NextRequest) {
     // is the one path where a client picks its own primary key.
     if (!UUID_RE.test(sessionId)) {
       return Response.json({ error: "Invalid session id" }, { status: 400 });
-    }
-    if (workflowAction) {
-      return Response.json(
-        { error: "Workflow action requires a validated Session" },
-        { status: 400 },
-      );
     }
     if (projectId) {
       const project = await webStore.projects.getProject(userId, projectId);
@@ -241,7 +204,6 @@ export async function POST(request: NextRequest) {
     }
     projectId = existing.projectId;
     model = requestedModel ?? existing.model;
-    sessionWorkflow = existing.workflow;
     if (projectId) {
       const project = await webStore.projects.getProject(userId, projectId);
       if (!project) {
@@ -250,106 +212,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  let workflowMetadata:
-    | { production: ReturnType<typeof serializeProductionRunMetadata> }
-    | undefined;
-  let workflowIdempotencyScope: string | undefined;
-  let workflowIdempotencyKey: string | undefined;
-  let workflowAllowedToolNames: StudioToolName[] | undefined;
-  if (workflowAction === "start") {
-    if (
-      requestedModel ||
-      requestedCapabilityPresetId ||
-      body.executionMode !== undefined ||
-      skillIds?.length ||
-      referencedArtifactIds.length
-    ) {
-      return Response.json(
-        { error: "Workflow execution settings are server-owned" },
-        { status: 400 },
-      );
-    }
-    if (!sessionWorkflow) {
-      return Response.json(
-        { error: "Session is not a Workflow Session" },
-        { status: 409 },
-      );
-    }
-
-    let binding;
-    try {
-      binding = parseWorkflowSessionBinding(sessionWorkflow);
-    } catch {
-      return Response.json(
-        { error: "Stored workflow binding is invalid" },
-        { status: 409 },
-      );
-    }
-    const pack = binding.packSnapshot ?? (await getProductionPack(binding.packId));
-    if (
-      !pack ||
-      pack.id !== binding.packId ||
-      pack.version !== binding.packVersion
-    ) {
-      return Response.json(
-        { error: "Pack version is unavailable", code: "pack_version_unavailable" },
-        { status: 409 },
-      );
-    }
-    const capabilityCatalog = await loadCapabilityCatalog();
-    const availability = resolveProductionPackAvailability(pack, capabilityCatalog);
-    if (!availability.available) {
-      return Response.json(
-        {
-          error: "Pack requirements are unavailable",
-          code: "pack_unavailable",
-          availability,
-        },
-        { status: 409 },
-      );
-    }
-
-    const stage = pack.stages[0];
-    workflowAllowedToolNames =
-      (await resolveWorkflowAllowedTools(pack, stage, capabilityCatalog)) ??
-      undefined;
-    if (!workflowAllowedToolNames) {
-      return Response.json(
-        {
-          error: "Pack execution policy is unavailable",
-          code: "pack_execution_policy_unavailable",
-        },
-        { status: 409 },
-      );
-    }
-
-    const transition = prepareFirstProductionStage(pack, binding);
-    message = [
-      pack.title,
-      `开始「${stage.title}」阶段。`,
-      `阶段目标：${stage.objective}`,
-      `已确认信息：${JSON.stringify(binding.intakeValues)}`,
-    ].join("\n\n");
-    model = selectedWorkflowModel(capabilityCatalog);
-    skillIds = transition.effect.skillIds;
-    referencedArtifactIds = transition.effect.referencedArtifactIds;
-    workflowMetadata = {
-      production: serializeProductionRunMetadata({
-        ...transition.state,
-        execution: {
-          ...transition.state.execution,
-          allowedTools: workflowAllowedToolNames,
-        },
-      }),
-    };
-    workflowIdempotencyScope = `user:${userId}:${transition.effect.idempotencyScope}`;
-    workflowIdempotencyKey = transition.effect.idempotencyKey;
-  }
-
   const service = getAgentRunService();
-  const idempotencyKey =
-    workflowIdempotencyKey ??
-    (request.headers.get("idempotency-key")?.trim() || undefined);
+  const idempotencyKey = request.headers.get("idempotency-key")?.trim() || undefined;
   const activeRun = await service.findActiveSessionRun(userId, sessionId);
   let runId: string;
   let initialRunStatus: RunStatus;
@@ -359,9 +223,7 @@ export async function POST(request: NextRequest) {
   if (
     activeRun &&
     activeRun.idempotencyKey === idempotencyKey &&
-    idempotencyKey &&
-    (!workflowIdempotencyScope ||
-      activeRun.idempotencyScope === workflowIdempotencyScope)
+    idempotencyKey
   ) {
     // A transport retry with the same key joins the existing durable run.
     runId = activeRun.id;
@@ -387,19 +249,11 @@ export async function POST(request: NextRequest) {
         sessionId,
         ...(projectId ? { projectId } : {}),
         ...(idempotencyKey ? { idempotencyKey } : {}),
-        ...(workflowIdempotencyScope
-          ? { idempotencyScope: workflowIdempotencyScope }
-          : {}),
-        ...(workflowMetadata ? { metadata: workflowMetadata } : {}),
         input: {
           message,
           executionMode,
           model,
           ...(skillIds?.length ? { skillIds } : {}),
-          ...(workflowMetadata ? { skillSelectionMode: "replace" as const } : {}),
-          ...(workflowAllowedToolNames
-            ? { allowedToolNames: workflowAllowedToolNames }
-            : {}),
           ...(referencedArtifactIds.length ? { referencedArtifactIds } : {}),
         },
       });
@@ -474,14 +328,33 @@ export async function POST(request: NextRequest) {
         }
       };
 
-      const translateEvent = useUiProtocol ? createAgentEventTranslator() : null;
+      const translateEvent = createAgentEventTranslator();
 
       const emit = (event: AgentSseEvent, sequence?: number) => {
         if (closed) return;
         try {
-          const frame = translateEvent
-            ? uiSseFrame(translateEvent(event), sequence)
-            : sseFrame(event, sequence);
+          const chunks = translateEvent(event);
+          const frame = uiSseFrame(
+            sequence === undefined
+              ? chunks
+              : [
+                  ...chunks,
+                  {
+                    type: "data-run-cursor",
+                    id: "cursor",
+                    data: {
+                      runId,
+                      sequence,
+                      eventType: event.type,
+                      ...(event.type === "message_start"
+                        ? { messageId: event.messageId }
+                        : {}),
+                    },
+                    transient: true,
+                  },
+                ],
+            sequence,
+          );
           if (frame) controller.enqueue(encoder.encode(frame));
         } catch {
           close();
@@ -544,18 +417,10 @@ export async function POST(request: NextRequest) {
 
   return new Response(stream, {
     status: 200,
-    headers: useUiProtocol
-      ? {
-          ...UI_MESSAGE_STREAM_HEADERS,
-          "X-Accel-Buffering": "no",
-          "X-Run-ID": runId,
-        }
-      : {
-          "Content-Type": "text/event-stream; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-          "X-Accel-Buffering": "no",
-          "X-Run-ID": runId,
-        },
+    headers: {
+      ...UI_MESSAGE_STREAM_HEADERS,
+      "X-Accel-Buffering": "no",
+      "X-Run-ID": runId,
+    },
   });
 }

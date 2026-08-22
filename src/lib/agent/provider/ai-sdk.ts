@@ -30,6 +30,54 @@ type OpenAiToolDefinition = {
   };
 };
 
+type ReasoningEffort =
+  | "none"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh";
+
+const REASONING_EFFORTS = new Set<ReasoningEffort>([
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+]);
+
+function reasoningEffortFor(params: StreamGatewayChatParams): ReasoningEffort | undefined {
+  const value = params.reasoningEffort ?? process.env.REIZO_REASONING_EFFORT;
+  return typeof value === "string" && REASONING_EFFORTS.has(value as ReasoningEffort)
+    ? (value as ReasoningEffort)
+    : undefined;
+}
+
+/**
+ * AI SDK's OpenAI Chat Completions adapter intentionally parses only the
+ * standard OpenAI fields. Several compatible gateways emit reasoning through
+ * the provider extension `reasoning_content` (or `reasoning`), so read it
+ * from raw chunks enabled by `include.rawChunks`.
+ */
+function reasoningFromRawChunk(rawValue: unknown): string | undefined {
+  if (!rawValue || typeof rawValue !== "object") return undefined;
+  const choices = (rawValue as { choices?: unknown }).choices;
+  if (!Array.isArray(choices)) return undefined;
+  const firstChoice = choices[0];
+  if (!firstChoice || typeof firstChoice !== "object") return undefined;
+  const choice = firstChoice as {
+    delta?: { reasoning_content?: unknown; reasoning?: unknown };
+    message?: { reasoning_content?: unknown; reasoning?: unknown };
+  };
+  const value =
+    choice.delta?.reasoning_content ??
+    choice.delta?.reasoning ??
+    choice.message?.reasoning_content ??
+    choice.message?.reasoning;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 /** Convert persisted OpenAI-compatible messages to AI SDK model messages. */
 export function toAiSdkMessages(messages: GatewayChatMessage[]): ModelMessage[] {
   const toolNames = new Map<string, string>();
@@ -127,30 +175,50 @@ export async function* streamAiSdkGatewayChat(
 ): AsyncGenerator<ChatChunk, void, undefined> {
   try {
     const calls: { id: string; name: string; arguments: string }[] = [];
+    const pendingRawReasoning: string[] = [];
+    const reasoning = reasoningEffortFor(params);
     let failed = false;
     const result = streamText({
       model: modelFor(params),
       messages: toAiSdkMessages(params.messages),
       tools: aiSdkTools(params.tools),
+      ...(reasoning ? { reasoning } : {}),
+      include: { rawChunks: true },
       maxRetries: 0,
       abortSignal: params.signal,
     });
 
     for await (const part of result.fullStream) {
       const chunk = part as Record<string, unknown>;
+      if (chunk.type === "raw") {
+        const reasoning = reasoningFromRawChunk(chunk.rawValue);
+        if (reasoning) pendingRawReasoning.push(reasoning);
+        continue;
+      }
+
+      if (chunk.type === "reasoning-delta") {
+        // Prefer the SDK's normalized reasoning when a provider begins
+        // supporting it natively, rather than rendering both forms.
+        pendingRawReasoning.length = 0;
+        if (typeof chunk.text === "string") {
+          yield { kind: "thinking", text: chunk.text };
+        } else if (typeof chunk.delta === "string") {
+          yield { kind: "thinking", text: chunk.delta };
+        }
+        continue;
+      }
+
+      while (pendingRawReasoning.length > 0) {
+        const reasoning = pendingRawReasoning.shift();
+        if (reasoning) yield { kind: "thinking", text: reasoning };
+      }
+
       switch (chunk.type) {
         case "text-delta":
           if (typeof chunk.text === "string") {
             yield { kind: "text", text: chunk.text };
           } else if (typeof chunk.delta === "string") {
             yield { kind: "text", text: chunk.delta };
-          }
-          break;
-        case "reasoning-delta":
-          if (typeof chunk.text === "string") {
-            yield { kind: "thinking", text: chunk.text };
-          } else if (typeof chunk.delta === "string") {
-            yield { kind: "thinking", text: chunk.delta };
           }
           break;
         case "tool-call":
@@ -172,10 +240,14 @@ export async function* streamAiSdkGatewayChat(
           };
           break;
         default:
-          // Source, finish, and raw provider chunks do not map to the
-          // existing Studio transport contract yet.
+          // Source and finish chunks do not map to the existing Studio
+          // transport contract yet.
           break;
       }
+    }
+    while (pendingRawReasoning.length > 0) {
+      const reasoning = pendingRawReasoning.shift();
+      if (reasoning) yield { kind: "thinking", text: reasoning };
     }
     if (!failed && calls.length) yield { kind: "tool_calls", calls };
   } catch (error) {

@@ -34,5 +34,5 @@ export function createAgentExecutor(mode: AgentExecutionMode): AgentExecutor {
 
 export function normalizeExecutionMode(value: unknown): AgentExecutionMode {
   if (value === "ai-sdk" || value === "codex") return value;
-  return "studio";
+  return "ai-sdk";
 }

@@ -1,4 +1,4 @@
-type SheetFlusher = () => Promise<void>;
+type SheetFlusher = () => Promise<boolean>;
 
 const flushers = new Set<SheetFlusher>();
 
@@ -14,6 +14,7 @@ export function registerSheetFlusher(next: SheetFlusher): () => void {
   };
 }
 
-export async function flushOpenSheetEdits(): Promise<void> {
-  await Promise.all(Array.from(flushers, (flush) => flush()));
+export async function flushOpenSheetEdits(): Promise<number> {
+  const results = await Promise.all(Array.from(flushers, (flush) => flush()));
+  return results.filter(Boolean).length;
 }

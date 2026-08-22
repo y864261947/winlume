@@ -490,6 +490,12 @@ export type PromptInputProps = Omit<
   HTMLAttributes<HTMLFormElement>,
   "onSubmit" | "onError"
 > & {
+  /** Overrides the underlying InputGroup styling for composed application inputs. */
+  inputGroupClassName?: string;
+  /** Set false when an application owns its own durable attachment lifecycle. */
+  manageAttachments?: boolean;
+  /** Set false when controlled application fields own their post-submit reset. */
+  resetOnSubmit?: boolean;
   // e.g., "image/*" or leave undefined for any
   accept?: string;
   multiple?: boolean;
@@ -513,6 +519,9 @@ export type PromptInputProps = Omit<
 
 export const PromptInput = ({
   className,
+  inputGroupClassName,
+  manageAttachments = true,
+  resetOnSubmit = true,
   accept,
   multiple,
   globalDrop,
@@ -732,7 +741,7 @@ export const PromptInput = ({
   // Attach drop handlers on nearest form and document (opt-in)
   useEffect(() => {
     const form = formRef.current;
-    if (!form) {
+    if (!form || !manageAttachments) {
       return;
     }
     if (globalDrop) {
@@ -759,10 +768,10 @@ export const PromptInput = ({
       form.removeEventListener("dragover", onDragOver);
       form.removeEventListener("drop", onDrop);
     };
-  }, [add, globalDrop]);
+  }, [add, globalDrop, manageAttachments]);
 
   useEffect(() => {
-    if (!globalDrop) {
+    if (!globalDrop || !manageAttachments) {
       return;
     }
 
@@ -785,7 +794,7 @@ export const PromptInput = ({
       document.removeEventListener("dragover", onDragOver);
       document.removeEventListener("drop", onDrop);
     };
-  }, [add, globalDrop]);
+  }, [add, globalDrop, manageAttachments]);
 
   useEffect(
     () => () => {
@@ -855,7 +864,7 @@ export const PromptInput = ({
 
       // Reset form immediately after capturing text to avoid race condition
       // where user input during async blob conversion would be lost
-      if (!usingProvider) {
+      if (!usingProvider && resetOnSubmit) {
         form.reset();
       }
 
@@ -899,29 +908,33 @@ export const PromptInput = ({
         // Don't clear on error - user may want to retry
       }
     },
-    [usingProvider, controller, files, onSubmit, clear]
+    [usingProvider, resetOnSubmit, controller, files, onSubmit, clear]
   );
 
   // Render with or without local provider
   const inner = (
     <>
-      <input
-        accept={accept}
-        aria-label="Upload files"
-        className="hidden"
-        multiple={multiple}
-        onChange={handleChange}
-        ref={inputRef}
-        title="Upload files"
-        type="file"
-      />
+      {manageAttachments ? (
+        <input
+          accept={accept}
+          aria-label="Upload files"
+          className="hidden"
+          multiple={multiple}
+          onChange={handleChange}
+          ref={inputRef}
+          title="Upload files"
+          type="file"
+        />
+      ) : null}
       <form
         className={cn("w-full", className)}
         onSubmit={handleSubmit}
         ref={formRef}
         {...props}
       >
-        <InputGroup className="overflow-hidden">{children}</InputGroup>
+        <InputGroup className={cn("overflow-hidden", inputGroupClassName)}>
+          {children}
+        </InputGroup>
       </form>
     </>
   );

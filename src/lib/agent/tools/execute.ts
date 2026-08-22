@@ -9,8 +9,6 @@ import type {
   AgentSseEvent,
   Artifact,
   ArtifactKind,
-  ArtifactProvenance,
-  WorkflowExecutionContext,
 } from "@/lib/agent/types";
 import {
   parseCanvasContent,
@@ -26,7 +24,6 @@ import {
   type SheetCreateSheet,
   type SheetOperation,
 } from "@/lib/agent/sheet-content";
-import { artifactOutputIdSchema } from "@/lib/agent/skills/contracts";
 import type { ArtifactStore } from "@/lib/host/ports";
 import { toolJobStore } from "@/lib/host/web/tool-job-singleton";
 import {
@@ -73,7 +70,6 @@ const writeArtifactSchema = z.object({
   name: z.string().trim().min(1).max(200),
   kind: z.enum(["markdown", "html", "text", "json"]),
   content: z.string().min(1).max(2_000_000),
-  outputId: artifactOutputIdSchema.optional(),
 });
 
 const readArtifactSchema = z.object({
@@ -110,7 +106,6 @@ const todoWriteSchema = z.object({
 
 const generateImageSchema = z.object({
   name: z.string().trim().min(1).max(200),
-  outputId: artifactOutputIdSchema.optional(),
   prompt: z.string().trim().min(1).max(4_000),
   model: z.string().trim().min(1).max(100).optional(),
   size: z.enum(["1024x1024", "1024x1536", "1536x1024"]),
@@ -126,7 +121,6 @@ const generateImageSchema = z.object({
 
 const fuseImagesSchema = z.object({
   name: z.string().trim().min(1).max(200),
-  outputId: artifactOutputIdSchema.optional(),
   prompt: z.string().trim().min(1).max(1_200),
   size: z.enum(["1024x1024", "1024x1536", "1536x1024"]),
   sourceArtifactIds: z
@@ -152,7 +146,6 @@ export type EcommerceImageSetArgs = z.infer<typeof ecommerceImageSetSchema>;
 
 const imageToolInputSchema = z.object({
   sourceArtifactId: z.string().trim().min(1).max(128),
-  outputId: artifactOutputIdSchema.optional(),
 });
 
 const removeBackgroundSchema = imageToolInputSchema.extend({
@@ -174,7 +167,6 @@ export type RemoveWatermarkOrSubtitlesArgs = z.infer<
 
 const generateCanvasSchema = z.object({
   name: z.string().trim().min(1).max(200),
-  outputId: artifactOutputIdSchema.optional(),
   mermaid: z.string().trim().min(1).max(20_000),
   sourceArtifactId: z.string().trim().min(1).max(128).optional(),
 });
@@ -218,7 +210,6 @@ const sheetOperationSchema = z.discriminatedUnion("op", [
 
 const generateSheetSchema = z.object({
   name: z.string().trim().min(1).max(200),
-  outputId: artifactOutputIdSchema.optional(),
   sourceArtifactId: z.string().trim().min(1).max(128).optional(),
   sheets: z
     .array(
@@ -298,7 +289,6 @@ export interface ToolExecuteContext {
   sessionId: string;
   projectId?: string;
   runId?: string;
-  workflow?: WorkflowExecutionContext;
   artifacts: ArtifactStore;
   /** Durable tool-owned jobs. Defaults to the single-node web adapter. */
   toolJobs?: ToolJobStore;
@@ -339,51 +329,6 @@ function formatZodError(err: z.ZodError): string {
     .join("; ");
 }
 
-function resolveArtifactProvenance(
-  kind: ArtifactKind,
-  outputId: string | undefined,
-  ctx: ToolExecuteContext,
-): { provenance?: ArtifactProvenance; error?: string } {
-  if (!ctx.workflow) {
-    return outputId
-      ? { error: "outputId is only available during a Workflow Run" }
-      : {};
-  }
-  if (!ctx.runId || ctx.runId !== ctx.workflow.runId) {
-    return { error: "Workflow Run context is invalid" };
-  }
-
-  const compatible = ctx.workflow.outputs.filter((output) => output.kinds.includes(kind));
-  const selected = outputId
-    ? ctx.workflow.outputs.find((output) => output.id === outputId)
-    : compatible.length === 1
-      ? compatible[0]
-      : undefined;
-  if (!selected) {
-    return {
-      error: outputId
-        ? `Unknown Workflow output: ${outputId}`
-        : "outputId is required when a Stage has multiple compatible outputs",
-    };
-  }
-  if (!selected.kinds.includes(kind)) {
-    return {
-      error: `Workflow output ${selected.id} does not accept Artifact kind ${kind}`,
-    };
-  }
-
-  return {
-    provenance: {
-      workflow: {
-        workflowId: ctx.workflow.workflowId,
-        runId: ctx.workflow.runId,
-        stageId: ctx.workflow.stageId,
-        outputId: selected.id,
-      },
-    },
-  };
-}
-
 export async function executeWriteArtifact(
   rawArgs: unknown,
   ctx: ToolExecuteContext,
@@ -392,9 +337,7 @@ export async function executeWriteArtifact(
   if (!parsed.success) {
     return fail(`write_artifact validation failed: ${formatZodError(parsed.error)}`);
   }
-  const { name, kind, content, outputId } = parsed.data;
-  const provenance = resolveArtifactProvenance(kind, outputId, ctx);
-  if (provenance.error) return fail(provenance.error);
+  const { name, kind, content } = parsed.data;
   const id = randomUUID();
   const createdAt = new Date().toISOString();
   try {
@@ -410,7 +353,6 @@ export async function executeWriteArtifact(
         mimeType: mimeTypeForKind(kind),
         storageKey: "",
         createdAt,
-        ...(provenance.provenance ? { provenance: provenance.provenance } : {}),
       },
       content,
     );
@@ -504,7 +446,6 @@ export async function executeGenerateImage(
   }
   const {
     name,
-    outputId,
     prompt,
     model,
     size,
@@ -513,9 +454,6 @@ export async function executeGenerateImage(
     sourceArtifactId,
     sourceArtifactIds,
   } = parsed.data;
-  const provenance = resolveArtifactProvenance("image", outputId, ctx);
-  if (provenance.error) return fail(provenance.error);
-
   const requestedSourceIds = sourceArtifactIds ??
     (sourceArtifactId ? [sourceArtifactId] : []);
   const sourceImages: { bytes: Buffer; mimeType: string }[] = [];
@@ -539,7 +477,6 @@ export async function executeGenerateImage(
     ? `Original user request (follow exactly):\n${userIntent}\n\nExecution details:\n${styledPrompt}`
     : styledPrompt;
   const pending: Artifact[] = [];
-  const workflowJobs: Promise<void>[] = [];
   try {
     for (let i = 0; i < count; i++) {
       const id = randomUUID();
@@ -556,7 +493,6 @@ export async function executeGenerateImage(
           storageKey: "",
           status: "pending",
           createdAt,
-          ...(provenance.provenance ? { provenance: provenance.provenance } : {}),
         },
         Buffer.alloc(0),
       );
@@ -572,23 +508,15 @@ export async function executeGenerateImage(
         size,
         sourceImages: sourceImages.length ? sourceImages : undefined,
       });
-      if (ctx.workflow) workflowJobs.push(job);
-      else void job;
+      void job;
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "generate_image failed";
     return fail(msg);
   }
 
-  if (ctx.workflow) await Promise.all(workflowJobs);
-  const artifacts = ctx.workflow
-    ? await Promise.all(
-        pending.map(async (artifact) =>
-          (await ctx.artifacts.get(ctx.userId, artifact.id)) ?? artifact,
-        ),
-      )
-    : pending;
-  const summary = `${ctx.workflow ? "Finished" : "Started"} generating ${artifacts.length} image(s): ${artifacts
+  const artifacts = pending;
+  const summary = `Started generating ${artifacts.length} image(s): ${artifacts
     .map((a) => a.id)
     .join(", ")}`;
   return {
@@ -823,7 +751,7 @@ export async function executeEcommerceImageSet(
 async function executeCatalogImageTool(
   toolId: StudioToolId,
   agentToolName: string,
-  args: { sourceArtifactId: string; outputId?: string },
+  args: { sourceArtifactId: string },
   params: StudioToolParams,
   ctx: ToolExecuteContext,
 ): Promise<ToolExecuteResult> {
@@ -832,9 +760,6 @@ async function executeCatalogImageTool(
 
   const validated = validateStudioToolParams(tool, params);
   if (!validated.params) return fail(`${agentToolName} validation failed: ${validated.error}`);
-
-  const provenance = resolveArtifactProvenance("image", args.outputId, ctx);
-  if (provenance.error) return fail(provenance.error);
 
   try {
     const artifact = await executeCatalogStudioTool(
@@ -847,7 +772,6 @@ async function executeCatalogImageTool(
           sessionId: ctx.sessionId,
           ...(ctx.projectId ? { projectId: ctx.projectId } : {}),
           ...(ctx.messageId ? { messageId: ctx.messageId } : {}),
-          ...(provenance.provenance ? { provenance: provenance.provenance } : {}),
         },
       },
       { artifacts: ctx.artifacts, invokeCapability: invokeToolCapability },
@@ -945,14 +869,9 @@ export async function executeGenerateCanvas(
     return fail(`generate_canvas validation failed: ${formatZodError(parsed.error)}`);
   }
 
-  const { name, outputId, mermaid, sourceArtifactId } = parsed.data;
-  const provenance = resolveArtifactProvenance("canvas", outputId, ctx);
-  if (provenance.error) return fail(provenance.error);
+  const { name, mermaid, sourceArtifactId } = parsed.data;
 
   if (sourceArtifactId) {
-    if (ctx.workflow) {
-      return fail("Workflow canvas outputs must create a new Artifact");
-    }
     const existing = await ctx.artifacts.get(ctx.userId, sourceArtifactId);
     if (!existing) return fail(`Source artifact not found: ${sourceArtifactId}`);
     if (existing.kind !== "canvas") {
@@ -1006,18 +925,16 @@ export async function executeGenerateCanvas(
         kind: "canvas",
         mimeType: mimeTypeForKind("canvas"),
         storageKey: "",
-        // Mermaid source is the durable Workflow deliverable. The Studio may
-        // hydrate an Excalidraw scene later, but Stage completion must not wait
-        // on a browser-side projection.
-        status: ctx.workflow ? "ready" : "pending",
+        // Mermaid source is durable. The Studio hydrates an Excalidraw scene
+        // asynchronously, so creation must not wait for browser conversion.
+        status: "pending",
         createdAt,
-        ...(provenance.provenance ? { provenance: provenance.provenance } : {}),
       },
       serializeCanvasContent(content),
     );
     return {
       ok: true,
-      summary: `${ctx.workflow ? "Created" : "Started"} canvas "${artifact.name}" (id=${artifact.id})`,
+      summary: `Started canvas "${artifact.name}" (id=${artifact.id})`,
       content: JSON.stringify({ id: artifact.id, name: artifact.name, status: artifact.status }),
       artifact,
       events: [
@@ -1039,14 +956,9 @@ export async function executeGenerateSheet(
     return fail(`generate_sheet validation failed: ${formatZodError(parsed.error)}`);
   }
 
-  const { name, outputId, sourceArtifactId, sheets, operations } = parsed.data;
-  const provenance = resolveArtifactProvenance("sheet", outputId, ctx);
-  if (provenance.error) return fail(provenance.error);
+  const { name, sourceArtifactId, sheets, operations } = parsed.data;
 
   if (sourceArtifactId) {
-    if (ctx.workflow) {
-      return fail("Workflow sheet outputs must create a new Artifact");
-    }
     if (!operations?.length) {
       return fail("Patching a workbook requires operations");
     }
@@ -1124,7 +1036,6 @@ export async function executeGenerateSheet(
         storageKey: "",
         status: "ready",
         createdAt,
-        ...(provenance.provenance ? { provenance: provenance.provenance } : {}),
       },
       serializeSheetContent(contentResult.content),
     );

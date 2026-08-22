@@ -10,7 +10,6 @@ import {
   useState,
   type ClipboardEvent,
   type DragEvent,
-  type FormEvent,
   type KeyboardEvent,
 } from "react";
 import {
@@ -29,7 +28,6 @@ import {
   Pin,
   Scissors,
   RotateCw,
-  Square,
   Table2,
   X,
 } from "lucide-react";
@@ -106,8 +104,17 @@ import SkillSlashMenu, {
   type SkillDepartment,
 } from "./SkillSlashMenu";
 import StudioViewTransition from "./StudioViewTransition";
-import type { QueuedMessage } from "./useStudioChat";
-import { MAX_MESSAGE_QUEUE_SIZE } from "./useStudioChat";
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputTools,
+} from "@/components/ai-elements/prompt-input";
+import {
+  MAX_MESSAGE_QUEUE_SIZE,
+  type StudioQueuedMessage,
+} from "./studio-chat-types";
 
 const FALLBACK_MODELS = [
   "gpt-4o-mini",
@@ -173,11 +180,12 @@ export type ComposerProps = {
   allowCustomModel?: boolean;
   error?: string | null;
   onClearError?: () => void;
+  onRetryError?: () => void;
   skillIds?: string[];
   onSkillIdsChange?: (ids: string[]) => void;
   pinnedSkillIds?: string[];
   onPinnedSkillIdsChange?: (ids: string[]) => void;
-  queue?: QueuedMessage[];
+  queue?: StudioQueuedMessage[];
   onRemoveFromQueue?: (id: string) => void;
   onClearQueue?: () => void;
   /**
@@ -324,6 +332,7 @@ export default function Composer({
   allowCustomModel = true,
   error,
   onClearError,
+  onRetryError,
   skillIds: skillIdsProp,
   onSkillIdsChange,
   pinnedSkillIds: pinnedSkillIdsProp,
@@ -1415,14 +1424,13 @@ export default function Composer({
     });
   }, [menuItems, menuIndex, pickSkillFromMenu, pickToolFromMenu, clearTurnSkills]);
 
-  const onSubmit = (event: FormEvent) => {
-    event.preventDefault();
+  const onPromptSubmit = useCallback(() => {
     if (menuOpen && menuItems.length) {
       runMenuActivate();
       return;
     }
     submit();
-  };
+  }, [menuItems.length, menuOpen, runMenuActivate, submit]);
 
   const onEditorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (mentionOpen && !event.nativeEvent.isComposing) {
@@ -1518,6 +1526,15 @@ export default function Composer({
           }`}
         >
           <p className="min-w-0 flex-1 leading-5">{error}</p>
+          {onRetryError ? (
+            <button
+              type="button"
+              onClick={onRetryError}
+              className="shrink-0 text-xs font-medium text-[#0F172A] underline-offset-2 hover:underline"
+            >
+              重试
+            </button>
+          ) : null}
           {onClearError ? (
             <button
               type="button"
@@ -1582,18 +1599,23 @@ export default function Composer({
         share="studio-morph"
         default="none"
       >
-      <form
+      <PromptInput
         className={`studio-liquid-glass relative mx-auto flex w-full flex-col gap-2 ${
           isHero ? "max-w-none p-3.5 sm:p-4" : "max-w-3xl p-2.5 sm:p-3"
         }`}
+        inputGroupClassName="h-auto flex-col items-stretch border-0 bg-transparent shadow-none"
+        manageAttachments={false}
+        resetOnSubmit={false}
         data-variant={isHero ? "hero" : "session"}
         data-drag-over={dragOver ? "true" : "false"}
-        onSubmit={onSubmit}
+        onSubmit={onPromptSubmit}
         onDragEnter={onDragEnter}
         onDragLeave={onDragLeave}
         onDragOver={onDragOver}
         onDrop={onDrop}
       >
+        <PromptInputBody>
+        <input name="message" type="hidden" value={draft} readOnly />
         {dragOver ? (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-[rgba(15,23,42,0.06)] text-sm font-medium text-[#0F172A] backdrop-blur-[2px]">
             松开以添加文件、图片或参考视频
@@ -2039,8 +2061,10 @@ export default function Composer({
             </span>
           </div>
         ) : null}
+        </PromptInputBody>
 
-        <div className="relative flex items-end gap-2">
+        <PromptInputFooter className="relative flex w-full items-end gap-2 px-0 py-0">
+          <PromptInputTools className="relative flex min-w-0 flex-1 items-end gap-2">
           <label className="sr-only" htmlFor={promptId}>
             输入你的需求
           </label>
@@ -2074,10 +2098,11 @@ export default function Composer({
             aria-expanded={menuOpen || mentionOpen}
             aria-autocomplete="list"
           />
+          </PromptInputTools>
           {streaming ? (
             <>
-              <button
-                type="submit"
+              <PromptInputSubmit
+                status="ready"
                 disabled={!canSend}
                 title={
                   submittingAttachments
@@ -2094,20 +2119,17 @@ export default function Composer({
                   <ListOrdered className="h-4 w-4" />
                 )}
                 <span className="sr-only">加入队列</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onStop?.()}
+              </PromptInputSubmit>
+              <PromptInputSubmit
+                status="streaming"
+                onStop={() => onStop?.()}
                 title="停止生成"
                 className="studio-liquid-chip flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-[#615A73]"
-              >
-                <Square className="h-3.5 w-3.5 fill-current" />
-                <span className="sr-only">停止</span>
-              </button>
+              />
             </>
           ) : (
-            <button
-              type="submit"
+            <PromptInputSubmit
+              status={submittingAttachments ? "submitted" : "ready"}
               disabled={!canSend}
               title={submittingAttachments ? "正在上传附件" : "发送"}
               className="studio-send-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-white transition disabled:cursor-not-allowed disabled:opacity-40"
@@ -2118,7 +2140,7 @@ export default function Composer({
                 <ArrowUp className="h-4 w-4" />
               )}
               <span className="sr-only">发送</span>
-            </button>
+            </PromptInputSubmit>
           )}
 
           <SkillSlashMenu
@@ -2151,8 +2173,8 @@ export default function Composer({
             }}
             menuRef={mentionMenuRef}
           />
-        </div>
-      </form>
+        </PromptInputFooter>
+      </PromptInput>
       </StudioViewTransition>
     </div>
   );

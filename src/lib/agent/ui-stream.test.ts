@@ -74,6 +74,24 @@ describe("createAgentEventTranslator", () => {
     ]);
   });
 
+  it("closes reasoning before the assistant starts a tool call", () => {
+    const translate = createAgentEventTranslator();
+    translate({ type: "message_start", messageId: "m1" });
+    translate({ type: "thinking", text: "先读取文件" });
+
+    expect(
+      translate({ type: "tool_call", id: "call-1", name: "read_artifact", input: { id: "a1" } }),
+    ).toEqual([
+      { type: "reasoning-end", id: "reasoning-0" },
+      {
+        type: "tool-input-available",
+        toolCallId: "call-1",
+        toolName: "read_artifact",
+        input: { id: "a1" },
+      },
+    ]);
+  });
+
   it("maps a failed tool_result to tool-output-error", () => {
     const translate = createAgentEventTranslator();
     expect(

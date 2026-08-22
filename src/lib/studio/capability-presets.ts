@@ -15,7 +15,7 @@ export type CapabilityPreset = {
   id: CapabilityPresetId;
   label: string;
   capability: CapabilityId;
-  /** Studio always needs a real chat model to execute a workflow. */
+  /** Studio always needs a real chat model to execute an agent turn. */
   selectsFirstAvailableModel: true;
 };
 

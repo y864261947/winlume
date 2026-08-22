@@ -29,13 +29,10 @@ import Composer from "@/components/studio/Composer";
 import StudioViewTransition from "@/components/studio/StudioViewTransition";
 import { useStudioHeaderSlot } from "@/components/studio/StudioShell";
 import { useResizablePanel } from "@/components/studio/useResizablePanel";
-import { WorkflowControlBar } from "@/components/studio/workflow/WorkflowControlBar";
-import { WorkflowStageRail } from "@/components/studio/workflow/WorkflowStageRail";
-import { useSessionWorkflow } from "@/components/studio/workflow/useSessionWorkflow";
-import { useStudioChatV2 as useStudioChat } from "@/components/studio/useStudioChatV2";
-import type { ArtifactEventPayload } from "@/components/studio/useStudioChat";
+import { useStudioChat } from "@/components/studio/useStudioChat";
 import { useModals } from "@/components/providers";
 import type { Artifact, Message, Project, Session } from "@/lib/agent/types";
+import type { ArtifactEventPayload } from "@/components/studio/studio-chat-types";
 import { isMentionableArtifact } from "@/lib/studio/image-mentions";
 import { afterNextPaint } from "@/lib/studio/next-paint";
 import { flushOpenSheetEdits } from "@/lib/studio/sheet-flush";
@@ -93,10 +90,11 @@ export default function StudioSessionPage() {
   const [initialMessages, setInitialMessages] = useState<
     Message[] | undefined
   >(undefined);
-  const [workflowSessionReconciling, setWorkflowSessionReconciling] =
-    useState(false);
-  const [workflowArtifactsReconciling, setWorkflowArtifactsReconciling] =
-    useState(false);
+  const [activeRun, setActiveRun] = useState<{
+    id: string;
+    status: string;
+    message: string;
+  } | null>(null);
   const [pinnedSkillIds, setPinnedSkillIds] = useState<string[]>([]);
   const pendingSentRef = useRef(false);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -402,50 +400,35 @@ export default function StudioSessionPage() {
     return unsubscribe;
   }, []);
 
+  const reconcileSessionBundle = useCallback(async () => {
+    const sid = session?.id ?? sessionId;
+    if (!sid) return;
+    try {
+      const bundle = await getSessionBundle(sid);
+      startTransition(() => {
+        setSession(bundle.session);
+        setPinnedSkillIds(bundle.session.pinnedSkillIds ?? []);
+        setActiveRun(bundle.activeRun);
+        setInitialMessages(bundle.messages);
+      });
+    } catch {
+      // The live stream remains the source of truth if reconciliation races
+      // a session bootstrap or a transient auth/network failure.
+    }
+  }, [session?.id, sessionId]);
+
   const chat = useStudioChat({
     sessionId: session?.id ?? sessionId,
     initialMessages,
     model: session?.model ?? FALLBACK_DEFAULT_MODEL,
     onUnauthorized,
     onArtifact,
+    activeRun,
+    onFinish: () => {
+      void reconcileSessionBundle();
+      void refreshArtifacts();
+    },
   });
-
-  const refreshSessionBundle = useCallback(async () => {
-    const sid = session?.id ?? sessionId;
-    if (!sid) return;
-    setWorkflowSessionReconciling(true);
-    try {
-      const bundle = await getSessionBundle(sid);
-      startTransition(() => {
-        setSession(bundle.session);
-        setPinnedSkillIds(bundle.session.pinnedSkillIds ?? []);
-        setInitialMessages(bundle.messages);
-      });
-    } finally {
-      setWorkflowSessionReconciling(false);
-    }
-  }, [session?.id, sessionId]);
-
-  const refreshWorkflowArtifacts = useCallback(async () => {
-    setWorkflowArtifactsReconciling(true);
-    try {
-      await refreshArtifacts();
-    } finally {
-      setWorkflowArtifactsReconciling(false);
-    }
-  }, [refreshArtifacts]);
-
-  const workflowEnabled = Boolean(session?.workflow);
-  const workflow = useSessionWorkflow({
-    sessionId: session?.id ?? sessionId,
-    enabled: workflowEnabled,
-    chat,
-    refreshSession: refreshSessionBundle,
-    refreshArtifacts: refreshWorkflowArtifacts,
-    onUnauthorized,
-  });
-  const workflowTerminalReconciling =
-    workflowSessionReconciling || workflowArtifactsReconciling;
 
   // Resolve the shared project context independently from the chat bundle so
   // older sessions (without projectId) continue to render unchanged.
@@ -515,6 +498,7 @@ export default function StudioSessionPage() {
         startTransition(() => {
           setSession(bundle.session);
           setPinnedSkillIds(bundle.session.pinnedSkillIds ?? []);
+          setActiveRun(bundle.activeRun);
           setInitialMessages(messages);
           setLoading(false);
         });
@@ -607,7 +591,7 @@ export default function StudioSessionPage() {
   // this mount does not) — chat.prepare() below paints the optimistic bubble
   // immediately either way, matching the home page's already-shown one.
   useEffect(() => {
-    if (loading || !session || session.workflow || pendingSentRef.current) return;
+    if (loading || !session || pendingSentRef.current) return;
     const pending = takePendingFirstMessage(session.id);
     if (!pending) return;
     pendingSentRef.current = true;
@@ -646,6 +630,7 @@ export default function StudioSessionPage() {
         startTransition(() => {
           setSession(bundle.session);
           setPinnedSkillIds(bundle.session.pinnedSkillIds ?? []);
+          setActiveRun(bundle.activeRun);
           setInitialMessages(bundle.messages);
           setLoadError(null);
         });
@@ -705,14 +690,6 @@ export default function StudioSessionPage() {
     [flashArtifact, openWorksRail],
   );
 
-  const openWorkflowArtifact = useCallback(
-    (artifactId: string) => {
-      openArtifactFromChat(artifactId);
-      void refreshArtifacts({ preferId: artifactId });
-    },
-    [openArtifactFromChat, refreshArtifacts],
-  );
-
   const jumpToMessage = useCallback((messageId: string) => {
     setMobileTab("chat");
     setHighlightMessageId(messageId);
@@ -723,12 +700,16 @@ export default function StudioSessionPage() {
       const original = chat.messages.find(
         (message) => message.id === messageId && message.role === "user",
       );
-      if (!original || hasMentionToken(original.content)) {
+      const originalText = original?.parts
+        .filter((part): part is Extract<(typeof original.parts)[number], { type: "text" }> => part.type === "text")
+        .map((part) => part.text)
+        .join("");
+      if (!original || !originalText || hasMentionToken(originalText)) {
         // Stored text alone cannot safely rebuild referenced artifact ids.
         jumpToMessage(messageId);
         return;
       }
-      return chat.send(original.content);
+      return chat.send(originalText);
     },
     [chat, jumpToMessage],
   );
@@ -902,15 +883,9 @@ export default function StudioSessionPage() {
               messages={chat.messages}
               streaming={
                 chat.streaming ||
-                workflow.reconnecting ||
-                workflowTerminalReconciling ||
                 (hasHandoff && loading)
               }
-              emptyHint={
-                workflowEnabled
-                  ? "暂无运行记录。"
-                  : "发送一条消息，开始与 Reizo 对话。"
-              }
+              emptyHint="发送一条消息，开始与 Reizo 对话。"
               highlightMessageId={highlightMessageId}
               onHighlightConsumed={() => setHighlightMessageId(null)}
               artifactsByMessageId={artifactsByMessageId}
@@ -934,14 +909,6 @@ export default function StudioSessionPage() {
             正在加载会话
           </div>
         </div>
-      ) : workflowEnabled ? (
-        <WorkflowControlBar
-          workflow={workflow}
-          onOpenArtifact={openWorkflowArtifact}
-          reconciling={workflowTerminalReconciling}
-          liveError={chat.error}
-          onClearLiveError={chat.clearError}
-        />
       ) : (
         <Composer
           onSend={(text, meta) => {
@@ -1008,6 +975,7 @@ export default function StudioSessionPage() {
           }}
           error={chat.error}
           onClearError={chat.clearError}
+          onRetryError={() => void chat.retryError()}
           queue={chat.queue}
           onRemoveFromQueue={chat.removeFromQueue}
           onClearQueue={chat.clearQueue}
@@ -1048,12 +1016,10 @@ export default function StudioSessionPage() {
         onClose={() => setPreviewOpen(false)}
         onRefresh={() => void reloadContent()}
         onJumpToMessage={jumpToMessage}
-        onRetryGeneration={workflowEnabled ? undefined : retryGeneration}
+        onRetryGeneration={retryGeneration}
         sessionId={session?.id ?? sessionId}
         locked={chat.streaming}
-        onImageAnnotationRefine={
-          workflowEnabled ? undefined : refineImageWithAnnotation
-        }
+        onImageAnnotationRefine={refineImageWithAnnotation}
         className="min-h-0 flex-1 border-l-0"
       />
     </div>
@@ -1064,14 +1030,6 @@ export default function StudioSessionPage() {
       className={`studio-session-root flex min-h-0 flex-1 flex-col ${hasHandoff ? "" : "studio-view-in"}`}
       data-handoff={hasHandoff ? "true" : "false"}
     >
-      {workflowEnabled ? (
-        <WorkflowStageRail
-          projection={workflow.projection}
-          loading={workflow.loading}
-          onOpenArtifact={openWorkflowArtifact}
-        />
-      ) : null}
-
       {/* Mobile: tabbed */}
       <div className="flex min-h-0 flex-1 flex-col md:hidden">
         {mobileTab === "chat" ? renderChatColumn(false) : worksColumn}
@@ -1181,12 +1139,10 @@ export default function StudioSessionPage() {
                 onClose={() => setPreviewOpen(false)}
                 onRefresh={() => void reloadContent()}
                 onJumpToMessage={jumpToMessage}
-                onRetryGeneration={workflowEnabled ? undefined : retryGeneration}
+                onRetryGeneration={retryGeneration}
                 sessionId={session?.id ?? sessionId}
                 locked={chat.streaming}
-                onImageAnnotationRefine={
-                  workflowEnabled ? undefined : refineImageWithAnnotation
-                }
+                onImageAnnotationRefine={refineImageWithAnnotation}
                 className="h-full w-full min-w-0"
               />
             </div>

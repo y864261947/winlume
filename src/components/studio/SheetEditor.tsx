@@ -116,7 +116,10 @@ export default function SheetEditor({
   const parsedRef = useRef<SheetArtifactContent | null>(parseSheetContent(content));
   const nameRef = useRef(artifactName);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeFlushRef = useRef<Promise<boolean> | null>(null);
   const hydratingRef = useRef(true);
+  const dirtyRef = useRef(false);
+  const dirtyVersionRef = useRef(0);
   const lockedRef = useRef(locked);
   const workbookRef = useRef<{ save: () => unknown } | null>(null);
   const [ready, setReady] = useState(false);
@@ -125,9 +128,15 @@ export default function SheetEditor({
   const [retrying, setRetrying] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const savedPulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushRef = useRef<() => Promise<boolean>>(async () => false);
 
-  lockedRef.current = locked;
-  nameRef.current = artifactName;
+  useEffect(() => {
+    lockedRef.current = locked;
+  }, [locked]);
+
+  useEffect(() => {
+    nameRef.current = artifactName;
+  }, [artifactName]);
 
   const captureContent = useCallback((): string | null => {
     const current = parsedRef.current;
@@ -143,33 +152,53 @@ export default function SheetEditor({
     }
   }, []);
 
-  const flush = useCallback(async () => {
+  const flush = useCallback(async (): Promise<boolean> => {
+    if (activeFlushRef.current) {
+      return activeFlushRef.current.then(() =>
+        dirtyRef.current ? flushRef.current() : false,
+      );
+    }
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
-    if (lockedRef.current || hydratingRef.current) return;
-    const serialized = captureContent();
-    if (!serialized) return;
-    try {
-      await persistSheet(artifactId, serialized);
-      setSaveError(null);
-      setJustSaved(true);
-      if (savedPulseTimer.current) clearTimeout(savedPulseTimer.current);
-      savedPulseTimer.current = setTimeout(() => setJustSaved(false), 2000);
-    } catch (error) {
-      if ((error as { status?: number }).status === 409) {
-        const latestRevision = await fetchLatestRevision(artifactId);
-        if (latestRevision != null && parsedRef.current) {
-          parsedRef.current = { ...parsedRef.current, revision: latestRevision };
+    if (lockedRef.current || hydratingRef.current || !dirtyRef.current) return false;
+    const dirtyVersion = dirtyVersionRef.current;
+    // Start on the next microtask so activeFlushRef is populated even when
+    // captureContent returns early, then always release it for the next flush.
+    const pending = Promise.resolve()
+      .then(async () => {
+        const serialized = captureContent();
+        if (!serialized) return false;
+        await persistSheet(artifactId, serialized);
+        // Edits can land while a previous autosave is in flight. Only clear
+        // the dirty marker when this snapshot is still the latest one.
+        dirtyRef.current = dirtyVersionRef.current !== dirtyVersion;
+        setSaveError(null);
+        setJustSaved(true);
+        if (savedPulseTimer.current) clearTimeout(savedPulseTimer.current);
+        savedPulseTimer.current = setTimeout(() => setJustSaved(false), 2000);
+        return true;
+      })
+      .catch(async (error: unknown) => {
+        if ((error as { status?: number }).status === 409) {
+          const latestRevision = await fetchLatestRevision(artifactId);
+          if (latestRevision != null && parsedRef.current) {
+            parsedRef.current = { ...parsedRef.current, revision: latestRevision };
+          }
         }
-      }
-      throw error;
-    }
+        throw error;
+      })
+      .finally(() => {
+        activeFlushRef.current = null;
+      });
+    activeFlushRef.current = pending;
+    return pending;
   }, [artifactId, captureContent]);
 
-  const flushRef = useRef(flush);
-  flushRef.current = flush;
+  useEffect(() => {
+    flushRef.current = flush;
+  }, [flush]);
 
   useEffect(() => registerSheetFlusher(() => flushRef.current()), [artifactId]);
 
@@ -201,6 +230,8 @@ export default function SheetEditor({
 
     parsedRef.current = parsed;
     hydratingRef.current = true;
+    dirtyRef.current = false;
+    dirtyVersionRef.current = 0;
     setReady(false);
     setInitError(null);
 
@@ -275,6 +306,8 @@ export default function SheetEditor({
             scheduleHydrationComplete();
             return;
           }
+          dirtyRef.current = true;
+          dirtyVersionRef.current += 1;
           if (saveTimer.current) clearTimeout(saveTimer.current);
           saveTimer.current = setTimeout(() => {
             void flushRef.current().catch((error: unknown) => {

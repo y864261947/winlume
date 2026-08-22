@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Artifact, ArtifactProvenance } from "@/lib/agent/types";
+import type { Artifact } from "@/lib/agent/types";
 import type { ArtifactStore } from "@/lib/host/ports";
 import {
   isStudioToolImageMimeType,
@@ -69,7 +69,7 @@ function providerFailure(error: ToolProviderError): StudioToolExecutionError {
 
 /**
  * Shared deterministic executor for direct tool pages and future Composer
- * function calls. It never creates a Session or Workflow Run.
+ * function calls. It never creates a Session or durable agent Run.
  */
 export async function executeStudioTool(
   input: {
@@ -82,7 +82,6 @@ export async function executeStudioTool(
       projectId?: string;
       messageId?: string;
       visibility?: "visible" | "hidden";
-      provenance?: ArtifactProvenance;
     };
   },
   dependencies: ExecuteStudioToolDependencies,
@@ -156,7 +155,6 @@ export async function executeStudioTool(
       status: "ready",
       createdAt: new Date().toISOString(),
       ...(input.output?.visibility ? { visibility: input.output.visibility } : {}),
-      ...(input.output?.provenance ? { provenance: input.output.provenance } : {}),
     },
     output.bytes,
   );
