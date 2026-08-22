@@ -4,7 +4,6 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LoaderCircle, Search, Wrench } from "lucide-react";
 import SkillWaterfall from "@/components/studio/SkillWaterfall";
-import { WorkflowPackSection } from "@/components/studio/workflow/WorkflowPackSection";
 import {
   getStudioToolCategory,
   isStudioToolCategoryId,
@@ -14,7 +13,6 @@ import {
 function StudioSkillsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const scene = searchParams.get("scene")?.trim() || "";
   const catalogParam = searchParams.get("catalog")?.trim() || "all";
   const catalog =
     catalogParam === "all" || isStudioToolCategoryId(catalogParam)
@@ -175,7 +173,6 @@ function StudioSkillsPageContent() {
         </nav>
 
         <div className="min-w-0 flex-1 overflow-y-auto p-6">
-          <WorkflowPackSection scene={scene} query={debouncedQ} />
           <SkillWaterfall
             catalog={catalog}
             query={debouncedQ}

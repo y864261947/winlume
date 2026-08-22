@@ -75,5 +75,23 @@ describe("GET /api/runs/[id]/stream", () => {
     const body = await response.text();
     expect(body).toContain(`"type":"start","messageId":"msg-1"`);
     expect(body).toContain(`"type":"text-delta","id":"text-0","delta":"喵"`);
+    expect(body).toContain(`"type":"data-run-cursor"`);
+    expect(body).toContain(`"eventType":"message_start"`);
+  });
+
+  it("returns 204 when the durable run is already terminal", async () => {
+    mocks.getCurrentUserId.mockResolvedValue("user-1");
+    mocks.coordinator.getRun.mockResolvedValue({
+      id: "run-1",
+      userId: "user-1",
+      status: "completed",
+    });
+    mocks.getAgentRunService.mockReturnValue({ coordinator: mocks.coordinator });
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/runs/run-1/stream"),
+      { params: Promise.resolve({ id: "run-1" }) },
+    );
+    expect(response.status).toBe(204);
   });
 });

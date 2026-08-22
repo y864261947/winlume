@@ -10,7 +10,6 @@ import type {
   Message,
   ToolCallRecord,
   UIMessagePart,
-  WorkflowExecutionContext,
 } from "@/lib/agent/types";
 import { parseCanvasContent } from "@/lib/agent/canvas-content";
 import { summarizeCanvasElements } from "@/lib/agent/canvas-summary";
@@ -296,8 +295,6 @@ export interface RunAgentTurnOpts {
   projectId?: string;
   /** Durable run identity used for event correlation. */
   runId?: string;
-  /** Server-resolved output contract for one professional Workflow Stage. */
-  workflow?: WorkflowExecutionContext;
   skillIds?: string[];
   skillSelectionMode?: SkillSelectionMode;
   allowedToolNames?: string[];
@@ -319,24 +316,6 @@ export interface RunAgentTurnOpts {
   gatewayUserId?: string;
   /** Model transport override. The runtime still owns tools and persistence. */
   streamChat?: GatewayChatStream;
-}
-
-export function buildWorkflowOutputReminder(
-  workflow: WorkflowExecutionContext | undefined,
-): string {
-  if (!workflow) return "";
-  const outputs = workflow.outputs.map(
-    (output) =>
-      `- outputId=${output.id}; kinds=${output.kinds.join("|")}; ${
-        output.required ? "required" : "optional"
-      }`,
-  );
-  return [
-    `<system-reminder>Workflow Stage ${workflow.stageId} has a server-owned Artifact output contract.`,
-    "Every artifact-producing tool call must set outputId to exactly one declared id below; do not infer ids from Artifact names or prose.",
-    ...outputs,
-    "Produce every required output before finishing the Stage.</system-reminder>",
-  ].join("\n");
 }
 
 export function selectRuntimeSkillIds(
@@ -420,9 +399,6 @@ export async function* runAgentTurn(
     sessionId,
     role: "user",
     content: userText,
-    ...(opts.workflow?.presentation
-      ? { presentation: opts.workflow.presentation }
-      : {}),
     ...(opts.skillIds?.length ? { skillIds: opts.skillIds } : {}),
     createdAt: nowIso(),
   };
@@ -492,14 +468,12 @@ export async function* runAgentTurn(
   );
 
   const projectReminder = buildProjectReminder(project, sharedArtifactCount);
-  const workflowReminder = buildWorkflowOutputReminder(opts.workflow);
   const combinedReminder = [
     reminder,
     projectReminder,
     artifactReminder,
     canvasReminder,
     sheetReminder,
-    workflowReminder,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -788,7 +762,6 @@ export async function* runAgentTurn(
         sessionId,
         ...(projectId ? { projectId } : {}),
         ...(opts.runId ? { runId: opts.runId } : {}),
-        ...(opts.workflow ? { workflow: opts.workflow } : {}),
         artifacts,
         ...(opts.toolJobs ? { toolJobs: opts.toolJobs } : {}),
         messageId: assistantId,
@@ -879,7 +852,6 @@ export async function* runAgentTurn(
   // Workbench guarantee: long / structured deliverables become artifacts even if
   // the model only replied in chat (common with gpt-* when tool use is ignored).
   if (
-    !opts.workflow &&
     !cancelled &&
     !sawError &&
     !wroteArtifact &&

@@ -1,16 +1,16 @@
 "use client";
 
 /**
- * Standalone harness for `useStudioChatV2` (Phase 3 groundwork), rendered
+ * Standalone diagnostic harness for the canonical Studio chat hook, rendered
  * with the official AI Elements components against raw `UIMessage.parts` —
- * not the lossy `UiChatMessage` adapter — so this is what a real AI-SDK
- * chat surface would actually look/feel like. Deliberately isolated from
+ * so this is what a real AI-SDK chat surface would actually look/feel like.
+ * Deliberately isolated from
  * `/studio/c/[sessionId]`: zero risk to the shipping chat UI.
  */
 
 import { useState } from "react";
 import type { UIMessage } from "ai";
-import { useStudioChatV2 } from "@/components/studio/useStudioChatV2";
+import { useStudioChat } from "@/components/studio/useStudioChat";
 import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
 import {
   Conversation,
@@ -92,7 +92,7 @@ export default function StudioV2PreviewPage() {
   const [draft, setDraft] = useState("");
   const [firstSend, setFirstSend] = useState(true);
 
-  const chat = useStudioChatV2({
+  const chat = useStudioChat({
     sessionId,
     model: FALLBACK_DEFAULT_MODEL,
     onSession: (id) => console.log("[v2-preview] session confirmed:", id),
@@ -115,20 +115,20 @@ export default function StudioV2PreviewPage() {
   return (
     <div className="mx-auto flex h-screen max-w-3xl flex-col gap-2 p-4">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>useStudioChatV2 preview · session {sessionId.slice(0, 8)}</span>
+        <span>AI SDK chat diagnostic · session {sessionId.slice(0, 8)}</span>
         <span>{chat.error ? `error: ${chat.error}` : chat.streaming ? "streaming…" : "ready"}</span>
       </div>
 
       <Conversation className="min-h-0 flex-1 rounded-lg border">
         <ConversationContent>
-          {chat.rawMessages.length === 0 ? (
+          {chat.messages.length === 0 ? (
             <ConversationEmptyState
               description="发一条消息试试思考过程、工具调用、计划清单"
               title="还没有消息"
             />
           ) : (
-            chat.rawMessages.map((m, i) => {
-              const isLast = i === chat.rawMessages.length - 1;
+            chat.messages.map((m, i) => {
+              const isLast = i === chat.messages.length - 1;
               const textParts = m.parts.filter(
                 (p): p is Extract<UIMessage["parts"][number], { type: "text" }> => p.type === "text",
               );

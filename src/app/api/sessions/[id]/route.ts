@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/lib/auth/session";
 import { webStore } from "@/lib/host/web/store-singleton";
+import { getAgentRunService } from "@/lib/agent/infrastructure";
 
 type IdContext = { params: Promise<{ id: string }> };
 
-/** GET /api/sessions/[id] — { session, messages } */
+/** GET /api/sessions/[id] — session history plus a durable active-run hint. */
 export async function GET(request: NextRequest, context: IdContext) {
   const userId = await getCurrentUserId();
   if (!userId) {
@@ -18,7 +19,14 @@ export async function GET(request: NextRequest, context: IdContext) {
   }
 
   const messages = await webStore.sessions.listMessages(userId, id);
-  return NextResponse.json({ session, messages });
+  const active = await getAgentRunService().findActiveSessionRun(userId, id);
+  return NextResponse.json({
+    session,
+    messages,
+    activeRun: active
+      ? { id: active.id, status: active.status, message: active.input.message }
+      : null,
+  });
 }
 
 /** PATCH /api/sessions/[id] — { title?, model?, projectId?, pinnedSkillIds? } */

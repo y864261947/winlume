@@ -24,7 +24,7 @@ function parseSequence(value: string | null, fallback: number): number | null {
  * instead of submitting a new one, and always framed as UIMessageChunks —
  * this route exists specifically for `useChat`'s `prepareReconnectToStreamRequest`,
  * which needs an actual UI-message-chunk stream to resume into, not the
- * JSON snapshot `/api/runs/[id]/events` returns for the legacy client.
+ * JSON snapshot exposed by `/api/runs/[id]/events` for diagnostics.
  */
 export async function GET(request: NextRequest, context: IdContext) {
   const userId = await getCurrentUserId();
@@ -43,6 +43,9 @@ export async function GET(request: NextRequest, context: IdContext) {
   const run = await service.coordinator.getRun(runId);
   if (!run || run.userId !== userId) {
     return Response.json({ error: "Run not found" }, { status: 404 });
+  }
+  if (isTerminalStatus(run.status)) {
+    return new Response(null, { status: 204 });
   }
 
   const encoder = new TextEncoder();
@@ -67,10 +70,31 @@ export async function GET(request: NextRequest, context: IdContext) {
         }
       };
 
-      const emit = (event: ReturnType<typeof toClientEvent>, sequence?: number) => {
+      const emit = (
+        event: ReturnType<typeof toClientEvent>,
+        sequence?: number,
+        sourceType?: string,
+        sourceMessageId?: string,
+      ) => {
         if (closed || !event) return;
         try {
-          const frame = uiSseFrame(translateEvent(event), sequence);
+          const frame = uiSseFrame(
+            [
+              ...translateEvent(event),
+              {
+                type: "data-run-cursor",
+                id: "cursor",
+                data: {
+                  runId,
+                  sequence,
+                  eventType: sourceType,
+                  ...(sourceMessageId ? { messageId: sourceMessageId } : {}),
+                },
+                transient: true,
+              },
+            ],
+            sequence,
+          );
           if (frame) controller.enqueue(encoder.encode(frame));
         } catch {
           close();
@@ -89,7 +113,14 @@ export async function GET(request: NextRequest, context: IdContext) {
             const events = await service.coordinator.replay(runId, lastSequence);
             for (const event of events) {
               lastSequence = event.sequence;
-              emit(toClientEvent(runId, event), event.sequence);
+              const source =
+                event.type === "agent.event" ? event.payload.event : undefined;
+              emit(
+                toClientEvent(runId, event),
+                event.sequence,
+                source?.type ?? event.type,
+                source?.type === "message_start" ? source.messageId : undefined,
+              );
             }
             const current = await service.coordinator.getRun(runId);
             if (current && isTerminalStatus(current.status)) {

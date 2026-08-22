@@ -4,9 +4,8 @@
  * explicit start/end bracketing around streamed text/reasoning parts, while
  * `AgentSseEvent` only ever carries raw deltas.
  *
- * Not wired into any route yet — this is the Phase 2 groundwork the plan
- * calls for, kept side-by-side with the legacy `AgentSseEvent` SSE stream
- * that `/api/chat` still speaks by default.
+ * The UI protocol is the only client-facing chat stream. `AgentSseEvent` is
+ * retained as the internal runtime/coordinator event model before translation.
  */
 
 import type { UIMessageChunk } from "ai";
@@ -92,6 +91,7 @@ export function createAgentEventTranslator(): (
 
       case "tool_call":
         return [
+          ...closeOpenParts(),
           {
             type: "tool-input-available",
             toolCallId: event.id,

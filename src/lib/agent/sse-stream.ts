@@ -1,17 +1,10 @@
 /**
- * SSE framing shared by the legacy AgentSseEvent stream and the AI SDK
- * UIMessageChunk protocol (both `/api/chat`'s POST and the durable-run
- * reconnect GET speak this). Kept in one place so the two routes can't
- * silently drift on how a `RunEvent` becomes a client-visible event.
+ * SSE framing for the AI SDK UIMessageChunk protocol used by the Studio chat
+ * POST and durable-run reconnect routes.
  */
 
 import type { RunEvent, RunStatus } from "@/lib/agent/infrastructure";
 import type { AgentSseEvent } from "@/lib/agent/types";
-
-export function sseFrame(event: AgentSseEvent, sequence?: number): string {
-  const id = sequence === undefined ? "" : `id: ${sequence}\n`;
-  return `${id}data: ${JSON.stringify(event)}\n\n`;
-}
 
 /**
  * Frame one or more AI SDK UIMessageChunks under the same replay sequence.

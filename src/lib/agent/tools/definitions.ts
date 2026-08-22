@@ -83,11 +83,6 @@ export const STUDIO_TOOLS = [
             type: "string",
             description: "Short human-readable title for the artifact",
           },
-          outputId: {
-            type: "string",
-            description:
-              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
-          },
           kind: {
             type: "string",
             enum: ["markdown", "html", "text", "json"],
@@ -155,11 +150,6 @@ export const STUDIO_TOOLS = [
             type: "string",
             description: "Short human-readable title for the artifact",
           },
-          outputId: {
-            type: "string",
-            description:
-              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
-          },
           prompt: {
             type: "string",
             description: "Full description of the desired image or edit. Preserve the user's requested operation and constraints; image ids in this text do not replace sourceArtifactIds.",
@@ -213,11 +203,6 @@ export const STUDIO_TOOLS = [
           name: {
             type: "string",
             description: "Short human-readable title for the generated image.",
-          },
-          outputId: {
-            type: "string",
-            description:
-              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
           },
           prompt: {
             type: "string",
@@ -298,11 +283,6 @@ export const STUDIO_TOOLS = [
             type: "string",
             description: "Short human-readable title for the artifact",
           },
-          outputId: {
-            type: "string",
-            description:
-              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
-          },
           mermaid: {
             type: "string",
             description: "Full Mermaid diagram definition (for example, 'flowchart TD\\nA-->B')",
@@ -329,11 +309,6 @@ export const STUDIO_TOOLS = [
           name: {
             type: "string",
             description: "Short human-readable title for the workbook",
-          },
-          outputId: {
-            type: "string",
-            description:
-              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
           },
           sourceArtifactId: {
             type: "string",
@@ -442,11 +417,6 @@ export const STUDIO_TOOLS = [
             description:
               "Segmentation mode. Use auto by default; it maps to general HD segmentation. Use a specialist only when its subject is known.",
           },
-          outputId: {
-            type: "string",
-            description:
-              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
-          },
         },
         required: ["sourceArtifactId"],
         additionalProperties: false,
@@ -470,11 +440,6 @@ export const STUDIO_TOOLS = [
             type: "string",
             enum: ["standard", "generative"],
             description: "standard is stable enhancement; generative may reconstruct more detail.",
-          },
-          outputId: {
-            type: "string",
-            description:
-              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
           },
         },
         required: ["sourceArtifactId", "mode"],
@@ -504,11 +469,6 @@ export const STUDIO_TOOLS = [
             type: "boolean",
             enum: [true],
             description: "Must be true only after the user explicitly confirms they have the necessary rights.",
-          },
-          outputId: {
-            type: "string",
-            description:
-              "Declared Workflow Stage output id. Omit outside a Workflow; required when multiple compatible outputs are available.",
           },
         },
         required: ["sourceArtifactId", "target", "rightsConfirmed"],

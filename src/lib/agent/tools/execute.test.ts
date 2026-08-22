@@ -117,66 +117,6 @@ describe("executeStudioTool + ArtifactStore", () => {
     expect(content?.toString("utf8")).toContain("大纲");
   });
 
-  it("persists server-owned Workflow output provenance", async () => {
-    const { ctx, store } = setup();
-    const result = await executeWriteArtifact(
-      {
-        name: "工作简报",
-        kind: "markdown",
-        content: "# 工作简报",
-        outputId: "brief",
-      },
-      {
-        ...ctx,
-        runId: "run-1",
-        workflow: {
-          workflowId: "workflow-1",
-          runId: "run-1",
-          stageId: "intake",
-          outputs: [{ id: "brief", kinds: ["markdown"], required: true }],
-        },
-      },
-    );
-
-    expect(result.ok).toBe(true);
-    expect(result.artifact?.provenance?.workflow).toEqual({
-      workflowId: "workflow-1",
-      runId: "run-1",
-      stageId: "intake",
-      outputId: "brief",
-    });
-    expect((await store.artifacts.get("u1", result.artifact!.id))?.provenance).toEqual(
-      result.artifact?.provenance,
-    );
-  });
-
-  it("accepts a Workflow output id at the Pack contract limit", async () => {
-    const { ctx } = setup();
-    const outputId = "a".repeat(96);
-
-    const result = await executeWriteArtifact(
-      {
-        name: "最大长度输出",
-        kind: "markdown",
-        content: "# 最大长度输出",
-        outputId,
-      },
-      {
-        ...ctx,
-        runId: "run-long-output",
-        workflow: {
-          workflowId: "workflow-long-output",
-          runId: "run-long-output",
-          stageId: "intake",
-          outputs: [{ id: outputId, kinds: ["markdown"], required: true }],
-        },
-      },
-    );
-
-    expect(result.ok).toBe(true);
-    expect(result.artifact?.provenance?.workflow?.outputId).toBe(outputId);
-  });
-
   it("read_artifact returns content and fails for missing", async () => {
     const { ctx } = setup();
     const missing = await executeReadArtifact({ id: "nope" }, ctx);
@@ -267,38 +207,6 @@ describe("executeGenerateCanvas", () => {
     const content = parseCanvasContent(buffer!.toString("utf8"));
     expect(content?.mermaidSource).toBe("flowchart TD\nA-->B");
     expect(content?.scene).toBeUndefined();
-  });
-
-  it("binds a new canvas to a maximum-length Workflow output", async () => {
-    const { ctx } = setup();
-    const outputId = "c".repeat(96);
-    const result = await executeStudioTool(
-      "generate_canvas",
-      JSON.stringify({
-        name: "上线流程",
-        mermaid: "flowchart TD\nA-->B",
-        outputId,
-      }),
-      {
-        ...ctx,
-        runId: "run-canvas",
-        workflow: {
-          workflowId: "workflow-canvas",
-          runId: "run-canvas",
-          stageId: "design",
-          outputs: [{ id: outputId, kinds: ["canvas"], required: true }],
-        },
-      },
-    );
-
-    expect(result.ok).toBe(true);
-    expect(result.artifact?.provenance?.workflow).toMatchObject({
-      workflowId: "workflow-canvas",
-      runId: "run-canvas",
-      stageId: "design",
-      outputId,
-    });
-    expect(result.artifact?.status).toBe("ready");
   });
 
   it("rejects missing Mermaid", async () => {
@@ -523,54 +431,6 @@ describe("executeGenerateImage", () => {
     const stored = await artifacts.get("u1", parsed.artifacts[0]!.id);
     expect(stored?.status).toBe("pending");
     expect(stored?.kind).toBe("image");
-  });
-
-  it("accepts a maximum-length Workflow output id", async () => {
-    const artifacts = makeStore();
-    let resolveGeneration!: (
-      images: Array<{ bytes: Buffer; mimeType: string }>,
-    ) => void;
-    vi.mocked(generateImage).mockReturnValue(
-      new Promise((resolve) => {
-        resolveGeneration = resolve;
-      }),
-    );
-    const outputId = "i".repeat(96);
-
-    let settled = false;
-    const resultPromise = executeGenerateImage(
-      {
-        name: "Workflow image",
-        prompt: "a red fox",
-        size: "1024x1024",
-        count: 1,
-        outputId,
-      },
-      {
-        userId: "u1",
-        sessionId: "s1",
-        artifacts,
-        runId: "run-long-image-output",
-        workflow: {
-          workflowId: "workflow-long-image-output",
-          runId: "run-long-image-output",
-          stageId: "image",
-          outputs: [{ id: outputId, kinds: ["image"], required: true }],
-        },
-      },
-    );
-    void resultPromise.then(() => {
-      settled = true;
-    });
-    await vi.waitFor(() => expect(generateImage).toHaveBeenCalledOnce());
-    await Promise.resolve();
-    expect(settled).toBe(false);
-    resolveGeneration([{ bytes: Buffer.from("PNGDATA"), mimeType: "image/png" }]);
-    const result = await resultPromise;
-
-    expect(result.ok).toBe(true);
-    expect(result.artifact?.provenance?.workflow?.outputId).toBe(outputId);
-    expect((await artifacts.get("u1", result.artifact!.id))?.status).toBe("ready");
   });
 
   it("rejects invalid arguments", async () => {

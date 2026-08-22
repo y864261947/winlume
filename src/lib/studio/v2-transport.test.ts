@@ -38,6 +38,7 @@ describe("buildSendRequestBody", () => {
     expect(body).toEqual({
       sessionId: "session-1",
       message: "hi",
+      executionMode: "ai-sdk",
       model: "gpt-5.4",
       bootstrap: { title: "hi" },
     });
@@ -45,7 +46,7 @@ describe("buildSendRequestBody", () => {
 
   it("omits override fields entirely when none are given", () => {
     const body = buildSendRequestBody("session-1", [], undefined);
-    expect(body).toEqual({ sessionId: "session-1", message: "" });
+    expect(body).toEqual({ sessionId: "session-1", message: "", executionMode: "ai-sdk" });
   });
 });
 

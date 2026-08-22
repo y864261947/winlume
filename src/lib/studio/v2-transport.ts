@@ -1,5 +1,5 @@
 /**
- * Pure request-shaping for `useStudioChatV2`'s `DefaultChatTransport`,
+ * Pure request-shaping for Studio's `DefaultChatTransport`,
  * pulled out of the hook so it's testable without mounting React/`useChat` —
  * the part of Phase 3 most worth verifying automatically, since nothing
  * here can be exercised by a browser click-through either (it's what
@@ -49,6 +49,7 @@ export function buildSendRequestBody(
   return {
     sessionId,
     message: extractLastMessageText(messages),
+    executionMode: "ai-sdk",
     ...(overrideBody ?? {}),
   };
 }
@@ -69,9 +70,12 @@ export function buildIdempotencyHeaders(
   return key ? { "idempotency-key": key } : undefined;
 }
 
-export function buildReconnectApi(runId: string | null): string {
+export function buildReconnectApi(runId: string | null, after = 0): string {
   if (!runId) {
     throw new Error("No active run to reconnect to");
   }
-  return `/api/runs/${runId}/stream`;
+  const cursor = Math.max(0, Math.floor(after));
+  return cursor === 0
+    ? `/api/runs/${encodeURIComponent(runId)}/stream`
+    : `/api/runs/${encodeURIComponent(runId)}/stream?after=${cursor}`;
 }

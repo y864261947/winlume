@@ -4,10 +4,6 @@ import {
   listDepartments,
   listSkillsFiltered,
 } from "@/lib/agent/skills/registry";
-import {
-  listProductionPacksForScene,
-  toProductionPackMeta,
-} from "@/lib/agent/production-packs/registry";
 import { getWorkScene, WORK_SCENES } from "@/lib/studio/work-scenes";
 import { catalogsFromDepartmentCounts } from "@/lib/studio/tool-categories";
 
@@ -78,10 +74,6 @@ export async function GET(request: NextRequest) {
   }
 
   const departments = await listDepartments();
-  const packs = activeScene
-    ? await listProductionPacksForScene(activeScene.id)
-    : [];
-
   return NextResponse.json({
     skills,
     categories: allCategories,
@@ -89,7 +81,6 @@ export async function GET(request: NextRequest) {
     catalogs: catalogsFromDepartmentCounts(departments),
     scenes: WORK_SCENES,
     activeScene,
-    packs: packs.map(toProductionPackMeta),
     total,
     hasMore: limit ? offset + skills.length < total : false,
   });

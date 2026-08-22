@@ -6,7 +6,6 @@ import type {
   AgentExecutor,
 } from "@/lib/agent/executor/types";
 import type { AgentSseEvent } from "@/lib/agent/types";
-import type { ProductionWorkflowExecution } from "@/lib/agent/production-packs/workflow-execution";
 import type {
   ArtifactStore,
   ProjectStore,
@@ -35,10 +34,9 @@ export interface RunCoordinatorDependencies {
   store: RunStore;
   queue: RunQueue;
   sessions: SessionStore;
-  /** Optional while legacy flat chats remain supported. */
+  /** Optional project scope used by policy and artifact access checks. */
   projects?: ProjectStore;
   artifacts: ArtifactStore;
-  productionWorkflow?: ProductionWorkflowExecution;
   policy?: RunPolicyLike;
   executorFactory?: (mode: AgentExecutionMode) => AgentExecutor;
   leaseTtlMs?: number;
@@ -127,7 +125,6 @@ export class RunCoordinator {
   private readonly sessions: SessionStore;
   private readonly projects?: ProjectStore;
   private readonly artifacts: ArtifactStore;
-  private readonly productionWorkflow?: ProductionWorkflowExecution;
   private readonly policy: RunPolicyLike;
   private readonly executorFactory: (mode: AgentExecutionMode) => AgentExecutor;
   private readonly leaseTtlMs: number;
@@ -143,7 +140,6 @@ export class RunCoordinator {
     this.sessions = dependencies.sessions;
     this.projects = dependencies.projects;
     this.artifacts = dependencies.artifacts;
-    this.productionWorkflow = dependencies.productionWorkflow;
     this.policy = dependencies.policy ?? createStaticRunPolicy();
     this.executorFactory = dependencies.executorFactory ?? createAgentExecutor;
     this.leaseTtlMs = validatePositive(
@@ -380,14 +376,12 @@ export class RunCoordinator {
       const executor = this.executorFactory(executionRun.input.executionMode);
       retrySafe = executor.retrySafety === "safe";
       executionStarted = true;
-      const workflow = await this.productionWorkflow?.executionContext(executionRun);
       const executionInput: AgentExecutionInput = {
         userId: executionRun.userId,
         sessionId: executionRun.sessionId,
         userText: executionRun.input.message,
         projectId: executionRun.projectId,
         runId: executionRun.id,
-        ...(workflow ? { workflow } : {}),
         model: executionRun.input.model,
         skillIds: executionRun.input.skillIds,
         skillSelectionMode: executionRun.input.skillSelectionMode,
@@ -556,12 +550,9 @@ export class RunCoordinator {
           retrySafe,
         );
       }
-      const completed =
-        this.productionWorkflow && executionRun.metadata?.production
-          ? await this.productionWorkflow.completeRun(executionRun.id)
-          : await this.store.transitionRun(executionRun.id, "completed", {
-              reason: "executor completed",
-            });
+      const completed = await this.store.transitionRun(executionRun.id, "completed", {
+        reason: "executor completed",
+      });
       await this.publishRunEvents(executionRun.id);
       await this.queue.ack(queueLease.leaseId);
       return resultFor(completed, true, false, eventCount);

@@ -4,26 +4,12 @@
  */
 
 import type {
-  AgentSseEvent,
   Artifact,
   Message,
   Project,
   Session,
 } from "@/lib/agent/types";
-import type { ProductionPackMeta } from "@/lib/agent/production-packs/contracts";
-import type { ProductionPackAvailability } from "@/lib/agent/production-packs/availability";
-import type {
-  ProductionWorkflowAction,
-  ProductionWorkflowCommand,
-  ProductionWorkflowProjection,
-} from "@/lib/agent/production-packs/workflow-contract";
 import { referenceVideoMimeType } from "@/lib/studio/video-upload";
-
-export type {
-  ProductionWorkflowAction,
-  ProductionWorkflowCommand,
-  ProductionWorkflowProjection,
-};
 
 const PENDING_FIRST_MESSAGE_KEY = "reizo:pending-first-message";
 
@@ -160,170 +146,6 @@ export async function createSession(input?: {
   return parseJson<Session>(response);
 }
 
-export type WorkflowPackCatalogEntry = ProductionPackMeta & {
-  availability: ProductionPackAvailability;
-};
-
-export type WorkflowPackLaunchResult = {
-  pack: WorkflowPackCatalogEntry;
-  session: Session;
-  initialStage: {
-    id: string;
-    title: string;
-    index: number;
-    status: "ready";
-  };
-};
-
-export type WorkflowCommandResult = {
-  command: { sourceRunId: string; startedRunId?: string; created: boolean };
-  workflow: ProductionWorkflowProjection;
-};
-
-export type WorkflowRunEvent = {
-  version: number;
-  eventId: string;
-  runId: string;
-  sequence: number;
-  type: string;
-  occurredAt: string;
-  producer: string;
-  payload: unknown;
-  idempotencyKey?: string;
-  correlationId?: string;
-  causationId?: string;
-};
-
-export type WorkflowRunEventsResult = {
-  run: {
-    id: string;
-    sessionId: string;
-    status: NonNullable<ProductionWorkflowProjection["run"]>["status"];
-    projectId?: string;
-    createdAt: string;
-    updatedAt: string;
-    error?: { code: string; message: string; retryable?: boolean };
-  };
-  events: WorkflowRunEvent[];
-  nextSequence: number;
-};
-
-export async function listWorkflowPacks(
-  scene?: string,
-): Promise<WorkflowPackCatalogEntry[]> {
-  const query = scene ? `?scene=${encodeURIComponent(scene)}` : "";
-  const response = await fetch(`/api/packs${query}`, {
-    headers: withUserHeaders(),
-    credentials: "same-origin",
-  });
-  if (response.status === 401) throw new StudioApiError("请先登录", 401);
-  if (!response.ok) {
-    throw await toStudioApiError(response, "加载工作流失败");
-  }
-  const body = await parseJson<{ packs?: WorkflowPackCatalogEntry[] }>(response);
-  return Array.isArray(body.packs) ? body.packs : [];
-}
-
-export async function getWorkflowPack(
-  id: string,
-): Promise<WorkflowPackCatalogEntry> {
-  const response = await fetch(`/api/packs/${encodeURIComponent(id)}`, {
-    headers: withUserHeaders(),
-    credentials: "same-origin",
-  });
-  if (response.status === 401) throw new StudioApiError("请先登录", 401);
-  if (response.status === 404) throw new StudioApiError("工作流不存在", 404);
-  if (!response.ok) {
-    throw await toStudioApiError(response, "加载工作流失败");
-  }
-  const body = await parseJson<{ pack: WorkflowPackCatalogEntry }>(response);
-  return body.pack;
-}
-
-export async function launchWorkflowPack(
-  id: string,
-  input: {
-    version: string;
-    intake: Record<string, unknown>;
-    projectId?: string;
-    sessionId?: string;
-  },
-): Promise<WorkflowPackLaunchResult> {
-  const response = await fetch(
-    `/api/packs/${encodeURIComponent(id)}/launch`,
-    {
-      method: "POST",
-      headers: withUserHeaders(),
-      credentials: "same-origin",
-      body: JSON.stringify(input),
-    },
-  );
-  if (response.status === 401) throw new StudioApiError("请先登录", 401);
-  if (!response.ok) {
-    throw await toStudioApiError(response, "启动工作流失败");
-  }
-  return parseJson<WorkflowPackLaunchResult>(response);
-}
-
-export async function getSessionWorkflow(
-  sessionId: string,
-): Promise<ProductionWorkflowProjection> {
-  const response = await fetch(
-    `/api/sessions/${encodeURIComponent(sessionId)}/workflow`,
-    {
-      headers: withUserHeaders(),
-      credentials: "same-origin",
-    },
-  );
-  if (!response.ok) {
-    throw await toStudioApiError(response, "加载工作流状态失败");
-  }
-  return (await parseJson<{ workflow: ProductionWorkflowProjection }>(response))
-    .workflow;
-}
-
-export async function executeSessionWorkflowCommand(
-  sessionId: string,
-  command: ProductionWorkflowCommand,
-  idempotencyKey: string,
-): Promise<WorkflowCommandResult> {
-  const response = await fetch(
-    `/api/sessions/${encodeURIComponent(sessionId)}/workflow`,
-    {
-      method: "POST",
-      headers: withUserHeaders({ "idempotency-key": idempotencyKey }),
-      credentials: "same-origin",
-      body: JSON.stringify(command),
-    },
-  );
-  if (!response.ok) {
-    throw await toStudioApiError(response, "更新工作流状态失败");
-  }
-  return parseJson<WorkflowCommandResult>(response);
-}
-
-export async function getRunEvents(
-  runId: string,
-  options: { after?: number; limit?: number; signal?: AbortSignal } = {},
-): Promise<WorkflowRunEventsResult> {
-  const query = new URLSearchParams();
-  if (options.after !== undefined) query.set("after", String(options.after));
-  if (options.limit !== undefined) query.set("limit", String(options.limit));
-  const suffix = query.size > 0 ? `?${query.toString()}` : "";
-  const response = await fetch(
-    `/api/runs/${encodeURIComponent(runId)}/events${suffix}`,
-    {
-      headers: withUserHeaders(),
-      credentials: "same-origin",
-      signal: options.signal,
-    },
-  );
-  if (!response.ok) {
-    throw await toStudioApiError(response, "读取工作流运行记录失败");
-  }
-  return parseJson<WorkflowRunEventsResult>(response);
-}
-
 /* ── Projects ─────────────────────────────────────────────── */
 
 export async function listProjects(): Promise<Project[]> {
@@ -426,6 +248,7 @@ export async function deleteProject(id: string): Promise<void> {
 export async function getSessionBundle(sessionId: string): Promise<{
   session: Session;
   messages: Message[];
+  activeRun: { id: string; status: string; message: string } | null;
 }> {
   const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, {
     headers: withUserHeaders(),
@@ -444,7 +267,11 @@ export async function getSessionBundle(sessionId: string): Promise<{
       response.status,
     );
   }
-  return parseJson<{ session: Session; messages: Message[] }>(response);
+  return parseJson<{
+    session: Session;
+    messages: Message[];
+    activeRun: { id: string; status: string; message: string } | null;
+  }>(response);
 }
 
 /** PATCH /api/sessions/[id] — title, model, and/or pinnedSkillIds (replace entire pin list). */
@@ -501,8 +328,6 @@ export type ChatRequestBody = {
   sessionId?: string;
   projectId?: string;
   message?: string;
-  /** Server-owned Workflow Session action; Stage details are derived server-side. */
-  workflowAction?: "start";
   model?: string;
   /** Session-bound, server-validated capability launch intent. */
   capabilityPresetId?: string;
@@ -538,95 +363,6 @@ export async function stopChatTurn(sessionId: string): Promise<void> {
       (body as { error?: string }).error || "停止失败",
       response.status,
     );
-  }
-}
-
-/**
- * POST /api/chat and parse SSE AgentSseEvent frames.
- * Calls onEvent for each event; throws on non-OK HTTP (before stream).
- */
-export async function streamChat(
-  body: ChatRequestBody,
-  opts: {
-    signal?: AbortSignal;
-    onEvent: (event: AgentSseEvent) => void;
-  },
-): Promise<void> {
-  const response = await fetch("/api/chat", {
-    method: "POST",
-    headers: withUserHeaders(),
-    body: JSON.stringify(body),
-    credentials: "same-origin",
-    signal: opts.signal,
-  });
-
-  if (response.status === 401) {
-    throw new StudioApiError("请先登录", 401);
-  }
-
-  if (response.status === 409) {
-    throw new StudioApiError(
-      "该会话已有进行中的回复，请稍候或点击停止后再发送",
-      409,
-    );
-  }
-
-  if (!response.ok) {
-    let message = `请求失败 (${response.status})`;
-    try {
-      const errBody = (await response.json()) as { error?: string };
-      if (errBody.error) message = errBody.error;
-    } catch {
-      /* ignore */
-    }
-    throw new StudioApiError(message, response.status);
-  }
-
-  if (!response.body) {
-    throw new StudioApiError("响应没有可读流", 500);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  const consume = (raw: string) => {
-    // Normalize CRLF
-    const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    const parts = normalized.split("\n\n");
-    // Last part may be incomplete
-    const complete = parts.slice(0, -1);
-    const rest = parts[parts.length - 1] ?? "";
-    for (const block of complete) {
-      for (const line of block.split("\n")) {
-        if (!line.startsWith("data:")) continue;
-        const payload = line.slice(5).replace(/^ /, "").trim();
-        if (!payload || payload === "[DONE]") continue;
-        try {
-          const event = JSON.parse(payload) as AgentSseEvent;
-          opts.onEvent(event);
-        } catch {
-          /* skip malformed frame */
-        }
-      }
-    }
-    return rest;
-  };
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      buffer = consume(buffer);
-    }
-    buffer += decoder.decode();
-    if (buffer.trim()) {
-      // Final frame without trailing blank line
-      buffer = consume(buffer.endsWith("\n\n") ? buffer : `${buffer}\n\n`);
-    }
-  } finally {
-    reader.releaseLock();
   }
 }
 
@@ -916,8 +652,8 @@ function readPendingFirstMessage(
  * home page (after uploads/video-analysis/sheet-import and @-mention
  * resolution finish) and delivered to the session page, which is the only
  * place that can actually call `sendMessage` (useChat's state is per-mount,
- * unlike the legacy module store — there is no way to "pre-start" a turn
- * from a page that's about to unmount).
+ * so there is no way to "pre-start" a turn from a page that's about to
+ * unmount).
  */
 export type ResolvedFirstMessageOverrides = {
   model?: string;
@@ -935,9 +671,9 @@ type PendingFirstMessageListener = {
 };
 
 /**
- * In-memory only (module-level, survives the client-side route change same
- * as the legacy store did) — this is same-tab coordination between two
- * mounted components, not persistence, so sessionStorage doesn't apply.
+ * In-memory only (module-level, survives the client-side route change) — this
+ * is same-tab coordination between two mounted components, not persistence,
+ * so sessionStorage doesn't apply.
  */
 const pendingFirstMessageListeners = new Map<string, PendingFirstMessageListener>();
 const resolvedFirstMessages = new Map<string, ResolvedFirstMessageOverrides>();

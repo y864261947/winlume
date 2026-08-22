@@ -129,21 +129,6 @@ describe("CodexExecutor configuration", () => {
       runStreamed: vi.fn().mockResolvedValue({ events: events() }),
     });
     const input = executionInput();
-    input.workflow = {
-      workflowId: "workflow-1",
-      runId: "run-1",
-      stageId: "implementation",
-      outputs: [],
-      presentation: {
-        kind: "workflow_run",
-        workflowId: "workflow-1",
-        runId: "run-1",
-        stageId: "implementation",
-        stageTitle: "关键实现",
-        iteration: 1,
-        intent: "retry_start",
-      },
-    };
     const actual: AgentSseEvent[] = [];
 
     for await (const event of new CodexExecutor().execute(input)) actual.push(event);
@@ -179,7 +164,6 @@ describe("CodexExecutor configuration", () => {
         expect.objectContaining({
           role: "user",
           content: "fix the tests",
-          presentation: input.workflow.presentation,
         }),
       ],
     );

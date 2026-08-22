@@ -104,4 +104,40 @@ describe("streamAiSdkGatewayChat auth", () => {
     expect(headers.get("x-reizo-internal-user-id")).toBeNull();
     vi.unstubAllEnvs();
   });
+
+  it("forwards reasoning effort and maps gateway reasoning_content to thinking", async () => {
+    const response = [
+      'data: {"id":"chatcmpl-1","choices":[{"index":0,"delta":{"reasoning_content":"先分析约束","content":"这是最终答案"},"finish_reason":null}]}',
+      "",
+      'data: {"id":"chatcmpl-1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+      "",
+      "data: [DONE]",
+      "",
+    ].join("\n");
+    const fetchImpl = vi.fn(async () => new Response(response, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    }));
+    const chunks: ChatChunk[] = [];
+
+    for await (const chunk of streamAiSdkGatewayChat({
+      model: "gpt-5.4",
+      messages: [{ role: "user", content: "x" }],
+      reasoningEffort: "medium",
+      baseUrl: "https://gateway.test",
+      chatPath: "/v1/chat/completions",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual([
+      { kind: "thinking", text: "先分析约束" },
+      { kind: "text", text: "这是最终答案" },
+    ]);
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      reasoning_effort: "medium",
+    });
+  });
 });

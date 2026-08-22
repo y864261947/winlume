@@ -113,7 +113,6 @@ function createSessionStore(rootDir: string): SessionStore {
         ...(input.capabilityPresetId !== undefined
           ? { capabilityPresetId: input.capabilityPresetId }
           : {}),
-        ...(input.workflow !== undefined ? { workflow: input.workflow } : {}),
         ...(input.codexThreadId !== undefined
           ? { codexThreadId: input.codexThreadId }
           : {}),

@@ -205,9 +205,6 @@ export class CodexExecutor implements AgentExecutor {
         sessionId: input.sessionId,
         role: "user",
         content: input.userText,
-        ...(input.workflow?.presentation
-          ? { presentation: input.workflow.presentation }
-          : {}),
         createdAt: new Date().toISOString(),
       },
     ]);

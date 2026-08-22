@@ -96,20 +96,13 @@ describe("toGatewayMessages", () => {
   });
 });
 
-describe("Workflow execution policy", () => {
+describe("runtime tool selection", () => {
   it("replaces pinned Skills and exposes only explicitly allowed tools", () => {
-    expect(
-      selectRuntimeSkillIds(
-        ["project-pinned", "session-pinned"],
-        ["pack-stage"],
-        "replace",
-      ),
-    ).toEqual(["pack-stage"]);
-    expect(
-      selectStudioTools(["read_artifact", "write_artifact"]).map(
-        (tool) => tool.function.name,
-      ),
-    ).toEqual(["write_artifact", "read_artifact"]);
+    expect(selectRuntimeSkillIds(["project-pinned", "session-pinned"], ["focused"], "replace")).toEqual(["focused"]);
+    expect(selectStudioTools(["read_artifact", "write_artifact"]).map((tool) => tool.function.name)).toEqual([
+      "write_artifact",
+      "read_artifact",
+    ]);
   });
 });
 
