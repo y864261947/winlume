@@ -630,6 +630,7 @@ export default function ModelMarket() {
   const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
   const [onboardingPlacement, setOnboardingPlacement] = useState<OnboardingPlacement | null>(null);
   const [activeApiId, setActiveApiId] = useState<string | null>(null);
+  const apiFlyoutCloseTimerRef = useRef<number | null>(null);
   const balance = formatBalance(account?.quota, balanceConfig);
   const activePath = productPaths.find((path) => path.id === activePathId) ?? productPaths[0];
   const stackPaths = stackOrderFrom(activePath.id).slice(0, STACK_VISIBLE);
@@ -713,6 +714,9 @@ export default function ModelMarket() {
       flyTimersRef.current = [];
       if (cooldownTimerRef.current != null) {
         window.clearTimeout(cooldownTimerRef.current);
+      }
+      if (apiFlyoutCloseTimerRef.current != null) {
+        window.clearTimeout(apiFlyoutCloseTimerRef.current);
       }
     };
   }, []);
@@ -844,6 +848,29 @@ export default function ModelMarket() {
     setOnboardingStep(Math.max(0, next));
   }
 
+  // The supplier panel is deliberately positioned outside its compact row. A
+  // short exit grace period keeps it open while the cursor crosses that visual
+  // boundary, preventing the open/close loop that made lower rows (notably RAG)
+  // flicker.
+  function clearApiFlyoutCloseTimer() {
+    if (apiFlyoutCloseTimerRef.current == null) return;
+    window.clearTimeout(apiFlyoutCloseTimerRef.current);
+    apiFlyoutCloseTimerRef.current = null;
+  }
+
+  function openApiFlyout(id: string) {
+    clearApiFlyoutCloseTimer();
+    setActiveApiId(id);
+  }
+
+  function scheduleApiFlyoutClose() {
+    clearApiFlyoutCloseTimer();
+    apiFlyoutCloseTimerRef.current = window.setTimeout(() => {
+      setActiveApiId(null);
+      apiFlyoutCloseTimerRef.current = null;
+    }, 180);
+  }
+
   return (
     <div className="portal-home">
       <div className="portal-frame">
@@ -920,11 +947,14 @@ export default function ModelMarket() {
                   className="portal-api-row"
                   role="listitem"
                   tabIndex={0}
-                  onMouseEnter={() => setActiveApiId(item.id)}
-                  onMouseLeave={() => setActiveApiId(null)}
-                  onFocusCapture={() => setActiveApiId(item.id)}
+                  onMouseEnter={() => openApiFlyout(item.id)}
+                  onMouseLeave={scheduleApiFlyoutClose}
+                  onFocusCapture={() => openApiFlyout(item.id)}
                   onBlurCapture={(event) => {
-                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setActiveApiId(null);
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                      clearApiFlyoutCloseTimer();
+                      setActiveApiId(null);
+                    }
                   }}
                   onClick={(event) => {
                     if ((event.target as HTMLElement).closest("a")) return;
@@ -952,7 +982,13 @@ export default function ModelMarket() {
                     <ChevronRight aria-hidden />
                   </PortalLink>
                   {activeApiId === item.id ? (
-                    <div className="portal-api-touch-card" role="dialog" aria-label={`${item.label}热门模型`}>
+                    <div
+                      className="portal-api-touch-card"
+                      role="dialog"
+                      aria-label={`${item.label}热门模型`}
+                      onMouseEnter={clearApiFlyoutCloseTimer}
+                      onMouseLeave={scheduleApiFlyoutClose}
+                    >
                       <div className="portal-api-touch-head">
                         <div><AssetIcon src={item.icon} /><strong>{item.label}</strong><span>{item.brands.length}+ 个热门能力</span></div>
                         <PortalLink href={item.href}>查看全部<ChevronRight aria-hidden /></PortalLink>
