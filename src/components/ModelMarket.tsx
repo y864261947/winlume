@@ -7,6 +7,7 @@ import { BarChart3, Bell, ChevronLeft, ChevronRight, CircleHelp, Code2, Crown, F
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
 import { formatBalance } from "@/lib/account";
+import { getVendorByKey } from "@/lib/catalog/vendors";
 import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
 
 declare global {
@@ -61,7 +62,7 @@ type OnboardingPlacement = {
 type AssetIconProps = { src: string; alt?: string; className?: string };
 
 function AssetIcon({ src, alt = "", className }: AssetIconProps) {
-  return <Image src={src} alt={alt} width={38} height={38} className={className} />;
+  return <Image src={src} alt={alt} width={38} height={38} className={className} unoptimized />;
 }
 
 type PortalLinkProps = {
@@ -109,7 +110,7 @@ type ApiCategory = {
 
 const apiProvider = (label: string, key: string, description: string): ApiBrandLink => ({
   label,
-  icon: `/vendors/${key}.svg`,
+  icon: getVendorByKey(key).logo,
   description,
   href: `/products?cate=api&brand=${encodeURIComponent(key)}`,
 });
@@ -959,7 +960,7 @@ export default function ModelMarket() {
                       <div className="portal-api-touch-grid">
                         {item.brands.map((brand) => (
                           <PortalLink key={brand.label} href={brand.href}>
-                            <span><Image src={brand.icon} alt="" width={28} height={28} /></span>
+                            <span><Image src={brand.icon} alt="" width={28} height={28} unoptimized /></span>
                             <strong>{brand.label}</strong>
                             <small>{brand.description}</small>
                           </PortalLink>

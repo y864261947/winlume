@@ -2,6 +2,17 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "unpkg.com",
+        port: "",
+        pathname: "/@lobehub/icons-static-svg@1.94.0/icons/**",
+        search: "",
+      },
+    ],
+  },
   // The OSS client is used only by Node route handlers. Keeping it external
   // avoids webpack resolving its optional coffee-script compiler dependency.
   serverExternalPackages: ["ali-oss"],

@@ -39,7 +39,7 @@ export interface PlazaModel {
   /** Stable vendor key, e.g. openai / anthropic */
   vendor_key?: string;
   vendor_name?: string;
-  /** Public path to vendor logo (placeholder until brand assets land) */
+  /** Public or CDN path to the vendor brand mark. */
   vendor_logo?: string;
   quota_type: number;
   /** Fixed USD price when quota_type === 1 / mode fixed */
