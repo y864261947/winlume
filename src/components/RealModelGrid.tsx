@@ -22,6 +22,7 @@ export type RealModelGridProps = {
   onClearFilters?: () => void;
   selectedModelName?: string;
   onSelectModel?: (model: PlazaModel) => void;
+  variant?: "default" | "directory";
 };
 
 export function RealModelGrid({
@@ -34,6 +35,7 @@ export function RealModelGrid({
   onClearFilters,
   selectedModelName,
   onSelectModel,
+  variant = "default",
 }: RealModelGridProps) {
   const [models, setModels] = useState<PlazaModel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +77,9 @@ export function RealModelGrid({
     setRetryCount((count) => count + 1);
   };
 
-  const gridClass = compact
+  const gridClass = variant === "directory"
+    ? "portal-model-directory-grid"
+    : compact
     ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
     : "grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5";
 
@@ -147,7 +151,7 @@ export function RealModelGrid({
   return (
     <div className={gridClass}>
       {visible.map((model) => (
-        <ModelPlazaCard key={model.model_name} model={model} selected={selectedModelName === model.model_name} onSelect={onSelectModel} />
+        <ModelPlazaCard key={model.model_name} model={model} variant={variant} selected={selectedModelName === model.model_name} onSelect={onSelectModel} />
       ))}
     </div>
   );

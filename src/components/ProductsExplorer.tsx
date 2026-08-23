@@ -7,10 +7,17 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowRight,
   Bell,
+  BookOpen,
   ChevronRight,
+  Database,
+  FileSearch,
   LayoutGrid,
+  MessageSquareText,
   PackageSearch,
   Search,
+  SlidersHorizontal,
+  Volume2,
+  Video,
   X,
 } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
@@ -21,7 +28,6 @@ import { categoriesByCate, type CateSlug } from "@/data/taxonomy";
 import { filterProducts } from "@/data/products";
 import { formatBalance } from "@/lib/account";
 import {
-  PLAZA_CAPABILITY_FILTERS,
   type PlazaCapabilityFilter,
   vendorsPresentIn,
 } from "@/lib/catalog/plaza-filters";
@@ -36,6 +42,15 @@ interface Props {
 }
 
 type ViewMode = "models" | "apps";
+
+const MODEL_CATEGORIES = [
+  { id: "llm", label: "语言推理", providers: "OpenAI · Anthropic · Gemini", icon: MessageSquareText },
+  { id: "image", label: "图像处理", providers: "DALL·E · FLUX · Stability AI", icon: FileSearch },
+  { id: "video", label: "视频处理", providers: "Sora · Kling · Runway · Pika", icon: Video },
+  { id: "audio", label: "音频处理", providers: "Whisper · ElevenLabs · MiniMax", icon: Volume2 },
+  { id: "embed", label: "RAG 知识库", providers: "Embedding · Rerank · Vector", icon: Database },
+  { id: "other", label: "信息检索", providers: "Jina AI · Cohere · Google", icon: Search },
+] as const;
 
 function resolveMode(initialCate?: string): ViewMode {
   if (initialCate === "app") return "apps";
@@ -184,15 +199,15 @@ export default function ProductsExplorer({
         <div className="portal-directory-layout">
           <aside className="portal-directory-side">
             <h2>{mode === "models" ? "API模型" : "工具分类"}</h2>
-            <button type="button" className={!appTag && capability === "all" ? "is-active" : undefined} onClick={() => mode === "models" ? resetModelFilters() : setAppTag(undefined)}>
+            <button type="button" className={`portal-directory-all ${!appTag && capability === "all" ? "is-active" : ""}`} onClick={() => mode === "models" ? resetModelFilters() : setAppTag(undefined)}>
               {mode === "models" ? "全部模型" : "全部应用"}<ChevronRight aria-hidden />
             </button>
             {mode === "models" ? (
-              [
-                ["llm", "语言推理"], ["image", "图像处理"], ["audio", "音频处理"],
-                ["video", "视频处理"], ["embed", "RAG知识库"], ["other", "信息检索"],
-              ].map(([id, label]) => (
-                <button key={id} type="button" className={capability === id ? "is-active" : undefined} onClick={() => setCapability(id as PlazaCapabilityFilter)}>{label}<ChevronRight aria-hidden /></button>
+              MODEL_CATEGORIES.map(({ id, label, providers, icon: Icon }) => (
+                <button key={id} type="button" className="portal-directory-model-row" data-active={capability === id || undefined} onClick={() => setCapability(id as PlazaCapabilityFilter)}>
+                  <Icon aria-hidden />
+                  <span><strong>{label}</strong><small>{providers}</small></span><ChevronRight aria-hidden />
+                </button>
               ))
             ) : appCategories.map((category) => (
               <button key={category.slug} type="button" className={appTag === category.slug ? "is-active" : undefined} onClick={() => setAppTag(category.slug)}>{category.name}<ChevronRight aria-hidden /></button>
@@ -201,13 +216,17 @@ export default function ProductsExplorer({
           <div className="portal-directory-main">
         {/* Hero — mode is switched via top nav (AI 应用 / API) */}
         <section className="portal-catalog-hero">
-          <p className="portal-label">Catalog</p>
-          <h1>{mode === "models" ? "模型 API 目录" : "AI 应用目录"}</h1>
-          <p className="portal-catalog-lead">
-            {mode === "models"
-              ? "统一查看已导入定价目录中的模型；选好后可带着模型直接进入工作台继续使用。"
-              : "精选应用与工具，按场景挑选；进入工作台后仍可修改提示词与模型。"}
-          </p>
+          <div className="portal-catalog-title-row">
+            <div>
+              <h1>{mode === "models" ? "全部 API 模型" : "AI 应用目录"}</h1>
+              <p className="portal-catalog-lead">
+                {mode === "models"
+                  ? "汇集全球优质 AI 模型，通过 API 快速集成到你的应用中。"
+                  : "精选应用与工具，按场景挑选；进入工作台后仍可修改提示词与模型。"}
+              </p>
+            </div>
+            {mode === "models" ? <div className="portal-catalog-hero-links"><Link href="/docs/api"><BookOpen aria-hidden /> API 文档</Link><Link href="/pricing">计费说明</Link></div> : null}
+          </div>
           <form
             className="portal-catalog-search"
             onSubmit={(event) => event.preventDefault()}
@@ -249,51 +268,23 @@ export default function ProductsExplorer({
 
         {mode === "models" ? (
           <>
-            <div className="portal-catalog-filters">
-              <p className="portal-catalog-filter-label">能力</p>
-              <div className="portal-chip-list">
-                {PLAZA_CAPABILITY_FILTERS.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={capability === item.id ? "is-selected" : undefined}
-                    onClick={() => setCapability(item.id)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+            <div className="portal-model-controls" aria-label="模型筛选">
+              <button type="button" onClick={() => setVendorKey(undefined)}>厂商 <ChevronRight aria-hidden /></button>
+              <button type="button" onClick={() => setCapability("all")}>能力 <ChevronRight aria-hidden /></button>
+              <button type="button" onClick={resetModelFilters}>价格 <ChevronRight aria-hidden /></button>
+              <button type="button" onClick={() => setCapability("llm")}>上下文 <ChevronRight aria-hidden /></button>
+              <button type="button" className="portal-model-control-sort">排序：综合推荐 <ChevronRight aria-hidden /></button>
+              <button type="button" className="portal-model-control-sliders" aria-label="更多筛选"><SlidersHorizontal aria-hidden /></button>
             </div>
 
             {vendorChips.length > 0 ? (
-              <div className="portal-catalog-filters">
-                <p className="portal-catalog-filter-label">厂商</p>
-                <div className="portal-chip-list portal-catalog-vendors">
-                  <button
-                    type="button"
-                    className={!vendorKey ? "is-selected" : undefined}
-                    onClick={() => setVendorKey(undefined)}
-                  >
-                    全部厂商
-                  </button>
-                  {vendorChips.map((vendor) => (
-                    <button
-                      key={vendor.key}
-                      type="button"
-                      className={vendorKey === vendor.key ? "is-selected" : undefined}
-                      onClick={() =>
-                        setVendorKey(vendor.key === vendorKey ? undefined : vendor.key)
-                      }
-                    >
-                      <img
-                        src={vendor.logo}
-                        alt=""
-                        width={16}
-                        height={16}
-                        className="portal-catalog-vendor-logo"
-                      />
-                      {vendor.brandLabel}
-                      <span className="portal-catalog-count">{vendor.count}</span>
+              <div className="portal-model-vendor-strip">
+                <div className="portal-model-strip-title"><span>🔥</span><strong>热门推荐</strong></div>
+                <div className="portal-model-vendor-scroller">
+                  {vendorChips.slice(0, 7).map((vendor) => (
+                    <button key={vendor.key} type="button" className={vendorKey === vendor.key ? "is-selected" : undefined} onClick={() => setVendorKey(vendor.key === vendorKey ? undefined : vendor.key)}>
+                      <img src={vendor.logo} alt="" width={26} height={26} />
+                      <span>{vendor.brandLabel}</span><small>{vendor.count} 个模型</small>
                     </button>
                   ))}
                 </div>
@@ -305,8 +296,8 @@ export default function ProductsExplorer({
                 <h2>全部模型</h2>
                 <p>
                   {hasModelFilters
-                    ? `已筛选 ${plazaStats.filtered} / ${plazaStats.total} 个模型`
-                    : `共 ${plazaStats.total || "—"} 个模型 · 价格含 model / group 倍率`}
+                  ? `已筛选 ${plazaStats.filtered} / ${plazaStats.total} 个模型`
+                    : `共 ${plazaStats.total || "—"} 个模型`}
                 </p>
               </div>
               {hasModelFilters ? (
@@ -329,6 +320,7 @@ export default function ProductsExplorer({
               onClearFilters={resetModelFilters}
               selectedModelName={selectedModel?.model_name}
               onSelectModel={setSelectedModel}
+              variant="directory"
             />
             {selectedModel ? (() => {
               const vendor = resolvePlazaVendor(selectedModel, { name: selectedModel.vendor_name, logo: selectedModel.vendor_logo });

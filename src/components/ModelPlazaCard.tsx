@@ -28,9 +28,10 @@ type Props = {
   docsHref?: string;
   selected?: boolean;
   onSelect?: (model: PlazaModel) => void;
+  variant?: "default" | "directory";
 };
 
-export function ModelPlazaCard({ model, docsHref, selected, onSelect }: Props) {
+export function ModelPlazaCard({ model, docsHref, selected, onSelect, variant = "default" }: Props) {
   const vendor = resolvePlazaVendor(model, {
     name: model.vendor_name,
     logo: model.vendor_logo,
@@ -43,6 +44,33 @@ export function ModelPlazaCard({ model, docsHref, selected, onSelect }: Props) {
   const { favorites, toggleFavorite } = useModals();
   const favoriteId = `model:${model.model_name}`;
   const favorite = favorites.includes(favoriteId);
+
+  if (variant === "directory") {
+    return (
+      <article className={`portal-directory-model-card${selected ? " is-selected" : ""}`}>
+        <button
+          type="button"
+          className="portal-directory-model-main"
+          onClick={() => onSelect?.(model)}
+          aria-label={`查看 ${model.model_name} 的详情`}
+        >
+          <span className="portal-directory-model-logo" style={{ background: vendor.heroGradient }}>
+            {!logoFailed ? <img src={vendor.logo} alt="" onError={() => setLogoFailed(true)} /> : <span>{vendor.brandLabel.slice(0, 1)}</span>}
+          </span>
+          <span className="portal-directory-model-title"><strong>{model.model_name}</strong><small>{vendor.brandLabel}</small></span>
+          <span className="portal-directory-model-hot">热门</span>
+        </button>
+        <div className="portal-directory-model-tags">{tags.slice(0, 3).map((tag) => <span key={tag.label}>{tag.label}</span>)}</div>
+        <dl className="portal-directory-model-pricing">
+          {price.kind === "ratio" ? <><div><dt>输入</dt><dd>{price.input.replace("输入：", "")}</dd></div><div><dt>输出</dt><dd>{price.output.replace("输出：", "")}</dd></div></> : <div><dt>调用价格</dt><dd>{price.text.replace("价格：", "")}</dd></div>}
+        </dl>
+        <div className="portal-directory-model-actions">
+          <button type="button" onClick={() => onSelect?.(model)}>查看详情</button>
+          <Link href={studioHref}>立即调用</Link>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className={`portal-model-plaza-card group relative flex h-full flex-col overflow-hidden${selected ? " is-selected" : ""}`}>
