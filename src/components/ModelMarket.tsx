@@ -918,11 +918,21 @@ export default function ModelMarket() {
                   key={item.id}
                   className="portal-api-row"
                   role="listitem"
+                  tabIndex={0}
                   onMouseEnter={() => setActiveApiId(item.id)}
                   onMouseLeave={() => setActiveApiId(null)}
                   onFocusCapture={() => setActiveApiId(item.id)}
                   onBlurCapture={(event) => {
                     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setActiveApiId(null);
+                  }}
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).closest("a")) return;
+                    setActiveApiId((current) => current === item.id ? null : item.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    setActiveApiId((current) => current === item.id ? null : item.id);
                   }}
                 >
                   <PortalLink href={item.href} className="portal-api-row-label">

@@ -5771,6 +5771,12 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   }
 }
 
+/* The supplier panel deliberately escapes the compact API card.  The card
+   previously clipped it, leaving only the inline brand labels visible. */
+.portal-home .portal-api-card { overflow: visible; }
+.portal-home .portal-api-row { position: relative; }
+.portal-home .portal-api-touch-card { z-index: 80; }
+
 /* First-visit guide: a single bright route through Agent, API models and tools. */
 .portal-home .is-onboarding-target {
   z-index: 42;
