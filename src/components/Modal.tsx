@@ -98,7 +98,7 @@ export default function Modal({
       className={`fixed inset-0 ${closing ? "pointer-events-none" : ""}`}
     >
       <div
-        className={`absolute inset-0 overflow-y-auto ${
+        className={`modal-backdrop absolute inset-0 overflow-y-auto ${
           size === "overlay" ? "bg-ink-950/40" : "bg-ink-950/35"
         } ${closing ? "modal-fade-out" : "modal-fade-in"}`}
         onMouseDown={closeOnBackdrop}

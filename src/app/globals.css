@@ -129,6 +129,76 @@ button:not(:disabled) {
   outline: none;
 }
 
+/* Modal portals sit outside .studio-root, so keep their backdrop and auth
+   surface theme-aware through the document-level Studio theme marker. */
+html[data-studio-theme="dark"] .modal-backdrop {
+  background-color: rgba(3, 7, 18, 0.68) !important;
+}
+
+html[data-studio-theme="dark"] .login-modal {
+  border-color: rgba(148, 163, 184, 0.24) !important;
+  background: linear-gradient(145deg, rgba(24, 32, 46, 0.98), rgba(15, 23, 35, 0.98)) !important;
+  color: #e5e7eb;
+  box-shadow: 0 30px 78px rgba(0, 0, 0, 0.72), inset 0 1px 1px rgba(255, 255, 255, 0.06) !important;
+}
+html[data-studio-theme="dark"] .login-modal > .pointer-events-none {
+  background-color: rgba(56, 189, 248, 0.12) !important;
+}
+html[data-studio-theme="dark"] .login-modal-brand-mark {
+  border-color: rgba(148, 163, 184, 0.25) !important;
+  background: rgba(30, 41, 59, 0.82) !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28) !important;
+}
+html[data-studio-theme="dark"] .login-modal-brand-name { color: #f8fafc !important; }
+html[data-studio-theme="dark"] .login-modal-subtitle,
+html[data-studio-theme="dark"] .login-modal-note { color: #94a3b8 !important; }
+html[data-studio-theme="dark"] .login-modal-tabs {
+  border-color: rgba(148, 163, 184, 0.2) !important;
+  background: rgba(15, 23, 35, 0.72) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.24) !important;
+}
+html[data-studio-theme="dark"] .login-modal-tab { color: #94a3b8 !important; }
+html[data-studio-theme="dark"] .login-modal-tab:hover { color: #dbeafe !important; }
+html[data-studio-theme="dark"] .login-modal-tab.is-active {
+  background: #263449 !important;
+  color: #e0f2fe !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28) !important;
+}
+html[data-studio-theme="dark"] .login-modal-google {
+  border-color: rgba(148, 163, 184, 0.24) !important;
+  background: rgba(30, 41, 59, 0.78) !important;
+  color: #dbeafe !important;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.2) !important;
+}
+html[data-studio-theme="dark"] .login-modal-google:hover { background: rgba(51, 65, 85, 0.9) !important; }
+html[data-studio-theme="dark"] .login-modal-divider { color: #718096 !important; }
+html[data-studio-theme="dark"] .login-modal-divider span { background-color: #334155 !important; }
+html[data-studio-theme="dark"] .login-modal-field > span { color: #cbd5e1 !important; }
+html[data-studio-theme="dark"] .login-modal-input {
+  border-color: rgba(148, 163, 184, 0.28) !important;
+  background: rgba(15, 23, 35, 0.72) !important;
+  color: #f8fafc !important;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.04) !important;
+}
+html[data-studio-theme="dark"] .login-modal-input::placeholder { color: #718096 !important; }
+html[data-studio-theme="dark"] .login-modal-input:focus {
+  border-color: rgba(125, 211, 252, 0.72) !important;
+  background: rgba(23, 31, 45, 0.98) !important;
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.14) !important;
+}
+html[data-studio-theme="dark"] .login-modal-password-toggle { color: #718096 !important; }
+html[data-studio-theme="dark"] .login-modal-password-toggle:hover { color: #bae6fd !important; }
+html[data-studio-theme="dark"] .login-modal-error {
+  border-color: rgba(251, 113, 133, 0.38) !important;
+  background: rgba(136, 19, 55, 0.32) !important;
+  color: #fda4af !important;
+}
+html[data-studio-theme="dark"] .login-modal-notice {
+  border-color: rgba(45, 212, 191, 0.36) !important;
+  background: rgba(13, 78, 74, 0.34) !important;
+  color: #99f6e4 !important;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -186,8 +256,7 @@ button:not(:disabled) {
 @media (prefers-reduced-motion: reduce) {
   .image-annotation-stage,
   .image-annotation-toolbar,
-  .image-annotation-composer,
-  .studio-sidebar-peek {
+  .image-annotation-composer {
     transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1), color 160ms ease, background-color 160ms ease !important;
     transform: none !important;
   }
@@ -642,19 +711,39 @@ button:not(:disabled) {
   background: rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(20px) saturate(170%);
   -webkit-backdrop-filter: blur(20px) saturate(170%);
+  color: #615a73;
+  cursor: pointer;
 }
-
-.studio-sidebar-peek {
-  opacity: 0;
-  transform: translate3d(-10px, 0, 0);
+.studio-sidebar-rail-icon {
+  color: inherit;
   transition:
-    opacity 180ms cubic-bezier(0.23, 1, 0.32, 1),
-    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-
-.studio-sidebar-peek[data-active="true"] {
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
+.studio-sidebar-rail:focus-visible {
+  outline: none;
+}
+.studio-sidebar-rail:focus-visible .studio-sidebar-rail-icon {
+  background: rgba(255, 255, 255, 0.75);
+  color: #241e36;
+}
+.studio-sidebar-rail:active .studio-sidebar-rail-icon {
+  transform: scale(0.97);
+}
+@media (hover: hover) and (pointer: fine) {
+  .studio-sidebar-rail:hover .studio-sidebar-rail-icon {
+    background: rgba(255, 255, 255, 0.75);
+    color: #241e36;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-sidebar-rail-icon {
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .studio-sidebar-rail:active .studio-sidebar-rail-icon {
+    transform: none;
+  }
 }
 
 .studio-mobile-nav-toggle {
@@ -688,8 +777,7 @@ button:not(:disabled) {
     transform: translateX(0);
   }
 
-  .studio-sidebar-container > .studio-sidebar-rail,
-  .studio-sidebar-container > .studio-sidebar-peek {
+  .studio-sidebar-container > .studio-sidebar-rail {
     display: none;
   }
 
@@ -2039,6 +2127,17 @@ html[data-studio-theme="dark"],
   background: rgba(12, 17, 27, 0.88);
   border-color: rgba(148, 163, 184, 0.14) !important;
   box-shadow: inset 1px 0 rgba(255, 255, 255, 0.025);
+  color: #cbd5e1;
+}
+.studio-root[data-theme="dark"] .studio-sidebar-rail:focus-visible .studio-sidebar-rail-icon {
+  background: rgba(148, 163, 184, 0.13);
+  color: #f8fafc;
+}
+@media (hover: hover) and (pointer: fine) {
+  .studio-root[data-theme="dark"] .studio-sidebar-rail:hover .studio-sidebar-rail-icon {
+    background: rgba(148, 163, 184, 0.13);
+    color: #f8fafc;
+  }
 }
 .studio-root[data-theme="dark"] .studio-liquid-glass-scene {
   background: #141b27;
@@ -6227,3 +6326,47 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 @media (max-width: 1380px) { .portal-directory-layout { grid-template-columns: 292px minmax(0,1fr) !important; gap: 16px; }.portal-model-directory.has-detail { grid-template-columns: minmax(0,1fr) 306px; }.portal-model-directory.has-detail > div:first-child,.portal-model-directory-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.portal-model-vendor-scroller { grid-auto-columns: minmax(128px,1fr); } }
 @media (max-width: 1080px) { .portal-directory-layout { grid-template-columns: 238px minmax(0,1fr) !important; }.portal-directory-side { padding: 16px 14px; }.portal-directory-side .portal-directory-model-row small { display: none; }.portal-model-directory.has-detail { grid-template-columns: 1fr; }.portal-model-detail { position: relative; min-height: 0; }.portal-model-detail-actions { position: static; margin-top: 22px; }.portal-model-directory.has-detail > div:first-child { grid-template-columns: repeat(3,minmax(0,1fr)); } }
 @media (max-width: 760px) { .portal-directory-layout { display: block; }.portal-directory-side { display: flex; gap: 7px; overflow-x: auto; margin-bottom: 14px; padding: 9px; }.portal-directory-side h2 { display: none; }.portal-directory-side > button,.portal-directory-side .portal-directory-model-row { display: flex; flex: 0 0 auto; min-height: 38px; width: auto; padding: 0 10px; border: 1px solid #e0eaf5; border-radius: 8px; white-space: nowrap; }.portal-directory-side .portal-directory-model-row > svg,.portal-directory-side .portal-directory-model-row small,.portal-directory-side .portal-directory-model-row > svg:last-child { display: none; }.portal-directory-side .portal-directory-model-row strong { font-size: 12px; }.portal-catalog-title-row { align-items: flex-start; }.portal-directory-main .portal-catalog-hero h1 { font-size: 24px; }.portal-catalog-hero-links { display: none; }.portal-model-controls { overflow-x: auto; }.portal-model-controls button { flex: 0 0 auto; }.portal-model-vendor-scroller { grid-auto-columns: 140px; }.portal-model-directory-grid,.portal-model-directory.has-detail > div:first-child { grid-template-columns: 1fr; }.portal-directory-model-card { min-height: 202px; } }
+
+/* Keep login controls above the broad dark-theme utility rewrites above. */
+html[data-studio-theme="dark"] .login-modal .login-modal-brand-mark,
+html[data-studio-theme="dark"] .login-modal .login-modal-tab.is-active,
+html[data-studio-theme="dark"] .login-modal .login-modal-google,
+html[data-studio-theme="dark"] .login-modal .login-modal-input {
+  background-color: rgba(30, 41, 59, 0.82) !important;
+}
+html[data-studio-theme="dark"] .login-modal .login-modal-tab.is-active {
+  background-color: #263449 !important;
+}
+html[data-studio-theme="dark"] .login-modal .login-modal-input:focus {
+  background-color: rgba(23, 31, 45, 0.98) !important;
+}
+
+/* The skill menu is portaled to body so opening it never changes composer
+   dimensions. Re-apply the Studio material here because it is outside the
+   .studio-root dark-theme subtree. */
+.skill-slash-menu {
+  position: fixed !important;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 24px 54px -24px rgba(15, 23, 42, 0.48);
+}
+html[data-studio-theme="dark"] .skill-slash-menu {
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  background: #141b27 !important;
+  color: #e5e7eb;
+  box-shadow: 0 24px 54px -24px rgba(0, 0, 0, 0.88) !important;
+}
+html[data-studio-theme="dark"] .skill-slash-menu [class~="text-[#241E36]"],
+html[data-studio-theme="dark"] .skill-slash-menu [class~="text-[#0F172A]"] {
+  color: #e5e7eb !important;
+}
+html[data-studio-theme="dark"] .skill-slash-menu [class~="text-[#615A73]"],
+html[data-studio-theme="dark"] .skill-slash-menu [class~="text-[#8A8298]"] {
+  color: #94a3b8 !important;
+}
+html[data-studio-theme="dark"] .skill-slash-menu [class*="border-white/"] {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+}
+html[data-studio-theme="dark"] .skill-slash-menu button:hover,
+html[data-studio-theme="dark"] .skill-slash-menu button[aria-selected="true"] {
+  background: rgba(148, 163, 184, 0.13) !important;
+}
