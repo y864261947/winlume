@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentAuthContext } from "@/lib/auth/session";
-import { getAuthMode, hashPassword, passwordWouldBeTruncatedByBcrypt } from "@/lib/platform/auth";
+import { getAuthMode, hashPassword, passwordWouldBeTruncatedByBcrypt, verifyPassword } from "@/lib/platform/auth";
 import {
   getPlatformDb,
   getPlatformRepositories,
@@ -83,6 +83,43 @@ async function register(request: NextRequest) {
   }
 }
 
+async function changePassword(request: NextRequest) {
+  if (getAuthMode() === "legacy") {
+    return NextResponse.json({ success: false, message: "当前账户由旧账户系统管理，请在原账户系统修改密码。" }, { status: 400 });
+  }
+  const auth = await getCurrentAuthContext();
+  if (!auth) return NextResponse.json({ success: false, message: "请先登录。" }, { status: 401 });
+
+  try {
+    const body = await request.json() as Record<string, unknown>;
+    const currentPassword = typeof body.currentPassword === "string" ? body.currentPassword : "";
+    const nextPassword = typeof body.nextPassword === "string" ? body.nextPassword : "";
+    if (!currentPassword) {
+      return NextResponse.json({ success: false, message: "请输入当前密码。" }, { status: 400 });
+    }
+    if (nextPassword.length < 8 || nextPassword.length > 128 || passwordWouldBeTruncatedByBcrypt(nextPassword)) {
+      return NextResponse.json({ success: false, message: "新密码需为 8 至 72 个 UTF-8 字节。" }, { status: 400 });
+    }
+    if (currentPassword === nextPassword) {
+      return NextResponse.json({ success: false, message: "新密码不能与当前密码相同。" }, { status: 400 });
+    }
+    const repositories = getPlatformRepositories();
+    if (!repositories) return NextResponse.json({ success: false, message: "平台账户服务暂不可用。" }, { status: 503 });
+    const user = await repositories.users.findById(auth.userId);
+    if (!user?.passwordHash) {
+      return NextResponse.json({ success: false, message: "当前登录方式未设置密码，请使用原登录方式继续访问。" }, { status: 400 });
+    }
+    if (!(await verifyPassword(currentPassword, user.passwordHash))) {
+      return NextResponse.json({ success: false, message: "当前密码不正确。" }, { status: 400 });
+    }
+    await repositories.users.setPasswordHash(auth.userId, await hashPassword(nextPassword));
+    return NextResponse.json({ success: true, data: { changed: true } });
+  } catch (error) {
+    console.error("Reizo password change failed", error);
+    return NextResponse.json({ success: false, message: "密码修改失败，请稍后重试。" }, { status: 500 });
+  }
+}
+
 export async function GET(_request: NextRequest, context: RouteContext<"/api/account/[action]">) {
   const { action } = await context.params;
   if (action !== "self") {
@@ -141,5 +178,6 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/acc
 export async function POST(request: NextRequest, context: RouteContext<"/api/account/[action]">) {
   const { action } = await context.params;
   if (action === "register") return register(request);
+  if (action === "password") return changePassword(request);
   return NextResponse.json({ success: false, message: "Unknown account action" }, { status: 404 });
 }

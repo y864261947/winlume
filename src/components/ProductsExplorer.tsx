@@ -1,17 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  Bell,
   BookOpen,
   ChevronRight,
   Database,
   FileSearch,
-  LayoutGrid,
   MessageSquareText,
   PackageSearch,
   Search,
@@ -23,10 +20,9 @@ import {
 import ProductCard from "@/components/ProductCard";
 import ApplicationDirectory from "@/components/ApplicationDirectory";
 import { RealModelGrid } from "@/components/RealModelGrid";
-import { useModals } from "@/components/providers";
+import PortalHeader from "@/components/PortalHeader";
 import { categoriesByCate, type CateSlug } from "@/data/taxonomy";
 import { filterProducts } from "@/data/products";
-import { formatBalance } from "@/lib/account";
 import {
   type PlazaCapabilityFilter,
   vendorsPresentIn,
@@ -64,8 +60,6 @@ export default function ProductsExplorer({
   initialQuery,
 }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
-  const { account, balanceConfig, openLogin, openMembership } = useModals();
 
   const mode = resolveMode(initialCate);
   const [appTag, setAppTag] = useState<string | undefined>(
@@ -76,7 +70,6 @@ export default function ProductsExplorer({
   const [capability, setCapability] = useState<PlazaCapabilityFilter>("all");
   const [plazaModels, setPlazaModels] = useState<PlazaModel[]>([]);
   const [plazaStats, setPlazaStats] = useState({ total: 0, filtered: 0 });
-  const [notice, setNotice] = useState("");
   const [selectedModel, setSelectedModel] = useState<PlazaModel | null>(null);
 
   useEffect(() => {
@@ -119,79 +112,10 @@ export default function ProductsExplorer({
 
   const hasModelFilters = Boolean(query || vendorKey || capability !== "all");
 
-  const navCurrent = (href: string) => {
-    if (href === "/") return pathname === "/";
-    if (href.startsWith("/products")) return pathname.startsWith("/products");
-    return pathname.startsWith(href);
-  };
-
   return (
     <div className="portal-home">
       <div className="portal-frame pb-16">
-        {/* Same portal nav as homepage */}
-        <div className="portal-nav-shell">
-          <div className="portal-nav-shell-fill" aria-hidden />
-          <header className="portal-nav" aria-label="主导航">
-            <Link href="/" className="portal-brand">
-              <Image className="portal-brand-mark" src="/brand/reizo-mark.png" alt="" width={32} height={32} priority />
-              Reizo
-            </Link>
-            <nav className="portal-main-links" aria-label="页面导航">
-              <Link href="/" className={navCurrent("/") ? "is-current" : undefined}>
-                首页
-              </Link>
-              <Link
-                href="/products?cate=app"
-                className={mode === "apps" ? "is-current" : undefined}
-              >
-                应用工具
-              </Link>
-              <Link
-                href="/products?cate=api"
-                className={mode === "models" ? "is-current" : undefined}
-              >
-                API模型
-              </Link>
-              <Link href="/docs">文档</Link>
-              <Link href="/pricing">计费标准</Link>
-            </nav>
-            <div className="portal-user-links">
-              <button type="button" className="portal-membership-entry" onClick={openMembership}>升级会员</button>
-              <Link href="/studio">
-                <LayoutGrid aria-hidden />
-                Agent
-              </Link>
-              <button type="button" onClick={() => setNotice("暂无新的通知")}>
-                <Bell aria-hidden />
-                通知
-              </button>
-              {account ? (
-                <Link href="/account" className="portal-account">
-                  <span>{(account.display_name || account.username).slice(0, 1).toUpperCase()}</span>
-                  {account.display_name || account.username}
-                  <ChevronRight aria-hidden />
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  className="portal-account"
-                  onClick={() => openLogin("login")}
-                >
-                  <span>登</span>
-                  登录
-                  <ChevronRight aria-hidden />
-                </button>
-              )}
-            </div>
-          </header>
-        </div>
-
-        {notice ? (
-          <p className="mt-3 rounded-[8px] border border-[rgba(13,79,201,.2)] bg-[rgba(13,79,201,.06)] px-3 py-2 text-sm text-[var(--portal-blue)]">
-            {notice}
-            {account && balanceConfig ? ` · 余额 ${formatBalance(account.quota, balanceConfig)}` : ""}
-          </p>
-        ) : null}
+        <PortalHeader productMode={mode === "apps" ? "app" : "api"} />
 
         {mode === "apps" ? (
           <ApplicationDirectory initialQuery={initialQuery} />
