@@ -37,8 +37,8 @@ describe("homepage API categories", () => {
   it("opens content destinations in a new tab while keeping primary navigation in place", () => {
     expect(source).toContain('target = "_blank"');
     expect(source).toContain('rel={target === "_blank" ? "noopener noreferrer" : undefined}');
-    expect(source).toContain('href="/" target="_self" className="portal-brand"');
-    expect(source).toContain('href="/products?cate=api" target="_self"');
+    expect(source).toContain("<PortalHeader");
+    expect(source).not.toContain('className="portal-nav"');
   });
 
   it("includes the first-visit three-step product guide", () => {

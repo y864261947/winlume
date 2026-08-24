@@ -49,8 +49,11 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
               </Link>
             ))}
           </nav>
+          <button type="button" className="portal-membership-entry" onClick={openMembership}>
+            <Crown aria-hidden />
+            升级会员
+          </button>
           <div className="portal-user-links">
-            <button type="button" className="portal-membership-entry" onClick={openMembership}><Crown aria-hidden />升级会员</button>
             <Link href="/studio" className={pathname.startsWith("/studio") ? "is-current" : undefined}>
               <LayoutGrid aria-hidden />
               Agent
