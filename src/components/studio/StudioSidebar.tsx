@@ -13,7 +13,6 @@ import {
   LogOut,
   Moon,
   PanelLeftClose,
-  PanelLeftOpen,
   Search,
   Settings2,
   Sparkles,
@@ -113,17 +112,13 @@ function usePersistedOpen(key: string, fallback = true) {
 }
 
 export default function StudioSidebar({
-  temporary = false,
   theme,
   onThemeChange,
   onRequestCollapse,
-  onRequestExpand,
 }: {
-  temporary?: boolean;
   theme: "dark" | "light";
   onThemeChange: (theme: "dark" | "light") => void;
   onRequestCollapse?: () => void;
-  onRequestExpand?: () => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -251,7 +246,7 @@ export default function StudioSidebar({
     .toUpperCase();
 
   return (
-    <aside className={`studio-glass relative z-[2] flex h-full w-[248px] shrink-0 flex-col border-r border-white/70 px-3 py-4 ${temporary ? "shadow-[12px_0_30px_rgba(36,30,54,0.16)]" : ""}`}>
+    <aside className="studio-glass relative z-[2] flex h-full w-[248px] shrink-0 flex-col border-r border-white/70 px-3 py-4">
       <div className="mb-5 flex items-center gap-1">
         <Link href="/studio" className="flex min-w-0 flex-1 items-center gap-2.5 px-2">
           <span className="studio-logo-mark flex h-[30px] w-[30px] shrink-0 items-center justify-center">
@@ -270,17 +265,7 @@ export default function StudioSidebar({
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
-        {temporary ? (
-          <button
-            type="button"
-            onClick={onRequestExpand}
-            title="固定展开侧栏"
-            aria-label="固定展开侧栏"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#615A73] transition-[background-color,color,transform] duration-150 hover:bg-white/75 hover:text-[#241E36] active:scale-[0.97]"
-          >
-            <PanelLeftOpen className="h-4 w-4" />
-          </button>
-        ) : onRequestCollapse ? (
+        {onRequestCollapse ? (
           <button
             type="button"
             onClick={onRequestCollapse}

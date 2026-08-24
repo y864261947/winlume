@@ -7,6 +7,11 @@
 | 003 | Direct control feedback | MEDIUM | TODO | Landing | None |
 | 004 | Works rail single collapse chrome | HIGH | DONE | Studio works rail | None |
 | 005 | Works rail silky open/close | HIGH | DONE | Studio works rail | Prefer after 004 |
+| 006 | Studio sidebar click-to-expand | HIGH | DONE | Studio chrome | None |
+
+## Studio chrome (user-requested)
+
+**`006-studio-sidebar-click-expand.md`** — collapsed rail stays 52px on hover; click (full-height control) expands. Hover peek removed so the expand target does not jump.
 
 ## Studio works rail (user-requested)
 

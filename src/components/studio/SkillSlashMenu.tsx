@@ -1,7 +1,8 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, Scissors, Sparkles, Trash2 } from "lucide-react";
-import type { Ref } from "react";
+import { createPortal } from "react-dom";
+import { useLayoutEffect, useRef, useState, type Ref, type RefObject } from "react";
 import type { SkillMeta } from "@/lib/agent/types";
 import { listStudioTools, type StudioTool } from "@/lib/studio/tool-catalog";
 
@@ -93,6 +94,38 @@ export function getSlashMenuItems(
   ];
 }
 
+const MENU_GAP = 8;
+const MENU_PAD = 8;
+const MENU_MAX_HEIGHT = 384;
+const MENU_MIN_HEIGHT = 96;
+
+export function placeMenuAroundAnchor(
+  anchor: { top: number; bottom: number; left: number },
+  menu: { width: number; height: number },
+  viewport: { width: number; height: number },
+): { left: number; top: number; maxHeight: number; placement: "above" | "below" } {
+  const spaceAbove = anchor.top - MENU_PAD - MENU_GAP;
+  const spaceBelow = viewport.height - anchor.bottom - MENU_PAD - MENU_GAP;
+  const placeAbove = spaceAbove >= Math.min(menu.height, MENU_MIN_HEIGHT) || spaceAbove >= spaceBelow;
+  const available = Math.max(MENU_MIN_HEIGHT, placeAbove ? spaceAbove : spaceBelow);
+  const maxHeight = Math.min(MENU_MAX_HEIGHT, available);
+  const height = Math.min(menu.height, maxHeight);
+  const left = Math.max(MENU_PAD, Math.min(anchor.left, viewport.width - menu.width - MENU_PAD));
+  const top = placeAbove ? anchor.top - height - MENU_GAP : anchor.bottom + MENU_GAP;
+  return {
+    left,
+    top: Math.max(MENU_PAD, top),
+    maxHeight,
+    placement: placeAbove ? "above" : "below",
+  };
+}
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (!ref) return;
+  if (typeof ref === "function") ref(value);
+  else ref.current = value;
+}
+
 export type SkillSlashMenuProps = {
   open: boolean;
   query: string;
@@ -109,6 +142,7 @@ export type SkillSlashMenuProps = {
   onClearTurnSkills: () => void;
   menuId?: string;
   menuRef?: Ref<HTMLDivElement>;
+  anchorRef: RefObject<HTMLElement | null>;
 };
 
 export default function SkillSlashMenu({
@@ -127,8 +161,67 @@ export default function SkillSlashMenu({
   onClearTurnSkills,
   menuId,
   menuRef,
+  anchorRef,
 }: SkillSlashMenuProps) {
-  if (!open) return null;
+  const [position, setPosition] = useState<{
+    left: number;
+    top: number;
+    maxHeight: number;
+    ready: boolean;
+  } | null>(null);
+  const menuNodeRef = useRef<HTMLDivElement | null>(null);
+
+  const setMenuNode = (node: HTMLDivElement | null) => {
+    menuNodeRef.current = node;
+    assignRef(menuRef, node);
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const anchor = anchorRef.current;
+      const menu = menuNodeRef.current;
+      if (!anchor || !menu) return;
+      const rect = anchor.getBoundingClientRect();
+      const next = placeMenuAroundAnchor(
+        rect,
+        {
+          width: menu.offsetWidth || Math.min(480, window.innerWidth - MENU_PAD * 2),
+          height: menu.scrollHeight || menu.offsetHeight || MENU_MAX_HEIGHT,
+        },
+        { width: window.innerWidth, height: window.innerHeight },
+      );
+      setPosition((current) => {
+        if (
+          current &&
+          current.left === next.left &&
+          current.top === next.top &&
+          current.maxHeight === next.maxHeight &&
+          current.ready
+        ) {
+          return current;
+        }
+        return { ...next, ready: true };
+      });
+    };
+
+    updatePosition();
+    const observer = new ResizeObserver(updatePosition);
+    if (menuNodeRef.current) observer.observe(menuNodeRef.current);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [anchorRef, departments, loading, menuRef, open, query, skills, view]);
+
+  if (!open || typeof document === "undefined") return null;
 
   const q = query.trim();
   const searching = Boolean(q);
@@ -172,13 +265,21 @@ export default function SkillSlashMenu({
     }
   };
 
-  return (
+  return createPortal(
     <div
-      ref={menuRef}
+      ref={setMenuNode}
       id={menuId}
       role="listbox"
       aria-label="选择 Skill"
-      className="studio-liquid-glass absolute bottom-full left-0 z-20 mb-2 max-h-72 w-full max-w-md overflow-auto rounded-[16px] py-1"
+      data-ready={position?.ready ? "true" : "false"}
+      className="studio-liquid-glass skill-slash-menu fixed z-[70] w-[min(30rem,calc(100vw-1rem))] overflow-x-hidden overflow-y-auto rounded-[16px] py-1"
+      style={{
+        left: position?.left ?? 0,
+        top: position?.top ?? 0,
+        maxHeight: position?.maxHeight ?? MENU_MAX_HEIGHT,
+        visibility: position?.ready ? "visible" : "hidden",
+        pointerEvents: position?.ready ? "auto" : "none",
+      }}
     >
       <div className="flex items-center gap-2 border-b border-white/50 px-3 py-1.5 text-[11px] text-[#8A8298]">
         {view.kind === "department" && !searching ? (
@@ -344,7 +445,8 @@ export default function SkillSlashMenu({
           );
         })
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -7,7 +7,6 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -49,10 +48,6 @@ export default function StudioShell({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<StudioTheme>("dark");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [sidebarPeekRendered, setSidebarPeekRendered] = useState(false);
-  const [sidebarPeekActive, setSidebarPeekActive] = useState(false);
-  const sidebarPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sidebarPeekFrameRef = useRef<number | null>(null);
   // Stable identity — an inline object literal here would recreate the
   // context value on every StudioShell re-render (e.g. whenever a page
   // publishes new header content), which then falsely trips consumers'
@@ -84,59 +79,13 @@ export default function StudioShell({ children }: { children: ReactNode }) {
     };
   }, [theme]);
 
-  const clearSidebarPeekTimer = () => {
-    if (!sidebarPeekTimerRef.current) return;
-    clearTimeout(sidebarPeekTimerRef.current);
-    sidebarPeekTimerRef.current = null;
-  };
-
-  const clearSidebarPeekFrame = () => {
-    if (sidebarPeekFrameRef.current === null) return;
-    cancelAnimationFrame(sidebarPeekFrameRef.current);
-    sidebarPeekFrameRef.current = null;
-  };
-
-  const showSidebarPeek = () => {
-    if (!sidebarCollapsed) return;
-    clearSidebarPeekTimer();
-    clearSidebarPeekFrame();
-    setSidebarPeekRendered(true);
-    sidebarPeekFrameRef.current = requestAnimationFrame(() => {
-      sidebarPeekFrameRef.current = null;
-      setSidebarPeekActive(true);
-    });
-  };
-
-  const hideSidebarPeek = () => {
-    clearSidebarPeekFrame();
-    setSidebarPeekActive(false);
-    clearSidebarPeekTimer();
-    sidebarPeekTimerRef.current = setTimeout(() => {
-      setSidebarPeekRendered(false);
-      sidebarPeekTimerRef.current = null;
-    }, 180);
-  };
-
   const collapseSidebar = () => {
     setSidebarCollapsed(true);
-    hideSidebarPeek();
   };
 
   const expandSidebar = () => {
-    clearSidebarPeekTimer();
-    clearSidebarPeekFrame();
-    setSidebarPeekActive(false);
-    setSidebarPeekRendered(false);
     setSidebarCollapsed(false);
   };
-
-  useEffect(
-    () => () => {
-      clearSidebarPeekTimer();
-      clearSidebarPeekFrame();
-    },
-    [],
-  );
 
   return (
     <HeaderSlotContext.Provider value={headerSlotCtx}>
@@ -153,33 +102,19 @@ export default function StudioShell({ children }: { children: ReactNode }) {
             sidebarCollapsed ? "w-[52px]" : "w-[248px]"
           }`}
           data-mobile-open={mobileSidebarOpen ? "true" : "false"}
-          onPointerEnter={(event) => {
-            if (event.pointerType === "mouse") showSidebarPeek();
-          }}
-          onPointerLeave={(event) => {
-            if (event.pointerType === "mouse") hideSidebarPeek();
-          }}
-          onFocusCapture={showSidebarPeek}
-          onBlurCapture={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) hideSidebarPeek();
-          }}
         >
           {sidebarCollapsed ? (
-            <div
-              className={`studio-sidebar-rail flex h-full w-[52px] items-start justify-center border-r border-white/70 pt-4 transition-opacity duration-150 ${
-                sidebarPeekRendered ? "pointer-events-none opacity-0" : "opacity-100"
-              }`}
+            <button
+              type="button"
+              onClick={expandSidebar}
+              title="展开侧栏"
+              aria-label="展开侧栏"
+              className="studio-sidebar-rail flex h-full w-[52px] items-start justify-center border-r border-white/70 pt-4"
             >
-              <button
-                type="button"
-                onClick={expandSidebar}
-                title="展开侧栏"
-                aria-label="展开侧栏"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#615A73] transition-[background-color,color,transform] duration-150 hover:bg-white/75 hover:text-[#241E36] active:scale-[0.97]"
-              >
+              <span className="studio-sidebar-rail-icon inline-flex h-10 w-10 items-center justify-center rounded-md">
                 <PanelLeftOpen className="h-4.5 w-4.5" />
-              </button>
-            </div>
+              </span>
+            </button>
           ) : (
             <StudioSidebar
               theme={theme}
@@ -190,19 +125,6 @@ export default function StudioShell({ children }: { children: ReactNode }) {
               }}
             />
           )}
-          {sidebarCollapsed && sidebarPeekRendered ? (
-            <div
-              className="studio-sidebar-peek absolute inset-y-0 left-0 w-[248px]"
-              data-active={sidebarPeekActive}
-            >
-              <StudioSidebar
-                temporary
-                theme={theme}
-                onThemeChange={updateTheme}
-                onRequestExpand={expandSidebar}
-              />
-            </div>
-          ) : null}
         </div>
         <button
           type="button"

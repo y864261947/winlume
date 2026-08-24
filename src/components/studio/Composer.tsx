@@ -494,6 +494,7 @@ export default function Composer({
 
   const editorRef = useRef<MentionPromptEditorHandle>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const skillMenuAnchorRef = useRef<HTMLButtonElement>(null);
   const mentionMenuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2558,6 +2559,7 @@ export default function Composer({
               <Paperclip className="h-[18px] w-[18px]" />
             </button>
             <button
+              ref={skillMenuAnchorRef}
               type="button"
               onClick={() => {
                 setSettingsOpen(false);
@@ -2745,6 +2747,7 @@ export default function Composer({
             onClearTurnSkills={clearTurnSkills}
             menuId={menuId}
             menuRef={menuRef}
+            anchorRef={skillMenuAnchorRef}
           />
 
           <ArtifactMentionMenu
