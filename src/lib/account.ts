@@ -72,6 +72,12 @@ export async function register(input: { username: string; password: string; emai
   const payload = await responsePayload<unknown>(response);
   if (!response.ok || !payload.success) throw new Error(payload.message || "注册未完成，请稍后重试。");
 }
+export async function changePassword(input: { currentPassword: string; nextPassword: string }) {
+  return api<{ changed: boolean }>("/api/account/password", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
 export async function logout() {
   await signOut({ redirect: false });
 }

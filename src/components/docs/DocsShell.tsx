@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import PortalNav from "@/components/PortalNav";
+import PortalHeader from "@/components/PortalHeader";
 import { apiCategories } from "@/data/docs/api-catalog";
 
 function isActive(pathname: string, href: string) {
@@ -23,7 +23,6 @@ export default function DocsShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [notice, setNotice] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
     for (const cat of apiCategories) {
@@ -140,13 +139,7 @@ export default function DocsShell({ children }: { children: ReactNode }) {
   return (
     <div className="portal-home docs-root">
       <div className="portal-frame docs-frame">
-        <PortalNav current="docs" onNotify={() => setNotice("暂无新的通知")} />
-
-        {notice ? (
-          <p className="portal-account-notice" role="status">
-            {notice}
-          </p>
-        ) : null}
+        <PortalHeader />
 
         {/* 仅移动端：打开侧栏；桌面不显示二级条，避免与主导航粘连 */}
         <div className="docs-shell-bar">

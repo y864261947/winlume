@@ -30,7 +30,7 @@ export default function AccountTasksContent() {
 
   return (
     <div className="account-tasks">
-      <header><div><p>用户中心 / 任务进度</p><h1>任务进度</h1><span>查看工作台任务与最近活动</span></div><button type="button" onClick={() => void load()}><RefreshCw aria-hidden />刷新</button></header>
+      <header><div><p>用户中心 / 任务看板</p><h1>任务看板</h1><span>查看工作台任务、执行状态与最近活动</span></div><button type="button" onClick={() => void load()}><RefreshCw aria-hidden />刷新</button></header>
       <div className="account-task-stats">
         <article><Workflow aria-hidden /><span>全部任务</span><strong>{sessions.length}</strong><small>工作台会话</small></article>
         <article><Clock3 aria-hidden /><span>最近活跃</span><strong>{recent}</strong><small>近 7 天更新</small></article>

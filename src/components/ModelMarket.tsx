@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { BarChart3, ChevronLeft, ChevronRight, CircleHelp, Code2, Crown, FileImage, LayoutGrid, Search, ArrowUp, Presentation, ShoppingBag, Video } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
-import PortalNav from "@/components/PortalNav";
+import PortalHeader from "@/components/PortalHeader";
 import { formatBalance } from "@/lib/account";
 import { getVendorByKey } from "@/lib/catalog/vendors";
 import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
@@ -875,7 +875,7 @@ export default function ModelMarket() {
   return (
     <div className="portal-home">
       <div className="portal-frame">
-        <PortalNav current="home" onNotify={() => setNotice("暂无新的通知")} />
+        <PortalHeader />
 
         <div className="portal-search-row">
           <section className={`portal-search-card${onboardingStep === 0 ? " is-onboarding-target" : ""}`} data-onboarding-target="agent" aria-labelledby="portal-search-title">
@@ -1069,14 +1069,26 @@ export default function ModelMarket() {
           </article>
 
           <div className="portal-side-cards">
-            <section className="portal-side-card portal-usage-card" aria-labelledby="portal-usage-title">
+            <section
+              className="portal-side-card portal-usage-card portal-usage-card-link"
+              aria-labelledby="portal-usage-title"
+              role="link"
+              tabIndex={0}
+              onClick={() => router.push("/account")}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  router.push("/account");
+                }
+              }}
+            >
               <div className="portal-card-heading"><Image src="/figma-home/usage-icon.svg" alt="" width={20} height={20} /><h2 id="portal-usage-title">账户概览</h2></div>
               <div className="portal-usage-stats">
                 <div><span>余额</span><strong>{balance === "余额同步中" ? "¥168.20" : balance}</strong></div>
                 <div><span>已消耗 Token</span><strong>1.24M</strong></div>
                 <div className="portal-membership-quota"><span><em>Free</em>会员剩余额度</span><strong>80%</strong></div>
               </div>
-              <ArrowLink href="/account">进入个人中心</ArrowLink>
+              <Link href="/account" className="portal-arrow-link" onClick={(event) => event.stopPropagation()}>进入个人中心<ChevronRight aria-hidden /></Link>
             </section>
           </div>
         </div>

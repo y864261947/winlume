@@ -9,17 +9,19 @@ import {
   ClipboardList,
   KeyRound,
   LayoutDashboard,
+  LockKeyhole,
   Receipt,
   ScrollText,
   Settings2,
   Store,
   UsersRound,
+  UserPlus,
   WalletCards,
   Wrench,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useModals } from "@/components/providers";
-import PortalNav from "@/components/PortalNav";
+import PortalHeader from "@/components/PortalHeader";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -41,8 +43,7 @@ const groups: NavGroup[] = [
     label: "用户中心",
     items: [
       { href: "/account", label: "个人中心", mobileLabel: "个人", icon: LayoutDashboard, exact: true },
-      { href: "/account/tasks", label: "任务进度", mobileLabel: "任务", icon: ClipboardList },
-      { href: "/account/usage", label: "消费记录", mobileLabel: "消费", icon: Receipt },
+      { href: "/account/tasks", label: "任务看板", mobileLabel: "任务", icon: ClipboardList },
     ],
   },
   {
@@ -52,10 +53,17 @@ const groups: NavGroup[] = [
   {
     label: "计费",
     items: [
-      { href: "/account/wallet", label: "钱包与充值", mobileLabel: "钱包", icon: WalletCards },
+      { href: "/account/wallet", label: "钱包与充值", mobileLabel: "钱包", icon: WalletCards, aliases: ["/account/usage"] },
       { href: "/account/logs", label: "请求日志", mobileLabel: "日志", icon: ScrollText },
       { href: "/account/pricing", label: "会员购买", mobileLabel: "会员", icon: Receipt },
       { href: "/account/enterprise", label: "对公结算", mobileLabel: "对公", icon: Building2 },
+    ],
+  },
+  {
+    label: "账户安全",
+    items: [
+      { href: "/account/security", label: "修改密码", mobileLabel: "密码", icon: LockKeyhole },
+      { href: "/account/invite", label: "邀请好友", mobileLabel: "邀请", icon: UserPlus },
     ],
   },
   {
@@ -125,19 +133,12 @@ function AccountNav({
 export default function AccountShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { account } = useModals();
-  const [notice, setNotice] = useState("");
   const isAdmin = account?.platform_role === "admin";
 
   return (
     <div className="portal-home">
       <div className="portal-frame portal-account-frame">
-        <PortalNav accountActive onNotify={() => setNotice("暂无新的通知")} />
-
-        {notice ? (
-          <p className="portal-account-notice" role="status">
-            {notice}
-          </p>
-        ) : null}
+        <PortalHeader />
 
         <div className="portal-account-layout">
           <aside className="portal-account-side">

@@ -148,8 +148,8 @@ export default function AccountWalletContent() {
 
   return (
     <ConsolePage
-      title="钱包与用量"
-      description="工作区额度账户的余额、兑换和消耗趋势。"
+      title="钱包与充值"
+      description="集中查看余额、充值兑换、消费记录和消耗趋势。"
     >
       {organizations.length > 1 && organizationId ? (
         <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
@@ -171,7 +171,7 @@ export default function AccountWalletContent() {
 
       {!overview && !error ? (
         <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Spinner /> 正在加载钱包与用量…
+          <Spinner /> 正在加载钱包与充值信息…
         </div>
       ) : null}
       {error ? <ConsoleEmptyState title="钱包暂不可用" description={error} /> : null}
@@ -247,7 +247,10 @@ export default function AccountWalletContent() {
           ) : (
             <>
               <ConsoleUsageCharts charts={charts} keys={accountUsage?.items ?? []} />
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-4">
+                <Link href="/account/usage" className="inline-flex items-center gap-1 text-sm font-medium text-ink-700 hover:text-ink-950">
+                  消费记录 <ArrowUpRight className="h-3.5 w-3.5" />
+                </Link>
                 <Link href="/account/logs" className="inline-flex items-center gap-1 text-sm font-medium text-ink-700 hover:text-ink-950">
                   查看请求日志 <ArrowUpRight className="h-3.5 w-3.5" />
                 </Link>

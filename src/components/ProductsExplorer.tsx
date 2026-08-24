@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 import ApplicationDirectory from "@/components/ApplicationDirectory";
-import PortalNav from "@/components/PortalNav";
+import PortalHeader from "@/components/PortalHeader";
 import { RealModelGrid } from "@/components/RealModelGrid";
 import {
   type PlazaCapabilityFilter,
@@ -61,7 +61,6 @@ export default function ProductsExplorer({
   const [capability, setCapability] = useState<PlazaCapabilityFilter>("all");
   const [plazaModels, setPlazaModels] = useState<PlazaModel[]>([]);
   const [plazaStats, setPlazaStats] = useState({ total: 0, filtered: 0 });
-  const [notice, setNotice] = useState("");
   const [selectedModel, setSelectedModel] = useState<PlazaModel | null>(null);
 
   useEffect(() => {
@@ -94,16 +93,7 @@ export default function ProductsExplorer({
   return (
     <div className="portal-home">
       <div className="portal-frame pb-16">
-        <PortalNav
-          current={mode === "apps" ? "apps" : "models"}
-          onNotify={() => setNotice("暂无新的通知")}
-        />
-
-        {notice ? (
-          <p className="portal-account-notice" role="status">
-            {notice}
-          </p>
-        ) : null}
+        <PortalHeader productMode={mode === "apps" ? "app" : "api"} />
 
         {mode === "apps" ? (
           <ApplicationDirectory initialQuery={initialQuery} />

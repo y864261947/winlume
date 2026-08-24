@@ -2,17 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
-import PortalNav from "@/components/PortalNav";
+import { type ReactNode } from "react";
+import PortalHeader from "@/components/PortalHeader";
 
 export default function PortalPricingShell({ children }: { children: ReactNode }) {
-  const [notice, setNotice] = useState("");
-
   return (
     <div className="portal-home">
       <div className="portal-frame portal-pricing-frame">
-        <PortalNav current="pricing" onNotify={() => setNotice("暂无新的通知")} />
-        {notice ? <p className="portal-account-notice" role="status">{notice}</p> : null}
+        <PortalHeader />
         {children}
         <footer className="portal-personal-footer">
           <strong><Image className="portal-footer-mark" src="/brand/reizo-mark.png" alt="" width={24} height={24} />REIZO</strong>

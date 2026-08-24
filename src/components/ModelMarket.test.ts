@@ -37,7 +37,7 @@ describe("homepage API categories", () => {
   it("opens content destinations in a new tab while keeping primary navigation in place", () => {
     expect(source).toContain('target = "_blank"');
     expect(source).toContain('rel={target === "_blank" ? "noopener noreferrer" : undefined}');
-    expect(source).toContain('<PortalNav current="home"');
+    expect(source).toContain("<PortalHeader");
     expect(source).not.toContain('className="portal-nav"');
   });
 

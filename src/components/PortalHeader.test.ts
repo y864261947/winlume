@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const navSource = readFileSync(join(__dirname, "PortalNav.tsx"), "utf8");
+const navSource = readFileSync(join(__dirname, "PortalHeader.tsx"), "utf8");
 
 const SHELLS = [
   "ModelMarket.tsx",
@@ -25,10 +25,19 @@ describe("portal top navigation", () => {
     expect(navSource).toContain("portal-user-links");
   });
 
+  it("keeps membership as a sibling of the user-links cluster", () => {
+    expect(navSource).toMatch(
+      /portal-membership-entry[\s\S]*portal-user-links/,
+    );
+    expect(navSource).not.toMatch(
+      /portal-user-links[\s\S]*portal-membership-entry/,
+    );
+  });
+
   it("is the only portal chrome used by marketing shells", () => {
     for (const file of SHELLS) {
       const source = readFileSync(join(__dirname, file), "utf8");
-      expect(source).toContain("<PortalNav");
+      expect(source).toContain("<PortalHeader");
       expect(source).not.toContain('className="portal-nav"');
       expect(source).not.toContain("portal-main-links");
     }

@@ -4928,7 +4928,7 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-industry-card:nth-child(4),
 .portal-industry-card:nth-child(5) { background: rgba(255, 255, 255, 0.78); }
 @media (max-width: 1100px) {
-  .portal-nav { gap: 16px; padding: 0 15px; }.portal-main-links { gap: 16px; }.portal-user-links { gap: 12px; }.portal-user-links > :first-child, .portal-user-links > :nth-child(2) { display: none; }
+  .portal-nav { gap: 16px; padding: 0 15px; }.portal-main-links { gap: 16px; }.portal-user-links { gap: 12px; }.portal-user-links > :first-child { display: none; }
   .portal-search-row { grid-template-columns: minmax(0, 1fr) 300px; }
   .portal-search-card { grid-column: 1; }
   .portal-search-aside { grid-column: 2; }
@@ -6374,3 +6374,34 @@ html[data-studio-theme="dark"] .skill-slash-menu button:hover,
 html[data-studio-theme="dark"] .skill-slash-menu button[aria-selected="true"] {
   background: rgba(148, 163, 184, 0.13) !important;
 }
+/* Account actions share the same portal vocabulary as the rest of the product. */
+.portal-usage-card-link { cursor: pointer; }
+.portal-usage-card-link:focus-visible { outline: 2px solid #1260ea; outline-offset: 3px; }
+.account-security,.account-invite { display: grid; gap: 18px; }
+.account-security > header,.account-invite > header { padding: 28px; border-radius: 16px; background: linear-gradient(135deg,#fff 30%,#eef6ff); }
+.account-security header p,.account-invite header p { color: #7c8a9e; font-size: 12px; }
+.account-security header h1,.account-invite header h1 { margin: 6px 0; color: #17253b; font-size: 34px; line-height: 1.2; }
+.account-security header span,.account-invite header span { color: #718096; }
+.account-security-panel,.account-invite-panel { padding: 26px; border: 1px solid #e0e8f2; border-radius: 16px; background: rgba(255,255,255,.9); }
+.account-security-intro { display: flex; gap: 14px; padding-bottom: 20px; border-bottom: 1px solid #e8eef6; }
+.account-security-intro > span,.account-invite-hero > span { display: grid; flex: 0 0 auto; width: 48px; height: 48px; place-items: center; border-radius: 14px; background: #eaf2ff; color: #1260ea; }
+.account-security-intro svg,.account-invite-hero svg { width: 24px; }
+.account-security-intro h2,.account-invite-panel h2 { margin: 0; color: #19263c; font-size: 18px; }
+.account-security-intro p { margin: 5px 0 0; color: #718096; font-size: 12px; line-height: 1.6; }
+.account-security form { display: grid; max-width: 560px; gap: 14px; margin-top: 22px; }
+.account-security form label { display: grid; gap: 7px; color: #34465e; font-size: 13px; font-weight: 650; }
+.account-security form input,.account-invite-link input { min-width: 0; height: 44px; padding: 0 12px; border: 1px solid #cad9ea; border-radius: 9px; background: #fff; color: #24344d; font: inherit; font-size: 13px; outline: none; }
+.account-security form input:focus,.account-invite-link input:focus { border-color: #1765ed; box-shadow: 0 0 0 3px rgba(23,101,237,.12); }
+.account-security form button,.account-invite-link button,.account-invite-actions button,.account-invite-actions a { display: inline-flex; width: max-content; align-items: center; justify-content: center; gap: 7px; padding: 10px 15px; border: 1px solid #125ee7; border-radius: 9px; background: #125ee7; color: #fff; font: inherit; font-size: 13px; font-weight: 700; }
+.account-security form button:disabled { opacity: .65; }
+.account-security form button svg,.account-invite-link button svg,.account-invite-actions svg { width: 16px; }
+.account-security-notice { margin: 0; color: #c73542; font-size: 12px; }
+.account-invite-hero { display: flex; align-items: center; gap: 16px; padding: 25px 28px; border: 1px solid #cbdcf3; border-radius: 16px; background: radial-gradient(circle at 83% 25%,rgba(44,130,255,.16),transparent 28%),linear-gradient(135deg,#f8fbff,#edf5ff); }
+.account-invite-hero p,.account-invite-hero small { display: block; margin: 0; color: #718096; font-size: 12px; }
+.account-invite-hero strong { display: block; margin: 3px 0 6px; color: #124db6; font-size: 26px; letter-spacing: .06em; }
+.account-invite-link { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; margin-top: 14px; }
+.account-invite-link input { background: #f8fbff; }
+.account-invite-actions { display: flex; gap: 10px; margin-top: 14px; }
+.account-invite-actions button { cursor: pointer; }
+.account-invite-actions a { border-color: #c4d6f2; background: #fff; color: #1459d3; }
+@media (max-width: 760px) { .account-security > header,.account-invite > header { padding: 22px; }.account-security header h1,.account-invite header h1 { font-size: 28px; }.account-security-panel,.account-invite-panel { padding: 18px; }.account-invite-link { grid-template-columns: 1fr; }.account-invite-link button { width: 100%; } }
