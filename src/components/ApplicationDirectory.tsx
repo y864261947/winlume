@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  BarChart3, BriefcaseBusiness, Code2, FileText, ImageIcon, LayoutGrid,
-  Megaphone, Presentation, Search, ShoppingCart, Sparkles, Video,
+  BarChart3, BriefcaseBusiness, ChevronRight, Code2, FileText, ImageIcon,
+  Megaphone, Presentation, Search, ShoppingCart, Sparkles, Video, X,
 } from "lucide-react";
 
 type ToolCategory = "内容与营销" | "视觉与媒体" | "电商与销售" | "财务与法务" | "产品与研发" | "办公与管理" | "数据与科研" | "开发与代码";
@@ -54,43 +54,129 @@ export default function ApplicationDirectory({ initialQuery = "" }: { initialQue
 
   const visible = useMemo(() => {
     const value = query.trim().toLowerCase();
-    return tools.filter((tool) =>
+    const filtered = tools.filter((tool) =>
       (activeCategory === "全部应用" || tool.category === activeCategory) &&
       (!value || `${tool.name}${tool.category}${tool.description}`.toLowerCase().includes(value)),
     );
-  }, [activeCategory, query]);
+    if (sort === "热门优先") {
+      return [...filtered].sort((a, b) => Number(Boolean(b.popular)) - Number(Boolean(a.popular)));
+    }
+    return filtered;
+  }, [activeCategory, query, sort]);
   const popular = visible.filter((tool) => tool.popular).slice(0, 4);
 
   return (
-    <section className="app-directory" aria-label="应用工具目录">
-      <aside className="app-directory-side">
+    <section className="portal-directory-layout" aria-label="应用工具目录">
+      <aside className="portal-directory-side">
         <h2>工具分类</h2>
-        <button className={activeCategory === "全部应用" ? "is-active" : undefined} type="button" onClick={() => setActiveCategory("全部应用")}>
-          <LayoutGrid aria-hidden /><span>全部应用</span><small>86</small>
+        <button
+          className={`portal-directory-all${activeCategory === "全部应用" ? " is-active" : ""}`}
+          type="button"
+          onClick={() => setActiveCategory("全部应用")}
+        >
+          全部应用
+          <ChevronRight aria-hidden />
         </button>
         {categories.map((category) => {
           const Icon = category.icon;
-          return <button key={category.name} type="button" className={activeCategory === category.name ? "is-active" : undefined} onClick={() => setActiveCategory(category.name)}>
-            <Icon aria-hidden /><span>{category.name}</span><small>应用 {category.appCount}<b>Skills {category.skillCount}</b></small>
-          </button>;
+          const active = activeCategory === category.name;
+          return (
+            <button
+              key={category.name}
+              type="button"
+              className="portal-directory-model-row"
+              data-active={active || undefined}
+              onClick={() => setActiveCategory(category.name)}
+            >
+              <Icon aria-hidden />
+              <span>
+                <strong>{category.name}</strong>
+                <small>应用 {category.appCount} · Skills {category.skillCount}</small>
+              </span>
+              <ChevronRight aria-hidden />
+            </button>
+          );
         })}
-        <div className="app-directory-help"><strong>不舍选工具？</strong><p>智能推荐工具，帮你快速找到合适的能力。</p><Link href="/studio/skills">智能推荐工具 →</Link></div>
+        <div className="app-directory-help">
+          <strong>不会选工具？</strong>
+          <p>智能推荐工具，帮你快速找到合适的能力。</p>
+          <Link href="/studio/skills">智能推荐工具 →</Link>
+        </div>
       </aside>
 
-      <div className="app-directory-main">
-        <header>
-          <p>AI TOOL LIBRARY</p>
-          <h1>应用工具</h1>
-          <span>按场景与角色快速找到可直接使用的 AI 工具</span>
-        </header>
-        <div className="app-directory-toolbar">
-          <label><Search aria-hidden /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索工具名称、关键词或使用场景" /></label>
-          <button type="button" onClick={() => setQuery(query)}><Search aria-hidden />搜索</button>
-          <select aria-label="工具排序" value={sort} onChange={(event) => setSort(event.target.value)}><option>默认排序</option><option>热门优先</option><option>最新上架</option></select>
+      <div className="portal-directory-main">
+        <section className="portal-catalog-hero">
+          <div className="portal-catalog-title-row">
+            <div>
+              <h1>应用工具</h1>
+              <p className="portal-catalog-lead">按场景与角色快速找到可直接使用的 AI 工具。</p>
+            </div>
+            <div className="portal-catalog-hero-links">
+              <Link href="/studio/skills">Skills 技能</Link>
+              <Link href="/studio">进入工作台</Link>
+            </div>
+          </div>
+          <form className="portal-catalog-search" onSubmit={(event) => event.preventDefault()}>
+            <Search aria-hidden />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              aria-label="搜索应用"
+              placeholder="搜索工具名称、关键词或使用场景"
+            />
+            {query ? (
+              <button type="button" className="portal-catalog-clear" onClick={() => setQuery("")} aria-label="清除搜索">
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+            <button type="submit">
+              <Search aria-hidden />
+              搜索
+            </button>
+          </form>
+        </section>
+
+        <div className="portal-model-controls" aria-label="应用筛选">
+          <button type="button" onClick={() => setActiveCategory("全部应用")}>
+            分类 <ChevronRight aria-hidden />
+          </button>
+          <button type="button" className="portal-model-control-sort" onClick={() => setSort(sort === "热门优先" ? "默认排序" : "热门优先")}>
+            排序：{sort} <ChevronRight aria-hidden />
+          </button>
         </div>
-        {popular.length > 0 ? <section className="app-directory-section"><h2>热门工具</h2><div className="app-tool-grid is-featured">{popular.map((tool) => <ToolCard key={tool.name} tool={tool} />)}</div></section> : null}
-        <section className="app-directory-section"><h2>全部应用工具 <small>{visible.length} 个可用工具</small></h2><div className="app-tool-grid">{visible.map((tool) => <ToolCard key={tool.name} tool={tool} />)}</div>{visible.length === 0 ? <div className="app-directory-empty">没有匹配的应用工具，试试搜索其他任务或切换分类。</div> : null}</section>
-        <section className="app-skill-strip"><h2>Skills 技能</h2>{["SEO 内容优化", "财务报表分析", "合同风险识别", "小红书文案", "PPT 排版优化", "数据清洗", "PRD 生成", "邮件跟进"].map((skill) => <Link key={skill} href={`/studio/skills?q=${encodeURIComponent(skill)}`}>{skill}<small>技能</small></Link>)}</section>
+
+        {popular.length > 0 ? (
+          <section className="app-directory-section">
+            <div className="portal-catalog-section-head">
+              <div>
+                <h2>热门工具</h2>
+                <p>按场景直接开工</p>
+              </div>
+            </div>
+            <div className="app-tool-grid is-featured">{popular.map((tool) => <ToolCard key={tool.name} tool={tool} />)}</div>
+          </section>
+        ) : null}
+
+        <section className="app-directory-section">
+          <div className="portal-catalog-section-head">
+            <div>
+              <h2>全部应用工具</h2>
+              <p>{visible.length} 个可用工具</p>
+            </div>
+          </div>
+          <div className="app-tool-grid">{visible.map((tool) => <ToolCard key={tool.name} tool={tool} />)}</div>
+          {visible.length === 0 ? <div className="app-directory-empty">没有匹配的应用工具，试试搜索其他任务或切换分类。</div> : null}
+        </section>
+
+        <section className="app-skill-strip">
+          <h2>Skills 技能</h2>
+          {["SEO 内容优化", "财务报表分析", "合同风险识别", "小红书文案", "PPT 排版优化", "数据清洗", "PRD 生成", "邮件跟进"].map((skill) => (
+            <Link key={skill} href={`/studio/skills?q=${encodeURIComponent(skill)}`}>
+              {skill}
+              <small>技能</small>
+            </Link>
+          ))}
+        </section>
       </div>
     </section>
   );
@@ -98,5 +184,14 @@ export default function ApplicationDirectory({ initialQuery = "" }: { initialQue
 
 function ToolCard({ tool }: { tool: Tool }) {
   const Icon = tool.icon;
-  return <article className={`app-tool-card is-${tool.accent}`}><Icon aria-hidden /><div><h3>{tool.name}</h3><p>{tool.description}</p></div><Link href={`/studio?entry=tool-directory&tool=${encodeURIComponent(tool.name)}`}>立即使用</Link></article>;
+  return (
+    <article className={`app-tool-card is-${tool.accent}`}>
+      <Icon aria-hidden />
+      <div>
+        <h3>{tool.name}</h3>
+        <p>{tool.description}</p>
+      </div>
+      <Link href={`/studio?entry=tool-directory&tool=${encodeURIComponent(tool.name)}`}>立即使用</Link>
+    </article>
+  );
 }

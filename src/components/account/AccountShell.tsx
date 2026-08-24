@@ -1,18 +1,14 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bell,
   BookOpen,
   Building2,
-  ChevronRight,
   CircleHelp,
   ClipboardList,
   KeyRound,
   LayoutDashboard,
-  LayoutGrid,
   Receipt,
   ScrollText,
   Settings2,
@@ -23,6 +19,7 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useModals } from "@/components/providers";
+import PortalNav from "@/components/PortalNav";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -127,54 +124,14 @@ function AccountNav({
 
 export default function AccountShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { account, openLogin, openMembership } = useModals();
+  const { account } = useModals();
   const [notice, setNotice] = useState("");
   const isAdmin = account?.platform_role === "admin";
-  const accountName = account ? account.display_name || account.username : null;
-  const accountInitial = accountName ? accountName.slice(0, 1).toUpperCase() : "登";
 
   return (
     <div className="portal-home">
       <div className="portal-frame portal-account-frame">
-        <div className="portal-nav-shell">
-          <div className="portal-nav-shell-fill" aria-hidden />
-          <header className="portal-nav" aria-label="主导航">
-            <Link href="/" className="portal-brand">
-              <Image className="portal-brand-mark" src="/brand/reizo-mark.png" alt="" width={32} height={32} priority />
-              Reizo
-            </Link>
-            <nav className="portal-main-links" aria-label="页面导航">
-              <Link href="/">首页</Link>
-              <Link href="/products?cate=app">应用工具</Link>
-              <Link href="/products?cate=api">API模型</Link>
-              <Link href="/docs">文档</Link>
-            </nav>
-            <div className="portal-user-links">
-              <button type="button" className="portal-membership-entry" onClick={openMembership}>升级会员</button>
-              <Link href="/studio">
-                <LayoutGrid aria-hidden />
-                Agent
-              </Link>
-              <button type="button" onClick={() => setNotice("暂无新的通知")}>
-                <Bell aria-hidden />
-                通知
-              </button>
-              {account ? (
-                <Link href="/account" className="portal-account is-current">
-                  <span>{accountInitial}</span>
-                  {accountName}
-                  <ChevronRight aria-hidden />
-                </Link>
-              ) : (
-                <button type="button" className="portal-account" onClick={() => openLogin("login")}>
-                  <span>登</span>
-                  登录
-                  <ChevronRight aria-hidden />
-                </button>
-              )}
-            </div>
-          </header>
-        </div>
+        <PortalNav accountActive onNotify={() => setNotice("暂无新的通知")} />
 
         {notice ? (
           <p className="portal-account-notice" role="status">

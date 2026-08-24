@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, Bell, ChevronLeft, ChevronRight, CircleHelp, Code2, Crown, FileImage, LayoutGrid, Search, ArrowUp, Presentation, ShoppingBag, Video } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, CircleHelp, Code2, Crown, FileImage, LayoutGrid, Search, ArrowUp, Presentation, ShoppingBag, Video } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
+import PortalNav from "@/components/PortalNav";
 import { formatBalance } from "@/lib/account";
 import { getVendorByKey } from "@/lib/catalog/vendors";
 import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
@@ -611,7 +612,7 @@ function swipeDirection(fromId: ProductPath["id"], toId: ProductPath["id"]): "le
 
 export default function ModelMarket() {
   const router = useRouter();
-  const { account, balanceConfig, openLogin, openMembership } = useModals();
+  const { account, balanceConfig } = useModals();
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [featuredIndex, setFeaturedIndex] = useState(0);
@@ -874,31 +875,7 @@ export default function ModelMarket() {
   return (
     <div className="portal-home">
       <div className="portal-frame">
-        <div className="portal-nav-shell">
-          <div className="portal-nav-shell-fill" aria-hidden />
-          <header className="portal-nav" aria-label="主导航">
-            <PortalLink href="/" target="_self" className="portal-brand" aria-label="返回首页">
-              <Image className="portal-brand-mark" src="/brand/reizo-mark.png" alt="" width={32} height={32} priority />
-              Reizo
-            </PortalLink>
-            <nav className="portal-main-links" aria-label="页面导航">
-              <PortalLink href="/" target="_self" className="is-current">首页</PortalLink>
-              <PortalLink href="/products?cate=app" target="_self">应用工具</PortalLink>
-              <PortalLink href="/products?cate=api" target="_self">API模型</PortalLink>
-              <PortalLink href="/docs" target="_self">文档</PortalLink>
-              <PortalLink href="/pricing" target="_self">计费标准</PortalLink>
-            </nav>
-            <button type="button" className="portal-membership-entry" onClick={openMembership}><Crown aria-hidden />升级会员</button>
-            <div className="portal-user-links">
-              <button type="button" onClick={() => setNotice("暂无新的通知")}><Bell aria-hidden />通知</button>
-              {account ? (
-                <PortalLink href="/account" className="portal-account"><span>{(account.display_name || account.username).slice(0, 1).toUpperCase()}</span>{account.display_name || account.username}<ChevronRight aria-hidden /></PortalLink>
-              ) : (
-                <button type="button" className="portal-account" onClick={() => openLogin("login")}><span>E</span>Elliot<ChevronRight aria-hidden /></button>
-              )}
-            </div>
-          </header>
-        </div>
+        <PortalNav current="home" onNotify={() => setNotice("暂无新的通知")} />
 
         <div className="portal-search-row">
           <section className={`portal-search-card${onboardingStep === 0 ? " is-onboarding-target" : ""}`} data-onboarding-target="agent" aria-labelledby="portal-search-title">
