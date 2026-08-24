@@ -7,6 +7,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -57,6 +58,9 @@ export default function StudioShell({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<StudioTheme>("dark");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const sidebarToggledRef = useRef(false);
+  const sidebarContainerRef = useRef<HTMLDivElement>(null);
+  const expandSidebarRef = useRef<HTMLButtonElement>(null);
   // Stable identity — an inline object literal here would recreate the
   // context value on every StudioShell re-render (e.g. whenever a page
   // publishes new header content), which then falsely trips consumers'
@@ -88,13 +92,26 @@ export default function StudioShell({ children }: { children: ReactNode }) {
     };
   }, [theme]);
 
-  const collapseSidebar = () => {
+  const collapseSidebar = useCallback(() => {
+    sidebarToggledRef.current = true;
     setSidebarCollapsed(true);
-  };
+  }, []);
 
-  const expandSidebar = () => {
+  const expandSidebar = useCallback(() => {
+    sidebarToggledRef.current = true;
     setSidebarCollapsed(false);
-  };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!showSessionSidebar || !sidebarToggledRef.current) return;
+    if (sidebarCollapsed) {
+      expandSidebarRef.current?.focus();
+      return;
+    }
+    sidebarContainerRef.current
+      ?.querySelector<HTMLButtonElement>('button[aria-label="收起侧栏"]')
+      ?.focus();
+  }, [sidebarCollapsed, showSessionSidebar]);
 
   return (
     <HeaderSlotContext.Provider value={headerSlotCtx}>
@@ -103,39 +120,47 @@ export default function StudioShell({ children }: { children: ReactNode }) {
           className="studio-root relative flex h-dvh min-h-0 w-full overflow-hidden"
           data-theme={theme}
           data-studio-mode={mode}
+          data-sidebar-collapsed={
+            showSessionSidebar && sidebarCollapsed ? "true" : "false"
+          }
         >
         <div className="studio-blob studio-blob-a" aria-hidden />
         <div className="studio-blob studio-blob-b" aria-hidden />
         <div className="studio-blob studio-blob-c" aria-hidden />
         <StudioModeRail mode={mode} />
         <div
-          className={`studio-sidebar-container relative z-[2] block h-full shrink-0 overflow-hidden transition-[width] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] ${
-            !showSessionSidebar ? "w-0" : sidebarCollapsed ? "w-[52px]" : "w-[248px]"
-          }`}
+          ref={sidebarContainerRef}
+          className="studio-sidebar-container relative z-[2] block h-full shrink-0"
+          data-collapsed={showSessionSidebar && sidebarCollapsed ? "true" : "false"}
+          data-hidden={!showSessionSidebar ? "true" : "false"}
           data-mobile-open={mobileSidebarOpen && showSessionSidebar ? "true" : "false"}
           aria-hidden={!showSessionSidebar}
         >
-          {showSessionSidebar && sidebarCollapsed ? (
-            <button
-              type="button"
-              onClick={expandSidebar}
-              title="展开侧栏"
-              aria-label="展开侧栏"
-              className="studio-sidebar-rail flex h-full w-[52px] items-start justify-center border-r border-white/70 pt-4"
-            >
-              <span className="studio-sidebar-rail-icon inline-flex h-10 w-10 items-center justify-center rounded-md">
-                <PanelLeftOpen className="h-4.5 w-4.5" />
-              </span>
-            </button>
-          ) : showSessionSidebar ? (
-            <StudioSidebar
-              theme={theme}
-              onThemeChange={updateTheme}
-              onRequestCollapse={() => {
-                collapseSidebar();
-                setMobileSidebarOpen(false);
-              }}
-            />
+          {showSessionSidebar ? (
+            <>
+              <StudioSidebar
+                theme={theme}
+                collapsed={sidebarCollapsed}
+                onThemeChange={updateTheme}
+                onRequestCollapse={() => {
+                  collapseSidebar();
+                  setMobileSidebarOpen(false);
+                }}
+              />
+              <button
+                ref={expandSidebarRef}
+                type="button"
+                onClick={expandSidebar}
+                title="展开侧栏"
+                aria-label="展开侧栏"
+                aria-expanded={!sidebarCollapsed}
+                aria-hidden={!sidebarCollapsed}
+                tabIndex={sidebarCollapsed ? 0 : -1}
+                className="studio-sidebar-expand"
+              >
+                <PanelLeftOpen className="size-4" />
+              </button>
+            </>
           ) : null}
         </div>
         <button
