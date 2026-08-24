@@ -10,31 +10,18 @@ import {
   Plus,
   LayoutGrid,
   LoaderCircle,
-  LogOut,
   Moon,
   PanelLeftClose,
   Search,
-  Settings2,
   Sparkles,
   Sun,
-  UserRound,
-  Wallet,
   Wrench,
 } from "lucide-react";
 import { useModals } from "@/components/providers";
-import { formatBalance } from "@/lib/account";
 import { site } from "@/data/site";
 import { listSessions } from "@/lib/studio/api";
 import { listProjects } from "@/lib/studio/api";
 import type { Project, Session } from "@/lib/agent/types";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import ProjectDialog from "./ProjectDialog";
 import {
   getUnreadSessionIds,
@@ -43,7 +30,6 @@ import {
   subscribeUnreadSessions,
 } from "@/lib/studio/session-unread";
 import StudioSearchDialog from "./StudioSearchDialog";
-import StudioSettingsDialog from "./StudioSettingsDialog";
 import {
   listStudioToolCategories,
   studioSkillsHref,
@@ -65,27 +51,6 @@ const primaryNav: NavItem[] = [
 ];
 
 const toolCategories = listStudioToolCategories();
-
-function useSignOutAction() {
-  const { signOut } = useModals();
-  const [pending, setPending] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const run = useCallback(async () => {
-    if (pending) return false;
-    setPending(true);
-    setFailed(false);
-    try {
-      await signOut();
-      return true;
-    } catch {
-      setFailed(true);
-      return false;
-    } finally {
-      setPending(false);
-    }
-  }, [pending, signOut]);
-  return { pending, failed, run };
-}
 
 function navActive(pathname: string, href: string, exact?: boolean) {
   if (exact) return pathname === href;
@@ -122,21 +87,18 @@ export default function StudioSidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { account, accountLoading, balanceConfig, openLogin } = useModals();
-  const signOutAction = useSignOutAction();
+  const { account } = useModals();
   const [recent, setRecent] = useState<Session[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [projectsOpen, toggleProjectsOpen] = usePersistedOpen("reizo:studio-sidebar-projects");
   const [recentsOpen, toggleRecentsOpen] = usePersistedOpen("reizo:studio-sidebar-recents");
   const [toolsOpen, toggleToolsOpen] = usePersistedOpen("reizo:studio-sidebar-tools", false);
   const onToolsRoute = pathname === "/studio/tools" || pathname.startsWith("/studio/tools/");
   const onSkillsRoute = pathname === "/studio/skills" || pathname.startsWith("/studio/skills/");
-  const toolsExpanded = toolsOpen || onToolsRoute || onSkillsRoute;
   const activeToolCategoryId = pathname.startsWith("/studio/tools/c/")
     ? decodeURIComponent(pathname.slice("/studio/tools/c/".length).split("/")[0] ?? "")
     : getStudioTool(pathname.replace(/^\/studio\/tools\//, ""))?.category ?? "";
@@ -236,15 +198,6 @@ export default function StudioSidebar({
     return counts;
   }, [recent]);
 
-  const avatarLetter = (
-    account?.display_name ||
-    account?.username ||
-    "W"
-  )
-    .trim()
-    .charAt(0)
-    .toUpperCase();
-
   return (
     <aside className="studio-glass relative z-[2] flex h-full w-[248px] shrink-0 flex-col border-r border-white/70 px-3 py-4">
       <div className="mb-5 flex items-center gap-1">
@@ -312,7 +265,7 @@ export default function StudioSidebar({
           <button
             type="button"
             onClick={toggleToolsOpen}
-            aria-expanded={toolsExpanded}
+            aria-expanded={toolsOpen}
             className={`studio-nav-item flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-[14px] outline-none transition-colors focus-visible:outline-none ${
               onToolsRoute || onSkillsRoute ? "studio-nav-active" : "text-[#615A73]"
             }`}
@@ -320,10 +273,10 @@ export default function StudioSidebar({
             <LayoutGrid className="size-[18px] shrink-0" strokeWidth={1.8} />
             全部工具
             <ChevronRight
-              className={`ml-auto size-3.5 shrink-0 transition-transform ${toolsExpanded ? "rotate-90" : ""}`}
+              className={`ml-auto size-3.5 shrink-0 transition-transform ${toolsOpen ? "rotate-90" : ""}`}
             />
           </button>
-          {toolsExpanded ? (
+          {toolsOpen ? (
             <ul className="mt-0.5 flex max-h-[42vh] flex-col gap-0.5 overflow-y-auto px-1 pb-1">
               {toolCategories.map((category) => {
                 const Icon = category.icon;
@@ -509,98 +462,6 @@ export default function StudioSidebar({
         }}
       />
       <StudioSearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
-      <StudioSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-
-      <div className="mt-3 border-t border-white/50 pt-3">
-        {account ? (
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label="打开账户菜单"
-                className="flex w-full items-center gap-2.5 rounded-[18px] px-2 py-2 text-left outline-none ring-0 transition-colors duration-150 hover:bg-white/60 focus:outline-none focus-visible:bg-white/60 focus-visible:outline-none data-[state=open]:bg-white/70"
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#334155] to-[#0F172A] text-sm font-bold text-white">
-                  {avatarLetter}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-[#241E36]">
-                    {account.display_name || account.username}
-                  </span>
-                  <span className="mt-0.5 block truncate text-[12px] text-[#8A8298]">
-                    {account.email || formatBalance(account.quota, balanceConfig)}
-                  </span>
-                </span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              side="top"
-              align="start"
-              sideOffset={8}
-              className="studio-account-menu w-[214px] rounded-[18px] border border-[#d4cec4] bg-[#fffdfb] p-1.5 shadow-[0_20px_50px_-16px_rgba(36,30,54,0.45),0_1px_0_rgba(255,255,255,0.8)_inset]"
-            >
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  className="h-10 cursor-pointer rounded-[12px] px-2.5 text-[14px] text-[#241E36] outline-none focus:bg-[#ebe4d8] focus:outline-none focus-visible:outline-none data-[highlighted]:bg-[#ebe4d8]"
-                  onSelect={() => {
-                    window.setTimeout(() => setSettingsOpen(true), 10);
-                  }}
-                >
-                  <Settings2 className="size-4 text-[#615A73]" />
-                  设置
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild className="h-10 cursor-pointer rounded-[12px] px-2.5 text-[14px] text-[#241E36] outline-none focus:bg-[#ebe4d8] focus:outline-none focus-visible:outline-none data-[highlighted]:bg-[#ebe4d8]">
-                  <Link href="/account">
-                    <UserRound className="size-4 text-[#615A73]" />
-                    个人中心
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild className="h-10 cursor-pointer rounded-[12px] px-2.5 text-[14px] text-[#241E36] outline-none focus:bg-[#ebe4d8] focus:outline-none focus-visible:outline-none data-[highlighted]:bg-[#ebe4d8]">
-                  <Link href="/account/wallet">
-                    <Wallet className="size-4 text-[#615A73]" />
-                    钱包与用量
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator className="mx-1 my-1 bg-[#e6e0d6]" />
-              <DropdownMenuItem
-                disabled={signOutAction.pending}
-                className="h-10 cursor-pointer rounded-[12px] px-2.5 text-[14px] text-[#241E36] outline-none focus:bg-[#ebe4d8] focus:outline-none focus-visible:outline-none data-[highlighted]:bg-[#ebe4d8]"
-                onSelect={() => {
-                  void signOutAction.run();
-                }}
-              >
-                {signOutAction.pending ? <LoaderCircle className="size-4 animate-spin" /> : <LogOut className="size-4 text-[#615A73]" />}
-                退出登录
-              </DropdownMenuItem>
-              {signOutAction.failed ? (
-                <p role="alert" className="px-2.5 py-1 text-xs text-[#EF4770]">
-                  退出失败，请重试
-                </p>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : accountLoading ? (
-          <div
-            className="h-12 animate-pulse rounded-[18px] bg-white/40"
-            aria-label="正在加载账户"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => openLogin("login")}
-            className="flex w-full items-center gap-2.5 rounded-[18px] px-2 py-2 text-left outline-none transition-colors duration-150 hover:bg-white/60 focus-visible:outline-none"
-          >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#e8e2d6] text-sm font-medium text-[#615A73]">
-              登
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-medium text-[#241E36]">登录</span>
-              <span className="text-[12px] text-[#8A8298]">开始对话并保存作品</span>
-            </span>
-          </button>
-        )}
-      </div>
     </aside>
   );
 }

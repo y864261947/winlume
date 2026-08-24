@@ -24,6 +24,8 @@ import {
   type StudioToolParams,
 } from "@/lib/studio/tool-catalog";
 import type { EcommerceImageSetJob } from "@/lib/studio/tool-jobs";
+import type { DrawTemplate } from "@/lib/studio/draw-templates";
+import DrawTemplateGallery from "./DrawTemplateGallery";
 
 async function parseResponse<T>(response: Response, fallback: string): Promise<T> {
   const body = (await response.json().catch(() => ({}))) as { error?: unknown } & T;
@@ -59,7 +61,13 @@ function isReadyArtifact(artifact: Artifact): boolean {
   return artifact.status !== "pending" && artifact.status !== "failed";
 }
 
-export default function ToolRunForm({ tool }: { tool: StudioTool }) {
+export default function ToolRunForm({
+  tool,
+  variant = "page",
+}: {
+  tool: StudioTool;
+  variant?: "page" | "workbench";
+}) {
   const { account, accountLoading, openLogin } = useModals();
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [artifactsLoading, setArtifactsLoading] = useState(true);
@@ -76,6 +84,7 @@ export default function ToolRunForm({ tool }: { tool: StudioTool }) {
   const toolJobStage = toolJob?.stage;
   const [params, setParams] = useState<StudioToolParams>(() => initialStudioToolParams(tool));
   const [prompt, setPrompt] = useState("");
+  const [canvasTab, setCanvasTab] = useState<"library" | "results">("library");
 
   const toolImageArtifacts = useMemo(
     () =>
@@ -272,6 +281,7 @@ export default function ToolRunForm({ tool }: { tool: StudioTool }) {
       const created = responseBody.artifacts ?? (responseBody.artifact ? [responseBody.artifact] : []);
       if (!created.length) throw new Error(`${tool.name}没有返回作品`);
       setResults(created);
+      setCanvasTab("results");
       setToolJob(responseBody.job ?? null);
       setArtifacts((current) => [
         ...created,
@@ -360,6 +370,238 @@ export default function ToolRunForm({ tool }: { tool: StudioTool }) {
   const canSubmitParameters = tool.parameters.every(
     (field) => field.type !== "checkbox" || !field.required || params[field.id] === true,
   );
+  const selectFields = tool.parameters.filter((field) => field.type === "select");
+  const checkboxFields = tool.parameters.filter((field) => field.type === "checkbox");
+  const applyTemplate = (template: DrawTemplate) => {
+    setPrompt(template.prompt);
+    setCanvasTab("library");
+    setRunError(null);
+  };
+
+  if (variant === "workbench") {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-canvas xl:flex-row">
+        <form
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            void run();
+          }}
+          className="flex w-full shrink-0 flex-col border-b border-line bg-surface xl:h-full xl:w-[352px] xl:border-b-0 xl:border-r"
+        >
+          <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto px-4 py-5">
+            <div>
+              <h2 className="text-base font-semibold tracking-tight text-ink-950">{tool.name}</h2>
+              <p className="mt-1 text-xs leading-5 text-ink-500">{tool.description}</p>
+            </div>
+            <div
+              className={`relative flex min-h-[132px] flex-col items-center justify-center rounded-[14px] border border-dashed px-4 py-5 text-center transition ${
+                dragOver ? "border-ink-700 bg-canvas" : "border-line-strong bg-canvas/60"
+              }`}
+              onDragEnter={onImageDragEnter}
+              onDragLeave={onImageDragLeave}
+              onDragOver={onImageDragOver}
+              onDrop={onImageDrop}
+            >
+              {!accountLoading && !account ? (
+                <button
+                  type="button"
+                  onClick={() => openLogin("login")}
+                  className="text-[13px] font-medium text-ink-950 underline underline-offset-2"
+                >
+                  登录后上传图片
+                </button>
+              ) : selectedArtifacts.length ? (
+                <div className="flex w-full flex-wrap justify-center gap-2">
+                  {selectedArtifacts.map((artifact) => (
+                    <div key={artifact.id} className="size-20 overflow-hidden rounded-[10px] border border-line">
+                      <ArtifactImage artifact={artifact} label={artifact.name} />
+                    </div>
+                  ))}
+                  <label className="flex size-20 cursor-pointer items-center justify-center rounded-[10px] border border-dashed border-line text-xs text-ink-500">
+                    {uploading ? "…" : "+"}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      disabled={uploading || !account}
+                      onChange={(event) => {
+                        void uploadImage(event.target.files?.[0] ?? null);
+                        event.currentTarget.value = "";
+                      }}
+                      className="sr-only"
+                    />
+                  </label>
+                </div>
+              ) : (
+                <label className="flex w-full cursor-pointer flex-col items-center">
+                  <Upload className="size-5 text-ink-400" />
+                  <p className="mt-2 text-[13px] font-medium text-ink-950">
+                    {tool.input.maxImages > 1 ? "上传同一商品的多角度图" : "上传要处理的图片"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-ink-500">{tool.inputHint}</p>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    disabled={uploading || !account}
+                    onChange={(event) => {
+                      void uploadImage(event.target.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                    className="sr-only"
+                  />
+                </label>
+              )}
+            </div>
+            {tool.input.prompt ? (
+              <label htmlFor={`tool-${tool.id}-prompt`} className="block">
+                <span className="flex items-center justify-between text-xs font-medium text-ink-700">
+                  {tool.input.prompt.label}
+                  <span className="font-normal text-ink-400">{prompt.length}/{tool.input.prompt.maxLength}</span>
+                </span>
+                <textarea
+                  id={`tool-${tool.id}-prompt`}
+                  value={prompt}
+                  maxLength={tool.input.prompt.maxLength}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  placeholder={tool.input.prompt.placeholder}
+                  rows={4}
+                  className="mt-2 block w-full resize-y rounded-[12px] border border-line bg-surface px-3 py-2.5 text-xs leading-5 text-ink-900 outline-none placeholder:text-ink-400"
+                />
+              </label>
+            ) : null}
+            {selectFields.length ? (
+              <div className="grid grid-cols-2 gap-2">
+                {selectFields.map((field) => {
+                  const parameterValue = params[field.id];
+                  const value = typeof parameterValue === "string" ? parameterValue : "";
+                  return (
+                    <label key={field.id} htmlFor={`tool-${tool.id}-${field.id}`} className="block">
+                      <span className="sr-only">{field.label}</span>
+                      <select
+                        id={`tool-${tool.id}-${field.id}`}
+                        value={value}
+                        onChange={(event) => setParams((current) => ({
+                          ...current,
+                          [field.id]: event.target.value,
+                        }))}
+                        className="h-9 w-full rounded-[10px] border border-line bg-surface px-2.5 text-xs text-ink-900 outline-none"
+                      >
+                        {field.options.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : null}
+            {checkboxFields.map((field) => {
+              const checked = params[field.id] === true;
+              return (
+                <label key={field.id} className="flex cursor-pointer items-start gap-2 text-xs text-ink-700">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(event) => setParams((current) => ({
+                      ...current,
+                      [field.id]: event.target.checked,
+                    }))}
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-ink-950"
+                  />
+                  {field.label}
+                </label>
+              );
+            })}
+          </div>
+          <div className="border-t border-line px-4 py-4">
+            {runError ? (
+              <p role="alert" className="mb-3 text-xs leading-5 text-rose-600">{runError}</p>
+            ) : null}
+            <button
+              type="submit"
+              disabled={
+                running ||
+                uploading ||
+                !hasRequiredImages ||
+                !hasValidPrompt ||
+                !account ||
+                !canSubmitParameters
+              }
+              className="studio-draw-generate inline-flex h-11 w-full items-center justify-center rounded-[12px] text-sm font-medium transition-transform duration-100 ease-out active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {running ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {running ? tool.runningLabel : tool.actionLabel}
+            </button>
+            <p className="mt-2 text-[11px] leading-5 text-ink-400">
+              结果写入我的作品，可下载或 @引用到对话。
+            </p>
+          </div>
+        </form>
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-canvas">
+          <div className="flex items-center gap-2 px-5 pt-4 sm:px-6">
+            {(["library", "results"] as const).map((tab) => {
+              const active = canvasTab === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setCanvasTab(tab)}
+                  className={`h-[30px] rounded-full px-3 text-xs font-medium transition-[background-color,color,transform] duration-100 ease-out active:scale-[0.97] ${
+                    active ? "bg-ink-950 text-[var(--color-canvas)]" : "border border-line bg-surface text-ink-600"
+                  }`}
+                >
+                  {tab === "library" ? "爆款模板库" : "创作结果"}
+                </button>
+              );
+            })}
+          </div>
+          {canvasTab === "results" ? (
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
+              {results.length ? (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {results.map((artifact) => (
+                    <article key={artifact.id} className="overflow-hidden rounded-[14px] border border-line bg-surface">
+                      {isReadyArtifact(artifact) ? (
+                        <div className={`${outputAspectClass} bg-canvas`}>
+                          <ArtifactImage artifact={artifact} label={`${tool.name}结果：${artifact.name}`} className="h-full w-full object-contain" />
+                        </div>
+                      ) : artifact.status === "pending" ? (
+                        <div className={`${outputAspectClass} flex items-center justify-center`}>
+                          <LoaderCircle className="h-6 w-6 animate-spin text-ink-400" />
+                        </div>
+                      ) : (
+                        <div className={`${outputAspectClass} flex items-center justify-center px-3 text-center text-xs text-rose-600`}>
+                          {artifact.error ?? "处理未完成"}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between gap-2 px-3 py-3">
+                        <p className="truncate text-xs font-medium text-ink-900">{artifact.name}</p>
+                        {isReadyArtifact(artifact) ? (
+                          <a
+                            href={`/api/artifacts/${encodeURIComponent(artifact.id)}/raw`}
+                            className="inline-flex h-[23px] items-center rounded-full bg-ink-950 px-2 text-[11px] font-medium text-[var(--color-canvas)]"
+                          >
+                            下载
+                          </a>
+                        ) : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex min-h-64 flex-col items-center justify-center text-center text-sm text-ink-500">
+                  <p>还没有生成结果。</p>
+                  <p className="mt-1 text-xs">上传商品图后点「{tool.actionLabel}」。</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <DrawTemplateGallery onApply={applyTemplate} />
+          )}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-canvas/35 xl:flex-row xl:overflow-hidden">

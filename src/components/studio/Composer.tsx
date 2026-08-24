@@ -74,6 +74,7 @@ import {
   saveComposerDraft,
 } from "@/lib/studio/composer-draft";
 import { afterNextPaint } from "@/lib/studio/next-paint";
+import { studioToolHref } from "@/lib/studio/studio-mode";
 import {
   startVideoAnalysis,
   uploadImageArtifact,
@@ -2153,7 +2154,7 @@ export default function Composer({
               <Scissors className="h-3 w-3 shrink-0" />
               <span className="truncate">{turnTool.name}</span>
               <Link
-                href={`/studio/tools/${turnTool.id}`}
+                href={studioToolHref(turnTool.id)}
                 className="rounded-full px-1.5 text-[10px] text-[#4F46E5] hover:bg-white/70"
               >
                 表单
