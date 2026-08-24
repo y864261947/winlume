@@ -48,6 +48,23 @@ function resolveMode(initialCate?: string): ViewMode {
   return "models";
 }
 
+function ModelDetailPanel({ model, onClose }: { model: PlazaModel; onClose: () => void }) {
+  const vendor = resolvePlazaVendor(model, { name: model.vendor_name, logo: model.vendor_logo });
+  const price = modelPriceLines(model);
+  return (
+    <section className="portal-model-detail portal-model-detail-dock" aria-labelledby="portal-model-detail-title">
+      <button type="button" className="portal-model-detail-close" onClick={onClose} aria-label="关闭模型详情"><X aria-hidden /></button>
+      <p className="portal-model-detail-kicker">MODEL DETAIL</p>
+      <div className="portal-model-detail-brand"><img src={vendor.logo} alt="" /><div><h2 id="portal-model-detail-title">{model.model_name}</h2><span>{vendor.brandLabel}</span></div></div>
+      <p>{modelDescription(model, vendor)}</p>
+      <div className="portal-model-detail-tags">{modelTags(model).map((tag) => <span key={tag.label}>{tag.label}</span>)}</div>
+      <dl><div><dt>计费方式</dt><dd>{price.kind === "fixed" || price.kind === "tiered" ? price.text : `${price.input} / ${price.output}`}</dd></div><div><dt>调用协议</dt><dd>HTTPS / JSON</dd></div><div><dt>端点能力</dt><dd>{model.supported_endpoint_types?.join("、") || "标准模型调用"}</dd></div></dl>
+      <h3>适合场景</h3><ul><li>复杂推理与问题解答</li><li>内容生成与信息处理</li><li>Agent 与自动化任务</li></ul>
+      <div className="portal-model-detail-actions"><Link href="/docs/api">查看 API 文档</Link><Link href={`/studio?model=${encodeURIComponent(model.model_name)}`}>立即调用 API</Link></div>
+    </section>
+  );
+}
+
 export default function ProductsExplorer({
   initialCate,
   initialBrand,
@@ -75,7 +92,7 @@ export default function ProductsExplorer({
     (stats: { total: number; filtered: number; models: PlazaModel[] }) => {
       setPlazaStats({ total: stats.total, filtered: stats.filtered });
       setPlazaModels(stats.models);
-      setSelectedModel((current) => current ?? stats.models[0] ?? null);
+      setSelectedModel((current) => current && stats.models.some((model) => model.model_name === current.model_name) ? current : null);
     },
     [],
   );
@@ -100,16 +117,22 @@ export default function ProductsExplorer({
         ) : (
         <div className="portal-directory-layout">
           <aside className="portal-directory-side">
-            <h2>API模型</h2>
-            <button type="button" className={`portal-directory-all ${capability === "all" ? "is-active" : ""}`} onClick={resetModelFilters}>
-              全部模型<ChevronRight aria-hidden />
-            </button>
-            {MODEL_CATEGORIES.map(({ id, label, providers, icon: Icon }) => (
-              <button key={id} type="button" className="portal-directory-model-row" data-active={capability === id || undefined} onClick={() => setCapability(id as PlazaCapabilityFilter)}>
-                <Icon aria-hidden />
-                <span><strong>{label}</strong><small>{providers}</small></span><ChevronRight aria-hidden />
-              </button>
-            ))}
+            {selectedModel ? (
+              <ModelDetailPanel model={selectedModel} onClose={() => setSelectedModel(null)} />
+            ) : (
+              <>
+                <h2>API模型</h2>
+                <button type="button" className={`portal-directory-all ${capability === "all" ? "is-active" : ""}`} onClick={resetModelFilters}>
+                  全部模型<ChevronRight aria-hidden />
+                </button>
+                {MODEL_CATEGORIES.map(({ id, label, providers, icon: Icon }) => (
+                  <button key={id} type="button" className="portal-directory-model-row" data-active={capability === id || undefined} onClick={() => setCapability(id as PlazaCapabilityFilter)}>
+                    <Icon aria-hidden />
+                    <span><strong>{label}</strong><small>{providers}</small></span><ChevronRight aria-hidden />
+                  </button>
+                ))}
+              </>
+            )}
           </aside>
           <div className="portal-directory-main">
         <section className="portal-catalog-hero">
@@ -170,7 +193,7 @@ export default function ProductsExplorer({
           <div className="portal-model-vendor-strip">
             <div className="portal-model-strip-title"><span>🔥</span><strong>热门推荐</strong></div>
             <div className="portal-model-vendor-scroller">
-              {vendorChips.slice(0, 7).map((vendor) => (
+              {vendorChips.map((vendor) => (
                 <button key={vendor.key} type="button" className={vendorKey === vendor.key ? "is-selected" : undefined} onClick={() => setVendorKey(vendor.key === vendorKey ? undefined : vendor.key)}>
                   <img src={vendor.logo} alt="" width={26} height={26} />
                   <span>{vendor.brandLabel}</span><small>{vendor.count} 个模型</small>
@@ -198,7 +221,7 @@ export default function ProductsExplorer({
           )}
         </div>
 
-        <div className={`portal-model-directory${selectedModel ? " has-detail" : ""}`}>
+        <div className="portal-model-directory">
         <RealModelGrid
           limit={240}
           compact
@@ -211,19 +234,6 @@ export default function ProductsExplorer({
           onSelectModel={setSelectedModel}
           variant="directory"
         />
-        {selectedModel ? (() => {
-          const vendor = resolvePlazaVendor(selectedModel, { name: selectedModel.vendor_name, logo: selectedModel.vendor_logo });
-          const price = modelPriceLines(selectedModel);
-          return <aside className="portal-model-detail">
-            <button type="button" className="portal-model-detail-close" onClick={() => setSelectedModel(null)}><X aria-hidden /></button>
-            <div className="portal-model-detail-brand"><img src={vendor.logo} alt="" /><div><h2>{selectedModel.model_name}</h2><span>{vendor.brandLabel}</span></div></div>
-            <p>{modelDescription(selectedModel, vendor)}</p>
-            <div className="portal-model-detail-tags">{modelTags(selectedModel).map((tag) => <span key={tag.label}>{tag.label}</span>)}</div>
-            <dl><div><dt>计费方式</dt><dd>{price.kind === "fixed" || price.kind === "tiered" ? price.text : `${price.input} / ${price.output}`}</dd></div><div><dt>调用协议</dt><dd>HTTPS / JSON</dd></div><div><dt>端点能力</dt><dd>{selectedModel.supported_endpoint_types?.join("、") || "标准模型调用"}</dd></div></dl>
-            <h3>适合场景</h3><ul><li>复杂推理与问题解答</li><li>内容生成与信息处理</li><li>Agent 与自动化任务</li></ul>
-            <div className="portal-model-detail-actions"><Link href="/docs/api">查看 API 文档</Link><Link href={`/studio?model=${encodeURIComponent(selectedModel.model_name)}`}>立即调用 API</Link></div>
-          </aside>;
-        })() : null}
         </div>
           </div>
         </div>

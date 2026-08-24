@@ -35,6 +35,8 @@ export async function searchCatalog(query: string, limit = 8): Promise<Product[]
 
 export interface PlazaModel {
   model_name: string;
+  /** Curated directory entry when the provider is not configured in the live gateway. */
+  catalog_only?: boolean;
   vendor_id?: number;
   /** Stable vendor key, e.g. openai / anthropic */
   vendor_key?: string;
