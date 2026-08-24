@@ -117,22 +117,17 @@ export default function ProductsExplorer({
         ) : (
         <div className="portal-directory-layout">
           <aside className="portal-directory-side">
-            {selectedModel ? (
-              <ModelDetailPanel model={selectedModel} onClose={() => setSelectedModel(null)} />
-            ) : (
-              <>
-                <h2>API模型</h2>
-                <button type="button" className={`portal-directory-all ${capability === "all" ? "is-active" : ""}`} onClick={resetModelFilters}>
-                  全部模型<ChevronRight aria-hidden />
-                </button>
-                {MODEL_CATEGORIES.map(({ id, label, providers, icon: Icon }) => (
-                  <button key={id} type="button" className="portal-directory-model-row" data-active={capability === id || undefined} onClick={() => setCapability(id as PlazaCapabilityFilter)}>
-                    <Icon aria-hidden />
-                    <span><strong>{label}</strong><small>{providers}</small></span><ChevronRight aria-hidden />
-                  </button>
-                ))}
-              </>
-            )}
+            <h2>API模型</h2>
+            <button type="button" className={`portal-directory-all ${capability === "all" ? "is-active" : ""}`} onClick={resetModelFilters}>
+              全部模型<ChevronRight aria-hidden />
+            </button>
+            {MODEL_CATEGORIES.map(({ id, label, providers, icon: Icon }) => (
+              <button key={id} type="button" className="portal-directory-model-row" data-active={capability === id || undefined} onClick={() => setCapability(id as PlazaCapabilityFilter)}>
+                <Icon aria-hidden />
+                <span><strong>{label}</strong><small>{providers}</small></span><ChevronRight aria-hidden />
+              </button>
+            ))}
+            {selectedModel ? <ModelDetailPanel model={selectedModel} onClose={() => setSelectedModel(null)} /> : null}
           </aside>
           <div className="portal-directory-main">
         <section className="portal-catalog-hero">
