@@ -78,10 +78,12 @@ function usePersistedOpen(key: string, fallback = true) {
 
 export default function StudioSidebar({
   theme,
+  collapsed = false,
   onThemeChange,
   onRequestCollapse,
 }: {
   theme: "dark" | "light";
+  collapsed?: boolean;
   onThemeChange: (theme: "dark" | "light") => void;
   onRequestCollapse?: () => void;
 }) {
@@ -199,7 +201,11 @@ export default function StudioSidebar({
   }, [recent]);
 
   return (
-    <aside className="studio-glass relative z-[2] flex h-full w-[248px] shrink-0 flex-col border-r border-white/70 px-3 py-4">
+    <aside
+      className="studio-sidebar-panel studio-glass flex h-full w-[248px] flex-col border-r border-white/70 px-3 py-4"
+      inert={collapsed || undefined}
+      aria-hidden={collapsed || undefined}
+    >
       <div className="mb-5 flex items-center gap-1">
         <Link href="/studio" className="flex min-w-0 flex-1 items-center gap-2.5 px-2">
           <span className="studio-logo-mark flex h-[30px] w-[30px] shrink-0 items-center justify-center">
@@ -224,6 +230,7 @@ export default function StudioSidebar({
             onClick={onRequestCollapse}
             title="收起侧栏"
             aria-label="收起侧栏"
+            aria-expanded={!collapsed}
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#615A73] transition-[background-color,color,transform] duration-150 hover:bg-white/75 hover:text-[#241E36] active:scale-[0.97]"
           >
             <PanelLeftClose className="h-4 w-4" />
