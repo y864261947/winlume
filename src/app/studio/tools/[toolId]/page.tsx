@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { ChevronRight, ImagePlus } from "lucide-react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import ToolRunForm from "@/components/studio/ToolRunForm";
 import {
   getStudioToolCategory,
   studioToolCategoryHref,
 } from "@/lib/studio/tool-categories";
+import { isDrawToolId, studioDrawHref } from "@/lib/studio/studio-mode";
 import { getStudioTool } from "@/lib/studio/tool-catalog";
 
 type PageProps = { params: Promise<{ toolId: string }> };
@@ -14,6 +15,7 @@ export default async function StudioToolPage({ params }: PageProps) {
   const { toolId } = await params;
   const tool = getStudioTool(toolId);
   if (!tool) notFound();
+  if (isDrawToolId(tool.id)) redirect(studioDrawHref(tool.id));
   const category = getStudioToolCategory(tool.category);
 
   return (

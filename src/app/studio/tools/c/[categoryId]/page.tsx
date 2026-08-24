@@ -7,6 +7,7 @@ import {
   isStudioToolCategoryId,
   STUDIO_TOOL_CATEGORY_IDS,
 } from "@/lib/studio/tool-categories";
+import { studioToolHref } from "@/lib/studio/studio-mode";
 import { listStudioToolsByCategory } from "@/lib/studio/tool-catalog";
 
 export const runtime = "nodejs";
@@ -59,7 +60,7 @@ export default async function StudioToolCategoryPage({ params }: PageProps) {
                 return (
                   <Link
                     key={tool.id}
-                    href={`/studio/tools/${tool.id}`}
+                    href={studioToolHref(tool.id)}
                     className="group flex min-h-40 flex-col rounded-lg border border-line bg-surface p-4 transition hover:border-primary-300 hover:bg-primary-50/35"
                   >
                     <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-700">

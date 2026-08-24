@@ -10,7 +10,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  studioModeFromPathname,
+  studioShowsSessionSidebar,
+} from "@/lib/studio/studio-mode";
+import StudioModeRail from "./StudioModeRail";
 import StudioSidebar from "./StudioSidebar";
 import StudioViewTransition from "./StudioViewTransition";
 
@@ -44,6 +50,9 @@ export function useStudioHeaderSlot(content: ReactNode) {
 
 /** Full-height workbench chrome — demo warm canvas + glass sidebar (no marketing chrome). */
 export default function StudioShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname() ?? "/studio";
+  const mode = studioModeFromPathname(pathname);
+  const showSessionSidebar = studioShowsSessionSidebar(mode);
   const [header, setHeader] = useState<ReactNode>(null);
   const [theme, setTheme] = useState<StudioTheme>("dark");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -93,17 +102,20 @@ export default function StudioShell({ children }: { children: ReactNode }) {
         <div
           className="studio-root relative flex h-dvh min-h-0 w-full overflow-hidden"
           data-theme={theme}
+          data-studio-mode={mode}
         >
         <div className="studio-blob studio-blob-a" aria-hidden />
         <div className="studio-blob studio-blob-b" aria-hidden />
         <div className="studio-blob studio-blob-c" aria-hidden />
+        <StudioModeRail mode={mode} />
         <div
-          className={`studio-sidebar-container relative z-[2] block h-full shrink-0 transition-[width] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] ${
-            sidebarCollapsed ? "w-[52px]" : "w-[248px]"
+          className={`studio-sidebar-container relative z-[2] block h-full shrink-0 overflow-hidden transition-[width] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] ${
+            !showSessionSidebar ? "w-0" : sidebarCollapsed ? "w-[52px]" : "w-[248px]"
           }`}
-          data-mobile-open={mobileSidebarOpen ? "true" : "false"}
+          data-mobile-open={mobileSidebarOpen && showSessionSidebar ? "true" : "false"}
+          aria-hidden={!showSessionSidebar}
         >
-          {sidebarCollapsed ? (
+          {showSessionSidebar && sidebarCollapsed ? (
             <button
               type="button"
               onClick={expandSidebar}
@@ -115,7 +127,7 @@ export default function StudioShell({ children }: { children: ReactNode }) {
                 <PanelLeftOpen className="h-4.5 w-4.5" />
               </span>
             </button>
-          ) : (
+          ) : showSessionSidebar ? (
             <StudioSidebar
               theme={theme}
               onThemeChange={updateTheme}
@@ -124,11 +136,12 @@ export default function StudioShell({ children }: { children: ReactNode }) {
                 setMobileSidebarOpen(false);
               }}
             />
-          )}
+          ) : null}
         </div>
         <button
           type="button"
-          className="studio-mobile-nav-toggle fixed left-3 top-3 z-[60] inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/90 text-[#615A73] shadow-md backdrop-blur"
+          className="studio-mobile-nav-toggle fixed left-[84px] top-3 z-[60] inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/90 text-[#615A73] shadow-md backdrop-blur"
+          hidden={!showSessionSidebar}
           onClick={() => {
             if (sidebarCollapsed) setSidebarCollapsed(false);
             setMobileSidebarOpen((open) => !open);
