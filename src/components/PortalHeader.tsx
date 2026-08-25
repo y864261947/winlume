@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, ChevronRight, Crown, LayoutGrid } from "lucide-react";
+import { Bell, ChevronDown, ChevronRight, Crown } from "lucide-react";
 import { useState } from "react";
 import { useModals } from "@/components/providers";
 
@@ -16,9 +16,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/", label: "首页", active: (pathname) => pathname === "/" },
   { href: "/products?cate=app", label: "应用工具", active: (pathname, cate) => pathname === "/products" && cate === "app" },
-  { href: "/products?cate=api", label: "API模型", active: (pathname, cate) => pathname === "/products" && cate !== "app" },
-  { href: "/docs", label: "文档", active: (pathname) => pathname === "/docs" || pathname.startsWith("/docs/") },
-  { href: "/pricing", label: "计费标准", active: (pathname) => pathname === "/pricing" },
+  { href: "/studio", label: "智能体", active: (pathname) => pathname.startsWith("/studio") },
 ];
 
 /** One portal header for the home, catalog, docs, pricing, and account surfaces. */
@@ -26,6 +24,7 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
   const pathname = usePathname();
   const { account, openLogin, openMembership } = useModals();
   const [notice, setNotice] = useState("");
+  const [apiMenuOpen, setApiMenuOpen] = useState(false);
   const accountName = account ? account.display_name || account.username : "";
   const accountInitial = accountName ? accountName.slice(0, 1).toUpperCase() : "登";
 
@@ -48,16 +47,33 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
                 {item.label}
               </Link>
             ))}
+            <div
+              className="portal-main-menu"
+              onMouseEnter={() => setApiMenuOpen(true)}
+              onMouseLeave={() => setApiMenuOpen(false)}
+              onFocus={() => setApiMenuOpen(true)}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setApiMenuOpen(false);
+              }}
+            >
+              <Link
+                href="/products?cate=api"
+                className={pathname === "/products" && productMode !== "app" ? "is-current" : undefined}
+                aria-expanded={apiMenuOpen}
+              >
+                API模型<ChevronDown aria-hidden />
+              </Link>
+              <div className={`portal-main-submenu${apiMenuOpen ? " is-open" : ""}`}>
+                <Link href="/products?cate=api">全部模型</Link>
+                <Link href="/docs">API 调用文档</Link>
+              </div>
+            </div>
           </nav>
           <button type="button" className="portal-membership-entry" onClick={openMembership}>
             <Crown aria-hidden />
             升级会员
           </button>
           <div className="portal-user-links">
-            <Link href="/studio" className={pathname.startsWith("/studio") ? "is-current" : undefined}>
-              <LayoutGrid aria-hidden />
-              Agent
-            </Link>
             <button type="button" onClick={() => setNotice("暂无新的通知") }>
               <Bell aria-hidden />
               通知

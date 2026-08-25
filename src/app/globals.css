@@ -3683,6 +3683,13 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-main-links a, .portal-user-links a, .portal-user-links button { position: relative; display: inline-flex; align-items: center; gap: 5px; border: 0; color: var(--portal-ink); background: transparent; font: inherit; font-size: 15px; line-height: 20px; white-space: nowrap; }
 .portal-main-links a.is-current { color: var(--portal-blue); font-weight: 700; }
 .portal-main-links a.is-current::after { position: absolute; right: 50%; bottom: -19px; width: 31px; height: 2px; border-radius: 1px; background: var(--portal-blue); content: ""; transform: translateX(50%); }
+.portal-main-menu { position: relative; display: flex; height: 100%; align-items: center; }
+.portal-main-menu > a svg { width: 14px; height: 14px; transition: transform 150ms ease; }
+.portal-main-menu:focus-within > a svg,.portal-main-menu:hover > a svg { transform: rotate(180deg); }
+.portal-main-submenu { position: absolute; z-index: 120; top: calc(100% - 3px); left: 50%; display: grid; width: 148px; padding: 6px; border: 1px solid rgba(202,218,239,.92); border-radius: 10px; background: rgba(255,255,255,.98); box-shadow: 0 16px 32px -20px rgba(25,67,124,.46); opacity: 0; pointer-events: none; transform: translate(-50%,-4px); transition: opacity 150ms ease, transform 150ms ease; }
+.portal-main-submenu.is-open { opacity: 1; pointer-events: auto; transform: translate(-50%,0); }
+.portal-main-submenu a { min-height: 33px; padding: 0 10px; border-radius: 7px; color: #40536d; font-size: 12px; font-weight: 650; }
+.portal-main-submenu a:hover { color: #125edb; background: #eef5ff; }
 .portal-user-links { display: flex; flex: 0 0 auto; align-items: center; gap: 23px; }
 .portal-user-links svg { width: 16px; height: 16px; stroke-width: 1.7; }
 .portal-account span { display: inline-grid; width: 32px; height: 32px; margin-right: 1px; place-items: center; border-radius: 50%; color: #fff; background: #285c9d; font-size: 15px; font-weight: 700; }
@@ -6162,6 +6169,7 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-home .portal-api-card { z-index: 20; overflow: visible; }
 .portal-home .portal-api-row { position: relative; }
 .portal-home .portal-api-touch-card { z-index: 80; }
+.portal-home { overflow-x: clip; }
 
 /* First-visit guide: a single bright route through Agent, API models and tools. */
 .portal-home .is-onboarding-target {
@@ -6515,9 +6523,10 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 }
 .portal-home .portal-api-touch-card {
   /* Slightly overlaps the trigger row, so the pointer never crosses a dead gap. */
-  left: calc(100% - 2px);
+  left: min(calc(100% - 2px), calc(100vw - 740px));
   z-index: 100;
-  width: min(760px, calc(100vw - 86px));
+  width: min(720px, calc(100vw - 360px));
+  max-width: calc(100vw - 32px);
   max-height: min(580px, calc(100vh - 64px));
   padding: 18px;
 }

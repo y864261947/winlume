@@ -24,14 +24,14 @@ describe("homepage API categories", () => {
     expect(source).not.toContain("popularModels");
   });
 
-  it("renders brand chips without 通用接口 and caps at 5", () => {
+  it("renders brand chips without 通用接口 and exposes the supplier flyout", () => {
     expect(source).toContain("portal-api-brands");
     expect(source).toContain("portal-api-brand");
-    expect(source).toContain('label: "OpenAI"');
-    expect(source).toContain('label: "Anthropic"');
-    expect(source).toContain('label: "Recraft"');
+    expect(source).toContain('apiProvider("OpenAI"');
+    expect(source).toContain('apiProvider("Anthropic"');
+    expect(source).toContain('apiProvider("Jina AI"');
     expect(source).not.toMatch(/label:\s*"通用接口"/);
-    expect(source).toContain("API_BRAND_LIMIT = 5");
+    expect(source).toContain("portal-api-touch-card");
   });
 
   it("opens content destinations in a new tab while keeping primary navigation in place", () => {

@@ -13,14 +13,17 @@ const SHELLS = [
 ] as const;
 
 describe("portal top navigation", () => {
-  it("keeps the same five destinations and right-side slots", () => {
-    for (const label of ["首页", "应用工具", "API模型", "文档", "计费标准"]) {
+  it("keeps the compact primary navigation and nests API documentation", () => {
+    for (const label of ["首页", "应用工具", "智能体"]) {
       expect(navSource).toContain(`label: "${label}"`);
     }
+    expect(navSource).toContain("API模型<ChevronDown");
+    expect(navSource).toContain("API 调用文档");
+    expect(navSource).not.toContain('label: "计费标准"');
+    expect(navSource).not.toContain('label: "文档"');
     expect(navSource).toContain("升级会员");
-    expect(navSource).toContain("Agent");
     expect(navSource).toContain("通知");
-    expect(navSource).toContain('href="/studio"');
+    expect(navSource).toContain('href: "/studio"');
     expect(navSource).toContain("portal-membership-entry");
     expect(navSource).toContain("portal-user-links");
   });
