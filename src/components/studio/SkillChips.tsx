@@ -1,7 +1,8 @@
 "use client";
 
-import { Pin, PinOff, X } from "lucide-react";
+import { useState } from "react";
 import type { SkillMeta } from "@/lib/agent/types";
+import { skillMonogram } from "@/lib/studio/skill-mark";
 
 export type SkillChipsProps = {
   turnIds: string[];
@@ -16,9 +17,29 @@ export type SkillChipsProps = {
 function resolveMeta(
   id: string,
   skillsById: Map<string, SkillMeta>,
-): Pick<SkillMeta, "id" | "name"> {
+): Pick<SkillMeta, "id" | "name" | "iconUrl"> {
   const meta = skillsById.get(id);
-  return { id, name: meta?.name || id };
+  return { id, name: meta?.name || id, iconUrl: meta?.iconUrl };
+}
+
+function ChipMark({ name, iconUrl }: { name: string; iconUrl?: string }) {
+  const [broken, setBroken] = useState(false);
+  const showImage = Boolean(iconUrl) && !broken;
+  return (
+    <span className="studio-skill-chip-mark" aria-hidden>
+      {showImage ? (
+        // eslint-disable-next-line @next/next/no-img-element -- mixed SkillHub CDNs
+        <img
+          src={iconUrl}
+          alt=""
+          referrerPolicy="no-referrer"
+          onError={() => setBroken(true)}
+        />
+      ) : (
+        skillMonogram(name)
+      )}
+    </span>
+  );
 }
 
 export default function SkillChips({
@@ -27,100 +48,37 @@ export default function SkillChips({
   skillsById,
   onRemoveTurn,
   onTogglePin,
-  onClearTurn,
   disabled = false,
 }: SkillChipsProps) {
-  const hasPinned = pinnedIds.length > 0;
-  const hasTurn = turnIds.length > 0;
-  if (!hasPinned && !hasTurn) return null;
+  const ids = [
+    ...pinnedIds,
+    ...turnIds.filter((id) => !pinnedIds.includes(id)),
+  ];
+  if (ids.length === 0) return null;
+
+  function dismiss(id: string) {
+    onRemoveTurn(id);
+    if (pinnedIds.includes(id)) onTogglePin(id);
+  }
 
   return (
-    <div className="flex flex-col gap-1.5 px-2">
-      {hasPinned ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-[#8A8298]">
-            钉住
-          </span>
-          {pinnedIds.map((id) => {
-            const s = resolveMeta(id, skillsById);
-            return (
-              <span
-                key={`pin-${id}`}
-                className="inline-flex max-w-full items-center gap-0.5 rounded-full border border-[rgba(71, 85, 105,0.25)] bg-[rgba(71, 85, 105,0.08)] py-0.5 pl-2.5 pr-1 text-xs text-[#4F46E5]"
-              >
-                <Pin className="h-3 w-3 shrink-0 fill-current opacity-80" />
-                <span className="truncate">{s.name}</span>
-                <button
-                  type="button"
-                  onClick={() => onTogglePin(id)}
-                  disabled={disabled}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#4F46E5] hover:bg-[rgba(71, 85, 105,0.14)] disabled:opacity-50"
-                  title="取消钉住"
-                >
-                  <PinOff className="h-3 w-3" />
-                  <span className="sr-only">取消钉住 {s.name}</span>
-                </button>
-              </span>
-            );
-          })}
-        </div>
-      ) : null}
-
-      {hasTurn ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-[#8A8298]">
-            本轮
-          </span>
-          {turnIds.map((id) => {
-            const s = resolveMeta(id, skillsById);
-            const pinned = pinnedIds.includes(id);
-            return (
-              <span
-                key={`turn-${id}`}
-                className="inline-flex max-w-full items-center gap-0.5 rounded-full border border-[rgba(15, 23, 42,0.2)] bg-[rgba(15, 23, 42,0.08)] py-0.5 pl-2.5 pr-1 text-xs text-[#0F172A]"
-              >
-                <span className="truncate">{s.name}</span>
-                <button
-                  type="button"
-                  onClick={() => onTogglePin(id)}
-                  disabled={disabled}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#0F172A] hover:bg-[rgba(15, 23, 42,0.12)] disabled:opacity-50"
-                  title={pinned ? "取消钉住" : "钉住到会话"}
-                >
-                  {pinned ? (
-                    <Pin className="h-3 w-3 fill-current" />
-                  ) : (
-                    <Pin className="h-3 w-3" />
-                  )}
-                  <span className="sr-only">
-                    {pinned ? "取消钉住" : "钉住"} {s.name}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onRemoveTurn(id)}
-                  disabled={disabled}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#0F172A] hover:bg-[rgba(15, 23, 42,0.12)] disabled:opacity-50"
-                  title="移除本轮"
-                >
-                  <X className="h-3 w-3" />
-                  <span className="sr-only">移除 {s.name}</span>
-                </button>
-              </span>
-            );
-          })}
-          {onClearTurn && turnIds.length > 1 ? (
-            <button
-              type="button"
-              onClick={onClearTurn}
-              disabled={disabled}
-              className="text-[11px] text-[#8A8298] underline-offset-2 hover:text-[#0F172A] hover:underline disabled:opacity-50"
-            >
-              清空本轮
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+    <div className="studio-skill-chip-row" aria-label="已挂载技能">
+      {ids.map((id) => {
+        const skill = resolveMeta(id, skillsById);
+        return (
+          <button
+            key={id}
+            type="button"
+            className="studio-skill-chip"
+            disabled={disabled}
+            title={`移除 ${skill.name}`}
+            onClick={() => dismiss(id)}
+          >
+            <ChipMark name={skill.name} iconUrl={skill.iconUrl} />
+            <span className="studio-skill-chip-name">{skill.name}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

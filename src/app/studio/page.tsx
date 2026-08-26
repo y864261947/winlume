@@ -315,7 +315,6 @@ function StudioHomeInner() {
   const [capabilityPresetId, setCapabilityPresetId] = useState<string | null>(null);
   const [featuredSkills, setFeaturedSkills] = useState<SkillMeta[] | null>(null);
   const [catalogCounts, setCatalogCounts] = useState<StudioCatalogCount[]>([]);
-  const [skillLabels, setSkillLabels] = useState<Record<string, string>>({});
   const projectId = searchParams.get("projectId")?.trim() || "";
   const seedArtifactId = searchParams.get("artifact")?.trim() || "";
   const entryContext = STUDIO_ENTRY_CONTEXT[searchParams.get("entry") ?? ""];
@@ -400,11 +399,6 @@ function StudioHomeInner() {
         const featured = data.skills ?? [];
         setFeaturedSkills(featured);
         if (data.catalogs?.length) setCatalogCounts(data.catalogs);
-        setSkillLabels((current) => {
-          const next = { ...current };
-          for (const skill of featured) next[skill.id] = skill.name;
-          return next;
-        });
       })
       .catch(() => {
         if (!cancelled) setFeaturedSkills([]);
@@ -413,39 +407,6 @@ function StudioHomeInner() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    const missing = selectedSkillIds.filter((id) => !skillLabels[id]);
-    if (missing.length === 0) return;
-    let cancelled = false;
-    void Promise.all(
-      missing.map((id) =>
-        fetch(`/api/skills?id=${encodeURIComponent(id)}`, {
-          credentials: "same-origin",
-        })
-          .then(async (res) => {
-            if (!res.ok) return null;
-            return res.json() as Promise<{ skill?: SkillMeta }>;
-          })
-          .then((data) =>
-            data?.skill ? ([data.skill.id, data.skill.name] as const) : null,
-          )
-          .catch(() => null),
-      ),
-    ).then((rows) => {
-      if (cancelled) return;
-      setSkillLabels((current) => {
-        const next = { ...current };
-        for (const row of rows) {
-          if (row) next[row[0]] = row[1];
-        }
-        return next;
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedSkillIds, skillLabels]);
 
   const workbenchCategories = useMemo(
     () =>
@@ -848,20 +809,7 @@ function StudioHomeInner() {
                 先选分类进入工具和技能，或点精选技能挂到上方输入框。
               </p>
             </div>
-            {selectedSkillIds.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] text-[#8A8298]">已挂载</span>
-                {selectedSkillIds.map((id) => (
-                  <span
-                    key={id}
-                    className="inline-flex items-center gap-1 rounded-full border border-[rgba(15, 23, 42,0.2)] bg-[rgba(15, 23, 42,0.08)] px-2.5 py-1 text-[11px] font-medium text-[#0F172A]"
-                  >
-                    <Sparkles className="h-3 w-3" />
-                    {skillLabels[id] || id}
-                  </span>
-                ))}
-              </div>
-            ) : null}
+
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

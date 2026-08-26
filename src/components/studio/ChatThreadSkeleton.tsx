@@ -16,7 +16,11 @@ export default function ChatThreadSkeleton() {
             key={i}
             className={`flex gap-3 ${i === 0 ? "flex-row-reverse" : ""}`}
           >
-            <span className="mt-0.5 h-8 w-8 shrink-0 animate-pulse rounded-full bg-white/60" />
+            <span
+              className={`mt-0.5 h-8 w-8 shrink-0 animate-pulse ${
+                i === 0 ? "rounded-full bg-canvas" : "rounded-[10px] bg-canvas"
+              }`}
+            />
             <div
               className={`h-16 max-w-[min(100%,42rem)] animate-pulse rounded-[18px] ${
                 i === 0 ? "bg-white/50" : "bg-white/35"

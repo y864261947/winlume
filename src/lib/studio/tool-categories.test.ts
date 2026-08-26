@@ -8,6 +8,7 @@ import {
   skillDepartmentToToolCategory,
   studioSkillsHref,
   studioToolCategoryHref,
+  studioToolsHref,
 } from "./tool-categories";
 
 describe("Studio tool categories", () => {
@@ -29,7 +30,13 @@ describe("Studio tool categories", () => {
     expect(isStudioToolCategoryId("图片处理")).toBe(false);
     expect(getStudioToolCategory("ecommerce-sales")?.name).toBe("电商与销售");
     expect(getStudioToolCategory("not-a-category")).toBeNull();
-    expect(studioToolCategoryHref("legal-finance")).toBe("/studio/tools/c/legal-finance");
+    expect(studioToolCategoryHref("legal-finance")).toBe(
+      "/studio/tools?catalog=legal-finance",
+    );
+    expect(studioToolsHref()).toBe("/studio/tools");
+    expect(studioToolsHref("visual-media")).toBe(
+      "/studio/tools?catalog=visual-media",
+    );
     expect(studioSkillsHref()).toBe("/studio/skills");
     expect(studioSkillsHref("content-marketing")).toBe(
       "/studio/skills?catalog=content-marketing",
@@ -60,6 +67,12 @@ describe("Studio tool categories", () => {
       "image-fusion": "visual-media",
       "ecommerce-image-set": "ecommerce-sales",
     });
+  });
+
+  it("gives every category a hex accent for theme-aware marks", () => {
+    for (const category of listStudioToolCategories()) {
+      expect(category.accent).toMatch(/^#[0-9a-f]{6}$/i);
+    }
   });
 
   it("maps Skill departments onto the same eight categories", () => {

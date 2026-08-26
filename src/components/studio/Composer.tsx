@@ -1869,6 +1869,15 @@ export default function Composer({
           </div>
         ) : null}
 
+        <SkillChips
+          turnIds={selectedIds}
+          pinnedIds={pinnedIds}
+          skillsById={skillsById}
+          onRemoveTurn={removeSkill}
+          onTogglePin={togglePin}
+          disabled={disabled}
+        />
+
         {(images.length > 0 || videos.length > 0 || workbooks.length > 0 || files.length > 0 || focusedSheet?.kind === "sheet") ? (
           <div className="composer-context-strip flex min-w-0 items-center gap-1.5 overflow-x-auto px-2 pt-1">
             {focusedSheet?.kind === "sheet" ? (
@@ -2217,16 +2226,6 @@ export default function Composer({
             )}
           </div>
         ) : null}
-
-        <SkillChips
-          turnIds={selectedIds}
-          pinnedIds={pinnedIds}
-          skillsById={skillsById}
-          onRemoveTurn={removeSkill}
-          onTogglePin={togglePin}
-          onClearTurn={clearTurnSkills}
-          disabled={disabled}
-        />
 
         {/* Attachment strip: images, reference videos, and binary file chips. */}
         {(images.length > 0 || videos.length > 0 || files.length > 0 || workbooks.length > 0) && (

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   Copy,
   Droplet,
@@ -10,6 +11,7 @@ import {
   ShoppingBag,
   Sparkles,
 } from "lucide-react";
+import { site } from "@/data/site";
 import { DRAW_FAMILY_ITEMS } from "@/lib/studio/studio-mode";
 
 const ICONS: Record<string, typeof ShoppingBag> = {
@@ -32,6 +34,21 @@ export default function DrawToolFamily({
       className="studio-draw-family flex h-full w-[76px] shrink-0 flex-col items-center gap-1 overflow-y-auto border-r py-3"
       aria-label="做图工具"
     >
+      <Link
+        href="/studio"
+        className="studio-draw-family-item mb-2 flex w-[56px] flex-col items-center gap-1 rounded-[12px] px-1 py-2 text-center"
+        title={site.name}
+        aria-label={`返回${site.name}工作台`}
+      >
+        <Image
+          src="/brand/reizo-mark.png"
+          alt=""
+          width={22}
+          height={22}
+          className="studio-mode-workbench-mark"
+        />
+        <span>工作台</span>
+      </Link>
       {DRAW_FAMILY_ITEMS.map((item, index) => {
         const Icon = ICONS[item.id] ?? Sparkles;
         const active = item.id === activeId;
