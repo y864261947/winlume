@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, ChevronDown, ChevronRight, Crown } from "lucide-react";
+import { Bell, Bot, ChevronDown, ChevronRight, Crown, KeyRound, LayoutDashboard, WalletCards } from "lucide-react";
 import { useState } from "react";
 import { useModals } from "@/components/providers";
 
@@ -16,7 +16,6 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/", label: "首页", active: (pathname) => pathname === "/" },
   { href: "/products?cate=app", label: "应用工具", active: (pathname, cate) => pathname === "/products" && cate === "app" },
-  { href: "/studio", label: "智能体", active: (pathname) => pathname.startsWith("/studio") },
 ];
 
 /** One portal header for the home, catalog, docs, pricing, and account surfaces. */
@@ -25,6 +24,7 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
   const { account, openLogin, openMembership } = useModals();
   const [notice, setNotice] = useState("");
   const [apiMenuOpen, setApiMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountName = account ? account.display_name || account.username : "";
   const accountInitial = accountName ? accountName.slice(0, 1).toUpperCase() : "登";
 
@@ -68,6 +68,10 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
                 <Link href="/docs">API 调用文档</Link>
               </div>
             </div>
+            <Link href="/studio" className={`portal-agent-entry${pathname.startsWith("/studio") ? " is-current" : ""}`}>
+              <Bot aria-hidden />
+              智能体
+            </Link>
           </nav>
           <button type="button" className="portal-membership-entry" onClick={openMembership}>
             <Crown aria-hidden />
@@ -79,9 +83,25 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
               通知
             </button>
             {account ? (
-              <Link href="/account" className={`portal-account${pathname.startsWith("/account") ? " is-current" : ""}`}>
-                <span>{accountInitial}</span>{accountName}<ChevronRight aria-hidden />
-              </Link>
+              <div
+                className="portal-account-menu"
+                onMouseEnter={() => setAccountMenuOpen(true)}
+                onMouseLeave={() => setAccountMenuOpen(false)}
+                onFocus={() => setAccountMenuOpen(true)}
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setAccountMenuOpen(false);
+                }}
+              >
+                <Link href="/account" className={`portal-account${pathname.startsWith("/account") ? " is-current" : ""}`} aria-expanded={accountMenuOpen}>
+                  <span>{accountInitial}</span>{accountName}<ChevronRight aria-hidden />
+                </Link>
+                <div className={`portal-account-submenu${accountMenuOpen ? " is-open" : ""}`}>
+                  <Link href="/account"><LayoutDashboard aria-hidden />个人中心</Link>
+                  <Link href="/account/keys"><KeyRound aria-hidden />API Key</Link>
+                  <Link href="/account/wallet"><WalletCards aria-hidden />钱包</Link>
+                  <Link href="/studio"><Bot aria-hidden />工作区</Link>
+                </div>
+              </div>
             ) : (
               <button type="button" className="portal-account" onClick={() => openLogin("login")}>
                 <span>{accountInitial}</span>登录<ChevronRight aria-hidden />

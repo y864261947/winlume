@@ -84,9 +84,10 @@ export default function ProductsExplorer({
     if (mode === "apps") return;
     const params = new URLSearchParams();
     params.set("cate", "api");
+    if (vendorKey) params.set("brand", vendorKey);
     if (query.trim()) params.set("q", query.trim());
     router.replace(`/products?${params.toString()}`, { scroll: false });
-  }, [mode, query, router]);
+  }, [mode, query, router, vendorKey]);
 
   const onPlazaStats = useCallback(
     (stats: { total: number; filtered: number; models: PlazaModel[] }) => {
@@ -116,7 +117,7 @@ export default function ProductsExplorer({
           <ApplicationDirectory initialQuery={initialQuery} />
         ) : (
         <div className="portal-directory-layout">
-          <aside className="portal-directory-side">
+          <aside className={`portal-directory-side${selectedModel ? " has-model-detail" : ""}`}>
             <h2>API模型</h2>
             <button type="button" className={`portal-directory-all ${capability === "all" ? "is-active" : ""}`} onClick={resetModelFilters}>
               全部模型<ChevronRight aria-hidden />
