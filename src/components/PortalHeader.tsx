@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Bell, Bot, ChevronDown, ChevronRight, Crown, KeyRound, LayoutDashboard, WalletCards } from "lucide-react";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Bell, Bot, ChevronDown, ChevronRight, Crown, KeyRound, LayoutDashboard, LogOut, WalletCards } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useModals } from "@/components/providers";
+import { logout } from "@/lib/account";
 
 type NavItem = {
   href: string;
@@ -21,12 +22,32 @@ const navItems: NavItem[] = [
 /** One portal header for the home, catalog, docs, pricing, and account surfaces. */
 export default function PortalHeader({ productMode }: { productMode?: "app" | "api" }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { account, openLogin, openMembership } = useModals();
   const [notice, setNotice] = useState("");
   const [apiMenuOpen, setApiMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Array<{ id: string; title: string; body: string; href: string }>>([]);
   const accountName = account ? account.display_name || account.username : "";
   const accountInitial = accountName ? accountName.slice(0, 1).toUpperCase() : "登";
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/portal/content", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((content: { notifications?: Array<{ id: string; title: string; body: string; href: string; enabled?: boolean }> } | null) => {
+        if (!cancelled) setNotifications((content?.notifications ?? []).filter((notice) => notice.enabled !== false));
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  async function signOut() {
+    await logout();
+    router.push("/");
+    router.refresh();
+  }
 
   return (
     <>
@@ -78,10 +99,13 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
             升级会员
           </button>
           <div className="portal-user-links">
-            <button type="button" onClick={() => setNotice("暂无新的通知") }>
-              <Bell aria-hidden />
-              通知
-            </button>
+            <div className="portal-notification-menu" onMouseEnter={() => setNotificationOpen(true)} onMouseLeave={() => setNotificationOpen(false)} onFocus={() => setNotificationOpen(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNotificationOpen(false); }}>
+              <button type="button" aria-expanded={notificationOpen} onClick={() => setNotificationOpen((open) => !open)}><Bell aria-hidden />通知{notifications.length ? <i>{notifications.length}</i> : null}</button>
+              <div className={`portal-notification-submenu${notificationOpen ? " is-open" : ""}`}>
+                <strong>通知</strong>
+                {notifications.length ? notifications.map((item) => <Link href={item.href || "/"} key={item.id}><b>{item.title}</b><span>{item.body}</span></Link>) : <p>暂无新的通知</p>}
+              </div>
+            </div>
             {account ? (
               <div
                 className="portal-account-menu"
@@ -100,6 +124,7 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
                   <Link href="/account/keys"><KeyRound aria-hidden />API Key</Link>
                   <Link href="/account/wallet"><WalletCards aria-hidden />钱包</Link>
                   <Link href="/studio"><Bot aria-hidden />工作区</Link>
+                  <button type="button" onClick={() => void signOut()}><LogOut aria-hidden />退出登录</button>
                 </div>
               </div>
             ) : (

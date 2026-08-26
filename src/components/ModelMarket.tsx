@@ -126,7 +126,9 @@ const searchSuggestions = [
 ] as const;
 
 /** Hardcoded Model Review carousel slides (generated banners in public/). */
-const FEATURED_SLIDES = [
+type FeaturedSlide = { id: string; src: string; alt: string; href: string };
+
+const FEATURED_SLIDES: FeaturedSlide[] = [
   {
     id: "claude-fable-5",
     src: "/figma-home/featured/slide-claude-fable-5.png",
@@ -629,6 +631,7 @@ export default function ModelMarket() {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [featuredIndex, setFeaturedIndex] = useState(0);
+  const [featuredSlides, setFeaturedSlides] = useState<FeaturedSlide[]>(FEATURED_SLIDES);
   const [featuredPaused, setFeaturedPaused] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [activePathId, setActivePathId] = useState<ProductPath["id"]>("api");
@@ -652,6 +655,18 @@ export default function ModelMarket() {
   useEffect(() => {
     activePathIdRef.current = activePathId;
   }, [activePathId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/portal/content", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((content: { carousel?: Array<{ id: string; imageUrl: string; alt: string; href: string; enabled?: boolean }> } | null) => {
+        const slides = (content?.carousel ?? []).filter((slide) => slide.enabled !== false && slide.imageUrl && slide.alt).map((slide) => ({ id: slide.id, src: slide.imageUrl, alt: slide.alt, href: slide.href || "/products?cate=api" }));
+        if (!cancelled && slides.length) { setFeaturedSlides(slides); setFeaturedIndex(0); }
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     try {
@@ -711,16 +726,16 @@ export default function ModelMarket() {
 
   const stepFeatured = useCallback((delta: number) => {
     setFeaturedIndex((current) => {
-      const n = FEATURED_SLIDES.length;
+      const n = featuredSlides.length;
       return (current + delta + n) % n;
     });
-  }, []);
+  }, [featuredSlides.length]);
 
   useEffect(() => {
-    if (featuredPaused || FEATURED_SLIDES.length <= 1) return;
+    if (featuredPaused || featuredSlides.length <= 1) return;
     const timer = window.setInterval(() => stepFeatured(1), FEATURED_AUTO_MS);
     return () => window.clearInterval(timer);
-  }, [featuredPaused, stepFeatured]);
+  }, [featuredPaused, featuredSlides.length, stepFeatured]);
 
   useEffect(() => {
     return () => {
@@ -1029,7 +1044,7 @@ export default function ModelMarket() {
             }}
           >
             <div className="portal-featured-track">
-              {FEATURED_SLIDES.map((slide, index) => (
+              {featuredSlides.map((slide, index) => (
                 <PortalLink
                   key={slide.id}
                   href={slide.href}
@@ -1044,6 +1059,7 @@ export default function ModelMarket() {
                     fill
                     sizes="(max-width: 1100px) 100vw, 812px"
                     priority={index === 0}
+                    unoptimized
                   />
                 </PortalLink>
               ))}
@@ -1067,7 +1083,7 @@ export default function ModelMarket() {
             </button>
 
             <div className="portal-featured-dots" role="tablist" aria-label="精选页码">
-              {FEATURED_SLIDES.map((slide, index) => (
+              {featuredSlides.map((slide, index) => (
                 <button
                   key={slide.id}
                   type="button"

@@ -239,3 +239,14 @@ export const studioSkills = pgTable(
     index("studio_skills_enabled_index").on(table.enabled),
   ],
 );
+
+/** Platform-managed content consumed by public portal surfaces. */
+export const portalContentSettings = pgTable(
+  "portal_content_settings",
+  {
+    key: varchar("key", { length: 80 }).primaryKey(),
+    value: jsonb("value").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+);

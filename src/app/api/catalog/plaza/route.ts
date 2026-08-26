@@ -5,6 +5,7 @@ import { resolveStudioToken } from "@/lib/agent/provider/studio-token";
 import { getAuthMode } from "@/lib/platform/auth";
 import { inferVendorFromModel, PLAZA_VENDORS } from "@/lib/catalog/vendors";
 import type { PlazaModel } from "@/lib/catalog";
+import { getPortalContent } from "@/lib/portal/content-config";
 
 type NativeModelsPayload = {
   data?: Array<{ id?: unknown; owned_by?: unknown }>;
@@ -106,8 +107,8 @@ function curatedModels(catalogOnly = false): PlazaModel[] {
   });
 }
 
-function fallbackPlaza() {
-  const models = curatedModels(true);
+async function fallbackPlaza() {
+  const models = await mergePortalManagedModels(curatedModels(true));
   return plazaResponse(models, PLAZA_VENDORS.map((vendor) => ({
     id: vendor.id, name: vendor.name, key: vendor.key, logo: vendor.logo,
   })));
@@ -117,6 +118,27 @@ function mergeLiveAndCuratedModels(liveModels: PlazaModel[]) {
   const names = new Set(liveModels.map((model) => model.model_name.trim().toLowerCase()));
   const curated = curatedModels(true).filter((model) => !names.has(model.model_name.toLowerCase()));
   return [...liveModels, ...curated];
+}
+
+async function mergePortalManagedModels(models: PlazaModel[]) {
+  const content = await getPortalContent();
+  const known = new Set(models.map((model) => model.model_name.trim().toLowerCase()));
+  const managed = content.modelVendors
+    .filter((vendor) => vendor.enabled)
+    .flatMap((vendor) => vendor.models.map((model) => ({
+      model_name: model.name,
+      portal_category: vendor.category,
+      vendor_key: vendor.key,
+      vendor_name: vendor.name,
+      vendor_logo: vendor.logoUrl,
+      quota_type: ["images", "video", "audio"].some((type) => model.endpointTypes.includes(type)) ? 1 : 0,
+      model_price: 0,
+      model_ratio: 1,
+      completion_ratio: 1,
+      supported_endpoint_types: model.endpointTypes,
+    } satisfies PlazaModel)))
+    .filter((model) => !known.has(model.model_name.toLowerCase()));
+  return [...models, ...managed];
 }
 
 async function legacyPlaza(): Promise<Response> {
@@ -193,7 +215,7 @@ async function modelsPlaza(): Promise<Response> {
       ];
     });
     return plazaResponse(
-      mergeLiveAndCuratedModels(models),
+      await mergePortalManagedModels(mergeLiveAndCuratedModels(models)),
       PLAZA_VENDORS.map((vendor) => ({
         id: vendor.id,
         name: vendor.name,

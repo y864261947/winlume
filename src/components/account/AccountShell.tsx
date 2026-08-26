@@ -16,6 +16,7 @@ import {
   Store,
   UsersRound,
   UserPlus,
+  PanelsTopLeft,
   WalletCards,
   Wrench,
 } from "lucide-react";
@@ -99,7 +100,10 @@ function AccountNav({
         ...groups,
         {
           label: "平台",
-          items: [{ href: "/account/skills", label: "Skill 配置", mobileLabel: "Skill", icon: Wrench }],
+          items: [
+            { href: "/account/portal", label: "门户内容管理", mobileLabel: "门户", icon: PanelsTopLeft },
+            { href: "/account/skills", label: "Skill 配置", mobileLabel: "Skill", icon: Wrench },
+          ],
         },
       ]
     : groups;

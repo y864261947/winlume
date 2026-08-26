@@ -22,6 +22,7 @@ export const PLAZA_CAPABILITY_FILTERS: Array<{ id: PlazaCapabilityFilter; label:
 ];
 
 export function modelCapability(model: PlazaModel): PlazaCapabilityFilter {
+  if (model.portal_category) return model.portal_category;
   const name = model.model_name.toLowerCase();
   if (
     name.includes("image") ||
