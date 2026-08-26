@@ -432,9 +432,6 @@ function StudioHomeInner() {
     if (prompt) setDraft(prompt);
     else if (isGenericSkillPrompt(draft)) setDraft("");
     setSelectedSkillIds([...card.skillIds]);
-    if (card.skillIds.length === 1) {
-      setSkillLabels((current) => ({ ...current, [card.skillIds[0]]: card.label }));
-    }
     // Bring focus back to the hero composer
     requestAnimationFrame(() => {
       document
