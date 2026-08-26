@@ -32,6 +32,8 @@ export type StudioToolCategory = {
   name: string;
   summary: string;
   icon: LucideIcon;
+  /** Category hue. Mixed against surface so the same hex works in light and dark Studio. */
+  accent: string;
 };
 
 export const STUDIO_TOOL_CATEGORIES: readonly StudioToolCategory[] = [
@@ -40,48 +42,56 @@ export const STUDIO_TOOL_CATEGORIES: readonly StudioToolCategory[] = [
     name: "内容与营销",
     summary: "文案、投放、内容策划与增长",
     icon: Megaphone,
+    accent: "#e11d48",
   },
   {
     id: "visual-media",
     name: "视觉与媒体",
     summary: "图片处理、设计与影像制作",
     icon: ImageIcon,
+    accent: "#7c3aed",
   },
   {
     id: "ecommerce-sales",
     name: "电商与销售",
     summary: "商品图、店铺运营与成交转化",
     icon: ShoppingBag,
+    accent: "#d97706",
   },
   {
     id: "legal-finance",
     name: "法务与财务",
     summary: "合同、合规、账务与税务",
     icon: Scale,
+    accent: "#2563eb",
   },
   {
     id: "product-rd",
     name: "产品与研发",
     summary: "需求、原型、测试与评审",
     icon: Lightbulb,
+    accent: "#ca8a04",
   },
   {
     id: "office-admin",
     name: "办公与管理",
     summary: "文档、人事、项目与协作",
     icon: Briefcase,
+    accent: "#0284c7",
   },
   {
     id: "data-research",
     name: "数据与科研",
     summary: "分析、研究、空间与学术",
     icon: BarChart3,
+    accent: "#059669",
   },
   {
     id: "development",
     name: "开发与代码",
     summary: "工程实现、架构与安全",
     icon: Code2,
+    accent: "#4f46e5",
   },
 ] as const;
 
@@ -123,8 +133,13 @@ export function listStudioToolCategories(): StudioToolCategory[] {
   return [...STUDIO_TOOL_CATEGORIES];
 }
 
+export function studioToolsHref(catalog?: StudioToolCategoryId): string {
+  if (!catalog) return "/studio/tools";
+  return `/studio/tools?catalog=${encodeURIComponent(catalog)}`;
+}
+
 export function studioToolCategoryHref(id: StudioToolCategoryId): string {
-  return `/studio/tools/c/${id}`;
+  return studioToolsHref(id);
 }
 
 export function studioSkillsHref(catalog?: StudioToolCategoryId): string {

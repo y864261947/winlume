@@ -19,9 +19,11 @@ import {
 } from "@/components/ai-elements/tool";
 import type { Artifact } from "@/lib/agent/types";
 import type { StudioUIMessage } from "@/lib/studio/ui-message-adapter";
+import Image from "next/image";
+import { useModals } from "@/components/providers";
 import MentionRichText from "./MentionRichText";
 import ArtifactStatus from "./ArtifactStatus";
-import { FileStack, Sparkles, UserRound } from "lucide-react";
+import { FileStack, UserRound } from "lucide-react";
 import { LOADING_WORDS, nextLoadingWordIndex } from "@/lib/studio/loading-words";
 import { getToolPresentation, isResultTool } from "@/lib/studio/tool-presentation";
 import { showsMessageAvatar } from "@/lib/studio/chat-message-presentation";
@@ -157,6 +159,7 @@ function DirectPartsBubble({
   relatedArtifacts,
   highlighted,
   showAvatar,
+  userAvatarLetter,
 }: {
   message: StudioUIMessage;
   streaming: boolean;
@@ -165,6 +168,7 @@ function DirectPartsBubble({
   relatedArtifacts?: Artifact[];
   highlighted: boolean;
   showAvatar: boolean;
+  userAvatarLetter: string;
 }) {
   const isUser = message.role === "user";
   const isActive = streaming && message.role === "assistant";
@@ -198,16 +202,18 @@ function DirectPartsBubble({
     >
       <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : showAvatar ? "" : "-mt-3 pl-11"}`}>
         {showAvatar ? (
-          <span
-            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-              isUser
-                ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white shadow-[0_4px_10px_-4px_rgba(15,23,42,0.55)]"
-                : "bg-white/80 text-[#0F172A] ring-1 ring-white/90"
-            }`}
-            aria-hidden
-          >
-            {isUser ? <UserRound className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-          </span>
+          isUser ? (
+            <span
+              className="studio-user-avatar mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold"
+              aria-hidden
+            >
+              {userAvatarLetter || <UserRound className="h-4 w-4" />}
+            </span>
+          ) : (
+            <span className="studio-assistant-avatar mt-0.5" aria-hidden>
+              <Image src="/brand/reizo-mark.png" alt="" width={22} height={22} />
+            </span>
+          )
         ) : null}
         <MessageContent
           className={`min-w-0 max-w-[min(100%,42rem)] overflow-visible text-sm leading-6 ${
@@ -370,6 +376,11 @@ export default function ChatThread({
   imageArtifacts,
   onOpenArtifact,
 }: ChatThreadProps) {
+  const { account } = useModals();
+  const userAvatarLetter = (account?.display_name || account?.username || "")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
   const threadRef = useRef<HTMLDivElement>(null);
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
 
@@ -405,6 +416,7 @@ export default function ChatThread({
               message={message}
               streaming={streaming && index === messages.length - 1}
               showAvatar={showsMessageAvatar(messages, index)}
+              userAvatarLetter={userAvatarLetter}
               highlighted={activeHighlight === message.id}
               relatedArtifacts={artifactsByMessageId?.get(message.id)}
               imageArtifacts={imageArtifacts}

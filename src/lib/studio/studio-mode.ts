@@ -1,5 +1,4 @@
 import type { StudioToolId } from "./tool-catalog";
-import { STUDIO_TOOL_CATEGORY_IDS, studioToolCategoryHref } from "./tool-categories";
 
 export const STUDIO_MODE_IDS = ["workbench", "draw", "tools", "artifacts"] as const;
 export type StudioModeId = (typeof STUDIO_MODE_IDS)[number];
@@ -31,7 +30,7 @@ export function studioToolHref(toolId: string): string {
 export const STUDIO_MODE_HREFS: Record<StudioModeId, string> = {
   workbench: "/studio",
   draw: studioDrawHref(),
-  tools: studioToolCategoryHref(STUDIO_TOOL_CATEGORY_IDS[0]),
+  tools: "/studio/tools",
   artifacts: "/studio/artifacts",
 };
 

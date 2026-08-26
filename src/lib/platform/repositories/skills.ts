@@ -1,6 +1,7 @@
 import { and, count, eq, ilike, or, sql } from "drizzle-orm";
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import type { Skill, SkillMeta } from "@/lib/agent/types";
+import { skillhubIconUrl } from "@/lib/agent/skills/skillhub-icons";
 import type { PlatformDatabase } from "../db/client";
 import { studioSkills } from "../db/schema";
 
@@ -37,6 +38,7 @@ export function recordToSkill(record: StudioSkillRecord): Skill {
     source: record.source,
     enabled: record.enabled,
     featured: record.featured,
+    iconUrl: skillhubIconUrl(record.id),
     defaultArtifact:
       record.defaultArtifact === "markdown" ||
       record.defaultArtifact === "html" ||

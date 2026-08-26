@@ -1,9 +1,18 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Scissors, Sparkles, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { createPortal } from "react-dom";
-import { useLayoutEffect, useRef, useState, type Ref, type RefObject } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type Ref,
+  type RefObject,
+} from "react";
 import type { SkillMeta } from "@/lib/agent/types";
+import { skillMonogram } from "@/lib/studio/skill-mark";
+import { getStudioToolCategory } from "@/lib/studio/tool-categories";
 import { listStudioTools, type StudioTool } from "@/lib/studio/tool-catalog";
 
 export type MenuView =
@@ -118,6 +127,36 @@ export function placeMenuAroundAnchor(
     maxHeight,
     placement: placeAbove ? "above" : "below",
   };
+}
+
+function MenuGlyph({
+  name,
+  iconUrl,
+  icon: Icon,
+}: {
+  name: string;
+  iconUrl?: string;
+  icon?: ComponentType<{ className?: string; strokeWidth?: number }>;
+}) {
+  const [broken, setBroken] = useState(false);
+  const showImage = Boolean(iconUrl) && !broken;
+  return (
+    <span className="skill-slash-menu-glyph" aria-hidden>
+      {showImage ? (
+        // eslint-disable-next-line @next/next/no-img-element -- SkillHub CDNs
+        <img
+          src={iconUrl}
+          alt=""
+          referrerPolicy="no-referrer"
+          onError={() => setBroken(true)}
+        />
+      ) : Icon ? (
+        <Icon className="h-3.5 w-3.5" strokeWidth={1.8} />
+      ) : (
+        skillMonogram(name)
+      )}
+    </span>
+  );
 }
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
@@ -272,7 +311,7 @@ export default function SkillSlashMenu({
       role="listbox"
       aria-label="选择 Skill"
       data-ready={position?.ready ? "true" : "false"}
-      className="studio-liquid-glass skill-slash-menu fixed z-[70] w-[min(30rem,calc(100vw-1rem))] overflow-x-hidden overflow-y-auto rounded-[16px] py-1"
+      className="skill-slash-menu"
       style={{
         left: position?.left ?? 0,
         top: position?.top ?? 0,
@@ -281,7 +320,7 @@ export default function SkillSlashMenu({
         pointerEvents: position?.ready ? "auto" : "none",
       }}
     >
-      <div className="flex items-center gap-2 border-b border-white/50 px-3 py-1.5 text-[11px] text-[#8A8298]">
+      <div className="skill-slash-menu-head">
         {view.kind === "department" && !searching ? (
           <button
             type="button"
@@ -289,7 +328,7 @@ export default function SkillSlashMenu({
               onViewChange({ kind: "root" });
               onHighlightIndexChange(0);
             }}
-            className="inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 text-[#615A73] transition hover:bg-white/50 hover:text-[#241E36]"
+            className="skill-slash-menu-back"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
             返回
@@ -299,9 +338,9 @@ export default function SkillSlashMenu({
       </div>
 
       {loading && items.length === 0 ? (
-        <p className="px-3 py-3 text-sm text-[#8A8298]">加载中…</p>
+        <p className="skill-slash-menu-empty">加载中…</p>
       ) : items.length === 0 ? (
-        <p className="px-3 py-3 text-sm text-[#8A8298]">
+        <p className="skill-slash-menu-empty">
           {searching
             ? "没有匹配的工具或 Skill"
             : view.kind === "department"
@@ -332,24 +371,10 @@ export default function SkillSlashMenu({
 
           return (
             <div key={rowKey(item)}>
-              {showToolHeader ? (
-                <div className="px-3 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wide text-[#8A8298]">
-                  工具
-                </div>
-              ) : null}
-              {showFeaturedHeader ? (
-                <div className="px-3 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wide text-[#8A8298]">
-                  精选
-                </div>
-              ) : null}
-              {showDeptHeader ? (
-                <div className="px-3 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wide text-[#8A8298]">
-                  部门
-                </div>
-              ) : null}
-              {showActionSep ? (
-                <div className="my-1 border-t border-white/50" />
-              ) : null}
+              {showToolHeader ? <div className="skill-slash-menu-kicker">工具</div> : null}
+              {showFeaturedHeader ? <div className="skill-slash-menu-kicker">精选</div> : null}
+              {showDeptHeader ? <div className="skill-slash-menu-kicker">部门</div> : null}
+              {showActionSep ? <div className="skill-slash-menu-rule" /> : null}
 
               {item.type === "tool" ? (
                 <button
@@ -358,20 +383,17 @@ export default function SkillSlashMenu({
                   aria-selected={active}
                   onMouseEnter={() => onHighlightIndexChange(i)}
                   onClick={() => onPickTool?.(item.tool)}
-                  className={`flex w-full flex-col gap-0.5 px-3 py-2 text-left transition ${
-                    active ? "bg-[rgba(15, 23, 42,0.08)]" : "hover:bg-white/50"
-                  }`}
+                  className="skill-slash-menu-item"
                 >
-                  <span className="flex items-center gap-2 text-sm font-medium text-[#241E36]">
-                    <Scissors className="h-3.5 w-3.5 shrink-0 text-[#0F172A]" />
+                  <span className="skill-slash-menu-title">
+                    <MenuGlyph
+                      name={item.tool.name}
+                      icon={getStudioToolCategory(item.tool.category)?.icon}
+                    />
                     <span className="truncate">{item.tool.name}</span>
-                    <span className="shrink-0 rounded bg-[rgba(15, 23, 42,0.12)] px-1.5 text-[10px] text-[#0F172A]">
-                      工具
-                    </span>
+                    <span className="skill-slash-menu-tag">工具</span>
                   </span>
-                  <span className="line-clamp-1 text-xs text-[#8A8298]">
-                    {item.tool.summary}
-                  </span>
+                  <span className="skill-slash-menu-desc">{item.tool.summary}</span>
                 </button>
               ) : null}
 
@@ -382,22 +404,16 @@ export default function SkillSlashMenu({
                   aria-selected={active}
                   onMouseEnter={() => onHighlightIndexChange(i)}
                   onClick={() => onPickSkill(item.skill)}
-                  className={`flex w-full flex-col gap-0.5 px-3 py-2 text-left transition ${
-                    active ? "bg-[rgba(15, 23, 42,0.08)]" : "hover:bg-white/50"
-                  }`}
+                  className="skill-slash-menu-item"
                 >
-                  <span className="flex items-center gap-2 text-sm font-medium text-[#241E36]">
-                    {!searching && view.kind === "root" && item.skill.featured ? (
-                      <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#0F172A]" />
-                    ) : null}
+                  <span className="skill-slash-menu-title">
+                    <MenuGlyph name={item.skill.name} iconUrl={item.skill.iconUrl} />
                     <span className="truncate">{item.skill.name}</span>
                     {selectedIds.includes(item.skill.id) ? (
-                      <span className="shrink-0 rounded bg-[rgba(15, 23, 42,0.12)] px-1.5 text-[10px] text-[#0F172A]">
-                        已选
-                      </span>
+                      <span className="skill-slash-menu-tag">已选</span>
                     ) : null}
                   </span>
-                  <span className="line-clamp-1 text-xs text-[#8A8298]">
+                  <span className="skill-slash-menu-desc">
                     {item.skill.description || item.skill.id}
                   </span>
                 </button>
@@ -410,17 +426,11 @@ export default function SkillSlashMenu({
                   aria-selected={active}
                   onMouseEnter={() => onHighlightIndexChange(i)}
                   onClick={() => activate(item)}
-                  className={`flex w-full items-center gap-2 px-3 py-2 text-left transition ${
-                    active ? "bg-[rgba(15, 23, 42,0.08)]" : "hover:bg-white/50"
-                  }`}
+                  className="skill-slash-menu-item skill-slash-menu-item-row"
                 >
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#241E36]">
-                    {item.label}
-                  </span>
-                  <span className="shrink-0 text-[11px] text-[#8A8298]">
-                    {item.count}
-                  </span>
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#8A8298]" />
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  <span className="skill-slash-menu-meta">{item.count}</span>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" />
                 </button>
               ) : null}
 
@@ -431,11 +441,7 @@ export default function SkillSlashMenu({
                   aria-selected={active}
                   onMouseEnter={() => onHighlightIndexChange(i)}
                   onClick={() => activate(item)}
-                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition ${
-                    active
-                      ? "bg-[rgba(239,71,112,0.1)] text-[#0F172A]"
-                      : "text-[#615A73] hover:bg-white/50 hover:text-[#0F172A]"
-                  }`}
+                  className="skill-slash-menu-item skill-slash-menu-item-row skill-slash-menu-item-danger"
                 >
                   <Trash2 className="h-3.5 w-3.5 shrink-0" />
                   清空本轮技能

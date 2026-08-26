@@ -37,7 +37,7 @@ function useSignOutAction() {
 }
 
 const menuItemClass =
-  "h-10 cursor-pointer rounded-[12px] px-2.5 text-[14px] text-[#241E36] outline-none focus:bg-[#ebe4d8] focus:outline-none focus-visible:outline-none data-[highlighted]:bg-[#ebe4d8]";
+  "h-10 cursor-pointer rounded-[12px] px-2.5 text-[14px] text-ink-900 shadow-none outline-none ring-0 focus:bg-[rgba(255,255,255,0.06)] focus:shadow-none focus:outline-none focus:ring-0 focus-visible:bg-[rgba(255,255,255,0.06)] focus-visible:shadow-none focus-visible:outline-none focus-visible:ring-0 data-[highlighted]:bg-[rgba(255,255,255,0.06)] data-[highlighted]:shadow-none data-[highlighted]:outline-none";
 
 export default function StudioAccountControl() {
   const { account, accountLoading, balanceConfig, openLogin } = useModals();
@@ -47,25 +47,18 @@ export default function StudioAccountControl() {
     .trim()
     .charAt(0)
     .toUpperCase();
+  const name = account?.display_name || account?.username || "";
   const balanceLabel = account
     ? account.email || formatBalance(account.quota, balanceConfig)
     : "";
 
   const menu = (
     <DropdownMenuContent
-      side="right"
-      align="end"
+      side="top"
+      align="start"
       sideOffset={8}
-      className="studio-account-menu w-[214px] rounded-[18px] border border-[#d4cec4] bg-[#fffdfb] p-1.5 shadow-[0_20px_50px_-16px_rgba(36,30,54,0.45),0_1px_0_rgba(255,255,255,0.8)_inset]"
+      className="studio-account-menu w-[214px] rounded-[18px] border border-line bg-surface p-1.5 shadow-[0_20px_50px_-16px_rgba(15,23,42,0.45)]"
     >
-      {account ? (
-        <div className="px-2.5 pb-2 pt-1.5">
-          <p className="truncate text-sm font-medium text-[#241E36]">
-            {account.display_name || account.username}
-          </p>
-          <p className="mt-0.5 truncate text-[12px] text-[#8A8298]">{balanceLabel}</p>
-        </div>
-      ) : null}
       <DropdownMenuGroup>
         <DropdownMenuItem
           className={menuItemClass}
@@ -73,23 +66,23 @@ export default function StudioAccountControl() {
             window.setTimeout(() => setSettingsOpen(true), 10);
           }}
         >
-          <Settings2 className="size-4 text-[#615A73]" />
+          <Settings2 className="size-4 text-ink-500" />
           设置
         </DropdownMenuItem>
         <DropdownMenuItem asChild className={menuItemClass}>
           <Link href="/account">
-            <UserRound className="size-4 text-[#615A73]" />
+            <UserRound className="size-4 text-ink-500" />
             个人中心
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild className={menuItemClass}>
           <Link href="/account/wallet">
-            <Wallet className="size-4 text-[#615A73]" />
+            <Wallet className="size-4 text-ink-500" />
             钱包与用量
           </Link>
         </DropdownMenuItem>
       </DropdownMenuGroup>
-      <DropdownMenuSeparator className="mx-1 my-1 bg-[#e6e0d6]" />
+      <DropdownMenuSeparator className="mx-1 my-1 bg-line" />
       <DropdownMenuItem
         disabled={signOutAction.pending}
         className={menuItemClass}
@@ -100,7 +93,7 @@ export default function StudioAccountControl() {
         {signOutAction.pending ? (
           <LoaderCircle className="size-4 animate-spin" />
         ) : (
-          <LogOut className="size-4 text-[#615A73]" />
+          <LogOut className="size-4 text-ink-500" />
         )}
         退出登录
       </DropdownMenuItem>
@@ -114,36 +107,52 @@ export default function StudioAccountControl() {
 
   return (
     <>
-      {account ? (
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              title={`${account.display_name || account.username} · ${balanceLabel}`}
-              aria-label="打开账户菜单"
-              className="studio-mode-avatar inline-flex size-9 items-center justify-center rounded-full text-sm font-bold outline-none transition-transform duration-100 ease-out active:scale-[0.97]"
-            >
-              {avatarLetter}
-            </button>
-          </DropdownMenuTrigger>
-          {menu}
-        </DropdownMenu>
-      ) : accountLoading ? (
-        <div
-          className="size-9 animate-pulse rounded-full bg-white/20"
-          aria-label="正在加载账户"
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={() => openLogin("login")}
-          title="登录"
-          aria-label="登录"
-          className="studio-mode-avatar studio-mode-avatar-guest inline-flex size-9 items-center justify-center rounded-full outline-none transition-transform duration-100 ease-out active:scale-[0.97]"
-        >
-          <UserRound className="size-4" />
-        </button>
-      )}
+      <div className="w-full border-t border-line pt-3">
+        {account ? (
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                title={`${name} · ${balanceLabel}`}
+                aria-label="打开账户菜单"
+                className="studio-account-trigger flex w-full items-center gap-2.5 rounded-[18px] px-2 py-2 text-left shadow-none outline-none ring-0 transition-colors duration-150 hover:bg-canvas focus:outline-none focus-visible:bg-canvas focus-visible:outline-none focus-visible:ring-0 data-[state=open]:bg-canvas"
+              >
+                <span className="studio-user-avatar flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold">
+                  {avatarLetter}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-ink-900">
+                    {name}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[12px] text-ink-500">
+                    {balanceLabel}
+                  </span>
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            {menu}
+          </DropdownMenu>
+        ) : accountLoading ? (
+          <div
+            className="h-12 animate-pulse rounded-[18px] bg-canvas"
+            aria-label="正在加载账户"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => openLogin("login")}
+            className="flex w-full items-center gap-2.5 rounded-[18px] px-2 py-2 text-left outline-none transition-colors duration-150 hover:bg-canvas focus-visible:outline-none"
+          >
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-canvas text-sm font-medium text-ink-500">
+              登
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-ink-900">登录</span>
+              <span className="text-[12px] text-ink-500">开始对话并保存作品</span>
+            </span>
+          </button>
+        )}
+      </div>
       <StudioSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   );

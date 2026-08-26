@@ -4,7 +4,6 @@ import { Check, SlidersHorizontal, UserRound, Wallet } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Modal, { ModalCloseButton } from "@/components/Modal";
-import { Button } from "@/components/ui/button";
 import { useModals } from "@/components/providers";
 import { formatBalance } from "@/lib/account";
 import {
@@ -57,14 +56,14 @@ export default function StudioSettingsDialog({
 
   return (
     <Modal open={open} onClose={onClose} label="设置" size="onboarding">
-      <div className="studio-settings-dialog flex h-[min(560px,calc(100dvh-4rem))] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_28px_80px_-24px_rgba(36,30,54,0.4)]">
+      <div className="studio-settings-dialog flex h-[min(560px,calc(100dvh-4rem))] flex-col overflow-hidden rounded-[22px] bg-surface shadow-[0_28px_80px_-24px_rgba(15,23,42,0.4)]">
         <div className="flex shrink-0 items-center justify-between px-5 py-3.5">
-          <h2 className="text-sm font-medium text-[#241E36]">设置</h2>
+          <h2 className="text-sm font-medium text-ink-900">设置</h2>
           <ModalCloseButton onClose={onClose} />
         </div>
         <div className="grid min-h-0 flex-1 grid-cols-[12.5rem_minmax(0,1fr)]">
-          <aside className="flex flex-col gap-1 border-r border-[#ece7df] bg-[#faf8f5] p-3">
-            <p className="px-2.5 pb-2 pt-1 text-xs font-medium text-[#8A8298]">通用</p>
+          <aside className="flex flex-col gap-1 border-r border-line bg-canvas p-3">
+            <p className="px-2.5 pb-2 pt-1 text-xs font-medium text-ink-500">通用</p>
             {nav.map((item) => {
               const Icon = item.icon;
               const active = section === item.id;
@@ -72,12 +71,11 @@ export default function StudioSettingsDialog({
                 <button
                   key={item.id}
                   type="button"
+                  data-active={active ? "true" : "false"}
                   onClick={() => setSection(item.id)}
                   className={cn(
-                    "flex items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-sm outline-none transition-colors focus-visible:outline-none",
-                    active
-                      ? "bg-white font-medium text-[#241E36] shadow-sm"
-                      : "text-[#615A73] hover:bg-white/80",
+                    "studio-settings-nav-item flex items-center gap-2 rounded-[12px] px-2.5 py-2 text-left text-sm outline-none transition-colors focus-visible:outline-none",
+                    active ? "font-medium text-ink-900" : "text-ink-600",
                   )}
                 >
                   <Icon className="size-4" />
@@ -90,58 +88,57 @@ export default function StudioSettingsDialog({
           <section className="min-h-0 overflow-y-auto p-6">
             {section === "account" ? (
               <div>
-                <h2 className="text-base font-semibold text-[#241E36]">账户</h2>
+                <h2 className="text-base font-semibold text-ink-900">账户</h2>
                 {accountLoading ? (
-                  <p className="mt-6 text-sm text-[#8A8298]">正在同步账户…</p>
+                  <p className="mt-6 text-sm text-ink-500">正在同步账户…</p>
                 ) : account ? (
                   <div className="mt-6 flex flex-col gap-6">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#0F172A] text-sm font-bold text-white">
+                        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-ink-950 text-sm font-bold text-[var(--color-canvas)]">
                           {(account.display_name || account.username).slice(0, 1).toUpperCase()}
                         </span>
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-[#241E36]">
+                          <p className="truncate text-sm font-medium text-ink-900">
                             {account.display_name || account.username}
                           </p>
-                          <p className="truncate text-xs text-[#8A8298]">
+                          <p className="truncate text-xs text-ink-500">
                             {account.email || `@${account.username}`}
                           </p>
                         </div>
                       </div>
-                      <Button asChild size="sm">
-                        <Link href="/account">管理</Link>
-                      </Button>
+                      <Link href="/account" className="studio-settings-btn">
+                        管理
+                      </Link>
                     </div>
-                    <div className="h-px bg-[#ece7df]" />
+                    <div className="h-px bg-line" />
                     <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-2 text-sm text-[#615A73]">
+                      <div className="flex items-center gap-2 text-sm text-ink-600">
                         <Wallet className="size-4" />
                         余额
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-semibold text-[#241E36]">
+                        <span className="font-mono text-sm font-semibold text-ink-900">
                           {formatBalance(account.quota, balanceConfig)}
                         </span>
-                        <Button
+                        <button
                           type="button"
-                          size="sm"
-                          variant="outline"
+                          className="studio-settings-btn studio-settings-btn-quiet"
                           onClick={() => void refreshAccount()}
                         >
                           刷新
-                        </Button>
+                        </button>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-6 text-sm text-[#8A8298]">登录后可查看账户与余额。</p>
+                  <p className="mt-6 text-sm text-ink-500">登录后可查看账户与余额。</p>
                 )}
               </div>
             ) : (
               <div>
-                <h2 className="text-base font-semibold text-[#241E36]">偏好</h2>
-                <p className="mt-1 text-sm text-[#8A8298]">新对话使用的默认模型，保存在本机。</p>
+                <h2 className="text-base font-semibold text-ink-900">偏好</h2>
+                <p className="mt-1 text-sm text-ink-500">新对话使用的默认模型，保存在本机。</p>
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
                   <input
                     id="studio-default-model"
@@ -152,19 +149,19 @@ export default function StudioSettingsDialog({
                     }}
                     placeholder={FALLBACK_DEFAULT_MODEL}
                     disabled={!modelHydrated}
-                    className="studio-search-field h-9 min-w-0 flex-1 rounded-[12px] bg-[#f7f4ef] px-3 font-mono text-sm text-[#241E36] placeholder:text-[#8A8298] disabled:opacity-60"
+                    className="studio-search-field h-9 min-w-0 flex-1 rounded-[12px] bg-canvas px-3 font-mono text-sm text-ink-900 placeholder:text-ink-500 disabled:opacity-60"
                   />
-                  <Button
+                  <button
                     type="button"
                     onClick={saveModel}
                     disabled={!modelHydrated}
-                    className="border-0 shadow-none"
+                    className="studio-settings-btn"
                   >
-                    {modelSaved ? <Check data-icon="inline-start" /> : null}
+                    {modelSaved ? <Check className="size-4" /> : null}
                     {modelSaved ? "已保存" : "保存"}
-                  </Button>
+                  </button>
                 </div>
-                <p className="mt-3 text-xs text-[#8A8298]">回退默认：{FALLBACK_DEFAULT_MODEL}</p>
+                <p className="mt-3 text-xs text-ink-500">回退默认：{FALLBACK_DEFAULT_MODEL}</p>
               </div>
             )}
           </section>

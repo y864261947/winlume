@@ -117,6 +117,8 @@ export interface SkillMeta {
   enabled: boolean;
   featured?: boolean;
   defaultArtifact?: DefaultArtifactKind;
+  /** Remote logo for catalog cards (SkillHub iconUrl). */
+  iconUrl?: string;
   contract?: SkillContractMeta;
 }
 

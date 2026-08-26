@@ -17,7 +17,6 @@ import {
   studioModeFromPathname,
   studioShowsSessionSidebar,
 } from "@/lib/studio/studio-mode";
-import StudioModeRail from "./StudioModeRail";
 import StudioSidebar from "./StudioSidebar";
 import StudioViewTransition from "./StudioViewTransition";
 
@@ -127,7 +126,6 @@ export default function StudioShell({ children }: { children: ReactNode }) {
         <div className="studio-blob studio-blob-a" aria-hidden />
         <div className="studio-blob studio-blob-b" aria-hidden />
         <div className="studio-blob studio-blob-c" aria-hidden />
-        <StudioModeRail mode={mode} />
         <div
           ref={sidebarContainerRef}
           className="studio-sidebar-container relative z-[2] block h-full shrink-0"
@@ -165,7 +163,7 @@ export default function StudioShell({ children }: { children: ReactNode }) {
         </div>
         <button
           type="button"
-          className="studio-mobile-nav-toggle fixed left-[84px] top-3 z-[60] inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/90 text-[#615A73] shadow-md backdrop-blur"
+          className="studio-mobile-nav-toggle fixed left-3 top-3 z-[60] inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/90 text-[#615A73] shadow-md backdrop-blur"
           hidden={!showSessionSidebar}
           onClick={() => {
             if (sidebarCollapsed) setSidebarCollapsed(false);
