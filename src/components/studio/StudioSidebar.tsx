@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Bricolage_Grotesque } from "next/font/google";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Bug,
   ChevronRight,
   FolderKanban,
   Plus,
@@ -22,6 +23,8 @@ import { site } from "@/data/site";
 import { listSessions } from "@/lib/studio/api";
 import { listProjects } from "@/lib/studio/api";
 import type { Project, Session } from "@/lib/agent/types";
+import { useWorkspaceTabs } from "@/lib/studio/workspace-tabs";
+import FeedbackDialog from "./FeedbackDialog";
 import ProjectDialog from "./ProjectDialog";
 import {
   getUnreadSessionIds,
@@ -90,12 +93,14 @@ export default function StudioSidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { account } = useModals();
+  const { openHomeTab } = useWorkspaceTabs();
   const [recent, setRecent] = useState<Session[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [projectsOpen, toggleProjectsOpen] = usePersistedOpen("reizo:studio-sidebar-projects");
   const [recentsOpen, toggleRecentsOpen] = usePersistedOpen("reizo:studio-sidebar-recents");
   const unreadIds = useSyncExternalStore(
@@ -248,14 +253,26 @@ export default function StudioSidebar({
         {primaryNav.map((item) => {
           const Icon = item.icon;
           const active = navActive(pathname, item.href, item.exact);
+          const className = `studio-nav-item flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-[14px] outline-none transition-colors focus-visible:outline-none ${
+            active ? "studio-nav-active" : "text-[#615A73]"
+          }`;
+          // "开始创作" always opens a brand-new blank tab (like a browser's
+          // new-tab button) rather than reusing whatever tab is open.
+          if (item.href === "/studio") {
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={openHomeTab}
+                className={className}
+              >
+                <Icon className="size-[18px] shrink-0" strokeWidth={1.8} />
+                {item.label}
+              </button>
+            );
+          }
           return (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={`studio-nav-item flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-[14px] outline-none transition-colors focus-visible:outline-none ${
-                active ? "studio-nav-active" : "text-[#615A73]"
-              }`}
-            >
+            <Link key={item.label} href={item.href} className={className}>
               <Icon className="size-[18px] shrink-0" strokeWidth={1.8} />
               {item.label}
             </Link>
@@ -386,9 +403,22 @@ export default function StudioSidebar({
         </div>
       </div>
 
-      <div className="mt-auto">
-        <StudioAccountControl />
+      <div className="mt-auto flex items-center gap-1">
+        <div className="min-w-0 flex-1">
+          <StudioAccountControl />
+        </div>
+        <button
+          type="button"
+          onClick={() => setFeedbackOpen(true)}
+          title="反馈问题或建议"
+          aria-label="反馈问题或建议"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[#615A73] transition-[background-color,color,transform] duration-150 hover:bg-white/75 hover:text-[#241E36] active:scale-[0.97]"
+        >
+          <Bug className="h-4 w-4" strokeWidth={1.8} />
+        </button>
       </div>
+
+      <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
 
       <ProjectDialog
         open={projectDialogOpen}

@@ -3,6 +3,7 @@ import { ApiKeyRepository } from "./api-keys";
 import { AuthIdentityRepository } from "./auth-identities";
 import { OrganizationRepository } from "./organizations";
 import { PresetRepository } from "./presets";
+import { FeedbackRepository } from "./feedback";
 import { PortalContentRepository } from "./portal-content";
 import { SkillRepository } from "./skills";
 import { TeamNewApiMappingRepository } from "./team-new-api-mapping";
@@ -17,6 +18,7 @@ export class PlatformRepositories {
   readonly portalContent: PortalContentRepository;
   readonly skills: SkillRepository;
   readonly teamNewApiMapping: TeamNewApiMappingRepository;
+  readonly feedback: FeedbackRepository;
 
   constructor(database: PlatformDatabase) {
     this.users = new UserRepository(database);
@@ -27,6 +29,7 @@ export class PlatformRepositories {
     this.portalContent = new PortalContentRepository(database);
     this.skills = new SkillRepository(database);
     this.teamNewApiMapping = new TeamNewApiMappingRepository(database);
+    this.feedback = new FeedbackRepository(database);
   }
 }
 
@@ -39,6 +42,7 @@ export * from "./api-keys";
 export * from "./auth-identities";
 export * from "./organizations";
 export * from "./presets";
+export * from "./feedback";
 export * from "./portal-content";
 export * from "./skills";
 export * from "./team-new-api-mapping";

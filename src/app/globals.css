@@ -2901,6 +2901,7 @@ html[data-studio-theme="dark"] [class~="text-[#AAA2B2]"] {
 html[data-studio-theme="dark"] .studio-search-panel,
 html[data-studio-theme="dark"] .studio-settings-dialog,
 html[data-studio-theme="dark"] .studio-project-dialog,
+html[data-studio-theme="dark"] .studio-feedback-dialog,
 html[data-studio-theme="dark"] .studio-account-menu {
   background: #161616 !important;
   color: #ececec;
@@ -3111,6 +3112,60 @@ html[data-studio-theme="dark"] .studio-project-dialog :is(input, textarea) {
   border-color: #3a3a3a !important;
   background: #1c1c1c !important;
   color: #e5e7eb !important;
+}
+html[data-studio-theme="dark"] .studio-feedback-dialog :is(textarea) {
+  border-color: #3a3a3a !important;
+  background: #1c1c1c !important;
+  color: #e5e7eb !important;
+}
+.studio-feedback-tab-active {
+  border-bottom: 2px solid #0f172a;
+}
+html[data-studio-theme="dark"] .studio-feedback-tab-active {
+  border-bottom-color: #ececec;
+}
+.studio-feedback-type-card {
+  background: transparent;
+}
+.studio-feedback-type-card:hover {
+  background: #f7f4ef;
+}
+.studio-feedback-type-card-active {
+  border-color: #0f172a !important;
+  background: rgba(15, 23, 42, 0.04);
+}
+.studio-feedback-type-card-active:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+html[data-studio-theme="dark"] .studio-feedback-type-card:hover {
+  background: rgba(236, 236, 236, 0.06);
+}
+html[data-studio-theme="dark"] .studio-feedback-type-card-active {
+  border-color: #ececec !important;
+  background: rgba(236, 236, 236, 0.08);
+}
+html[data-studio-theme="dark"] .studio-feedback-type-card-active:hover {
+  background: rgba(236, 236, 236, 0.12);
+}
+.studio-feedback-upload-zone:hover {
+  background: #f7f4ef;
+}
+html[data-studio-theme="dark"] .studio-feedback-upload-zone:hover {
+  background: rgba(236, 236, 236, 0.06);
+}
+.studio-feedback-cancel-btn:hover {
+  background: #f7f4ef;
+}
+html[data-studio-theme="dark"] .studio-feedback-cancel-btn:hover {
+  background: rgba(236, 236, 236, 0.06);
+}
+.studio-feedback-textarea:focus {
+  border-color: #d8d2c8;
+  background: #ffffff;
+}
+html[data-studio-theme="dark"] .studio-feedback-textarea:focus {
+  border-color: #3a3a3a;
+  background: #1c1c1c;
 }
 html[data-studio-theme="dark"] .image-annotation-toolbar,
 html[data-studio-theme="dark"] .image-annotation-composer {

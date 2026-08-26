@@ -10,6 +10,7 @@ import {
   KeyRound,
   LayoutDashboard,
   LockKeyhole,
+  MessageSquareWarning,
   Receipt,
   ScrollText,
   Settings2,
@@ -102,6 +103,7 @@ function AccountNav({
           label: "平台",
           items: [
             { href: "/account/portal", label: "门户内容管理", mobileLabel: "门户", icon: PanelsTopLeft },
+            { href: "/account/feedback", label: "反馈列表", mobileLabel: "反馈", icon: MessageSquareWarning },
             { href: "/account/skills", label: "Skill 配置", mobileLabel: "Skill", icon: Wrench },
           ],
         },
