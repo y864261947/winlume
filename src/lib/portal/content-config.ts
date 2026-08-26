@@ -29,7 +29,7 @@ export function normalizePortalContent(input: unknown): PortalContentConfig {
   const raw = input && typeof input === "object" ? input as Record<string, unknown> : {};
   const carousel = Array.isArray(raw.carousel) ? raw.carousel.slice(0, 12).flatMap((item, index) => {
     const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
-    const imageUrl = string(row.imageUrl, 200_000); const alt = string(row.alt, 120); const href = string(row.href, 500) || "/";
+    const imageUrl = string(row.imageUrl, 1_000_000); const alt = string(row.alt, 120); const href = string(row.href, 500) || "/";
     return imageUrl && alt ? [{ id: id(row.id, `slide-${index + 1}`), imageUrl, alt, href, enabled: row.enabled !== false }] : [];
   }) : defaultPortalContent.carousel;
   const notifications = Array.isArray(raw.notifications) ? raw.notifications.slice(0, 30).flatMap((item, index) => {
@@ -45,7 +45,7 @@ export function normalizePortalContent(input: unknown): PortalContentConfig {
       const modelName = string(data.name, 120);
       return modelName ? [{ name: modelName, endpointTypes: Array.isArray(data.endpointTypes) ? data.endpointTypes.map((value) => string(value, 40)).filter(Boolean).slice(0, 8) : ["chat"], description: string(data.description, 300) || undefined }] : [];
     }) : [];
-    return name && models.length ? [{ id: id(row.id, `vendor-${index + 1}`), name, key, logoUrl: string(row.logoUrl, 200_000) || "/vendors/other.svg", category: category(row.category), enabled: row.enabled !== false, models }] : [];
+    return name && models.length ? [{ id: id(row.id, `vendor-${index + 1}`), name, key, logoUrl: string(row.logoUrl, 1_000_000) || "/vendors/other.svg", category: category(row.category), enabled: row.enabled !== false, models }] : [];
   }) : [];
   return { carousel: carousel.length ? carousel : defaultPortalContent.carousel, notifications, modelVendors };
 }
