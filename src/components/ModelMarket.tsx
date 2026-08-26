@@ -240,6 +240,19 @@ const toolApplications = [
   { label: "开发与代码", detail: "代码生成、调试、API 开发", icon: "/figma-home/tool-api.svg", href: "/studio/skills?scene=developer-api" },
 ] as const;
 
+const portalApplicationShowcase = [
+  { title: "AI视频生成", detail: "从脚本到短片，一键生成分镜与成片", icon: "/figma-home/tool-video.svg", href: "/studio?preset=video-default", tone: "violet" },
+  { title: "视觉海报设计", detail: "营销海报、活动主视觉快速产出", icon: "/figma-home/icon-image.svg", href: "/studio?preset=image-default", tone: "rose" },
+  { title: "AI视频翻译", detail: "字幕翻译、配音与多语种本地化", icon: "/figma-home/icon-voice.svg", href: "/studio?preset=video-default", tone: "teal" },
+  { title: "AI视频数字人", detail: "创建口播讲解、培训与产品演示", icon: "/figma-home/tool-agent.svg", href: "/studio", tone: "blue" },
+  { title: "AI智能提取", detail: "从文档、网页和图片提取结构化信息", icon: "/figma-home/icon-search.svg", href: "/studio/skills?scene=content-office", tone: "amber" },
+  { title: "产品图生成", detail: "商品场景图、主图和电商素材", icon: "/figma-home/icon-image.svg", href: "/studio?preset=image-default", tone: "cyan" },
+  { title: "财务分析助手", detail: "报表解读、指标分析与结论整理", icon: "/figma-home/tool-commerce.svg", href: "/studio/skills?scene=growth-commerce", tone: "green" },
+  { title: "PPT 生成", detail: "快速把想法整理成可演示的页面", icon: "/figma-home/tool-content.svg", href: "/studio/skills?scene=content-office", tone: "indigo" },
+  { title: "代码生成", detail: "从需求到代码、调试和接口说明", icon: "/figma-home/tool-api.svg", href: "/studio/skills?scene=developer-api", tone: "slate" },
+  { title: "合同审查", detail: "识别风险条款并生成审阅建议", icon: "/figma-home/icon-db.svg", href: "/studio/skills?scene=content-office", tone: "orange" },
+] as const;
+
 const productPaths = [
   {
     id: "api",
@@ -1092,6 +1105,20 @@ export default function ModelMarket() {
             </section>
           </div>
         </div>
+
+        <section className="portal-app-showcase" aria-labelledby="portal-app-showcase-title">
+          <div className="portal-app-showcase-head">
+            <div><p>APPLICATIONS</p><h2 id="portal-app-showcase-title">热门应用工具</h2><span>按场景直接开始，不必先配置模型。</span></div>
+            <ArrowLink href="/products?cate=app">查看全部应用</ArrowLink>
+          </div>
+          <div className="portal-app-showcase-grid">
+            {portalApplicationShowcase.slice(0, 5).map((app) => <PortalLink href={app.href} className="portal-app-showcase-card" key={app.title}><span className={`portal-app-showcase-cover is-${app.tone}`}><AssetIcon src={app.icon} /></span><strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">使用</span></PortalLink>)}
+          </div>
+          <div className="portal-app-showcase-subhead"><h3>全部应用工具</h3><span>覆盖创作、办公、数据、开发等常用任务</span></div>
+          <div className="portal-app-showcase-grid is-all">
+            {portalApplicationShowcase.slice(5).map((app) => <PortalLink href={app.href} className="portal-app-showcase-card" key={app.title}><span className={`portal-app-showcase-cover is-${app.tone}`}><AssetIcon src={app.icon} /></span><strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">使用</span></PortalLink>)}
+          </div>
+        </section>
 
         <section className="portal-industry-section" aria-labelledby="portal-industry-title">
           <div className="portal-section-header"><div><h2 id="portal-industry-title">工作场景</h2><p>按任务开始，快速找到匹配的生产级 Skill</p></div><ArrowLink href="/studio/skills">探索全部工具</ArrowLink></div>
