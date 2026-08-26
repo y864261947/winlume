@@ -3694,7 +3694,7 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-agent-entry:hover,.portal-agent-entry.is-current { border-color: #2d6fe1; color: #0b51c8 !important; background: #e8f3ff; }
 .portal-agent-entry svg { width: 16px; height: 16px; }
 .portal-account-menu { position: relative; }
-.portal-account-submenu { position: absolute; z-index: 130; top: calc(100% + 7px); right: 0; display: grid; width: 150px; padding: 6px; border: 1px solid rgba(202,218,239,.92); border-radius: 10px; background: rgba(255,255,255,.98); box-shadow: 0 16px 32px -20px rgba(25,67,124,.46); opacity: 0; pointer-events: none; transform: translateY(-4px); transition: opacity 150ms ease,transform 150ms ease; }
+.portal-account-submenu { position: absolute; z-index: 130; top: calc(100% - 2px); right: 0; display: grid; width: 150px; padding: 8px 6px 6px; border: 1px solid rgba(202,218,239,.92); border-radius: 10px; background: rgba(255,255,255,.98); box-shadow: 0 16px 32px -20px rgba(25,67,124,.46); opacity: 0; pointer-events: none; transform: translateY(-4px); transition: opacity 150ms ease,transform 150ms ease; }
 .portal-account-submenu.is-open { opacity: 1; pointer-events: auto; transform: translateY(0); }
 .portal-account-submenu a { display: flex; min-height: 33px; align-items: center; gap: 8px; padding: 0 9px; border-radius: 7px; color: #40536d; font-size: 12px; font-weight: 650; }
 .portal-account-submenu a:hover { color: #125edb; background: #eef5ff; }
