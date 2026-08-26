@@ -1114,7 +1114,7 @@ export default function ModelMarket() {
           <div className="portal-app-showcase-grid">
             {portalApplicationShowcase.slice(0, 5).map((app) => <PortalLink href={app.href} className="portal-app-showcase-card" key={app.title}><span className={`portal-app-showcase-cover is-${app.tone}`}><AssetIcon src={app.icon} /></span><strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">使用</span></PortalLink>)}
           </div>
-          <div className="portal-app-showcase-subhead"><h3>全部应用工具</h3><span>覆盖创作、办公、数据、开发等常用任务</span></div>
+          <div className="portal-app-showcase-subhead"><h3>最新上架</h3><span>近期更新的创作、办公、数据与开发工具</span></div>
           <div className="portal-app-showcase-grid is-all">
             {portalApplicationShowcase.slice(5).map((app) => <PortalLink href={app.href} className="portal-app-showcase-card" key={app.title}><span className={`portal-app-showcase-cover is-${app.tone}`}><AssetIcon src={app.icon} /></span><strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">使用</span></PortalLink>)}
           </div>
