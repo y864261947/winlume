@@ -61,12 +61,12 @@ describe("homepage API categories", () => {
     expect(source).toContain('evidence: "usage"');
   });
 
-  it("elevates one featured output and presents Reizo capabilities as a connected rail", () => {
+  it("elevates one featured output and presents Reizo capabilities as product surfaces", () => {
     expect(source).toContain("portal-featured-app-grid");
     expect(source).toContain("portal-featured-app-card");
     expect(source).toContain("portal-app-support-grid");
-    expect(source).toContain("portal-system-track");
-    expect(source).toContain("portal-system-stage");
+    expect(source).toContain("portal-capability-showcase");
+    expect(source).toContain("portal-capability-hero");
   });
 });
 

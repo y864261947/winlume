@@ -260,10 +260,9 @@ const portalApplicationShowcase: ReadonlyArray<{ title: string; detail: string; 
 ];
 
 const portalCapabilityCards: ReadonlyArray<{ title: string; detail: string; badge: string; href: string; tone: string; evidence: PortalCapabilityEvidence }> = [
-  { title: "多模型，一处使用", detail: "GPT、Claude、Gemini、DeepSeek 等模型统一调用", badge: "模型能力", href: "/products?cate=api", tone: "blue", evidence: "models" },
-  { title: "2600+ Skills 技能", detail: "从内容创作到专业任务，找到可直接使用的指令", badge: "技能专家", href: "/studio/skills", tone: "purple", evidence: "skills" },
-  { title: "Agent 工作流", detail: "把模型、工具和 Skills 自动串成专属流程", badge: "智能专家", href: "/studio", tone: "teal", evidence: "agent" },
-  { title: "灵活计费", detail: "按实际用量结算，额度、消耗和成本清晰可见", badge: "账户专家", href: "/account/wallet", tone: "orange", evidence: "usage" },
+  { title: "模型路由，随任务切换", detail: "GPT、Claude、Gemini、DeepSeek 等模型统一接入，按能力选择最适合的执行路径。", badge: "MODEL ROUTING", href: "/products?cate=api", tone: "models", evidence: "models" },
+  { title: "Agent 自动完成一整件事", detail: "把模型、工具和 2600+ Skills 编排为可复用的执行流程。", badge: "AGENT EXECUTION", href: "/studio", tone: "agent", evidence: "agent" },
+  { title: "成本始终可见", detail: "额度、消耗与预算阈值实时同步，团队使用有迹可循。", badge: "USAGE & GOVERNANCE", href: "/account/wallet", tone: "usage", evidence: "usage" },
 ];
 
 function ApplicationResultPreview({ kind }: { kind: PortalApplicationPreview }) {
@@ -1210,7 +1209,7 @@ export default function ModelMarket() {
 
         <section className="portal-bottom-explore portal-system-rail" aria-labelledby="portal-bottom-explore-title">
           <div className="portal-bottom-explore-head"><div><p>MORE WITH REIZO</p><h2 id="portal-bottom-explore-title">探索更多 REIZO 能力</h2></div></div>
-          <div className="portal-system-track">{portalCapabilityCards.map((card) => <PortalLink href={card.href} className="portal-system-stage" key={card.title}><CapabilityEvidence kind={card.evidence} /><span><em>{card.badge}</em><strong>{card.title}</strong><small>{card.detail}</small></span></PortalLink>)}</div>
+          <div className="portal-capability-showcase">{portalCapabilityCards.map((card) => <PortalLink href={card.href} className={`portal-capability-hero is-${card.tone}`} key={card.title}><CapabilityEvidence kind={card.evidence} /><span><em>{card.badge}</em><strong>{card.title}</strong><small>{card.detail}</small></span></PortalLink>)}</div>
           <HeroCard variant="tertiary" className="portal-bottom-help"><span><CircleHelp aria-hidden />没有找到合适的应用或技能？告诉我们你的使用场景，我们为你定制解决方案。</span><PortalLink href="/business" className="portal-bottom-help-link">提交需求<ChevronRight aria-hidden /></PortalLink></HeroCard>
           <footer className="portal-bottom-footer"><div className="portal-bottom-brand"><strong><Image className="portal-footer-mark" src="/brand/reizo-mark.png" alt="" width={26} height={26} />REIZO</strong><p>从 AI 能力到智能体，每一步都更简单。</p><small>© 2026 Reizo. All rights reserved.</small></div>{footerColumns.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.items.slice(0, 3).map((item) => <PortalLink href={item.href} key={item.label}>{item.label}</PortalLink>)}</div>)}<div><h3>关注我们</h3><span className="portal-bottom-social">𝕏　in　◉　✉</span></div></footer>
         </section>
