@@ -7369,8 +7369,23 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
 .portal-home .portal-hero-chip { min-height: 36px; padding-inline: 13px; }
 
 @media (min-width: 1181px) {
+  .portal-home {
+    --portal-dashboard-columns: minmax(300px, .82fr) minmax(440px, 1.25fr) minmax(310px, .72fr);
+  }
+  .portal-home .portal-search-row,
   .portal-home .portal-discovery-grid {
-    grid-template-columns: minmax(300px, .82fr) minmax(440px, 1.2fr) minmax(350px, .81fr);
+    grid-template-columns: var(--portal-dashboard-columns);
+  }
+  .portal-home .portal-search-row {
+    column-gap: 14px;
+  }
+  .portal-home .portal-search-card {
+    grid-column: 1 / 3;
+  }
+  .portal-home .portal-search-aside {
+    grid-column: 3;
+  }
+  .portal-home .portal-discovery-grid {
     grid-template-rows: 360px 184px;
     column-gap: 14px;
     row-gap: 22px;

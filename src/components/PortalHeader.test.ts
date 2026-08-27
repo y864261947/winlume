@@ -25,6 +25,8 @@ describe("portal top navigation", () => {
     expect(navSource).not.toContain('label: "文档"');
     expect(navSource).toContain("升级会员");
     expect(navSource).toContain("通知");
+    expect(navSource).toContain("markPortalNotificationsRead");
+    expect(navSource).toContain("unreadNotificationCount");
     expect(navSource).toContain('href="/studio"');
     expect(navSource).toContain("portal-membership-entry");
     expect(navSource).toContain("portal-user-links");

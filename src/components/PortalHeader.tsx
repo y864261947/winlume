@@ -4,9 +4,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, Bot, ChevronDown, ChevronRight, Crown, KeyRound, LayoutDashboard, LogOut, WalletCards } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useModals } from "@/components/providers";
 import { logout } from "@/lib/account";
+import { getUnreadPortalNotifications, markPortalNotificationsRead } from "@/lib/portal/notification-read";
 
 type NavItem = {
   href: string;
@@ -29,6 +30,8 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState<Array<{ id: string; title: string; body: string; href: string }>>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const notificationOpenRef = useRef(false);
   const accountName = account ? account.display_name || account.username : "";
   const accountInitial = accountName ? accountName.slice(0, 1).toUpperCase() : "登";
 
@@ -37,7 +40,15 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
     fetch("/api/portal/content", { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((content: { notifications?: Array<{ id: string; title: string; body: string; href: string; enabled?: boolean }> } | null) => {
-        if (!cancelled) setNotifications((content?.notifications ?? []).filter((notice) => notice.enabled !== false));
+        if (cancelled) return;
+        const enabledNotifications = (content?.notifications ?? []).filter((notice) => notice.enabled !== false);
+        setNotifications(enabledNotifications);
+        if (notificationOpenRef.current) {
+          markPortalNotificationsRead(enabledNotifications);
+          setUnreadNotificationCount(0);
+        } else {
+          setUnreadNotificationCount(getUnreadPortalNotifications(enabledNotifications).length);
+        }
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
@@ -47,6 +58,18 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
     await logout();
     router.push("/");
     router.refresh();
+  }
+
+  function openNotifications() {
+    notificationOpenRef.current = true;
+    setNotificationOpen(true);
+    markPortalNotificationsRead(notifications);
+    setUnreadNotificationCount(0);
+  }
+
+  function closeNotifications() {
+    notificationOpenRef.current = false;
+    setNotificationOpen(false);
   }
 
   return (
@@ -99,9 +122,9 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
             升级会员
           </button>
           <div className="portal-user-links">
-            <div className="portal-notification-menu" onMouseEnter={() => setNotificationOpen(true)} onMouseLeave={() => setNotificationOpen(false)} onFocus={() => setNotificationOpen(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNotificationOpen(false); }}>
-              <button type="button" aria-expanded={notificationOpen} onClick={() => setNotificationOpen((open) => !open)}>
-                <span className="portal-notification-icon"><Bell aria-hidden />{notifications.length ? <i>{notifications.length}</i> : null}</span>
+            <div className="portal-notification-menu" onMouseEnter={openNotifications} onMouseLeave={closeNotifications} onFocus={openNotifications} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeNotifications(); }}>
+              <button type="button" aria-expanded={notificationOpen} onClick={() => { if (notificationOpen) closeNotifications(); else openNotifications(); }}>
+                <span className="portal-notification-icon"><Bell aria-hidden />{unreadNotificationCount ? <i>{unreadNotificationCount}</i> : null}</span>
                 <span className="portal-notification-label">通知</span>
               </button>
               <div className={`portal-notification-submenu${notificationOpen ? " is-open" : ""}`}>
