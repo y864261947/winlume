@@ -7315,9 +7315,10 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
 
 @media (min-width: 1181px) {
   .portal-home .portal-discovery-grid {
-    grid-template-columns: minmax(330px, .86fr) minmax(480px, 1.14fr) minmax(410px, 1fr);
+    grid-template-columns: minmax(300px, .82fr) minmax(440px, 1.2fr) minmax(350px, .81fr);
     grid-template-rows: 360px 184px;
-    gap: 14px;
+    column-gap: 14px;
+    row-gap: 22px;
   }
 }
 .portal-home .portal-api-card,
