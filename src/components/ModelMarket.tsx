@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button as HeroButton, Card as HeroCard } from "@heroui/react";
+import { Button as HeroButton, Card as HeroCard, Tabs } from "@heroui/react";
 import { BarChart3, ChevronLeft, ChevronRight, CircleHelp, Code2, Crown, FileImage, LayoutGrid, Search, ArrowUp, Presentation, ShoppingBag, Video } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
@@ -917,8 +917,18 @@ export default function ModelMarket() {
           <section className={`portal-search-card${onboardingStep === 0 ? " is-onboarding-target" : ""}`} data-onboarding-target="agent" aria-labelledby="portal-search-title">
             <Image className="portal-search-waves" src="/figma-home/search-waves.svg" alt="" fill sizes="710px" priority />
             <div className="portal-search-content">
-              <h1 id="portal-search-title">找到适合你的 <em>AI</em> 能力</h1>
-              <p className="portal-search-description">按任务、场景或关键词搜索，快速找到可直接使用的模型、工具与 Skills。</p>
+              <div className="portal-search-heading">
+                <div>
+                  <span className="portal-search-kicker">REIZO CAPABILITY DESK</span>
+                  <h1 id="portal-search-title">找到适合你的 <em>AI</em> 能力</h1>
+                  <p className="portal-search-description">描述要完成的任务，我们帮你匹配模型、应用与 Skills。</p>
+                </div>
+                <div className="portal-search-proof" aria-label="平台能力规模">
+                  <span><strong>300+</strong><small>应用工具</small></span>
+                  <i aria-hidden />
+                  <span><strong>2600+</strong><small>Skills</small></span>
+                </div>
+              </div>
               <div className="portal-search-form-row">
                 <form className="portal-search-form" onSubmit={submitSearch}>
                   <Search aria-hidden />
@@ -1130,18 +1140,45 @@ export default function ModelMarket() {
           </div>
         </div>
 
-        <section className="portal-app-showcase" aria-labelledby="portal-app-showcase-title">
+        <section className="portal-app-showcase portal-app-showcase-v2" aria-labelledby="portal-app-showcase-title">
           <div className="portal-app-showcase-head">
-            <div><p>APPLICATIONS</p><h2 id="portal-app-showcase-title">热门应用工具</h2><span>按场景直接开始，不必先配置模型。</span></div>
+            <div><p>APPLICATIONS</p><h2 id="portal-app-showcase-title">把想法直接变成成果</h2><span>无需研究模型参数，选择一个工具即可开始。</span></div>
             <ArrowLink href="/products?cate=app">查看全部应用</ArrowLink>
           </div>
-          <div className="portal-app-showcase-grid">
-            {portalApplicationShowcase.slice(0, 5).map((app) => <PortalLink href={app.href} className="portal-app-showcase-card" key={app.title}><span className={`portal-app-showcase-cover is-${app.tone}`}><AssetIcon src={app.icon} /></span><strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">使用</span></PortalLink>)}
-          </div>
-          <div className="portal-app-showcase-subhead"><h3>最新上架</h3><span>近期更新的创作、办公、数据与开发工具</span></div>
-          <div className="portal-app-showcase-grid is-all">
-            {portalApplicationShowcase.slice(5).map((app) => <PortalLink href={app.href} className="portal-app-showcase-card" key={app.title}><span className={`portal-app-showcase-cover is-${app.tone}`}><AssetIcon src={app.icon} /></span><strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">使用</span></PortalLink>)}
-          </div>
+          <Tabs defaultSelectedKey="popular" variant="secondary" className="portal-app-tabs">
+            <Tabs.ListContainer className="portal-app-tabs-list-container">
+              <Tabs.List aria-label="应用工具分组" className="portal-app-tabs-list">
+                <Tabs.Tab id="popular" className="portal-app-tab">热门应用<Tabs.Indicator /></Tabs.Tab>
+                <Tabs.Tab id="latest" className="portal-app-tab">最新上架<Tabs.Indicator /></Tabs.Tab>
+              </Tabs.List>
+            </Tabs.ListContainer>
+            <Tabs.Panel id="popular" className="portal-app-tab-panel">
+              <div className="portal-app-showcase-grid">
+                {portalApplicationShowcase.slice(0, 5).map((app, index) => (
+                  <HeroCard variant="secondary" className="portal-app-showcase-item" key={app.title}>
+                    <PortalLink href={app.href} className="portal-app-showcase-card">
+                      <span className={`portal-app-showcase-cover is-${app.tone}`}><AssetIcon src={app.icon} /></span>
+                      <span className="portal-app-showcase-rank">0{index + 1}</span>
+                      <strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">立即使用<ChevronRight aria-hidden /></span>
+                    </PortalLink>
+                  </HeroCard>
+                ))}
+              </div>
+            </Tabs.Panel>
+            <Tabs.Panel id="latest" className="portal-app-tab-panel">
+              <div className="portal-app-showcase-grid is-all">
+                {portalApplicationShowcase.slice(5).map((app) => (
+                  <HeroCard variant="secondary" className="portal-app-showcase-item" key={app.title}>
+                    <PortalLink href={app.href} className="portal-app-showcase-card">
+                      <span className={`portal-app-showcase-cover is-${app.tone}`}><AssetIcon src={app.icon} /></span>
+                      <span className="portal-app-showcase-new">NEW</span>
+                      <strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">立即使用<ChevronRight aria-hidden /></span>
+                    </PortalLink>
+                  </HeroCard>
+                ))}
+              </div>
+            </Tabs.Panel>
+          </Tabs>
         </section>
 
         <section className="portal-bottom-explore" aria-labelledby="portal-bottom-explore-title">
