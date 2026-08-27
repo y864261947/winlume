@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Button as HeroButton, Card as HeroCard } from "@heroui/react";
 import { BarChart3, ChevronLeft, ChevronRight, CircleHelp, Code2, Crown, FileImage, LayoutGrid, Search, ArrowUp, Presentation, ShoppingBag, Video } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
@@ -922,15 +923,15 @@ export default function ModelMarket() {
                 <form className="portal-search-form" onSubmit={submitSearch}>
                   <Search aria-hidden />
                   <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务、应用、模型或 API，例如：产品图、财务分析、PPT" aria-label="搜索 AI 能力" />
-                  <button type="submit"><Search aria-hidden />搜索</button>
+                  <HeroButton type="submit" variant="primary" size="md" className="portal-hero-search-button"><Search aria-hidden />搜索</HeroButton>
                 </form>
                 <PortalLink href="/studio" className="portal-workbench-button"><LayoutGrid aria-hidden />进入工作台<ChevronRight aria-hidden /></PortalLink>
               </div>
               <div className="portal-chip-list" aria-label="热门能力">
                 {searchSuggestions.map(({ label, icon: Icon }) => (
-                  <button key={label} type="button" className={query === label ? "is-selected" : ""} onClick={() => { setQuery(label); setSubmittedQuery(label); router.push(`/products?cate=app&q=${encodeURIComponent(label)}`); }}><Icon aria-hidden />{label}</button>
+                  <HeroButton key={label} type="button" variant={query === label ? "primary" : "tertiary"} size="sm" className="portal-hero-chip" onClick={() => { setQuery(label); setSubmittedQuery(label); router.push(`/products?cate=app&q=${encodeURIComponent(label)}`); }}><Icon aria-hidden />{label}</HeroButton>
                 ))}
-                <button type="button" onClick={() => router.push("/products?cate=app")}><LayoutGrid aria-hidden />更多</button>
+                <HeroButton type="button" variant="tertiary" size="sm" className="portal-hero-chip" onClick={() => router.push("/products?cate=app")}><LayoutGrid aria-hidden />更多</HeroButton>
               </div>
             </div>
           </section>
@@ -1146,7 +1147,7 @@ export default function ModelMarket() {
         <section className="portal-bottom-explore" aria-labelledby="portal-bottom-explore-title">
           <div className="portal-bottom-explore-head"><div><p>MORE WITH REIZO</p><h2 id="portal-bottom-explore-title">探索更多 REIZO 能力</h2><span>模型、工具与 Skills，组成你的 AI 工作方式</span></div></div>
           <div className="portal-bottom-explore-grid">{portalCapabilityCards.map((card) => <PortalLink href={card.href} className={`portal-bottom-capability is-${card.tone}`} key={card.title}><span className="portal-bottom-capability-badge">{card.badge}</span><AssetIcon src={card.icon} /><strong>{card.title}</strong><p>{card.detail}</p></PortalLink>)}</div>
-          <div className="portal-bottom-help"><span><CircleHelp aria-hidden />没有找到合适的应用或技能？告诉我们你的使用场景，我们为你定制解决方案。</span><PortalLink href="/business" className="portal-bottom-help-link">提交需求<ChevronRight aria-hidden /></PortalLink></div>
+          <HeroCard variant="tertiary" className="portal-bottom-help"><span><CircleHelp aria-hidden />没有找到合适的应用或技能？告诉我们你的使用场景，我们为你定制解决方案。</span><PortalLink href="/business" className="portal-bottom-help-link">提交需求<ChevronRight aria-hidden /></PortalLink></HeroCard>
           <footer className="portal-bottom-footer"><div className="portal-bottom-brand"><strong><Image className="portal-footer-mark" src="/brand/reizo-mark.png" alt="" width={26} height={26} />REIZO</strong><p>从 AI 能力到智能体，每一步都更简单。</p><small>© 2026 Reizo. All rights reserved.</small></div>{footerColumns.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.items.slice(0, 3).map((item) => <PortalLink href={item.href} key={item.label}>{item.label}</PortalLink>)}</div>)}<div><h3>关注我们</h3><span className="portal-bottom-social">𝕏　in　◉　✉</span></div></footer>
         </section>
 
