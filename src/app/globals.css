@@ -7576,6 +7576,15 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
 @media (max-width:1180px) { .portal-capability-showcase { grid-template-columns:1.25fr 1fr; }.portal-capability-hero.is-models { grid-column:1 / -1; }.portal-capability-hero { min-height:214px; } }
 @media (max-width:760px) { .portal-system-rail { padding:19px 15px 0; }.portal-capability-showcase { grid-template-columns:1fr; gap:10px; margin-top:14px; }.portal-capability-hero,.portal-capability-hero.is-models { grid-column:auto; min-height:204px; padding:18px; }.portal-capability-hero .portal-capability-evidence { right:16px; bottom:16px; left:16px; }.portal-capability-hero strong { font-size:19px; } }
 
+@media (min-width:761px) {
+  .portal-home .portal-app-showcase-v2,
+  .portal-home .portal-system-rail { padding-right:0; padding-left:0; }
+  .portal-home .portal-app-showcase-head,
+  .portal-home .portal-app-tabs-list-container,
+  .portal-home .portal-bottom-explore-head { margin-right:28px; margin-left:28px; }
+  .portal-home .portal-system-rail .portal-bottom-footer { margin-right:0; margin-left:0; }
+}
+
 /* Header badge belongs to the bell, never to the notification label. */
 .portal-home .portal-notification-menu > button { display: inline-flex; align-items: center; gap: 6px; }
 .portal-home .portal-notification-icon { position: relative; display: inline-flex; width: 18px; height: 18px; align-items: center; justify-content: center; }
