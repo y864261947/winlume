@@ -100,7 +100,10 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
           </button>
           <div className="portal-user-links">
             <div className="portal-notification-menu" onMouseEnter={() => setNotificationOpen(true)} onMouseLeave={() => setNotificationOpen(false)} onFocus={() => setNotificationOpen(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNotificationOpen(false); }}>
-              <button type="button" aria-expanded={notificationOpen} onClick={() => setNotificationOpen((open) => !open)}><Bell aria-hidden />通知{notifications.length ? <i>{notifications.length}</i> : null}</button>
+              <button type="button" aria-expanded={notificationOpen} onClick={() => setNotificationOpen((open) => !open)}>
+                <span className="portal-notification-icon"><Bell aria-hidden />{notifications.length ? <i>{notifications.length}</i> : null}</span>
+                <span className="portal-notification-label">通知</span>
+              </button>
               <div className={`portal-notification-submenu${notificationOpen ? " is-open" : ""}`}>
                 <strong>通知</strong>
                 {notifications.length ? notifications.map((item) => <Link href={item.href || "/"} key={item.id}><b>{item.title}</b><span>{item.body}</span></Link>) : <p>暂无新的通知</p>}
