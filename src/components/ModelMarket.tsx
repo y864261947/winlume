@@ -1176,12 +1176,11 @@ export default function ModelMarket() {
             </Tabs.ListContainer>
             <Tabs.Panel id="popular" className="portal-app-tab-panel">
               <div className="portal-app-showcase-grid">
-                {portalApplicationShowcase.slice(0, 5).map((app, index) => (
+                {portalApplicationShowcase.slice(0, 5).map((app) => (
                   <HeroCard variant="secondary" className="portal-app-showcase-item" key={app.title}>
                     <PortalLink href={app.href} className="portal-app-showcase-card">
                       <ApplicationResultPreview kind={app.preview} />
-                      <span className="portal-app-showcase-rank">0{index + 1}</span>
-                      <strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">立即使用<ChevronRight aria-hidden /></span>
+                      <strong>{app.title}</strong><p>{app.detail}</p>
                     </PortalLink>
                   </HeroCard>
                 ))}
@@ -1194,7 +1193,7 @@ export default function ModelMarket() {
                     <PortalLink href={app.href} className="portal-app-showcase-card">
                       <ApplicationResultPreview kind={app.preview} />
                       <span className="portal-app-showcase-new">NEW</span>
-                      <strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">立即使用<ChevronRight aria-hidden /></span>
+                      <strong>{app.title}</strong><p>{app.detail}</p>
                     </PortalLink>
                   </HeroCard>
                 ))}
