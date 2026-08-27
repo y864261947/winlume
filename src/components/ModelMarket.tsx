@@ -255,6 +255,13 @@ const portalApplicationShowcase = [
   { title: "合同审查", detail: "识别风险条款并生成审阅建议", icon: "/figma-home/icon-db.svg", href: "/studio/skills?scene=content-office", tone: "orange" },
 ] as const;
 
+const portalCapabilityCards = [
+  { title: "多模型，一处使用", detail: "GPT、Claude、Gemini、DeepSeek 等模型统一调用", badge: "模型能力", icon: "/figma-home/cap-api.svg", href: "/products?cate=api", tone: "blue" },
+  { title: "2600+ Skills 技能", detail: "从内容创作到专业任务，找到可直接使用的指令", badge: "技能专家", icon: "/figma-home/cap-community.svg", href: "/studio/skills", tone: "purple" },
+  { title: "Agent 工作流", detail: "把模型、工具和 Skills 自动串成专属流程", badge: "智能专家", icon: "/figma-home/cap-agent.svg", href: "/studio", tone: "teal" },
+  { title: "灵活计费", detail: "按实际用量结算，额度、消耗和成本清晰可见", badge: "账户专家", icon: "/figma-home/price.svg", href: "/account/wallet", tone: "orange" },
+] as const;
+
 const productPaths = [
   {
     id: "api",
@@ -1134,6 +1141,13 @@ export default function ModelMarket() {
           <div className="portal-app-showcase-grid is-all">
             {portalApplicationShowcase.slice(5).map((app) => <PortalLink href={app.href} className="portal-app-showcase-card" key={app.title}><span className={`portal-app-showcase-cover is-${app.tone}`}><AssetIcon src={app.icon} /></span><strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">使用</span></PortalLink>)}
           </div>
+        </section>
+
+        <section className="portal-bottom-explore" aria-labelledby="portal-bottom-explore-title">
+          <div className="portal-bottom-explore-head"><div><p>MORE WITH REIZO</p><h2 id="portal-bottom-explore-title">探索更多 REIZO 能力</h2><span>模型、工具与 Skills，组成你的 AI 工作方式</span></div></div>
+          <div className="portal-bottom-explore-grid">{portalCapabilityCards.map((card) => <PortalLink href={card.href} className={`portal-bottom-capability is-${card.tone}`} key={card.title}><span className="portal-bottom-capability-badge">{card.badge}</span><AssetIcon src={card.icon} /><strong>{card.title}</strong><p>{card.detail}</p></PortalLink>)}</div>
+          <div className="portal-bottom-help"><span><CircleHelp aria-hidden />没有找到合适的应用或技能？告诉我们你的使用场景，我们为你定制解决方案。</span><PortalLink href="/business" className="portal-bottom-help-link">提交需求<ChevronRight aria-hidden /></PortalLink></div>
+          <footer className="portal-bottom-footer"><div className="portal-bottom-brand"><strong><Image className="portal-footer-mark" src="/brand/reizo-mark.png" alt="" width={26} height={26} />REIZO</strong><p>从 AI 能力到智能体，每一步都更简单。</p><small>© 2026 Reizo. All rights reserved.</small></div>{footerColumns.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.items.slice(0, 3).map((item) => <PortalLink href={item.href} key={item.label}>{item.label}</PortalLink>)}</div>)}<div><h3>关注我们</h3><span className="portal-bottom-social">𝕏　in　◉　✉</span></div></footer>
         </section>
 
         <section className="portal-industry-section" aria-labelledby="portal-industry-title">
