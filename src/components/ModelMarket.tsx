@@ -243,25 +243,48 @@ const toolApplications = [
   { label: "开发与代码", detail: "代码生成、调试、API 开发", icon: "/figma-home/tool-api.svg", href: "/studio/skills?scene=developer-api" },
 ] as const;
 
-const portalApplicationShowcase = [
-  { title: "AI视频生成", detail: "从脚本到短片，一键生成分镜与成片", icon: "/figma-home/tool-video.svg", href: "/studio?preset=video-default", tone: "violet" },
-  { title: "视觉海报设计", detail: "营销海报、活动主视觉快速产出", icon: "/figma-home/icon-image.svg", href: "/studio?preset=image-default", tone: "rose" },
-  { title: "AI视频翻译", detail: "字幕翻译、配音与多语种本地化", icon: "/figma-home/icon-voice.svg", href: "/studio?preset=video-default", tone: "teal" },
-  { title: "AI视频数字人", detail: "创建口播讲解、培训与产品演示", icon: "/figma-home/tool-agent.svg", href: "/studio", tone: "blue" },
-  { title: "AI智能提取", detail: "从文档、网页和图片提取结构化信息", icon: "/figma-home/icon-search.svg", href: "/studio/skills?scene=content-office", tone: "amber" },
-  { title: "产品图生成", detail: "商品场景图、主图和电商素材", icon: "/figma-home/icon-image.svg", href: "/studio?preset=image-default", tone: "cyan" },
-  { title: "财务分析助手", detail: "报表解读、指标分析与结论整理", icon: "/figma-home/tool-commerce.svg", href: "/studio/skills?scene=growth-commerce", tone: "green" },
-  { title: "PPT 生成", detail: "快速把想法整理成可演示的页面", icon: "/figma-home/tool-content.svg", href: "/studio/skills?scene=content-office", tone: "indigo" },
-  { title: "代码生成", detail: "从需求到代码、调试和接口说明", icon: "/figma-home/tool-api.svg", href: "/studio/skills?scene=developer-api", tone: "slate" },
-  { title: "合同审查", detail: "识别风险条款并生成审阅建议", icon: "/figma-home/icon-db.svg", href: "/studio/skills?scene=content-office", tone: "orange" },
-] as const;
+type PortalApplicationPreview = "storyboard" | "poster" | "subtitles" | "avatar" | "extract" | "product" | "finance" | "slides" | "code" | "contract";
+type PortalCapabilityEvidence = "models" | "skills" | "agent" | "usage";
 
-const portalCapabilityCards = [
-  { title: "多模型，一处使用", detail: "GPT、Claude、Gemini、DeepSeek 等模型统一调用", badge: "模型能力", icon: "/figma-home/cap-api.svg", href: "/products?cate=api", tone: "blue" },
-  { title: "2600+ Skills 技能", detail: "从内容创作到专业任务，找到可直接使用的指令", badge: "技能专家", icon: "/figma-home/cap-community.svg", href: "/studio/skills", tone: "purple" },
-  { title: "Agent 工作流", detail: "把模型、工具和 Skills 自动串成专属流程", badge: "智能专家", icon: "/figma-home/cap-agent.svg", href: "/studio", tone: "teal" },
-  { title: "灵活计费", detail: "按实际用量结算，额度、消耗和成本清晰可见", badge: "账户专家", icon: "/figma-home/price.svg", href: "/account/wallet", tone: "orange" },
-] as const;
+const portalApplicationShowcase: ReadonlyArray<{ title: string; detail: string; href: string; tone: string; preview: PortalApplicationPreview }> = [
+  { title: "AI视频生成", detail: "从脚本到短片，一键生成分镜与成片", href: "/studio?preset=video-default", tone: "violet", preview: "storyboard" },
+  { title: "视觉海报设计", detail: "营销海报、活动主视觉快速产出", href: "/studio?preset=image-default", tone: "rose", preview: "poster" },
+  { title: "AI视频翻译", detail: "字幕翻译、配音与多语种本地化", href: "/studio?preset=video-default", tone: "teal", preview: "subtitles" },
+  { title: "AI视频数字人", detail: "创建口播讲解、培训与产品演示", href: "/studio", tone: "blue", preview: "avatar" },
+  { title: "AI智能提取", detail: "从文档、网页和图片提取结构化信息", href: "/studio/skills?scene=content-office", tone: "amber", preview: "extract" },
+  { title: "产品图生成", detail: "商品场景图、主图和电商素材", href: "/studio?preset=image-default", tone: "cyan", preview: "product" },
+  { title: "财务分析助手", detail: "报表解读、指标分析与结论整理", href: "/studio/skills?scene=growth-commerce", tone: "green", preview: "finance" },
+  { title: "PPT 生成", detail: "快速把想法整理成可演示的页面", href: "/studio/skills?scene=content-office", tone: "indigo", preview: "slides" },
+  { title: "代码生成", detail: "从需求到代码、调试和接口说明", href: "/studio/skills?scene=developer-api", tone: "slate", preview: "code" },
+  { title: "合同审查", detail: "识别风险条款并生成审阅建议", href: "/studio/skills?scene=content-office", tone: "orange", preview: "contract" },
+];
+
+const portalCapabilityCards: ReadonlyArray<{ title: string; detail: string; badge: string; href: string; tone: string; evidence: PortalCapabilityEvidence }> = [
+  { title: "多模型，一处使用", detail: "GPT、Claude、Gemini、DeepSeek 等模型统一调用", badge: "模型能力", href: "/products?cate=api", tone: "blue", evidence: "models" },
+  { title: "2600+ Skills 技能", detail: "从内容创作到专业任务，找到可直接使用的指令", badge: "技能专家", href: "/studio/skills", tone: "purple", evidence: "skills" },
+  { title: "Agent 工作流", detail: "把模型、工具和 Skills 自动串成专属流程", badge: "智能专家", href: "/studio", tone: "teal", evidence: "agent" },
+  { title: "灵活计费", detail: "按实际用量结算，额度、消耗和成本清晰可见", badge: "账户专家", href: "/account/wallet", tone: "orange", evidence: "usage" },
+];
+
+function ApplicationResultPreview({ kind }: { kind: PortalApplicationPreview }) {
+  if (kind === "storyboard") return <span className="portal-result-preview is-storyboard" aria-hidden><i /><i /><i /><b>12s</b><em>脚本 → 成片</em></span>;
+  if (kind === "poster") return <span className="portal-result-preview is-poster" aria-hidden><small>OPEN STUDIO</small><b>NOVA<br />FORM</b><i>26</i><em>春日视觉提案</em></span>;
+  if (kind === "subtitles") return <span className="portal-result-preview is-subtitles" aria-hidden><i /><b>English narration</b><strong>中文配音已同步</strong><em><i /><i /><i /><i /><i /></em></span>;
+  if (kind === "avatar") return <span className="portal-result-preview is-avatar" aria-hidden><i className="portal-avatar-orbit" /><i className="portal-avatar-head" /><i className="portal-avatar-body" /><b>产品演示 · 00:18</b><em><i /><i /><i /><i /><i /></em></span>;
+  if (kind === "extract") return <span className="portal-result-preview is-extract" aria-hidden><i className="portal-extract-document" /><span><b>¥ 268,000</b><em>合同金额</em><strong>2026.09.30</strong></span></span>;
+  if (kind === "product") return <span className="portal-result-preview is-product" aria-hidden><i /><i /><i /><b>商品主图 · 4:5</b></span>;
+  if (kind === "finance") return <span className="portal-result-preview is-finance" aria-hidden><b>¥ 1.24M</b><i /><span><em>营收</em><strong>+18.6%</strong></span></span>;
+  if (kind === "slides") return <span className="portal-result-preview is-slides" aria-hidden><i><b>Q3</b><em>品牌增长提案</em></i><i /><i /><strong>8 页已生成</strong></span>;
+  if (kind === "code") return <span className="portal-result-preview is-code" aria-hidden><i>const <b>report</b> = await</i><i>  reizo.<b>analyze</b>({`{`}</i><i>    source: "sales.csv"</i><i>  {`}`});</i><strong>✓ 已生成接口</strong></span>;
+  return <span className="portal-result-preview is-contract" aria-hidden><i>SUPPLY AGREEMENT</i><i /><i /><b>付款条款</b><em>风险提示 · 2</em></span>;
+}
+
+function CapabilityEvidence({ kind }: { kind: PortalCapabilityEvidence }) {
+  if (kind === "models") return <span className="portal-capability-evidence is-models" aria-hidden><i>GPT-5</i><i>Claude</i><i>Gemini</i><b>统一路由</b></span>;
+  if (kind === "skills") return <span className="portal-capability-evidence is-skills" aria-hidden><b>/ 商品上新文案</b><i>✓ 标题</i><i>✓ 卖点</i><i>✓ SEO</i></span>;
+  if (kind === "agent") return <span className="portal-capability-evidence is-agent" aria-hidden><i>输入</i><span>→</span><i>研究</i><span>→</span><i>交付</i><b>已完成</b></span>;
+  return <span className="portal-capability-evidence is-usage" aria-hidden><i /><i /><i /><i /><i /><b>本月 ¥ 86.42</b></span>;
+}
 
 const productPaths = [
   {
@@ -1156,7 +1179,7 @@ export default function ModelMarket() {
                 {portalApplicationShowcase.slice(0, 5).map((app, index) => (
                   <HeroCard variant="secondary" className="portal-app-showcase-item" key={app.title}>
                     <PortalLink href={app.href} className="portal-app-showcase-card">
-                      <span className={`portal-app-showcase-cover is-${app.tone}`}><AssetIcon src={app.icon} /></span>
+                      <ApplicationResultPreview kind={app.preview} />
                       <span className="portal-app-showcase-rank">0{index + 1}</span>
                       <strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">立即使用<ChevronRight aria-hidden /></span>
                     </PortalLink>
@@ -1169,7 +1192,7 @@ export default function ModelMarket() {
                 {portalApplicationShowcase.slice(5).map((app) => (
                   <HeroCard variant="secondary" className="portal-app-showcase-item" key={app.title}>
                     <PortalLink href={app.href} className="portal-app-showcase-card">
-                      <span className={`portal-app-showcase-cover is-${app.tone}`}><AssetIcon src={app.icon} /></span>
+                      <ApplicationResultPreview kind={app.preview} />
                       <span className="portal-app-showcase-new">NEW</span>
                       <strong>{app.title}</strong><p>{app.detail}</p><span className="portal-app-showcase-use">立即使用<ChevronRight aria-hidden /></span>
                     </PortalLink>
@@ -1182,7 +1205,7 @@ export default function ModelMarket() {
 
         <section className="portal-bottom-explore" aria-labelledby="portal-bottom-explore-title">
           <div className="portal-bottom-explore-head"><div><p>MORE WITH REIZO</p><h2 id="portal-bottom-explore-title">探索更多 REIZO 能力</h2></div></div>
-          <div className="portal-bottom-explore-grid">{portalCapabilityCards.map((card) => <PortalLink href={card.href} className={`portal-bottom-capability is-${card.tone}`} key={card.title}><span className="portal-bottom-capability-badge">{card.badge}</span><AssetIcon src={card.icon} /><strong>{card.title}</strong><p>{card.detail}</p></PortalLink>)}</div>
+          <div className="portal-bottom-explore-grid">{portalCapabilityCards.map((card) => <PortalLink href={card.href} className={`portal-bottom-capability is-${card.tone}`} key={card.title}><span className="portal-bottom-capability-badge">{card.badge}</span><CapabilityEvidence kind={card.evidence} /><strong>{card.title}</strong><p>{card.detail}</p></PortalLink>)}</div>
           <HeroCard variant="tertiary" className="portal-bottom-help"><span><CircleHelp aria-hidden />没有找到合适的应用或技能？告诉我们你的使用场景，我们为你定制解决方案。</span><PortalLink href="/business" className="portal-bottom-help-link">提交需求<ChevronRight aria-hidden /></PortalLink></HeroCard>
           <footer className="portal-bottom-footer"><div className="portal-bottom-brand"><strong><Image className="portal-footer-mark" src="/brand/reizo-mark.png" alt="" width={26} height={26} />REIZO</strong><p>从 AI 能力到智能体，每一步都更简单。</p><small>© 2026 Reizo. All rights reserved.</small></div>{footerColumns.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.items.slice(0, 3).map((item) => <PortalLink href={item.href} key={item.label}>{item.label}</PortalLink>)}</div>)}<div><h3>关注我们</h3><span className="portal-bottom-social">𝕏　in　◉　✉</span></div></footer>
         </section>

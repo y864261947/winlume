@@ -51,5 +51,14 @@ describe("homepage API categories", () => {
     expect(source).toContain("data-onboarding-target=\"api\"");
     expect(source).toContain("data-onboarding-target=\"tools\"");
   });
+
+  it("uses result previews and workflow evidence instead of icon-only showcase covers", () => {
+    expect(source).toContain("ApplicationResultPreview");
+    expect(source).toContain('preview: "storyboard"');
+    expect(source).toContain('preview: "extract"');
+    expect(source).toContain("CapabilityEvidence");
+    expect(source).toContain('evidence: "agent"');
+    expect(source).toContain('evidence: "usage"');
+  });
 });
 
