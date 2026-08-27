@@ -1175,15 +1175,21 @@ export default function ModelMarket() {
               </Tabs.List>
             </Tabs.ListContainer>
             <Tabs.Panel id="popular" className="portal-app-tab-panel">
-              <div className="portal-app-showcase-grid">
-                {portalApplicationShowcase.slice(0, 5).map((app) => (
-                  <HeroCard variant="secondary" className="portal-app-showcase-item" key={app.title}>
-                    <PortalLink href={app.href} className="portal-app-showcase-card">
-                      <ApplicationResultPreview kind={app.preview} />
-                      <strong>{app.title}</strong><p>{app.detail}</p>
-                    </PortalLink>
-                  </HeroCard>
+              <div className="portal-featured-app-grid">
+                {portalApplicationShowcase.slice(0, 1).map((app) => (
+                  <PortalLink href={app.href} className="portal-featured-app-card" key={app.title}>
+                    <ApplicationResultPreview kind={app.preview} />
+                    <span className="portal-featured-app-copy"><em>FEATURED OUTPUT</em><strong>{app.title}</strong><small>{app.detail}</small></span>
+                  </PortalLink>
                 ))}
+                <div className="portal-app-support-grid">
+                  {portalApplicationShowcase.slice(1, 5).map((app) => (
+                    <PortalLink href={app.href} className="portal-app-support-card" key={app.title}>
+                      <ApplicationResultPreview kind={app.preview} />
+                      <span><strong>{app.title}</strong><small>{app.detail}</small></span>
+                    </PortalLink>
+                  ))}
+                </div>
               </div>
             </Tabs.Panel>
             <Tabs.Panel id="latest" className="portal-app-tab-panel">
@@ -1202,9 +1208,9 @@ export default function ModelMarket() {
           </Tabs>
         </section>
 
-        <section className="portal-bottom-explore" aria-labelledby="portal-bottom-explore-title">
+        <section className="portal-bottom-explore portal-system-rail" aria-labelledby="portal-bottom-explore-title">
           <div className="portal-bottom-explore-head"><div><p>MORE WITH REIZO</p><h2 id="portal-bottom-explore-title">探索更多 REIZO 能力</h2></div></div>
-          <div className="portal-bottom-explore-grid">{portalCapabilityCards.map((card) => <PortalLink href={card.href} className={`portal-bottom-capability is-${card.tone}`} key={card.title}><span className="portal-bottom-capability-badge">{card.badge}</span><CapabilityEvidence kind={card.evidence} /><strong>{card.title}</strong><p>{card.detail}</p></PortalLink>)}</div>
+          <div className="portal-system-track">{portalCapabilityCards.map((card) => <PortalLink href={card.href} className="portal-system-stage" key={card.title}><CapabilityEvidence kind={card.evidence} /><span><em>{card.badge}</em><strong>{card.title}</strong><small>{card.detail}</small></span></PortalLink>)}</div>
           <HeroCard variant="tertiary" className="portal-bottom-help"><span><CircleHelp aria-hidden />没有找到合适的应用或技能？告诉我们你的使用场景，我们为你定制解决方案。</span><PortalLink href="/business" className="portal-bottom-help-link">提交需求<ChevronRight aria-hidden /></PortalLink></HeroCard>
           <footer className="portal-bottom-footer"><div className="portal-bottom-brand"><strong><Image className="portal-footer-mark" src="/brand/reizo-mark.png" alt="" width={26} height={26} />REIZO</strong><p>从 AI 能力到智能体，每一步都更简单。</p><small>© 2026 Reizo. All rights reserved.</small></div>{footerColumns.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.items.slice(0, 3).map((item) => <PortalLink href={item.href} key={item.label}>{item.label}</PortalLink>)}</div>)}<div><h3>关注我们</h3><span className="portal-bottom-social">𝕏　in　◉　✉</span></div></footer>
         </section>
