@@ -26,6 +26,9 @@
     "@alicloud/imageseg20191230": "^4.0.1",
     "@aws-sdk/client-s3": "^3.1111.0",
     "@aws-sdk/lib-storage": "^3.1111.0",
+    "@emnapi/core": "1.11.3",
+    "@emnapi/runtime": "1.11.3",
+    "@emnapi/wasi-threads": "1.2.3",
     "@excalidraw/excalidraw": "^0.18.1",
     "@excalidraw/mermaid-to-excalidraw": "^2.2.2",
     "@heroui/react": "^3.2.4",
@@ -93,10 +96,5 @@
     "tsx": "^4.23.1",
     "typescript": "^5",
     "vitest": "^3.2.4"
-  },
-  "optionalDependencies": {
-    "@emnapi/core": "1.11.3",
-    "@emnapi/runtime": "1.11.3",
-    "@emnapi/wasi-threads": "^1.2.3"
   }
 }
