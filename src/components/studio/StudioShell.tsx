@@ -17,8 +17,11 @@ import {
   studioModeFromPathname,
   studioShowsSessionSidebar,
 } from "@/lib/studio/studio-mode";
+import { WorkspaceTabsProvider } from "@/lib/studio/workspace-tabs";
 import StudioSidebar from "./StudioSidebar";
 import StudioViewTransition from "./StudioViewTransition";
+import WorkspaceTabBar from "./WorkspaceTabBar";
+import WorkspaceTabsHost from "./WorkspaceTabsHost";
 
 type HeaderSlotCtx = { setHeader: (node: ReactNode) => void };
 const HeaderSlotContext = createContext<HeaderSlotCtx | null>(null);
@@ -35,12 +38,17 @@ export function useStudioTheme(): StudioTheme {
  * mounting its own <header>. The slot node stays alive across route changes,
  * so navigation only re-renders its content — no appear-from-nothing flash
  * during a View Transition (see StudioShell below).
+ *
+ * `active` defaults to true for the common single-instance case. Workspace
+ * tabs keep multiple views mounted at once (see WorkspaceTabsHost) — only
+ * the foreground tab may pass `active: true`, otherwise every kept-alive
+ * background tab would race to overwrite the shared header on each render.
  */
-export function useStudioHeaderSlot(content: ReactNode) {
+export function useStudioHeaderSlot(content: ReactNode, active = true) {
   const ctx = useContext(HeaderSlotContext);
   // Sync every render (no deps) so the slot always reflects latest content.
   useLayoutEffect(() => {
-    ctx?.setHeader(content);
+    if (active) ctx?.setHeader(content);
   });
   // Clear only on unmount — avoids a null flash between re-renders above.
   useEffect(() => {
@@ -113,7 +121,8 @@ export default function StudioShell({ children }: { children: ReactNode }) {
   }, [sidebarCollapsed, showSessionSidebar]);
 
   return (
-    <HeaderSlotContext.Provider value={headerSlotCtx}>
+    <WorkspaceTabsProvider>
+      <HeaderSlotContext.Provider value={headerSlotCtx}>
       <StudioThemeContext.Provider value={theme}>
         <div
           className="studio-root relative flex h-dvh min-h-0 w-full overflow-hidden"
@@ -179,6 +188,7 @@ export default function StudioShell({ children }: { children: ReactNode }) {
           )}
         </button>
         <div className="relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col">
+          {mode === "workbench" ? <WorkspaceTabBar /> : null}
           <StudioViewTransition name="studio-header-slot">
             <div
               className="studio-header-slot"
@@ -187,10 +197,11 @@ export default function StudioShell({ children }: { children: ReactNode }) {
               {header}
             </div>
           </StudioViewTransition>
-          {children}
+          {mode === "workbench" ? <WorkspaceTabsHost /> : children}
         </div>
         </div>
       </StudioThemeContext.Provider>
-    </HeaderSlotContext.Provider>
+      </HeaderSlotContext.Provider>
+    </WorkspaceTabsProvider>
   );
 }

@@ -21,6 +21,8 @@ export const organizationRoleEnum = pgEnum("organization_role", ["owner", "admin
 export const apiKeyStatusEnum = pgEnum("api_key_status", ["active", "disabled", "revoked"]);
 export const presetScopeEnum = pgEnum("preset_scope", ["personal", "organization"]);
 export const skillSourceEnum = pgEnum("skill_source", ["bundled", "imported", "user"]);
+export const feedbackTypeEnum = pgEnum("feedback_type", ["bug", "feature"]);
+export const feedbackStatusEnum = pgEnum("feedback_status", ["open", "resolved"]);
 
 const createdAt = timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
 const updatedAt = timestamp("updated_at", { withTimezone: true }).defaultNow().notNull();
@@ -237,6 +239,24 @@ export const studioSkills = pgTable(
     index("studio_skills_category_index").on(table.category),
     index("studio_skills_source_index").on(table.source),
     index("studio_skills_enabled_index").on(table.enabled),
+  ],
+);
+
+export const feedbackReports = pgTable(
+  "feedback_reports",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    type: feedbackTypeEnum("type").notNull(),
+    description: text("description").notNull(),
+    screenshots: jsonb("screenshots").$type<string[]>().notNull().default([]),
+    status: feedbackStatusEnum("status").default("open").notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    index("feedback_reports_user_index").on(table.userId),
+    index("feedback_reports_status_index").on(table.status),
   ],
 );
 
