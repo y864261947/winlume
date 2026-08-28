@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bricolage_Grotesque } from "next/font/google";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronRight,
+  CircleAlert,
   FolderKanban,
   Plus,
   LayoutGrid,
@@ -18,7 +18,6 @@ import {
   Sun,
 } from "lucide-react";
 import { useModals } from "@/components/providers";
-import { site } from "@/data/site";
 import { listSessions } from "@/lib/studio/api";
 import { listProjects } from "@/lib/studio/api";
 import type { Project, Session } from "@/lib/agent/types";
@@ -33,12 +32,6 @@ import {
 } from "@/lib/studio/session-unread";
 import StudioSearchDialog from "./StudioSearchDialog";
 import StudioAccountControl from "./StudioAccountControl";
-
-const wordmarkFont = Bricolage_Grotesque({
-  subsets: ["latin"],
-  weight: ["600"],
-  display: "swap",
-});
 
 type NavItem = {
   href: string;
@@ -205,12 +198,9 @@ export default function StudioSidebar({
       aria-hidden={collapsed || undefined}
     >
       <div className="mb-5 flex items-center gap-1">
-        <Link href="/" className="flex min-w-0 flex-1 items-center gap-2 px-2">
+        <Link href="/" className="flex min-w-0 flex-1 items-center px-2" title="Reizo" aria-label="Reizo 首页">
           <span className="studio-logo-mark flex h-[30px] w-[30px] shrink-0 items-center justify-center">
             <Image src="/brand/reizo-mark.png" alt="" width={30} height={30} priority />
-          </span>
-          <span className={`${wordmarkFont.className} studio-brand-wordmark truncate`}>
-            {site.name}
           </span>
         </Link>
         <button
@@ -408,9 +398,9 @@ export default function StudioSidebar({
           onClick={() => setFeedbackOpen(true)}
           title="反馈"
           aria-label="反馈"
-          className="studio-feedback-button inline-flex h-8 shrink-0 items-center justify-center rounded-lg px-2 text-[13px] font-medium text-[#615A73] transition-[background-color,color,transform] duration-150 hover:bg-white/75 hover:text-[#241E36] active:scale-[0.97]"
+          className="studio-feedback-button inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#615A73] transition-[background-color,color,transform] duration-150 hover:bg-white/75 hover:text-[#241E36] active:scale-[0.97]"
         >
-          反馈
+          <CircleAlert className="h-4 w-4" strokeWidth={1.8} />
         </button>
       </div>
 
