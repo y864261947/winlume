@@ -18,6 +18,7 @@ import {
   AtSign,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Clapperboard,
   Copy,
@@ -29,6 +30,7 @@ import {
   MicOff,
   MessageSquare,
   Paperclip,
+  PenLine,
   Pin,
   Scissors,
   RotateCw,
@@ -42,7 +44,7 @@ import {
   X,
 } from "lucide-react";
 import { fetchPlaza, type PlazaModel } from "@/lib/catalog";
-import { inferVendorFromModel } from "@/lib/catalog/vendors";
+import { getVendorByKey, inferVendorFromModel } from "@/lib/catalog/vendors";
 import type { Artifact, SkillMeta } from "@/lib/agent/types";
 import {
   composeOutboundMessage,
@@ -168,6 +170,39 @@ type ModelVendorGroup = {
   name: string;
   models: string[];
 };
+
+const MONO_VENDOR_MARKS = new Set([
+  "openai",
+  "anthropic",
+  "xai",
+  "moonshot",
+  "black-forest",
+  "jina",
+]);
+
+function vendorMarkSrc(key: string) {
+  return `/vendors/${encodeURIComponent(key)}.svg`;
+}
+
+function VendorMark({ vendorKey }: { vendorKey: string }) {
+  const vendor = getVendorByKey(vendorKey);
+  return (
+    <span
+      className="composer-vendor-mark"
+      data-mono={MONO_VENDOR_MARKS.has(vendor.key) ? "" : undefined}
+      aria-hidden
+    >
+      <img
+        src={vendorMarkSrc(vendor.key)}
+        alt=""
+        onError={(event) => {
+          const img = event.currentTarget;
+          if (!img.src.endsWith("/vendors/other.svg")) img.src = "/vendors/other.svg";
+        }}
+      />
+    </span>
+  );
+}
 
 type BrowserSpeechRecognition = {
   lang: string;
@@ -470,7 +505,8 @@ export default function Composer({
   >({});
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
-  const [selectedModelVendor, setSelectedModelVendor] = useState<string | null>(null);
+  const [modelPickerVendor, setModelPickerVendor] = useState<string | null>(null);
+  const [lastModelPickerVendor, setLastModelPickerVendor] = useState<string | null>(null);
   const [voiceListening, setVoiceListening] = useState(false);
   const [allSkills, setAllSkills] = useState<SkillMeta[]>([]);
   const [departments, setDepartments] = useState<SkillDepartment[]>([]);
@@ -783,28 +819,48 @@ export default function Composer({
   }, [modelCatalog, modelOptions]);
 
   const activeModelVendor = useMemo(
-    () => modelVendorGroups.find((group) => group.key === selectedModelVendor)
-      ?? modelVendorGroups.find((group) => group.models.includes(model))
+    () => modelVendorGroups.find((group) => group.models.includes(model))
       ?? modelVendorGroups[0]
       ?? null,
-    [model, modelVendorGroups, selectedModelVendor],
+    [model, modelVendorGroups],
+  );
+
+  const browsingVendor = useMemo(
+    () => modelVendorGroups.find((group) => group.key === modelPickerVendor) ?? null,
+    [modelPickerVendor, modelVendorGroups],
+  );
+
+  const modelsVendor = useMemo(
+    () =>
+      browsingVendor
+      ?? modelVendorGroups.find((group) => group.key === lastModelPickerVendor)
+      ?? activeModelVendor,
+    [activeModelVendor, browsingVendor, lastModelPickerVendor, modelVendorGroups],
   );
 
   const openModelPicker = useCallback(() => {
-    const currentVendor = modelVendorGroups.find((group) => group.models.includes(model));
-    setSelectedModelVendor(currentVendor?.key ?? modelVendorGroups[0]?.key ?? null);
+    setModelPickerVendor(null);
     setModelPickerOpen(true);
-  }, [model, modelVendorGroups]);
+  }, []);
 
   useEffect(() => {
     if (!modelPickerOpen) return;
+    modelPickerRef.current
+      ?.querySelector<HTMLElement>('button[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest" });
     const onPointerDown = (event: PointerEvent) => {
       if (!modelPickerRef.current?.contains(event.target as Node)) {
         setModelPickerOpen(false);
+        setModelPickerVendor(null);
       }
     };
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setModelPickerOpen(false);
+      if (event.key !== "Escape") return;
+      if (modelPickerVendor) {
+        setModelPickerVendor(null);
+        return;
+      }
+      setModelPickerOpen(false);
     };
     window.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("keydown", onKeyDown);
@@ -812,7 +868,7 @@ export default function Composer({
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [modelPickerOpen]);
+  }, [modelPickerOpen, modelPickerVendor]);
 
   const skillsById = useMemo(() => {
     const map = new Map<string, SkillMeta>();
@@ -2644,7 +2700,10 @@ export default function Composer({
               open={settingsOpen}
               onOpenChange={(open) => {
                 setSettingsOpen(open);
-                if (!open) setModelPickerOpen(false);
+                if (!open) {
+                  setModelPickerOpen(false);
+                  setModelPickerVendor(null);
+                }
                 if (open) {
                   closeMenu();
                   setMentionOpen(false);
@@ -2667,6 +2726,8 @@ export default function Composer({
               <PopoverContent
                 align="end"
                 side="top"
+                sideOffset={8}
+                avoidCollisions={false}
                 className="composer-settings-popover w-[21rem] max-w-[calc(100vw-2rem)]"
               >
                 <div className="composer-settings-heading">
@@ -2696,56 +2757,96 @@ export default function Composer({
                         aria-haspopup="dialog"
                         aria-expanded={modelPickerOpen}
                       >
-                        <span className="truncate font-mono">{model || "选择模型"}</span>
-                        <ChevronRight className={`h-4 w-4 shrink-0 transition-transform ${modelPickerOpen ? "rotate-90" : ""}`} />
+                        <span>
+                          {activeModelVendor ? <VendorMark vendorKey={activeModelVendor.key} /> : null}
+                          <span className="truncate">{model || "选择模型"}</span>
+                        </span>
+                        <ChevronDown className={`h-4 w-4 shrink-0 opacity-50 transition-transform ${modelPickerOpen ? "rotate-180" : ""}`} />
                       </button>
                       {modelPickerOpen ? (
-                        <div className="composer-model-picker" role="dialog" aria-label="选择模型">
-                          <div className="composer-model-vendors" role="listbox" aria-label="模型厂商">
-                            {modelVendorGroups.map((vendor) => (
-                              <button
-                                key={vendor.key}
-                                type="button"
-                                role="option"
-                                aria-selected={vendor.key === activeModelVendor?.key}
-                                onClick={() => setSelectedModelVendor(vendor.key)}
-                                className={vendor.key === activeModelVendor?.key ? "is-active" : ""}
-                              >
-                                <span className="truncate">{vendor.name}</span>
-                                <span className="tabular-nums">{vendor.models.length}</span>
-                                <ChevronRight className="h-3.5 w-3.5" />
-                              </button>
-                            ))}
-                            {allowCustomModel ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCustomMode(true);
-                                  setModelPickerOpen(false);
-                                }}
-                              >
-                                <span>自定义模型</span>
-                                <ChevronRight className="h-3.5 w-3.5" />
-                              </button>
-                            ) : null}
-                          </div>
-                          <div className="composer-model-options" role="listbox" aria-label={activeModelVendor?.name ?? "模型"}>
-                            <p>{activeModelVendor?.name ?? "模型"}</p>
-                            {activeModelVendor?.models.map((name) => (
-                              <button
-                                key={name}
-                                type="button"
-                                role="option"
-                                aria-selected={name === model}
-                                onClick={() => {
-                                  onModelChange(name);
-                                  setModelPickerOpen(false);
-                                }}
-                              >
-                                <span className="truncate font-mono">{name}</span>
-                                {name === model ? <Check className="h-4 w-4 shrink-0" /> : null}
-                              </button>
-                            ))}
+                        <div
+                          className="composer-model-picker"
+                          data-view={browsingVendor ? "models" : "vendors"}
+                          role="listbox"
+                          aria-label={browsingVendor ? browsingVendor.name : "选择厂商"}
+                        >
+                          <div className="composer-model-stack">
+                            <div
+                              className="composer-model-pane"
+                              data-pane="vendors"
+                              inert={browsingVendor ? true : undefined}
+                            >
+                              {modelVendorGroups.map((vendor) => (
+                                <button
+                                  key={vendor.key}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={vendor.key === activeModelVendor?.key}
+                                  className="composer-model-vendor"
+                                  onClick={() => {
+                                    setLastModelPickerVendor(vendor.key);
+                                    setModelPickerVendor(vendor.key);
+                                  }}
+                                >
+                                  <VendorMark vendorKey={vendor.key} />
+                                  <span className="truncate">{vendor.name}</span>
+                                  <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-40" />
+                                </button>
+                              ))}
+                              {allowCustomModel ? (
+                                <button
+                                  type="button"
+                                  className="composer-model-custom"
+                                  onClick={() => {
+                                    setCustomMode(true);
+                                    setModelPickerOpen(false);
+                                    setModelPickerVendor(null);
+                                  }}
+                                >
+                                  <span className="composer-vendor-mark" aria-hidden>
+                                    <PenLine className="h-3.5 w-3.5" strokeWidth={1.8} />
+                                  </span>
+                                  <span>自定义模型</span>
+                                </button>
+                              ) : null}
+                            </div>
+                            <div
+                              className="composer-model-pane"
+                              data-pane="models"
+                              inert={browsingVendor ? undefined : true}
+                            >
+                              {modelsVendor ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="composer-model-back"
+                                    onClick={() => setModelPickerVendor(null)}
+                                  >
+                                    <ChevronLeft className="h-4 w-4 shrink-0 opacity-60" />
+                                    <VendorMark vendorKey={modelsVendor.key} />
+                                    <span className="truncate">{modelsVendor.name}</span>
+                                  </button>
+                                  <div className="composer-model-rows">
+                                    {modelsVendor.models.map((name) => (
+                                      <button
+                                        key={name}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={name === model}
+                                        onClick={() => {
+                                          onModelChange(name);
+                                          setModelPickerOpen(false);
+                                          setModelPickerVendor(null);
+                                        }}
+                                      >
+                                        <span className="truncate">{name}</span>
+                                        {name === model ? <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2} /> : null}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                       ) : null}
@@ -2763,7 +2864,7 @@ export default function Composer({
                       <span>比例与尺寸</span>
                       <Select value={imageSize} disabled={disabled} onValueChange={(value) => setImageSize(value as ImageSize)}>
                         <SelectTrigger className="!h-[2.65rem] !w-full min-w-0 rounded-[10px] border-line bg-white/70 text-[#241E36]"><SelectValue /></SelectTrigger>
-                        <SelectContent position="popper" align="end">
+                        <SelectContent position="popper" align="end" side="top" sideOffset={6} avoidCollisions={false}>
                           {IMAGE_SIZE_OPTIONS.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
                               <span className="inline-flex items-center gap-2">
@@ -2779,7 +2880,7 @@ export default function Composer({
                       <span>生成数量</span>
                       <Select value={String(imageCount)} disabled={disabled} onValueChange={(value) => setImageCount(Number(value) as 1 | 2 | 3 | 4)}>
                         <SelectTrigger className="!h-[2.65rem] !w-full min-w-0 rounded-[10px] border-line bg-white/70 text-[#241E36]"><SelectValue /></SelectTrigger>
-                        <SelectContent position="popper" align="end">
+                        <SelectContent position="popper" align="end" side="top" sideOffset={6} avoidCollisions={false}>
                           {[1, 2, 3, 4].map((count) => <SelectItem key={count} value={String(count)}>{count} 张</SelectItem>)}
                         </SelectContent>
                       </Select>
@@ -2799,7 +2900,7 @@ export default function Composer({
               <SelectTrigger className="composer-output-select h-[2.65rem] w-auto min-w-[8.5rem] rounded-[12px] border-white/78 bg-white/68 px-3 text-[#241E36] shadow-none">
                 <SelectValue placeholder="自动 / 对话" />
               </SelectTrigger>
-              <SelectContent position="popper" align="end">
+              <SelectContent position="popper" align="end" side="top" sideOffset={6} avoidCollisions={false}>
                 <SelectItem value="chat">自动 / 对话</SelectItem>
                 <SelectItem value="image" disabled={capabilityAvailability.image === "needs_setup" || capabilityAvailability.image === "unavailable"}>图片</SelectItem>
                 <SelectItem value="video" disabled>视频（未接入）</SelectItem>

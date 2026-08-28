@@ -68,6 +68,15 @@ export function studioModeFromPathname(pathname: string): StudioModeId {
   return "workbench";
 }
 
+/** Home / session / project canvas that owns WorkspaceTabsHost. Catalog routes stay workbench but must not be covered by that canvas. */
+export function isStudioCanvasPath(pathname: string): boolean {
+  if (pathname === "/studio") return true;
+  if (pathname.startsWith("/studio/c/")) return true;
+  if (pathname.startsWith("/studio/p/")) return true;
+  if (pathname === "/studio/inspire" || pathname.startsWith("/studio/inspire/")) return true;
+  return false;
+}
+
 export function studioShowsSessionSidebar(mode: StudioModeId): boolean {
   return mode !== "draw";
 }
