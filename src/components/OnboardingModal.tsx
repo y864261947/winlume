@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Building2, Sparkles, UserRound } from "lucide-react";
 import Modal from "./Modal";
-import LogoMark from "./LogoMark";
 import { industries, type Audience } from "@/data/audience";
 
 interface OnboardingModalProps {
@@ -69,7 +69,7 @@ function AudiencePanel({ onComplete }: { onComplete: (audience: Audience, indust
     <div className="overflow-hidden rounded-2xl border border-line bg-canvas shadow-2xl shadow-ink-950/15">
       <div className="border-b border-line bg-surface px-6 py-6 sm:px-8">
         <div className="flex items-center gap-2">
-          <LogoMark size="sm" />
+          <Image src="/brand/reizo-mark.png" alt="" width={28} height={28} priority />
           <span className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-500">
             Reizo
           </span>

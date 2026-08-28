@@ -8025,7 +8025,20 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
 /* Final annotated layout pass: widen the enterprise spotlight, strengthen the
    application section title, and give the capability cards breathing room. */
 @media (min-width:1181px) {
+  .portal-home .portal-nav-shell {
+    width: calc(100% + 48px);
+    max-width: none;
+  }
   .portal-home .portal-enterprise-card.portal-search-aside {
+    width: calc(100% + 48px);
+    max-width: none;
+  }
+  .portal-home .portal-tools-card {
+    width: calc(100% + 48px);
+    max-width: none;
+  }
+  .portal-home .portal-app-showcase-v2,
+  .portal-home .portal-system-rail {
     width: calc(100% + 48px);
     max-width: none;
   }
