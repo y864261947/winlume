@@ -56,7 +56,7 @@ export function useStudioHeaderSlot(content: ReactNode, active = true) {
   }, [ctx]);
 }
 
-/** Full-height workbench chrome — demo warm canvas + glass sidebar (no marketing chrome). */
+/** Full-height workbench chrome with a focused, app-like navigation frame. */
 export default function StudioShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/studio";
   const mode = studioModeFromPathname(pathname);
@@ -132,9 +132,6 @@ export default function StudioShell({ children }: { children: ReactNode }) {
             showSessionSidebar && sidebarCollapsed ? "true" : "false"
           }
         >
-        <div className="studio-blob studio-blob-a" aria-hidden />
-        <div className="studio-blob studio-blob-b" aria-hidden />
-        <div className="studio-blob studio-blob-c" aria-hidden />
         <div
           ref={sidebarContainerRef}
           className="studio-sidebar-container relative z-[2] block h-full shrink-0"
@@ -197,7 +194,12 @@ export default function StudioShell({ children }: { children: ReactNode }) {
               {header}
             </div>
           </StudioViewTransition>
-          {mode === "workbench" ? <WorkspaceTabsHost /> : children}
+          {mode === "workbench" ? (
+            <>
+              <WorkspaceTabsHost />
+              {children}
+            </>
+          ) : children}
         </div>
         </div>
       </StudioThemeContext.Provider>

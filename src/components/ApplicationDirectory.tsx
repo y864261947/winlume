@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  BarChart3, BriefcaseBusiness, ChevronRight, Code2, FileText, ImageIcon,
+  BarChart3, BriefcaseBusiness, ChevronLeft, ChevronRight, Code2, FileText, ImageIcon,
   Megaphone, Presentation, Search, ShoppingCart, Sparkles, Video, X,
 } from "lucide-react";
 
@@ -168,15 +168,45 @@ export default function ApplicationDirectory({ initialQuery = "" }: { initialQue
           {visible.length === 0 ? <div className="app-directory-empty">没有匹配的应用工具，试试搜索其他任务或切换分类。</div> : null}
         </section>
 
-        <section className="app-skill-strip">
-          <h2>Skills 技能</h2>
-          {["SEO 内容优化", "财务报表分析", "合同风险识别", "小红书文案", "PPT 排版优化", "数据清洗", "PRD 生成", "邮件跟进"].map((skill) => (
-            <Link key={skill} href={`/studio/skills?q=${encodeURIComponent(skill)}`}>
-              {skill}
-              <small>技能</small>
-            </Link>
-          ))}
-        </section>
+        <SkillStrip />
+      </div>
+    </section>
+  );
+}
+
+const featuredSkills = [
+  "SEO 内容优化", "财务报表分析", "合同风险识别", "小红书文案", "PPT 排版优化", "数据清洗",
+  "PRD 生成", "邮件跟进", "会议纪要", "竞品研究", "商品标题优化", "代码审阅",
+];
+
+function SkillStrip() {
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const scrollTrack = (direction: -1 | 1) => {
+    trackRef.current?.scrollBy({ left: direction * 360, behavior: "smooth" });
+  };
+
+  return (
+    <section className="app-skill-strip" aria-labelledby="app-skill-strip-title">
+      <div className="app-skill-strip-head">
+        <h2 id="app-skill-strip-title">Skills 技能</h2>
+        <div className="app-skill-strip-actions">
+          <button type="button" onClick={() => scrollTrack(-1)} aria-label="向左浏览 Skills" title="向左浏览">
+            <ChevronLeft aria-hidden />
+          </button>
+          <button type="button" onClick={() => scrollTrack(1)} aria-label="向右浏览 Skills" title="向右浏览">
+            <ChevronRight aria-hidden />
+          </button>
+          <Link href="/studio/skills">查看全部<ChevronRight aria-hidden /></Link>
+        </div>
+      </div>
+      <div className="app-skill-track" ref={trackRef} aria-label="Skills 技能列表" tabIndex={0}>
+        {featuredSkills.map((skill) => (
+          <Link key={skill} href={`/studio/skills?q=${encodeURIComponent(skill)}`}>
+            <strong>{skill}</strong>
+            <small>技能</small>
+          </Link>
+        ))}
       </div>
     </section>
   );

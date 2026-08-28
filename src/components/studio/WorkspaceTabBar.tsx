@@ -1,10 +1,52 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Pencil, Plus, X } from "lucide-react";
 import { useWorkspaceTabs } from "@/lib/studio/workspace-tabs";
 
 export default function WorkspaceTabBar() {
-  const { tabs, activeTabId, activateTab, closeTab, openHomeTab } = useWorkspaceTabs();
+  const { tabs, activeTabId, activateTab, closeTab, openHomeTab, renameTab } = useWorkspaceTabs();
+  const [contextMenu, setContextMenu] = useState<{
+    tabId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const closeMenu = (event: PointerEvent) => {
+      if (!contextMenuRef.current?.contains(event.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setContextMenu(null);
+    };
+    window.addEventListener("pointerdown", closeMenu);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", closeMenu);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [contextMenu]);
+
+  useEffect(() => {
+    if (!editingTabId) return;
+    editInputRef.current?.focus();
+    editInputRef.current?.select();
+  }, [editingTabId]);
+
+  const commitRename = () => {
+    if (!editingTabId) return;
+    const nextTitle = editingTitle.trim();
+    if (nextTitle) renameTab(editingTabId, nextTitle);
+    setEditingTabId(null);
+    setEditingTitle("");
+  };
 
   if (tabs.length === 0) return null;
 
@@ -20,15 +62,42 @@ export default function WorkspaceTabBar() {
                 ? "bg-white/85 text-[#241E36] shadow-sm"
                 : "text-[#8A8298] hover:bg-white/50 hover:text-[#615A73]"
             }`}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              setContextMenu({
+                tabId: tab.id,
+                x: Math.min(event.clientX, window.innerWidth - 168),
+                y: Math.min(event.clientY, window.innerHeight - 48),
+              });
+            }}
           >
-            <button
-              type="button"
-              onClick={() => activateTab(tab.id)}
-              className="min-w-0 flex-1 truncate text-left"
-              title={tab.title}
-            >
-              {tab.title}
-            </button>
+            {editingTabId === tab.id ? (
+              <input
+                ref={editInputRef}
+                value={editingTitle}
+                onChange={(event) => setEditingTitle(event.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") commitRename();
+                  if (event.key === "Escape") {
+                    setEditingTabId(null);
+                    setEditingTitle("");
+                  }
+                }}
+                maxLength={80}
+                aria-label="标签名称"
+                className="min-w-0 flex-1 bg-transparent text-left outline-none"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => activateTab(tab.id)}
+                className="min-w-0 flex-1 truncate text-left"
+                title={tab.title}
+              >
+                {tab.title}
+              </button>
+            )}
             {tabs.length > 1 ? (
               <button
                 type="button"
@@ -54,6 +123,31 @@ export default function WorkspaceTabBar() {
       >
         <Plus className="h-4 w-4" />
       </button>
+      {contextMenu ? (
+        <div
+          ref={contextMenuRef}
+          role="menu"
+          className="studio-tab-context-menu fixed z-[80] w-40 rounded-lg border border-[#e1e7ef] bg-white p-1 shadow-[0_12px_28px_rgba(15,23,42,0.14)]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              const tab = tabs.find((item) => item.id === contextMenu.tabId);
+              if (!tab) return;
+              activateTab(tab.id);
+              setEditingTabId(tab.id);
+              setEditingTitle(tab.title);
+              setContextMenu(null);
+            }}
+            className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] text-[#334155] transition-colors hover:bg-[#f1f5f9]"
+          >
+            <Pencil className="h-3.5 w-3.5" strokeWidth={1.8} />
+            重命名
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -6,7 +6,6 @@ import Link from "next/link";
 import { Bricolage_Grotesque } from "next/font/google";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Bug,
   ChevronRight,
   FolderKanban,
   Plus,
@@ -206,7 +205,7 @@ export default function StudioSidebar({
       aria-hidden={collapsed || undefined}
     >
       <div className="mb-5 flex items-center gap-1">
-        <Link href="/studio" className="flex min-w-0 flex-1 items-center gap-2 px-2">
+        <Link href="/" className="flex min-w-0 flex-1 items-center gap-2 px-2">
           <span className="studio-logo-mark flex h-[30px] w-[30px] shrink-0 items-center justify-center">
             <Image src="/brand/reizo-mark.png" alt="" width={30} height={30} priority />
           </span>
@@ -410,11 +409,11 @@ export default function StudioSidebar({
         <button
           type="button"
           onClick={() => setFeedbackOpen(true)}
-          title="反馈问题或建议"
-          aria-label="反馈问题或建议"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[#615A73] transition-[background-color,color,transform] duration-150 hover:bg-white/75 hover:text-[#241E36] active:scale-[0.97]"
+          title="反馈"
+          aria-label="反馈"
+          className="studio-feedback-button inline-flex h-8 shrink-0 items-center justify-center rounded-lg px-2 text-[13px] font-medium text-[#615A73] transition-[background-color,color,transform] duration-150 hover:bg-white/75 hover:text-[#241E36] active:scale-[0.97]"
         >
-          <Bug className="h-4 w-4" strokeWidth={1.8} />
+          反馈
         </button>
       </div>
 

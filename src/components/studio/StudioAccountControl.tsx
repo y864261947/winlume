@@ -107,7 +107,7 @@ export default function StudioAccountControl() {
 
   return (
     <>
-      <div className="w-full border-t border-line pt-3">
+      <div className="studio-account-area w-full border-t border-line pt-3">
         {account ? (
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
@@ -115,7 +115,7 @@ export default function StudioAccountControl() {
                 type="button"
                 title={`${name} · ${balanceLabel}`}
                 aria-label="打开账户菜单"
-                className="studio-account-trigger flex w-full items-center gap-2.5 rounded-[18px] px-2 py-2 text-left shadow-none outline-none ring-0 transition-colors duration-150 hover:bg-canvas focus:outline-none focus-visible:bg-canvas focus-visible:outline-none focus-visible:ring-0 data-[state=open]:bg-canvas"
+                className="studio-account-trigger flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left shadow-none outline-none ring-0 transition-colors duration-150 hover:bg-canvas focus:outline-none focus-visible:bg-canvas focus-visible:outline-none focus-visible:ring-0 data-[state=open]:bg-canvas"
               >
                 <span className="studio-user-avatar flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold">
                   {avatarLetter}
@@ -134,14 +134,14 @@ export default function StudioAccountControl() {
           </DropdownMenu>
         ) : accountLoading ? (
           <div
-            className="h-12 animate-pulse rounded-[18px] bg-canvas"
+            className="h-12 animate-pulse rounded-lg bg-canvas"
             aria-label="正在加载账户"
           />
         ) : (
           <button
             type="button"
             onClick={() => openLogin("login")}
-            className="flex w-full items-center gap-2.5 rounded-[18px] px-2 py-2 text-left outline-none transition-colors duration-150 hover:bg-canvas focus-visible:outline-none"
+            className="studio-account-trigger flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left outline-none transition-colors duration-150 hover:bg-canvas focus-visible:outline-none"
           >
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-canvas text-sm font-medium text-ink-500">
               登

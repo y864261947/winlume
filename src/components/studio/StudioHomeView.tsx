@@ -260,10 +260,10 @@ function CapabilityCard({
       disabled={disabled}
       onClick={onClick}
       data-active={active ? "true" : "false"}
-      className={`studio-cap-card group rounded-[18px] p-4 text-left disabled:opacity-50 ${className}`}
+      className={`studio-cap-card group rounded-lg p-4 text-left disabled:opacity-50 ${className}`}
     >
       <span
-        className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[12px] ${
+        className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg ${
           active
             ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white"
             : "bg-[rgba(15, 23, 42,0.1)] text-[#0F172A]"
@@ -681,7 +681,7 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
       className="studio-home-canvas studio-view-in relative flex min-h-0 flex-1 flex-col overflow-y-auto"
       data-docking={docking ? "true" : "false"}
     >
-      {/* Top-right portal return and utility */}
+      {/* Compact utility controls keep the canvas focused on the prompt. */}
       <div
         className={`pointer-events-none absolute right-5 top-4 z-[2] flex items-center gap-2 sm:right-8 sm:top-5 transition-opacity duration-200 ${
           docking ? "opacity-0" : "opacity-100"
@@ -689,31 +689,14 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
       >
         <Link
           href="/"
-          className="pointer-events-auto inline-flex h-9 items-center gap-1.5 rounded-full border border-white/85 bg-white/72 px-3.5 text-[13px] font-medium text-[#615A73] shadow-[0_6px_16px_rgba(36,30,54,0.08)] backdrop-blur transition-[background-color,color,transform] duration-150 hover:bg-white/92 hover:text-[#241E36] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7398e8]/55"
+          title="返回首页"
+          aria-label="返回首页"
+          className="studio-home-utility pointer-events-auto inline-flex h-9 w-9 items-center justify-center transition-[background-color,color,transform] duration-150 active:scale-[0.98] focus-visible:outline-none"
         >
           <ArrowLeft className="h-4 w-4" strokeWidth={1.8} />
-          返回首页
         </Link>
-        {!account ? (
-          <>
-            <button
-              type="button"
-              onClick={() => openLogin("login")}
-              className="pointer-events-auto hidden h-9 items-center rounded-full border border-white/85 bg-white/72 px-3.5 text-[13px] font-medium text-[#615A73] shadow-[0_6px_16px_rgba(36,30,54,0.08)] backdrop-blur transition-[background-color,color,transform] duration-150 hover:bg-white/92 hover:text-[#241E36] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(115,152,232,0.55)] sm:inline-flex"
-            >
-              登录
-            </button>
-            <button
-              type="button"
-              onClick={() => openLogin("register")}
-              className="pointer-events-auto inline-flex h-9 items-center rounded-full bg-gradient-to-br from-[#334155] to-[#0F172A] px-3.5 text-[13px] font-medium text-white shadow-[0_7px_16px_rgba(15,23,42,0.22)] transition-[filter,transform] duration-150 hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7398e8]/65"
-            >
-              注册
-            </button>
-          </>
-        ) : null}
         <span
-          className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/70 text-[#8A8298] shadow-sm backdrop-blur"
+          className="studio-home-utility pointer-events-auto flex h-9 w-9 items-center justify-center"
           title="通知（即将上线）"
         >
           <Bell className="h-4 w-4" strokeWidth={1.8} />
@@ -733,21 +716,29 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
         className={`studio-home-hero relative flex flex-col ${
           docking
             ? "min-h-0 flex-1"
-            : "min-h-[72dvh] sm:min-h-[75dvh]"
+            : "min-h-[61dvh] sm:min-h-[64dvh]"
         }`}
       >
         <div
           className={`studio-home-hero-inner flex min-h-0 flex-1 flex-col px-5 sm:px-10 ${
             docking
               ? "items-stretch justify-end pb-2 pt-0 sm:pb-3"
-              : "items-center justify-center pb-10 pt-16 sm:pb-12 sm:pt-20"
+              : "items-center justify-center pb-8 pt-14 sm:pb-10 sm:pt-16"
           }`}
         >
           <div
             className={`w-full ${
-              docking ? "mx-auto max-w-3xl" : "max-w-[720px]"
+              docking ? "mx-auto max-w-3xl" : "max-w-[760px]"
             }`}
           >
+            {!docking ? (
+              <div className="studio-home-intro mb-5 text-center">
+                <p className="text-[13px] font-medium text-[#64748B]">新对话</p>
+                <h1 className="mt-2 text-[28px] font-semibold leading-tight text-[#172033]">
+                  今天想完成什么？
+                </h1>
+              </div>
+            ) : null}
             {entryContext ? (
               <div className="mb-3 flex items-start gap-2 rounded-[12px] border border-white/75 bg-white/55 px-3 py-2 text-xs text-[#615A73] shadow-sm backdrop-blur">
                 <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#245FD0]" strokeWidth={1.8} />
@@ -796,7 +787,9 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
               error={error}
               onClearError={() => setError(null)}
               draftKey={`home-${tabId}`}
-              shareTransitionName={active ? "studio-composer" : null}
+              // Kept-alive home tabs can briefly overlap while React commits a
+              // tab switch. Names must be unique in that window.
+              shareTransitionName={active ? `studio-composer-${tabId}` : null}
               placeholder={
                 starting
                 ? "正在进入对话…"
@@ -812,17 +805,19 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
         className="studio-home-capabilities relative z-[1] px-5 pb-16 pt-2 sm:px-10 sm:pb-20 sm:pt-4"
         aria-hidden={docking}
       >
-        <div className="mx-auto max-w-[1100px]">
+        <div className="mx-auto max-w-[1120px]">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
             <div>
-              <h2 className="text-[18px] font-semibold tracking-tight text-[#241E36] sm:text-[20px]">
-                工作台
+              <h2 className="text-[18px] font-semibold text-[#172033] sm:text-[20px]">
+                工具与技能
               </h2>
-              <p className="mt-1 text-[13px] text-[#8A8298]">
-                先选分类进入工具和技能，或点精选技能挂到上方输入框。
+              <p className="mt-1 text-[13px] text-[#718096]">
+                选择一个分类，或直接从精选 Skills 开始。
               </p>
             </div>
-
+            <Link href="/studio/tools" className="studio-section-link">
+              查看全部工具
+            </Link>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -832,7 +827,7 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
                 <Link
                   key={category.id}
                   href={studioToolCategoryHref(category.id)}
-                  className="studio-cap-card group rounded-[18px] p-4 text-left"
+                  className="studio-cap-card studio-category-card group rounded-lg p-4 text-left"
                 >
                   <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[12px] bg-[rgba(15, 23, 42,0.1)] text-[#0F172A]">
                     <Icon className="h-5 w-5" strokeWidth={1.8} />
@@ -853,23 +848,28 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
           </div>
 
           <div className="mb-4 mt-10">
-            <h3 className="text-[16px] font-semibold tracking-tight text-[#241E36]">
-              精选 Skills
-            </h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-[16px] font-semibold text-[#172033]">
+                精选 Skills
+              </h3>
+              <Link href="/studio/skills" className="studio-section-link">
+                查看全部
+              </Link>
+            </div>
             <p className="mt-1 text-[13px] text-[#8A8298]">
               点选后挂载技能，在上方描述任务即可。
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {sceneCards.map((card, i) => (
+            {sceneCards.map((card) => (
               <CapabilityCard
                 key={card.key}
                 card={card}
                 active={isCardActive(card)}
                 disabled={starting}
                 onClick={() => applyCard(card)}
-                className={i < 3 ? "studio-cap-first-row" : undefined}
+                className="studio-skill-card"
               />
             ))}
           </div>

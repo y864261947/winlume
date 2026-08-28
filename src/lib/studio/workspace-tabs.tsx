@@ -97,9 +97,12 @@ export function WorkspaceTabsProvider({ children }: { children: ReactNode }) {
     hydratedRef.current = true;
     const stored = loadStored();
     if (stored) {
+      const storedActiveTabId = stored.tabs.some((tab) => tab.id === stored.activeTabId)
+        ? stored.activeTabId
+        : stored.tabs[0]?.id ?? null;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration of persisted tab state from localStorage after mount.
       setTabs(stored.tabs);
-      setActiveTabId(stored.activeTabId ?? stored.tabs[0]?.id ?? null);
+      setActiveTabId(storedActiveTabId);
     }
   }, []);
 
