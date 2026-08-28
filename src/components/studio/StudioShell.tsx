@@ -14,6 +14,7 @@ import {
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import {
+  isStudioCanvasPath,
   studioModeFromPathname,
   studioShowsSessionSidebar,
 } from "@/lib/studio/studio-mode";
@@ -61,6 +62,7 @@ export default function StudioShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/studio";
   const mode = studioModeFromPathname(pathname);
   const showSessionSidebar = studioShowsSessionSidebar(mode);
+  const showCanvas = mode === "workbench" && isStudioCanvasPath(pathname);
   const [header, setHeader] = useState<ReactNode>(null);
   const [theme, setTheme] = useState<StudioTheme>("dark");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -185,7 +187,7 @@ export default function StudioShell({ children }: { children: ReactNode }) {
           )}
         </button>
         <div className="relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col">
-          {mode === "workbench" ? <WorkspaceTabBar /> : null}
+          {showCanvas ? <WorkspaceTabBar /> : null}
           <StudioViewTransition name="studio-header-slot">
             <div
               className="studio-header-slot"
@@ -196,10 +198,24 @@ export default function StudioShell({ children }: { children: ReactNode }) {
           </StudioViewTransition>
           {mode === "workbench" ? (
             <>
-              <WorkspaceTabsHost />
-              {children}
+              <div
+                className="flex min-h-0 flex-1 flex-col"
+                style={showCanvas ? undefined : { display: "none" }}
+                aria-hidden={!showCanvas}
+              >
+                <WorkspaceTabsHost />
+              </div>
+              {showCanvas ? (
+                children
+              ) : (
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                  {children}
+                </div>
+              )}
             </>
-          ) : children}
+          ) : (
+            children
+          )}
         </div>
         </div>
       </StudioThemeContext.Provider>

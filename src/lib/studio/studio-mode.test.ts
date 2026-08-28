@@ -3,6 +3,7 @@ import {
   DEFAULT_DRAW_TOOL_ID,
   DRAW_FAMILY_ITEMS,
   isDrawToolId,
+  isStudioCanvasPath,
   studioDrawHref,
   studioModeFromPathname,
   studioShowsSessionSidebar,
@@ -26,6 +27,16 @@ describe("studio modes", () => {
   it("keeps the catalog inside the workbench after removing 工具 from the rail", () => {
     expect(studioModeFromPathname("/studio/tools/c/visual-media")).toBe("workbench");
     expect(studioModeFromPathname("/studio/skills")).toBe("workbench");
+  });
+
+  it("does not let the home canvas cover catalog routes", () => {
+    expect(isStudioCanvasPath("/studio")).toBe(true);
+    expect(isStudioCanvasPath("/studio/c/abc")).toBe(true);
+    expect(isStudioCanvasPath("/studio/p/proj")).toBe(true);
+    expect(isStudioCanvasPath("/studio/tools")).toBe(false);
+    expect(isStudioCanvasPath("/studio/tools/c/visual-media")).toBe(false);
+    expect(isStudioCanvasPath("/studio/skills")).toBe(false);
+    expect(isStudioCanvasPath("/studio/settings")).toBe(false);
   });
 
   it("hides the session sidebar only in draw mode", () => {

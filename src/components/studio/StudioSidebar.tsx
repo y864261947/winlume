@@ -215,6 +215,15 @@ export default function StudioSidebar({
         </Link>
         <button
           type="button"
+          onClick={() => setSearchOpen(true)}
+          title="快速搜索"
+          aria-label="快速搜索"
+          className="studio-search-toggle inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-[background-color,color,transform] duration-150 active:scale-[0.97]"
+        >
+          <Search className="h-4 w-4" strokeWidth={1.8} />
+        </button>
+        <button
+          type="button"
           onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")}
           title={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
           aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
@@ -235,18 +244,6 @@ export default function StudioSidebar({
           </button>
         ) : null}
       </div>
-
-      <button
-        type="button"
-        onClick={() => setSearchOpen(true)}
-        className="studio-nav-item mb-2 flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-[14px] text-[#615A73] outline-none transition-colors focus-visible:outline-none"
-      >
-        <Search className="size-[18px] shrink-0" strokeWidth={1.8} />
-        快速搜索
-        <kbd className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] border border-black/5 bg-white/70 px-1 text-[10.5px] font-bold text-[#8A7860]">
-          /
-        </kbd>
-      </button>
 
       <nav className="flex flex-col gap-0.5" aria-label="Studio 导航">
         {primaryNav.map((item) => {

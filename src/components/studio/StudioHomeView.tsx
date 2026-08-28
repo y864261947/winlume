@@ -733,8 +733,7 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
           >
             {!docking ? (
               <div className="studio-home-intro mb-5 text-center">
-                <p className="text-[13px] font-medium text-[#64748B]">新对话</p>
-                <h1 className="mt-2 text-[28px] font-semibold leading-tight text-[#172033]">
+                <h1 className="text-[28px] font-semibold leading-tight text-[#172033]">
                   今天想完成什么？
                 </h1>
               </div>
@@ -802,7 +801,7 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
 
       <section
         id="studio-capabilities"
-        className="studio-home-capabilities relative z-[1] px-5 pb-16 pt-2 sm:px-10 sm:pb-20 sm:pt-4"
+        className="studio-home-capabilities relative z-[1] px-5 pb-16 pt-10 sm:px-10 sm:pb-20 sm:pt-14"
         aria-hidden={docking}
       >
         <div className="mx-auto max-w-[1120px]">
