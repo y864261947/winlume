@@ -10,7 +10,6 @@ import {
   FileSearch,
   MessageSquareText,
   Search,
-  SlidersHorizontal,
   Volume2,
   Video,
   X,
@@ -109,6 +108,9 @@ export default function ProductsExplorer({
   };
 
   const hasModelFilters = Boolean(query || vendorKey || capability !== "all");
+  const activeCategoryLabel = capability === "all"
+    ? "全部 API 模型"
+    : MODEL_CATEGORIES.find((category) => category.id === capability)?.label ?? "全部 API 模型";
 
   return (
     <div className="portal-home">
@@ -136,7 +138,7 @@ export default function ProductsExplorer({
         <section className="portal-catalog-hero">
           <div className="portal-catalog-title-row">
             <div>
-              <h1>全部 API 模型</h1>
+              <h1>{activeCategoryLabel}</h1>
               <p className="portal-catalog-lead">
                 汇集全球优质 AI 模型，通过 API 快速集成到你的应用中。
               </p>
@@ -178,15 +180,6 @@ export default function ProductsExplorer({
           ) : null}
         </section>
 
-        <div className="portal-model-controls" aria-label="模型筛选">
-          <button type="button" onClick={() => setVendorKey(undefined)}>厂商 <ChevronRight aria-hidden /></button>
-          <button type="button" onClick={() => setCapability("all")}>能力 <ChevronRight aria-hidden /></button>
-          <button type="button" onClick={resetModelFilters}>价格 <ChevronRight aria-hidden /></button>
-          <button type="button" onClick={() => setCapability("llm")}>上下文 <ChevronRight aria-hidden /></button>
-          <button type="button" className="portal-model-control-sort">排序：综合推荐 <ChevronRight aria-hidden /></button>
-          <button type="button" className="portal-model-control-sliders" aria-label="更多筛选"><SlidersHorizontal aria-hidden /></button>
-        </div>
-
         {vendorChips.length > 0 ? (
           <div className="portal-model-vendor-strip">
             <div className="portal-model-strip-title"><span>🔥</span><strong>热门推荐</strong></div>
@@ -203,7 +196,7 @@ export default function ProductsExplorer({
 
         <div className="portal-catalog-section-head">
           <div>
-            <h2>全部模型</h2>
+            <h2>{capability === "all" ? "全部模型" : `${activeCategoryLabel}模型`}</h2>
             <p>
               {hasModelFilters
               ? `已筛选 ${plazaStats.filtered} / ${plazaStats.total} 个模型`

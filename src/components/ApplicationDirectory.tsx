@@ -147,23 +147,11 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
 
         {popular.length > 0 ? (
           <section className="app-directory-section">
-            <div className="portal-catalog-section-head">
-              <div>
-                <h2>热门工具</h2>
-                <p>按场景直接开工</p>
-              </div>
-            </div>
             <div className="app-tool-grid is-featured">{popular.map((tool) => <ToolCard key={tool.name} tool={tool} />)}</div>
           </section>
         ) : null}
 
         <section className="app-directory-section">
-          <div className="portal-catalog-section-head">
-            <div>
-              <h2>全部应用工具</h2>
-              <p>{visible.length} 个可用工具</p>
-            </div>
-          </div>
           <div className="app-tool-grid">{visible.map((tool) => <ToolCard key={tool.name} tool={tool} />)}</div>
           {visible.length === 0 ? <div className="app-directory-empty">没有匹配的应用工具，试试搜索其他任务或切换分类。</div> : null}
         </section>
@@ -189,10 +177,12 @@ function SkillStrip() {
         </div>
       </div>
       <div className="app-skill-grid" aria-label="Skills 技能列表">
-        {featuredSkills.map((skill) => (
-          <Link key={skill} href={`/studio/skills?q=${encodeURIComponent(skill)}`}>
+        {featuredSkills.map((skill, index) => (
+          <Link key={skill} className={index === 0 ? "is-featured" : undefined} href={`/studio/skills?q=${encodeURIComponent(skill)}`}>
+            <span className="app-skill-index">{String(index + 1).padStart(2, "0")}</span>
             <strong>{skill}</strong>
-            <small>技能</small>
+            <small>{index === 0 ? "精选技能" : "技能"}</small>
+            <ChevronRight aria-hidden />
           </Link>
         ))}
       </div>

@@ -7161,6 +7161,19 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-model-detail-kicker { margin: 0 0 12px; color: #2d6be3; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
 @media (max-width: 420px) { .portal-directory-side .portal-model-detail-dock .portal-model-detail-actions { grid-template-columns: 1fr; } }
 
+/* API vendor recommendations stay a single, scannable row. */
+.portal-model-vendor-strip { padding-bottom: 12px; }
+.portal-model-vendor-scroller {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+  scrollbar-width: none;
+}
+.portal-model-vendor-scroller::-webkit-scrollbar { display: none; }
+.portal-model-vendor-scroller button { flex: 0 0 142px; }
+@media (max-width: 760px) { .portal-model-vendor-scroller button { flex-basis: 136px; } }
+
 /* Task board: a dense operational view for work already started in Studio. */
 .account-task-board { display: grid; gap: 16px; }
 .account-task-board-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
@@ -8110,20 +8123,25 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
 
 /* Keep the desktop dashboard geometry stable while the viewport grows. */
 @media (min-width: 1181px) {
-  .portal-home .portal-frame { width: min(1680px, calc(100% - 80px)); }
+  .portal-home .portal-frame {
+    width: min(1500px, calc(100% - 64px));
+    margin-right: auto;
+    margin-left: auto;
+  }
   .portal-home .portal-nav-shell,
   .portal-home .portal-enterprise-card.portal-search-aside,
   .portal-home .portal-tools-card,
   .portal-home .portal-app-showcase-v2,
   .portal-home .portal-system-rail { width: auto; }
-  .portal-home .portal-search-row { grid-template-columns: 380px minmax(560px, 1fr) 440px; gap: 14px; margin-top: 22px; }
+  .portal-home { --portal-dashboard-columns: minmax(300px, .9fr) minmax(480px, 1.25fr) minmax(360px, .9fr); }
+  .portal-home .portal-search-row { grid-template-columns: var(--portal-dashboard-columns); gap: 14px; margin-top: 22px; }
   .portal-home .portal-search-card { grid-column: 1 / 3; }
   .portal-home .portal-search-aside { grid-column: 3; }
   .portal-home .portal-search-card,
   .portal-home .portal-enterprise-card.portal-search-aside { height: 296px; }
   .portal-home .portal-search-waves { height: 296px !important; }
   .portal-home .portal-search-content { padding-top: 54px; }
-  .portal-home .portal-discovery-grid { grid-template-columns: 380px minmax(560px, 1fr) 440px; grid-template-rows: 360px 184px; gap: 14px; margin-top: 22px; }
+  .portal-home .portal-discovery-grid { grid-template-columns: var(--portal-dashboard-columns); grid-template-rows: 360px 184px; gap: 14px; margin-top: 22px; }
   .portal-home .portal-tools-card { width: auto; }
   .portal-home .portal-bottom-footer { min-height: 156px; align-items: start; margin-top: 24px; padding: 38px 28px 42px; font-size: 13px; }
   .portal-home .portal-bottom-footer h3 { font-size: 14px; }
@@ -8167,6 +8185,44 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
 .app-skill-grid > a small { color: #7d8aa0; font-size: 10px; }
 @media (max-width: 900px) { .app-skill-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .app-skill-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }
+
+/* Skills board: a focused index with one clear starting point. */
+.app-skill-strip {
+  margin-top: 22px;
+  padding: 22px;
+  border: 1px solid rgba(42, 76, 117, .92);
+  border-radius: 16px;
+  color: #f4f8ff;
+  background: linear-gradient(135deg, #102541 0%, #17395b 58%, #194665 100%);
+  box-shadow: 0 22px 38px -29px rgba(12, 42, 78, .78), inset 0 1px rgba(255, 255, 255, .13);
+}
+.app-skill-strip-head { position: relative; align-items: end; padding-top: 12px; }
+.app-skill-strip-head h2 { color: #f7fbff; font-size: 19px; font-weight: 760; letter-spacing: 0; }
+.app-skill-strip-head::before { position: absolute; top: 0; left: 0; color: #71d7c7; content: "CURATED WORKFLOWS"; font-size: 9px; font-weight: 800; letter-spacing: .16em; }
+.app-skill-strip-actions > a { display: inline-flex; align-items: center; gap: 4px; color: #bdebe4; font-size: 12px; font-weight: 700; }
+.app-skill-strip-actions > a:hover { color: #fff; }
+.app-skill-grid { grid-template-columns: minmax(190px, 1.3fr) repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(58px, 1fr)); gap: 8px; margin-top: 20px; }
+.app-skill-grid > a { position: relative; min-height: 58px; align-content: center; padding: 10px 32px 10px 14px; border: 1px solid rgba(173, 210, 233, .18); border-radius: 10px; color: #ecf5ff; background: rgba(255, 255, 255, .075); box-shadow: none; }
+.app-skill-grid > a:hover { border-color: rgba(117, 226, 210, .68); color: #fff; background: rgba(104, 213, 196, .14); box-shadow: 0 10px 22px -18px rgba(0, 0, 0, .75); transform: translateY(-1px); }
+.app-skill-grid > a.is-featured { grid-row: 1 / 4; align-content: end; min-height: 182px; padding: 17px; border-color: rgba(123, 226, 213, .55); background: linear-gradient(155deg, #1b6380, #17405d 65%, #162f4e); box-shadow: inset 0 1px rgba(255, 255, 255, .16); }
+.app-skill-grid > a.is-featured::before { position: absolute; right: 15px; top: 13px; width: 58px; height: 58px; border: 1px solid rgba(132, 232, 218, .5); border-radius: 50%; content: ""; box-shadow: 0 0 0 10px rgba(121, 226, 210, .08), 0 0 0 20px rgba(121, 226, 210, .04); }
+.app-skill-grid > a.is-featured .app-skill-index { color: #86ead9; font-size: 11px; }
+.app-skill-grid > a.is-featured strong { margin-top: 6px; color: #fff; font-size: 21px; line-height: 27px; }
+.app-skill-grid > a.is-featured small { color: #b7eee5; }
+.app-skill-grid > a .app-skill-index { color: #83a3bd; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; font-weight: 700; letter-spacing: .08em; }
+.app-skill-grid > a strong { color: #ecf5ff; font-size: 12px; font-weight: 680; line-height: 17px; }
+.app-skill-grid > a small { color: #9bb4c8; font-size: 10px; }
+.app-skill-grid > a > svg { position: absolute; right: 11px; top: 50%; width: 14px; height: 14px; color: #7ca7bf; transform: translateY(-50%); }
+.app-skill-grid > a.is-featured > svg { right: 15px; top: auto; bottom: 16px; color: #9cecdf; transform: none; }
+@media (max-width: 900px) {
+  .app-skill-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto; }
+  .app-skill-grid > a.is-featured { grid-column: 1 / -1; grid-row: auto; min-height: 112px; }
+}
+@media (max-width: 600px) {
+  .app-skill-strip { margin-top: 18px; padding: 18px 14px; }
+  .app-skill-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-skill-grid > a.is-featured { min-height: 106px; }
+}
 .app-skill-strip-head {
   display: flex;
   min-width: 0;
