@@ -8021,3 +8021,23 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
 @media (min-width:1181px) { .portal-home .portal-tool-card img { grid-column:1; grid-row:1 / 3; align-self:center; justify-self:center; } }
 @media (max-width:1320px) { .portal-home .portal-tools-proof { display:none; } }
 @media (max-width:1180px) { .portal-home .portal-workbench-button { min-height:54px; padding:0 17px; } }
+
+/* Final annotated layout pass: widen the enterprise spotlight, strengthen the
+   application section title, and give the capability cards breathing room. */
+@media (min-width:1181px) {
+  .portal-home .portal-enterprise-card.portal-search-aside {
+    width: calc(100% + 48px);
+    max-width: none;
+  }
+  .portal-home .portal-app-showcase-head h2 {
+    color: #0b1930;
+    font-size: 28px;
+    font-weight: 760;
+    line-height: 34px;
+    letter-spacing: -.035em;
+  }
+  .portal-home .portal-capability-showcase {
+    margin-right: 20px;
+    margin-left: 20px;
+  }
+}
