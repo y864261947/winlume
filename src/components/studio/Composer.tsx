@@ -232,12 +232,18 @@ const COMPOSER_MODE_ITEMS: ReadonlyArray<{
   { id: "sheet", label: "表格", title: "生成或更新可编辑表格" },
 ];
 
-function ComposerModeIcon({ mode }: { mode: ComposerMode }) {
-  if (mode === "image") return <ImageIcon className="h-3.5 w-3.5" />;
-  if (mode === "video") return <Clapperboard className="h-3.5 w-3.5" />;
-  if (mode === "canvas") return <Workflow className="h-3.5 w-3.5" />;
-  if (mode === "sheet") return <Table2 className="h-3.5 w-3.5" />;
-  return <MessageSquare className="h-3.5 w-3.5" />;
+function ComposerModeIcon({
+  mode,
+  className = "h-3.5 w-3.5",
+}: {
+  mode: ComposerMode;
+  className?: string;
+}) {
+  if (mode === "image") return <ImageIcon className={className} />;
+  if (mode === "video") return <Clapperboard className={className} />;
+  if (mode === "canvas") return <Workflow className={className} />;
+  if (mode === "sheet") return <Table2 className={className} />;
+  return <MessageSquare className={className} />;
 }
 
 function ImageSizeIcon({ value }: { value: ImageSize }) {
@@ -845,11 +851,22 @@ export default function Composer({
 
   useEffect(() => {
     if (!modelPickerOpen) return;
-    modelPickerRef.current
+    const root = modelPickerRef.current;
+    const picker = root?.querySelector<HTMLElement>(".composer-model-picker");
+    const popover = root?.closest<HTMLElement>(".composer-settings-popover");
+    const fitPicker = () => {
+      if (!picker || !popover) return;
+      const pop = popover.getBoundingClientRect();
+      const pad = 12;
+      const available = Math.max(160, window.innerHeight - pop.top - pad);
+      picker.style.maxHeight = `${available}px`;
+    };
+    fitPicker();
+    root
       ?.querySelector<HTMLElement>('button[aria-selected="true"]')
       ?.scrollIntoView({ block: "nearest" });
     const onPointerDown = (event: PointerEvent) => {
-      if (!modelPickerRef.current?.contains(event.target as Node)) {
+      if (!root?.contains(event.target as Node)) {
         setModelPickerOpen(false);
         setModelPickerVendor(null);
       }
@@ -864,9 +881,11 @@ export default function Composer({
     };
     window.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", fitPicker);
     return () => {
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", fitPicker);
     };
   }, [modelPickerOpen, modelPickerVendor]);
 
@@ -2725,7 +2744,7 @@ export default function Composer({
               </PopoverTrigger>
               <PopoverContent
                 align="end"
-                side="top"
+                side="bottom"
                 sideOffset={8}
                 avoidCollisions={false}
                 className="composer-settings-popover w-[21rem] max-w-[calc(100vw-2rem)]"
@@ -2864,7 +2883,7 @@ export default function Composer({
                       <span>比例与尺寸</span>
                       <Select value={imageSize} disabled={disabled} onValueChange={(value) => setImageSize(value as ImageSize)}>
                         <SelectTrigger className="!h-[2.65rem] !w-full min-w-0 rounded-[10px] border-line bg-white/70 text-[#241E36]"><SelectValue /></SelectTrigger>
-                        <SelectContent position="popper" align="end" side="top" sideOffset={6} avoidCollisions={false}>
+                        <SelectContent position="popper" align="end" side="bottom" sideOffset={6} avoidCollisions={false} className="composer-mode-menu">
                           {IMAGE_SIZE_OPTIONS.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
                               <span className="inline-flex items-center gap-2">
@@ -2880,7 +2899,7 @@ export default function Composer({
                       <span>生成数量</span>
                       <Select value={String(imageCount)} disabled={disabled} onValueChange={(value) => setImageCount(Number(value) as 1 | 2 | 3 | 4)}>
                         <SelectTrigger className="!h-[2.65rem] !w-full min-w-0 rounded-[10px] border-line bg-white/70 text-[#241E36]"><SelectValue /></SelectTrigger>
-                        <SelectContent position="popper" align="end" side="top" sideOffset={6} avoidCollisions={false}>
+                        <SelectContent position="popper" align="end" side="bottom" sideOffset={6} avoidCollisions={false} className="composer-mode-menu">
                           {[1, 2, 3, 4].map((count) => <SelectItem key={count} value={String(count)}>{count} 张</SelectItem>)}
                         </SelectContent>
                       </Select>
@@ -2897,15 +2916,36 @@ export default function Composer({
                 selectComposerMode(value as ComposerMode);
               }}
             >
-              <SelectTrigger className="composer-output-select h-[2.65rem] w-auto min-w-[8.5rem] rounded-[12px] border-white/78 bg-white/68 px-3 text-[#241E36] shadow-none">
-                <SelectValue placeholder="自动 / 对话" />
+              <SelectTrigger className="composer-mode-trigger">
+                <SelectValue placeholder="对话" />
               </SelectTrigger>
-              <SelectContent position="popper" align="end" side="top" sideOffset={6} avoidCollisions={false}>
-                <SelectItem value="chat">自动 / 对话</SelectItem>
-                <SelectItem value="image" disabled={capabilityAvailability.image === "needs_setup" || capabilityAvailability.image === "unavailable"}>图片</SelectItem>
-                <SelectItem value="video" disabled>视频（未接入）</SelectItem>
-                <SelectItem value="canvas" disabled={capabilityAvailability.canvas === "needs_setup" || capabilityAvailability.canvas === "unavailable"}>画布</SelectItem>
-                <SelectItem value="sheet" disabled={capabilityAvailability.sheet === "needs_setup" || capabilityAvailability.sheet === "unavailable"}>表格</SelectItem>
+              <SelectContent
+                position="popper"
+                align="end"
+                side="bottom"
+                sideOffset={6}
+                avoidCollisions={false}
+                className="composer-mode-menu"
+              >
+                {COMPOSER_MODE_ITEMS.map((item) => {
+                  const unavailable =
+                    item.id === "video" ||
+                    capabilityAvailability[item.id] === "needs_setup" ||
+                    capabilityAvailability[item.id] === "unavailable";
+                  return (
+                    <SelectItem
+                      key={item.id}
+                      value={item.id}
+                      disabled={unavailable}
+                      title={unavailable ? `${item.title} · 暂不可用` : item.title}
+                    >
+                      <span className="inline-flex items-center gap-2.5">
+                        <ComposerModeIcon mode={item.id} className="h-4 w-4" />
+                        <span>{item.id === "chat" ? "对话" : item.label}</span>
+                      </span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             <button

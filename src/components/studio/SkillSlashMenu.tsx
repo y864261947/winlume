@@ -115,7 +115,7 @@ export function placeMenuAroundAnchor(
 ): { left: number; top: number; maxHeight: number; placement: "above" | "below" } {
   const spaceAbove = anchor.top - MENU_PAD - MENU_GAP;
   const spaceBelow = viewport.height - anchor.bottom - MENU_PAD - MENU_GAP;
-  const placeAbove = spaceAbove >= Math.min(menu.height, MENU_MIN_HEIGHT) || spaceAbove >= spaceBelow;
+  const placeAbove = spaceBelow < MENU_MIN_HEIGHT && spaceAbove > spaceBelow;
   const available = Math.max(MENU_MIN_HEIGHT, placeAbove ? spaceAbove : spaceBelow);
   const maxHeight = Math.min(MENU_MAX_HEIGHT, available);
   const height = Math.min(menu.height, maxHeight);

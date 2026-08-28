@@ -44,34 +44,32 @@ describe("placeMenuAroundAnchor", () => {
   const viewport = { width: 1280, height: 800 };
   const menu = { width: 480, height: 384 };
 
-  it("sits above the trigger without overlapping it when there is room", () => {
+  it("sits below the trigger without overlapping it when there is room", () => {
     const anchor = { top: 500, bottom: 536, left: 80 };
     const placed = placeMenuAroundAnchor(anchor, menu, viewport);
-    expect(placed.placement).toBe("above");
-    expect(placed.top + Math.min(menu.height, placed.maxHeight)).toBeLessThanOrEqual(anchor.top);
+    expect(placed.placement).toBe("below");
+    expect(placed.top).toBeGreaterThanOrEqual(anchor.bottom);
     expect(placed.top).toBeGreaterThanOrEqual(8);
   });
 
-  it("shrinks above the trigger instead of covering it", () => {
+  it("shrinks below the trigger instead of covering it", () => {
     const anchor = { top: 200, bottom: 236, left: 80 };
-    const placed = placeMenuAroundAnchor(anchor, menu, viewport);
-    expect(placed.placement).toBe("above");
-    expect(placed.top + Math.min(menu.height, placed.maxHeight)).toBeLessThanOrEqual(
-      anchor.top,
-    );
-  });
-
-  it("flips below when space above cannot hold a usable menu", () => {
-    const anchor = { top: 80, bottom: 116, left: 80 };
     const placed = placeMenuAroundAnchor(anchor, menu, viewport);
     expect(placed.placement).toBe("below");
     expect(placed.top).toBeGreaterThanOrEqual(anchor.bottom);
   });
 
+  it("flips above only when space below cannot hold a usable menu", () => {
+    const anchor = { top: 720, bottom: 756, left: 80 };
+    const placed = placeMenuAroundAnchor(anchor, menu, viewport);
+    expect(placed.placement).toBe("above");
+    expect(placed.top + Math.min(menu.height, placed.maxHeight)).toBeLessThanOrEqual(anchor.top);
+  });
+
   it("uses the real short height so a small menu still hugs the trigger", () => {
     const anchor = { top: 400, bottom: 436, left: 80 };
     const placed = placeMenuAroundAnchor(anchor, { width: 480, height: 120 }, viewport);
-    expect(placed.placement).toBe("above");
-    expect(placed.top).toBe(400 - 120 - 8);
+    expect(placed.placement).toBe("below");
+    expect(placed.top).toBe(436 + 8);
   });
 });

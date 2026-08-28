@@ -1,27 +1,20 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Bell,
-  Clapperboard,
-  FileText,
   FolderKanban,
-  Globe2,
   LoaderCircle,
-  Megaphone,
-  Search,
-  ShoppingBag,
   Sparkles,
-  type LucideIcon,
 } from "lucide-react";
 import Composer, {
   type ComposerSendMeta,
 } from "@/components/studio/Composer";
 import { useModals } from "@/components/providers";
-import type { Project, Session, SkillMeta } from "@/lib/agent/types";
+import type { Project, Session } from "@/lib/agent/types";
 import {
   failPendingFirstMessage,
   getProject,
@@ -46,16 +39,7 @@ import {
   FALLBACK_DEFAULT_MODEL,
   getDefaultModel,
 } from "@/lib/studio/prefs";
-import {
-  isGenericSkillPrompt,
-  usableComposerPrompt,
-} from "@/lib/studio/skill-prompt";
-import {
-  listStudioToolCategories,
-  studioToolCategoryHref,
-  type StudioCatalogCount,
-} from "@/lib/studio/tool-categories";
-import { listStudioToolsByCategory } from "@/lib/studio/tool-catalog";
+import { usableComposerPrompt } from "@/lib/studio/skill-prompt";
 
 const DOCK_MS = 340;
 const DOCK_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
@@ -145,142 +129,6 @@ function flipComposerToDock(
   });
 }
 
-/** Demo-aligned capability cards (fallback when featured API empty). */
-const FALLBACK_CAPABILITY_CARDS: {
-  key: string;
-  label: string;
-  desc: string;
-  prompt: string;
-  skillIds: string[];
-  icon: LucideIcon;
-}[] = [
-  {
-    key: "promo",
-    label: "做宣传内容",
-    desc: "文案、海报、图文全套宣传",
-    icon: Megaphone,
-    prompt:
-      "帮我为上海新开的咖啡店做一套开业宣传，包括文案和海报主视觉方向，语气温暖有品质感。",
-    skillIds: ["marketing-content-creator", "design-brand-guardian"],
-  },
-  {
-    key: "research",
-    label: "做调研报告",
-    desc: "行业分析、竞品调研、趋势洞察",
-    icon: Search,
-    prompt:
-      "帮我做一份新式茶饮行业的竞品调研报告提纲，包含趋势与定价对比维度。",
-    skillIds: ["product-trend-researcher", "finance-financial-analyst"],
-  },
-  {
-    key: "video",
-    label: "制作短视频",
-    desc: "脚本、配音、剪辑思路一站规划",
-    icon: Clapperboard,
-    prompt:
-      "帮我给新品奶茶做一条 15 秒抖音广告脚本，风格活泼有节奏感，含分镜与字幕建议。",
-    skillIds: ["marketing-douyin-strategist", "marketing-social-media-strategist"],
-  },
-  {
-    key: "files",
-    label: "处理文件",
-    desc: "总结、提取、翻译、格式转换",
-    icon: FileText,
-    prompt:
-      "帮我总结以下内容的核心观点、关键结论与可执行建议（按条目输出）。\n\n【在此粘贴文本】",
-    skillIds: ["engineering-technical-writer"],
-  },
-  {
-    key: "ecommerce",
-    label: "做电商素材",
-    desc: "商品图、详情页、主图文案",
-    icon: ShoppingBag,
-    prompt:
-      "帮我为新款保温杯设计一套详情页文案结构：卖点分层、场景故事与规格表说明。",
-    skillIds: ["marketing-content-creator", "design-image-prompt-engineer"],
-  },
-  {
-    key: "web",
-    label: "生成一个网页",
-    desc: "活动页、介绍页、单页网站结构",
-    icon: Globe2,
-    prompt:
-      "帮我规划一个瑜伽工作室开业活动落地页：信息架构、文案大纲与视觉风格建议。",
-    skillIds: ["design-ui-designer", "marketing-content-creator"],
-  },
-];
-
-const FEATURED_ICONS: LucideIcon[] = [
-  Sparkles,
-  Megaphone,
-  Search,
-  Clapperboard,
-  FileText,
-  ShoppingBag,
-  Globe2,
-];
-
-type SceneCard = {
-  key: string;
-  label: string;
-  desc: string;
-  prompt: string;
-  skillIds: string[];
-  icon: LucideIcon;
-};
-
-function skillToCard(skill: SkillMeta, index: number): SceneCard {
-  return {
-    key: skill.id,
-    label: skill.name,
-    desc: skill.description || "精选技能，点选后挂载到本轮对话。",
-    prompt: usableComposerPrompt(skill.examplePrompt) ?? "",
-    skillIds: [skill.id],
-    icon: FEATURED_ICONS[index % FEATURED_ICONS.length] ?? Sparkles,
-  };
-}
-
-function CapabilityCard({
-  card,
-  active,
-  disabled,
-  onClick,
-  className = "",
-}: {
-  card: SceneCard;
-  active: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  className?: string;
-}) {
-  const Icon = card.icon;
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      data-active={active ? "true" : "false"}
-      className={`studio-cap-card group rounded-lg p-4 text-left disabled:opacity-50 ${className}`}
-    >
-      <span
-        className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg ${
-          active
-            ? "bg-gradient-to-br from-[#334155] to-[#0F172A] text-white"
-            : "bg-[rgba(15, 23, 42,0.1)] text-[#0F172A]"
-        }`}
-      >
-        <Icon className="h-5 w-5" strokeWidth={1.8} />
-      </span>
-      <p className="text-[15px] font-semibold tracking-tight text-[#241E36]">
-        {card.label}
-      </p>
-      <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-5 text-[#8A8298]">
-        {card.desc}
-      </p>
-    </button>
-  );
-}
-
 function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -313,8 +161,6 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
   }, [starting]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [capabilityPresetId, setCapabilityPresetId] = useState<string | null>(null);
-  const [featuredSkills, setFeaturedSkills] = useState<SkillMeta[] | null>(null);
-  const [catalogCounts, setCatalogCounts] = useState<StudioCatalogCount[]>([]);
   /**
    * Captured once at mount (lazy initializer), not derived reactively from
    * `searchParams`. Workspace tabs keep this view mounted across unrelated
@@ -394,67 +240,6 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
       cancelled = true;
     };
   }, [account, projectId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/skills?featured=1", { credentials: "same-origin" })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("featured");
-        return res.json() as Promise<{
-          skills?: SkillMeta[];
-          catalogs?: StudioCatalogCount[];
-        }>;
-      })
-      .then((data) => {
-        if (cancelled) return;
-        const featured = data.skills ?? [];
-        setFeaturedSkills(featured);
-        if (data.catalogs?.length) setCatalogCounts(data.catalogs);
-      })
-      .catch(() => {
-        if (!cancelled) setFeaturedSkills([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const workbenchCategories = useMemo(
-    () =>
-      listStudioToolCategories().map((category) => ({
-        ...category,
-        toolCount: listStudioToolsByCategory(category.id).length,
-        skillCount:
-          catalogCounts.find((item) => item.id === category.id)?.count ?? 0,
-      })),
-    [catalogCounts],
-  );
-
-  const sceneCards = useMemo((): SceneCard[] => {
-    const featured = featuredSkills ?? [];
-    if (featured.length > 0) {
-      return featured.slice(0, 12).map((skill, index) => skillToCard(skill, index));
-    }
-    return FALLBACK_CAPABILITY_CARDS;
-  }, [featuredSkills]);
-
-  const applyCard = useCallback((card: SceneCard) => {
-    const prompt = usableComposerPrompt(card.prompt);
-    if (prompt) setDraft(prompt);
-    else if (isGenericSkillPrompt(draft)) setDraft("");
-    setSelectedSkillIds([...card.skillIds]);
-    // Bring focus back to the hero composer
-    requestAnimationFrame(() => {
-      document
-        .getElementById("studio-home-composer")
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-      // Focus textarea without blue system outline (we style focus ourselves)
-      const ta = document.querySelector<HTMLTextAreaElement>(
-        "#studio-home-composer textarea",
-      );
-      ta?.focus({ preventScroll: true });
-    });
-  }, [draft]);
 
   const startChat = useCallback(
     async (text: string, meta?: ComposerSendMeta) => {
@@ -669,13 +454,6 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
     ],
   );
 
-  const isCardActive = useCallback(
-    (card: SceneCard) =>
-      card.skillIds.every((id) => selectedSkillIds.includes(id)) &&
-      (card.prompt ? draft.startsWith(card.prompt.slice(0, 12)) : true),
-    [draft, selectedSkillIds],
-  );
-
   return (
     <div
       className="studio-home-canvas studio-view-in relative flex min-h-0 flex-1 flex-col overflow-y-auto"
@@ -713,17 +491,13 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
         // document.getElementById/querySelector calls above could resolve
         // to the wrong tab's composer.
         id={active ? "studio-home-composer" : undefined}
-        className={`studio-home-hero relative flex flex-col ${
-          docking
-            ? "min-h-0 flex-1"
-            : "min-h-[61dvh] sm:min-h-[64dvh]"
-        }`}
+        className="studio-home-hero relative flex min-h-0 flex-1 flex-col"
       >
         <div
           className={`studio-home-hero-inner flex min-h-0 flex-1 flex-col px-5 sm:px-10 ${
             docking
               ? "items-stretch justify-end pb-2 pt-0 sm:pb-3"
-              : "items-center justify-center pb-8 pt-14 sm:pb-10 sm:pt-16"
+              : "items-center justify-center pb-[24vh] pt-6 sm:pb-[22vh] sm:pt-8"
           }`}
         >
           <div
@@ -732,7 +506,7 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
             }`}
           >
             {!docking ? (
-              <div className="studio-home-intro mb-5 text-center">
+              <div className="studio-home-intro mb-8 text-center">
                 <h1 className="text-[28px] font-semibold leading-tight text-[#172033]">
                   今天想完成什么？
                 </h1>
@@ -795,82 +569,6 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
                   : "输入需求，或输入 @ 引用产物、/选择技能"
               }
             />
-          </div>
-        </div>
-      </section>
-
-      <section
-        id="studio-capabilities"
-        className="studio-home-capabilities relative z-[1] px-5 pb-16 pt-10 sm:px-10 sm:pb-20 sm:pt-14"
-        aria-hidden={docking}
-      >
-        <div className="mx-auto max-w-[1120px]">
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
-            <div>
-              <h2 className="text-[18px] font-semibold text-[#172033] sm:text-[20px]">
-                工具与技能
-              </h2>
-              <p className="mt-1 text-[13px] text-[#718096]">
-                选择一个分类，或直接从精选 Skills 开始。
-              </p>
-            </div>
-            <Link href="/studio/tools" className="studio-section-link">
-              查看全部工具
-            </Link>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {workbenchCategories.map((category) => {
-              const Icon = category.icon;
-              return (
-                <Link
-                  key={category.id}
-                  href={studioToolCategoryHref(category.id)}
-                  className="studio-cap-card studio-category-card group rounded-lg p-4 text-left"
-                >
-                  <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[12px] bg-[rgba(15, 23, 42,0.1)] text-[#0F172A]">
-                    <Icon className="h-5 w-5" strokeWidth={1.8} />
-                  </span>
-                  <p className="text-[15px] font-semibold tracking-tight text-[#241E36]">
-                    {category.name}
-                  </p>
-                  <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-5 text-[#8A8298]">
-                    {category.summary}
-                  </p>
-                  <p className="mt-3 text-[11px] tabular-nums text-[#AAA2B2]">
-                    {category.toolCount} 个工具
-                    {category.skillCount > 0 ? ` · ${category.skillCount} 个技能` : ""}
-                  </p>
-                </Link>
-              );
-            })}
-          </div>
-
-          <div className="mb-4 mt-10">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-[16px] font-semibold text-[#172033]">
-                精选 Skills
-              </h3>
-              <Link href="/studio/skills" className="studio-section-link">
-                查看全部
-              </Link>
-            </div>
-            <p className="mt-1 text-[13px] text-[#8A8298]">
-              点选后挂载技能，在上方描述任务即可。
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {sceneCards.map((card) => (
-              <CapabilityCard
-                key={card.key}
-                card={card}
-                active={isCardActive(card)}
-                disabled={starting}
-                onClick={() => applyCard(card)}
-                className="studio-skill-card"
-              />
-            ))}
           </div>
         </div>
       </section>
