@@ -68,5 +68,12 @@ describe("homepage API categories", () => {
     expect(source).toContain("portal-capability-showcase");
     expect(source).toContain("portal-capability-hero");
   });
+
+  it("keeps homepage labels concise and moves platform scale into the tools header", () => {
+    expect(source).not.toContain('className="portal-search-kicker"');
+    expect(source).not.toContain("<p>APPLICATIONS</p>");
+    expect(source).not.toContain("<p>MORE WITH REIZO</p>");
+    expect(source).toContain('className="portal-tools-proof"');
+  });
 });
 

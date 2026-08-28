@@ -9,6 +9,8 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { useModals } from "@/components/providers";
 import PortalHeader from "@/components/PortalHeader";
 import { formatBalance } from "@/lib/account";
+import { getConsoleOverview } from "@/lib/console/client";
+import type { ConsoleOverview } from "@/lib/console/types";
 import { getVendorByKey } from "@/lib/catalog/vendors";
 import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
 
@@ -30,6 +32,13 @@ declare global {
 const CHATWOOT_BASE_URL = "https://chat.v2api.top";
 const CHATWOOT_WEBSITE_TOKEN = "kZgsMkESfeGDBRWCHcKeTNYS";
 const PORTAL_ONBOARDING_STORAGE_KEY = "reizo-portal-onboarding-v1";
+
+/** Compact credit/token figure, e.g. 1.24M / 86.42. */
+function fmtUsage(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value);
+}
 
 const onboardingSteps = [
   {
@@ -245,6 +254,8 @@ const toolApplications = [
 
 type PortalApplicationPreview = "storyboard" | "poster" | "subtitles" | "avatar" | "extract" | "product" | "finance" | "slides" | "code" | "contract";
 type PortalCapabilityEvidence = "models" | "skills" | "agent" | "usage";
+type ManagedApplicationShowcase = { id: string; title: string; href: string; imageUrl: string; group: "popular" | "latest"; enabled: boolean };
+type ManagedCapabilityShowcase = { id: string; title: string; eyebrow: string; href: string; imageUrl: string; tone: "models" | "agent" | "usage"; enabled: boolean };
 
 const portalApplicationShowcase: ReadonlyArray<{ title: string; detail: string; href: string; tone: string; preview: PortalApplicationPreview }> = [
   { title: "AI视频生成", detail: "从脚本到短片，一键生成分镜与成片", href: "/studio?preset=video-default", tone: "violet", preview: "storyboard" },
@@ -265,6 +276,9 @@ const portalCapabilityCards: ReadonlyArray<{ title: string; detail: string; badg
   { title: "成本始终可见", detail: "额度、消耗与预算阈值实时同步，团队使用有迹可循。", badge: "USAGE & GOVERNANCE", href: "/account/wallet", tone: "usage", evidence: "usage" },
 ];
 
+const initialManagedApplications: ManagedApplicationShowcase[] = portalApplicationShowcase.map((item, index) => ({ id: `application-${index + 1}`, title: item.title, href: item.href, imageUrl: "", group: index < 5 ? "popular" : "latest", enabled: true }));
+const initialManagedCapabilities: ManagedCapabilityShowcase[] = portalCapabilityCards.map((item, index) => ({ id: `capability-${index + 1}`, title: item.title, eyebrow: item.badge, href: item.href, imageUrl: "", tone: index === 1 ? "agent" : index === 2 ? "usage" : "models", enabled: true }));
+
 function ApplicationResultPreview({ kind }: { kind: PortalApplicationPreview }) {
   if (kind === "storyboard") return <span className="portal-result-preview is-storyboard" aria-hidden><i /><i /><i /><b>12s</b><em>脚本 → 成片</em></span>;
   if (kind === "poster") return <span className="portal-result-preview is-poster" aria-hidden><small>OPEN STUDIO</small><b>NOVA<br />FORM</b><i>26</i><em>春日视觉提案</em></span>;
@@ -283,6 +297,10 @@ function CapabilityEvidence({ kind }: { kind: PortalCapabilityEvidence }) {
   if (kind === "skills") return <span className="portal-capability-evidence is-skills" aria-hidden><b>/ 商品上新文案</b><i>✓ 标题</i><i>✓ 卖点</i><i>✓ SEO</i></span>;
   if (kind === "agent") return <span className="portal-capability-evidence is-agent" aria-hidden><i>输入</i><span>→</span><i>研究</i><span>→</span><i>交付</i><b>已完成</b></span>;
   return <span className="portal-capability-evidence is-usage" aria-hidden><i /><i /><i /><i /><i /><b>本月 ¥ 86.42</b></span>;
+}
+
+function ManagedApplicationVisual({ item, fallback }: { item: ManagedApplicationShowcase; fallback: PortalApplicationPreview }) {
+  return item.imageUrl ? <span className="portal-managed-showcase-image"><Image src={item.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 50vw" unoptimized /></span> : <ApplicationResultPreview kind={fallback} />;
 }
 
 const productPaths = [
@@ -662,6 +680,8 @@ export default function ModelMarket() {
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [featuredSlides, setFeaturedSlides] = useState<FeaturedSlide[]>(FEATURED_SLIDES);
+  const [managedApplications, setManagedApplications] = useState<ManagedApplicationShowcase[]>(initialManagedApplications);
+  const [managedCapabilities, setManagedCapabilities] = useState<ManagedCapabilityShowcase[]>(initialManagedCapabilities);
   const [featuredPaused, setFeaturedPaused] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [activePathId, setActivePathId] = useState<ProductPath["id"]>("api");
@@ -678,9 +698,18 @@ export default function ModelMarket() {
   const [onboardingPlacement, setOnboardingPlacement] = useState<OnboardingPlacement | null>(null);
   const [activeApiId, setActiveApiId] = useState<string | null>(null);
   const apiFlyoutCloseTimerRef = useRef<number | null>(null);
+  const [overview, setOverview] = useState<ConsoleOverview | null>(null);
   const balance = formatBalance(account?.quota, balanceConfig);
+  const usedCredits = overview?.wallet.usedCredits ?? null;
+  const availableCredits = overview?.wallet.availableCredits ?? null;
+  const quotaPct = availableCredits != null && usedCredits != null && (availableCredits + usedCredits) > 0
+    ? Math.round((availableCredits / (availableCredits + usedCredits)) * 100)
+    : null;
   const activePath = productPaths.find((path) => path.id === activePathId) ?? productPaths[0];
   const stackPaths = stackOrderFrom(activePath.id).slice(0, STACK_VISIBLE);
+  const popularApplications = managedApplications.filter((item) => item.enabled && item.group === "popular");
+  const latestApplications = managedApplications.filter((item) => item.enabled && item.group === "latest");
+  const visibleCapabilities = managedCapabilities.filter((item) => item.enabled).slice(0, 3);
 
   useEffect(() => {
     activePathIdRef.current = activePathId;
@@ -690,13 +719,24 @@ export default function ModelMarket() {
     let cancelled = false;
     fetch("/api/portal/content", { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
-      .then((content: { carousel?: Array<{ id: string; imageUrl: string; alt: string; href: string; enabled?: boolean }> } | null) => {
+      .then((content: { carousel?: Array<{ id: string; imageUrl: string; alt: string; href: string; enabled?: boolean }>; applicationShowcase?: ManagedApplicationShowcase[]; capabilityShowcase?: ManagedCapabilityShowcase[] } | null) => {
         const slides = (content?.carousel ?? []).filter((slide) => slide.enabled !== false && slide.imageUrl && slide.alt).map((slide) => ({ id: slide.id, src: slide.imageUrl, alt: slide.alt, href: slide.href || "/products?cate=api" }));
         if (!cancelled && slides.length) { setFeaturedSlides(slides); setFeaturedIndex(0); }
+        if (!cancelled && Array.isArray(content?.applicationShowcase)) setManagedApplications(content.applicationShowcase);
+        if (!cancelled && Array.isArray(content?.capabilityShowcase)) setManagedCapabilities(content.capabilityShowcase);
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!account) return;
+    let cancelled = false;
+    getConsoleOverview()
+      .then((payload) => { if (!cancelled) setOverview(payload); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [account]);
 
   useEffect(() => {
     try {
@@ -941,13 +981,7 @@ export default function ModelMarket() {
             <div className="portal-search-content">
               <div className="portal-search-heading">
                 <div>
-                  <span className="portal-search-kicker">REIZO CAPABILITY DESK</span>
                   <h1 id="portal-search-title">找到适合你的 <em>AI</em> 能力</h1>
-                </div>
-                <div className="portal-search-proof" aria-label="平台能力规模">
-                  <span><strong>300+</strong><small>应用工具</small></span>
-                  <i aria-hidden />
-                  <span><strong>2600+</strong><small>Skills</small></span>
                 </div>
               </div>
               <div className="portal-search-form-row">
@@ -1056,7 +1090,10 @@ export default function ModelMarket() {
           <section className={`portal-tools-card${onboardingStep === 2 ? " is-onboarding-target" : ""}`} data-onboarding-target="tools" aria-labelledby="portal-tools-title">
             <div className="portal-tools-head">
               <h2 id="portal-tools-title">应用工具</h2>
-              <ArrowLink href="/products?cate=app">查看全部工具</ArrowLink>
+              <div className="portal-tools-head-actions">
+                <div className="portal-tools-proof" aria-label="平台能力规模"><span><strong>300+</strong> 应用</span><i aria-hidden /><span><strong>2600+</strong> Skills</span></div>
+                <ArrowLink href="/products?cate=app">查看全部工具</ArrowLink>
+              </div>
             </div>
             <div className="portal-tools-grid">
               {toolApplications.map((tool) => (
@@ -1152,9 +1189,9 @@ export default function ModelMarket() {
             >
               <div className="portal-card-heading"><Image src="/figma-home/usage-icon.svg" alt="" width={20} height={20} /><h2 id="portal-usage-title">账户概览</h2></div>
               <div className="portal-usage-stats">
-                <div><span>余额</span><strong>{balance === "余额同步中" ? "¥168.20" : balance}</strong></div>
-                <div><span>已消耗 Token</span><strong>1.24M</strong></div>
-                <div className="portal-membership-quota"><span><em>Free</em>会员剩余额度</span><strong>80%</strong></div>
+                <div><span>余额</span><strong>{balance === "余额同步中" ? "—" : balance}</strong></div>
+                <div><span>已消耗 Token</span><strong>{usedCredits != null ? fmtUsage(usedCredits) : "—"}</strong></div>
+                <div className="portal-membership-quota"><span><em>Free</em>会员剩余额度</span><strong>{quotaPct != null ? `${quotaPct}%` : "—"}</strong></div>
               </div>
               <Link href="/account" className="portal-arrow-link" onClick={(event) => event.stopPropagation()}>进入个人中心<ChevronRight aria-hidden /></Link>
             </section>
@@ -1163,7 +1200,7 @@ export default function ModelMarket() {
 
         <section className="portal-app-showcase portal-app-showcase-v2" aria-labelledby="portal-app-showcase-title">
           <div className="portal-app-showcase-head">
-            <div><p>APPLICATIONS</p><h2 id="portal-app-showcase-title">把想法直接变成成果</h2></div>
+            <div><h2 id="portal-app-showcase-title">把想法直接变成成果</h2></div>
             <ArrowLink href="/products?cate=app">查看全部应用</ArrowLink>
           </div>
           <Tabs defaultSelectedKey="popular" variant="secondary" className="portal-app-tabs">
@@ -1175,16 +1212,16 @@ export default function ModelMarket() {
             </Tabs.ListContainer>
             <Tabs.Panel id="popular" className="portal-app-tab-panel">
               <div className="portal-featured-app-grid">
-                {portalApplicationShowcase.slice(0, 1).map((app) => (
+                {popularApplications.slice(0, 1).map((app) => (
                   <PortalLink href={app.href} className="portal-featured-app-card" key={app.title}>
-                    <ApplicationResultPreview kind={app.preview} />
+                    <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[0]?.preview ?? "storyboard"} />
                     <span className="portal-featured-app-copy"><strong>{app.title}</strong></span>
                   </PortalLink>
                 ))}
                 <div className="portal-app-support-grid">
-                  {portalApplicationShowcase.slice(1, 5).map((app) => (
+                  {popularApplications.slice(1, 5).map((app, index) => (
                     <PortalLink href={app.href} className="portal-app-support-card" key={app.title}>
-                      <ApplicationResultPreview kind={app.preview} />
+                      <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[index + 1]?.preview ?? "poster"} />
                       <span><strong>{app.title}</strong></span>
                     </PortalLink>
                   ))}
@@ -1193,16 +1230,16 @@ export default function ModelMarket() {
             </Tabs.Panel>
             <Tabs.Panel id="latest" className="portal-app-tab-panel">
               <div className="portal-featured-app-grid">
-                {portalApplicationShowcase.slice(5, 6).map((app) => (
+                {latestApplications.slice(0, 1).map((app) => (
                   <PortalLink href={app.href} className="portal-featured-app-card" key={app.title}>
-                    <ApplicationResultPreview kind={app.preview} />
+                    <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[5]?.preview ?? "product"} />
                     <span className="portal-featured-app-copy"><strong>{app.title}</strong></span>
                   </PortalLink>
                 ))}
                 <div className="portal-app-support-grid">
-                  {portalApplicationShowcase.slice(6).map((app) => (
+                  {latestApplications.slice(1, 5).map((app, index) => (
                     <PortalLink href={app.href} className="portal-app-support-card" key={app.title}>
-                      <ApplicationResultPreview kind={app.preview} />
+                      <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[index + 6]?.preview ?? "finance"} />
                       <span><strong>{app.title}</strong></span>
                     </PortalLink>
                   ))}
@@ -1213,8 +1250,8 @@ export default function ModelMarket() {
         </section>
 
         <section className="portal-bottom-explore portal-system-rail" aria-labelledby="portal-bottom-explore-title">
-          <div className="portal-bottom-explore-head"><div><p>MORE WITH REIZO</p><h2 id="portal-bottom-explore-title">探索更多 REIZO 能力</h2></div></div>
-          <div className="portal-capability-showcase">{portalCapabilityCards.map((card) => <PortalLink href={card.href} className={`portal-capability-hero is-${card.tone}`} key={card.title}><CapabilityEvidence kind={card.evidence} /><span><em>{card.badge}</em><strong>{card.title}</strong></span></PortalLink>)}</div>
+          <div className="portal-bottom-explore-head"><div><h2 id="portal-bottom-explore-title">探索更多 REIZO 能力</h2></div></div>
+          <div className="portal-capability-showcase">{visibleCapabilities.map((card) => <PortalLink href={card.href} className={`portal-capability-hero is-${card.tone}${card.imageUrl ? " has-managed-image" : ""}`} key={card.id}>{card.imageUrl ? <Image className="portal-managed-capability-image" src={card.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 34vw" unoptimized /> : <CapabilityEvidence kind={card.tone === "agent" ? "agent" : card.tone === "usage" ? "usage" : "models"} />}<span><em>{card.eyebrow}</em><strong>{card.title}</strong></span></PortalLink>)}</div>
           <HeroCard variant="tertiary" className="portal-bottom-help"><span><CircleHelp aria-hidden />没有找到合适的应用或技能？告诉我们你的使用场景，我们为你定制解决方案。</span><PortalLink href="/business" className="portal-bottom-help-link">提交需求<ChevronRight aria-hidden /></PortalLink></HeroCard>
           <footer className="portal-bottom-footer"><div className="portal-bottom-brand"><strong><Image className="portal-footer-mark" src="/brand/reizo-mark.png" alt="" width={26} height={26} />REIZO</strong><p>从 AI 能力到智能体，每一步都更简单。</p><small>© 2026 Reizo. All rights reserved.</small></div>{footerColumns.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.items.slice(0, 3).map((item) => <PortalLink href={item.href} key={item.label}>{item.label}</PortalLink>)}</div>)}<div><h3>关注我们</h3><span className="portal-bottom-social">𝕏　in　◉　✉</span></div></footer>
         </section>
