@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BarChart3, BriefcaseBusiness, ChevronLeft, ChevronRight, Code2, FileText, ImageIcon,
+  BarChart3, BriefcaseBusiness, ChevronRight, Code2, FileText, ImageIcon,
   Megaphone, Presentation, Search, ShoppingCart, Sparkles, Video, X,
 } from "lucide-react";
 
@@ -54,7 +54,6 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
   const resolvedCategory = categoryParam && categories.some((category) => category.name === categoryParam) ? categoryParam : "全部应用";
   const [activeCategory, setActiveCategory] = useState<ToolCategory | "全部应用">(resolvedCategory);
   const [query, setQuery] = useState(initialQuery);
-  const [sort, setSort] = useState("默认排序");
 
   const visible = useMemo(() => {
     const value = query.trim().toLowerCase();
@@ -62,11 +61,8 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
       (activeCategory === "全部应用" || tool.category === activeCategory) &&
       (!value || `${tool.name}${tool.category}${tool.description}`.toLowerCase().includes(value)),
     );
-    if (sort === "热门优先") {
-      return [...filtered].sort((a, b) => Number(Boolean(b.popular)) - Number(Boolean(a.popular)));
-    }
     return filtered;
-  }, [activeCategory, query, sort]);
+  }, [activeCategory, query]);
   const popular = visible.filter((tool) => tool.popular).slice(0, 4);
 
   const selectCategory = (category: ToolCategory | "全部应用") => {
@@ -149,15 +145,6 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
           </form>
         </section>
 
-        <div className="portal-model-controls" aria-label="应用筛选">
-          <button type="button" onClick={() => selectCategory("全部应用")}>
-            分类 <ChevronRight aria-hidden />
-          </button>
-          <button type="button" className="portal-model-control-sort" onClick={() => setSort(sort === "热门优先" ? "默认排序" : "热门优先")}>
-            排序：{sort} <ChevronRight aria-hidden />
-          </button>
-        </div>
-
         {popular.length > 0 ? (
           <section className="app-directory-section">
             <div className="portal-catalog-section-head">
@@ -193,27 +180,15 @@ const featuredSkills = [
 ];
 
 function SkillStrip() {
-  const trackRef = useRef<HTMLDivElement>(null);
-
-  const scrollTrack = (direction: -1 | 1) => {
-    trackRef.current?.scrollBy({ left: direction * 360, behavior: "smooth" });
-  };
-
   return (
     <section className="app-skill-strip" aria-labelledby="app-skill-strip-title">
       <div className="app-skill-strip-head">
         <h2 id="app-skill-strip-title">Skills 技能</h2>
         <div className="app-skill-strip-actions">
-          <button type="button" onClick={() => scrollTrack(-1)} aria-label="向左浏览 Skills" title="向左浏览">
-            <ChevronLeft aria-hidden />
-          </button>
-          <button type="button" onClick={() => scrollTrack(1)} aria-label="向右浏览 Skills" title="向右浏览">
-            <ChevronRight aria-hidden />
-          </button>
           <Link href="/studio/skills">查看全部<ChevronRight aria-hidden /></Link>
         </div>
       </div>
-      <div className="app-skill-track" ref={trackRef} aria-label="Skills 技能列表" tabIndex={0}>
+      <div className="app-skill-grid" aria-label="Skills 技能列表">
         {featuredSkills.map((skill) => (
           <Link key={skill} href={`/studio/skills?q=${encodeURIComponent(skill)}`}>
             <strong>{skill}</strong>
