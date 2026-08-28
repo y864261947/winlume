@@ -149,18 +149,65 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
           {visible.length === 0 ? <div className="app-directory-empty">没有匹配的应用工具，试试搜索其他任务或切换分类。</div> : null}
         </section>
 
-        <SkillStrip />
+        <SkillStrip category={activeCategory} />
       </div>
     </section>
   );
 }
 
-const featuredSkills = [
-  "SEO 内容优化", "财务报表分析", "合同风险识别", "小红书文案", "PPT 排版优化", "数据清洗",
-  "PRD 生成", "邮件跟进", "会议纪要", "竞品研究", "商品标题优化", "代码审阅",
+const featuredSkills: Array<{ name: string; category: ToolCategory }> = [
+  { name: "SEO 内容优化", category: "内容与营销" },
+  { name: "财务报表分析", category: "财务与法务" },
+  { name: "合同风险识别", category: "财务与法务" },
+  { name: "小红书文案", category: "内容与营销" },
+  { name: "PPT 排版优化", category: "办公与管理" },
+  { name: "数据清洗", category: "数据与科研" },
+  { name: "PRD 生成", category: "产品与研发" },
+  { name: "邮件跟进", category: "办公与管理" },
+  { name: "会议纪要", category: "办公与管理" },
+  { name: "竞品研究", category: "数据与科研" },
+  { name: "商品标题优化", category: "电商与销售" },
+  { name: "代码审阅", category: "开发与代码" },
 ];
 
-function SkillStrip() {
+const skillsByCategory: Record<ToolCategory, Array<{ name: string; category: ToolCategory }>> = {
+  "内容与营销": [
+    { name: "SEO 内容优化", category: "内容与营销" }, { name: "小红书文案", category: "内容与营销" },
+    { name: "品牌内容改写", category: "内容与营销" }, { name: "邮件营销文案", category: "内容与营销" },
+  ],
+  "视觉与媒体": [
+    { name: "海报视觉提案", category: "视觉与媒体" }, { name: "图片抠图与修复", category: "视觉与媒体" },
+    { name: "短视频分镜", category: "视觉与媒体" }, { name: "视频字幕优化", category: "视觉与媒体" },
+  ],
+  "电商与销售": [
+    { name: "商品标题优化", category: "电商与销售" }, { name: "商品详情页", category: "电商与销售" },
+    { name: "用户画像生成", category: "电商与销售" }, { name: "销售话术设计", category: "电商与销售" },
+  ],
+  "财务与法务": [
+    { name: "财务报表分析", category: "财务与法务" }, { name: "合同风险识别", category: "财务与法务" },
+    { name: "发票信息整理", category: "财务与法务" }, { name: "合规检查清单", category: "财务与法务" },
+  ],
+  "产品与研发": [
+    { name: "PRD 生成", category: "产品与研发" }, { name: "需求拆解", category: "产品与研发" },
+    { name: "用户故事编写", category: "产品与研发" }, { name: "竞品功能分析", category: "产品与研发" },
+  ],
+  "办公与管理": [
+    { name: "PPT 排版优化", category: "办公与管理" }, { name: "邮件跟进", category: "办公与管理" },
+    { name: "会议纪要", category: "办公与管理" }, { name: "文档摘要整理", category: "办公与管理" },
+  ],
+  "数据与科研": [
+    { name: "数据清洗", category: "数据与科研" }, { name: "研究报告生成", category: "数据与科研" },
+    { name: "数据可视化解读", category: "数据与科研" }, { name: "竞品研究", category: "数据与科研" },
+  ],
+  "开发与代码": [
+    { name: "代码审阅", category: "开发与代码" }, { name: "API 文档生成", category: "开发与代码" },
+    { name: "单元测试编写", category: "开发与代码" }, { name: "SQL 优化", category: "开发与代码" },
+  ],
+};
+
+function SkillStrip({ category }: { category: ToolCategory | "全部应用" }) {
+  const skills = category === "全部应用" ? featuredSkills : skillsByCategory[category];
+
   return (
     <section className="app-skill-strip" aria-labelledby="app-skill-strip-title">
       <div className="app-skill-strip-head">
@@ -170,10 +217,10 @@ function SkillStrip() {
         </div>
       </div>
       <div className="app-skill-grid" aria-label="Skills 技能列表">
-        {featuredSkills.map((skill, index) => (
-          <Link key={skill} className={index === 0 ? "is-featured" : undefined} href={`/studio/skills?q=${encodeURIComponent(skill)}`}>
+        {skills.map((skill, index) => (
+          <Link key={skill.name} className={index === 0 ? "is-featured" : undefined} href={`/studio/skills?q=${encodeURIComponent(skill.name)}`}>
             <span className="app-skill-index">{String(index + 1).padStart(2, "0")}</span>
-            <strong>{skill}</strong>
+            <strong>{skill.name}</strong>
             <small>{index === 0 ? "精选技能" : "技能"}</small>
             <ChevronRight aria-hidden />
           </Link>
