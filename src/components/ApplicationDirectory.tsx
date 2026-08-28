@@ -63,7 +63,6 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
     );
     return filtered;
   }, [activeCategory, query]);
-  const popular = visible.filter((tool) => tool.popular).slice(0, 4);
 
   const selectCategory = (category: ToolCategory | "全部应用") => {
     setActiveCategory(category);
@@ -144,12 +143,6 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
             </button>
           </form>
         </section>
-
-        {popular.length > 0 ? (
-          <section className="app-directory-section">
-            <div className="app-tool-grid is-featured">{popular.map((tool) => <ToolCard key={tool.name} tool={tool} />)}</div>
-          </section>
-        ) : null}
 
         <section className="app-directory-section">
           <div className="app-tool-grid">{visible.map((tool) => <ToolCard key={tool.name} tool={tool} />)}</div>
