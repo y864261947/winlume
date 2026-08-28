@@ -114,7 +114,7 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
             </div>
             <Link href="/studio" className={`portal-agent-entry${pathname.startsWith("/studio") ? " is-current" : ""}`}>
               <Bot aria-hidden />
-              智能体
+              工作台
             </Link>
           </nav>
           <button type="button" className="portal-membership-entry" onClick={openMembership}>

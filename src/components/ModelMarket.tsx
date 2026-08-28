@@ -242,14 +242,14 @@ const workScenes = WORK_SCENES.map((scene) => ({
 }));
 
 const toolApplications = [
-  { label: "内容与营销", detail: "文案创作、SEO、社媒运营", icon: "/figma-home/tool-content.svg", href: "/studio/skills?scene=content-office" },
-  { label: "视觉与媒体", detail: "图像处理、视频创作、素材生成", icon: "/figma-home/icon-image.svg", href: "/studio?preset=image-default" },
-  { label: "电商与销售", detail: "商品分析、运营增长、CRM", icon: "/figma-home/tool-commerce.svg", href: "/studio/skills?scene=growth-commerce" },
-  { label: "财务与法务", detail: "合同审查、报表分析、合规助手", icon: "/figma-home/icon-db.svg", href: "/studio/skills?scene=content-office" },
-  { label: "产品与研发", detail: "需求分析、原型设计、PRD", icon: "/figma-home/tool-agent.svg", href: "/studio/skills?scene=agent-automation" },
-  { label: "办公与管理", detail: "PPT、文档处理、会议纪要", icon: "/figma-home/icon-video.svg", href: "/studio/skills?scene=content-office" },
-  { label: "数据与科研", detail: "数据分析、可视化、研究报告", icon: "/figma-home/icon-search.svg", href: "/products?cate=app" },
-  { label: "开发与代码", detail: "代码生成、调试、API 开发", icon: "/figma-home/tool-api.svg", href: "/studio/skills?scene=developer-api" },
+  { label: "内容与营销", detail: "文案创作、SEO、社媒运营", icon: "/figma-home/tool-content.svg", href: "/products?cate=app&category=%E5%86%85%E5%AE%B9%E4%B8%8E%E8%90%A5%E9%94%80" },
+  { label: "视觉与媒体", detail: "图像处理、视频创作、素材生成", icon: "/figma-home/icon-image.svg", href: "/products?cate=app&category=%E8%A7%86%E8%A7%89%E4%B8%8E%E5%AA%92%E4%BD%93" },
+  { label: "电商与销售", detail: "商品分析、运营增长、CRM", icon: "/figma-home/tool-commerce.svg", href: "/products?cate=app&category=%E7%94%B5%E5%95%86%E4%B8%8E%E9%94%80%E5%94%AE" },
+  { label: "财务与法务", detail: "合同审查、报表分析、合规助手", icon: "/figma-home/icon-db.svg", href: "/products?cate=app&category=%E8%B4%A2%E5%8A%A1%E4%B8%8E%E6%B3%95%E5%8A%A1" },
+  { label: "产品与研发", detail: "需求分析、原型设计、PRD", icon: "/figma-home/tool-agent.svg", href: "/products?cate=app&category=%E4%BA%A7%E5%93%81%E4%B8%8E%E7%A0%94%E5%8F%91" },
+  { label: "办公与管理", detail: "PPT、文档处理、会议纪要", icon: "/figma-home/icon-video.svg", href: "/products?cate=app&category=%E5%8A%9E%E5%85%AC%E4%B8%8E%E7%AE%A1%E7%90%86" },
+  { label: "数据与科研", detail: "数据分析、可视化、研究报告", icon: "/figma-home/icon-search.svg", href: "/products?cate=app&category=%E6%95%B0%E6%8D%AE%E4%B8%8E%E7%A7%91%E7%A0%94" },
+  { label: "开发与代码", detail: "代码生成、调试、API 开发", icon: "/figma-home/tool-api.svg", href: "/products?cate=app&category=%E5%BC%80%E5%8F%91%E4%B8%8E%E4%BB%A3%E7%A0%81" },
 ] as const;
 
 type PortalApplicationPreview = "storyboard" | "poster" | "subtitles" | "avatar" | "extract" | "product" | "finance" | "slides" | "code" | "contract";
@@ -1015,7 +1015,7 @@ export default function ModelMarket() {
         <div className="portal-discovery-grid">
           <aside className={`portal-api-card${onboardingStep === 1 ? " is-onboarding-target" : ""}`} data-onboarding-target="api" aria-labelledby="portal-api-title">
             <div className="portal-api-card-head">
-              <h2 id="portal-api-title">API模型</h2>
+              <div className="portal-api-title-line"><h2 id="portal-api-title">API模型</h2><span className="portal-api-billing-badge">按量计费</span></div>
               <ArrowLink href="/products?cate=api">查看全部API模型</ArrowLink>
             </div>
             <div className="portal-api-list" role="list">
@@ -1198,9 +1198,9 @@ export default function ModelMarket() {
           </div>
         </div>
 
-        <section className="portal-app-showcase portal-app-showcase-v2" aria-labelledby="portal-app-showcase-title">
+        <section className="portal-app-showcase portal-app-showcase-v2" aria-label="应用工具">
           <div className="portal-app-showcase-head">
-            <div><h2 id="portal-app-showcase-title">把想法直接变成成果</h2></div>
+            <div />
             <ArrowLink href="/products?cate=app">查看全部应用</ArrowLink>
           </div>
           <Tabs defaultSelectedKey="popular" variant="secondary" className="portal-app-tabs">

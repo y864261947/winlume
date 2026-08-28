@@ -30,6 +30,7 @@ interface Props {
   initialTag?: string;
   initialBrand?: string;
   initialQuery?: string;
+  initialCategory?: string;
 }
 
 type ViewMode = "models" | "apps";
@@ -69,6 +70,7 @@ export default function ProductsExplorer({
   initialCate,
   initialBrand,
   initialQuery,
+  initialCategory,
 }: Props) {
   const router = useRouter();
 
@@ -114,7 +116,7 @@ export default function ProductsExplorer({
         <PortalHeader productMode={mode === "apps" ? "app" : "api"} />
 
         {mode === "apps" ? (
-          <ApplicationDirectory initialQuery={initialQuery} />
+          <ApplicationDirectory initialQuery={initialQuery} initialCategory={initialCategory} />
         ) : (
         <div className="portal-directory-layout">
           <aside className={`portal-directory-side${selectedModel ? " has-model-detail" : ""}`}>

@@ -8085,7 +8085,41 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
   }
 }
 
-/* Application directory Skills stay compact while the catalog can grow. */
+/* Final homepage interaction and layout adjustments. */
+.portal-agent-entry.is-current {
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 255, 255, .98);
+  border-radius: 9px;
+  color: #0d4fc9;
+  background: rgba(255, 255, 255, .56);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .98), 0 8px 18px -16px rgba(26, 75, 148, .55);
+}
+.portal-main-links a.portal-agent-entry.is-current::after { display: none; }
+.portal-api-title-line { display: inline-flex; min-width: 0; align-items: center; gap: 9px; }
+.portal-api-billing-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border: 1px solid rgba(69, 147, 223, .3); border-radius: 999px; color: #2f6cae; background: rgba(229, 243, 255, .82); font-size: 10px; font-weight: 700; white-space: nowrap; }
+
+/* Keep the desktop dashboard geometry stable while the viewport grows. */
+@media (min-width: 1181px) {
+  .portal-home .portal-frame { width: min(1680px, calc(100% - 80px)); }
+  .portal-home .portal-search-row { grid-template-columns: minmax(0, 1fr) 420px; gap: 14px; margin-top: 22px; }
+  .portal-home .portal-search-card,
+  .portal-home .portal-enterprise-card.portal-search-aside { height: 296px; }
+  .portal-home .portal-search-waves { height: 296px !important; }
+  .portal-home .portal-search-content { padding-top: 54px; }
+  .portal-home .portal-discovery-grid { grid-template-columns: 380px 520px minmax(0, 1fr); grid-template-rows: 360px 184px; gap: 14px; margin-top: 22px; }
+  .portal-home .portal-tools-card { width: auto; }
+  .portal-home .portal-bottom-footer { min-height: 156px; align-items: start; margin-top: 24px; padding: 38px 28px 42px; font-size: 13px; }
+  .portal-home .portal-bottom-footer h3 { font-size: 14px; }
+  .portal-home .portal-bottom-footer a { margin-top: 8px; font-size: 12px; }
+  .portal-home .portal-bottom-brand strong { font-size: 18px; }
+  .portal-home .portal-bottom-brand p { margin: 10px 0; font-size: 12px; line-height: 18px; }
+  .portal-home .portal-bottom-brand small { font-size: 11px; }
+}
+
+@media (min-width: 761px) {
+  .portal-home .portal-bottom-footer { min-height: 130px; padding-top: 32px; padding-bottom: 34px; }
+}
+
 .app-skill-strip {
   display: block;
   overflow: hidden;

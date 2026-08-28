@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   BarChart3, BriefcaseBusiness, ChevronLeft, ChevronRight, Code2, FileText, ImageIcon,
   Megaphone, Presentation, Search, ShoppingCart, Sparkles, Video, X,
@@ -47,8 +48,11 @@ const tools: Tool[] = [
   { name: "用户画像生成", category: "电商与销售", description: "根据数据生成用户画像、洞察与行动建议", icon: BriefcaseBusiness, accent: "purple" },
 ];
 
-export default function ApplicationDirectory({ initialQuery = "" }: { initialQuery?: string }) {
-  const [activeCategory, setActiveCategory] = useState<ToolCategory | "全部应用">("全部应用");
+export default function ApplicationDirectory({ initialQuery = "", initialCategory }: { initialQuery?: string; initialCategory?: string }) {
+  const router = useRouter();
+  const categoryParam = initialCategory as ToolCategory | undefined;
+  const resolvedCategory = categoryParam && categories.some((category) => category.name === categoryParam) ? categoryParam : "全部应用";
+  const [activeCategory, setActiveCategory] = useState<ToolCategory | "全部应用">(resolvedCategory);
   const [query, setQuery] = useState(initialQuery);
   const [sort, setSort] = useState("默认排序");
 
@@ -65,6 +69,15 @@ export default function ApplicationDirectory({ initialQuery = "" }: { initialQue
   }, [activeCategory, query, sort]);
   const popular = visible.filter((tool) => tool.popular).slice(0, 4);
 
+  const selectCategory = (category: ToolCategory | "全部应用") => {
+    setActiveCategory(category);
+    const params = new URLSearchParams(window.location.search);
+    params.set("cate", "app");
+    if (category === "全部应用") params.delete("category");
+    else params.set("category", category);
+    router.replace(`/products?${params.toString()}`, { scroll: false });
+  };
+
   return (
     <section className="portal-directory-layout" aria-label="应用工具目录">
       <aside className="portal-directory-side">
@@ -72,7 +85,7 @@ export default function ApplicationDirectory({ initialQuery = "" }: { initialQue
         <button
           className={`portal-directory-all${activeCategory === "全部应用" ? " is-active" : ""}`}
           type="button"
-          onClick={() => setActiveCategory("全部应用")}
+          onClick={() => selectCategory("全部应用")}
         >
           全部应用
           <ChevronRight aria-hidden />
@@ -86,7 +99,7 @@ export default function ApplicationDirectory({ initialQuery = "" }: { initialQue
               type="button"
               className="portal-directory-model-row"
               data-active={active || undefined}
-              onClick={() => setActiveCategory(category.name)}
+              onClick={() => selectCategory(category.name)}
             >
               <Icon aria-hidden />
               <span>
@@ -108,7 +121,7 @@ export default function ApplicationDirectory({ initialQuery = "" }: { initialQue
         <section className="portal-catalog-hero">
           <div className="portal-catalog-title-row">
             <div>
-              <h1>应用工具</h1>
+              <h1>{activeCategory === "全部应用" ? "应用工具" : activeCategory}</h1>
               <p className="portal-catalog-lead">按场景与角色快速找到可直接使用的 AI 工具。</p>
             </div>
             <div className="portal-catalog-hero-links">
@@ -137,7 +150,7 @@ export default function ApplicationDirectory({ initialQuery = "" }: { initialQue
         </section>
 
         <div className="portal-model-controls" aria-label="应用筛选">
-          <button type="button" onClick={() => setActiveCategory("全部应用")}>
+          <button type="button" onClick={() => selectCategory("全部应用")}>
             分类 <ChevronRight aria-hidden />
           </button>
           <button type="button" className="portal-model-control-sort" onClick={() => setSort(sort === "热门优先" ? "默认排序" : "热门优先")}>

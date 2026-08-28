@@ -21,13 +21,15 @@ export default async function ProductsPage({
   const tag = pick(sp.tag);
   const brand = pick(sp.brand);
   const query = pick(sp.q);
+  const category = pick(sp.category);
   return (
     <ProductsExplorer
-      key={`${cate ?? ""}-${tag ?? ""}-${brand ?? ""}-${query ?? ""}`}
+      key={`${cate ?? ""}-${tag ?? ""}-${brand ?? ""}-${query ?? ""}-${category ?? ""}`}
       initialCate={cate}
       initialTag={tag}
       initialBrand={brand}
       initialQuery={query}
+      initialCategory={category}
     />
   );
 }
