@@ -9033,6 +9033,136 @@ html[data-studio-theme="dark"] .composer-mode-menu {
   }
 }
 
+/* Portal content admin: turn the long form into a calm, sectioned workspace. */
+.portal-admin-content {
+  display: grid;
+  gap: 22px;
+}
+.portal-admin-section-nav {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+  padding: 7px;
+  border: 1px solid #dce7f3;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f8fbff, #eef5fc);
+  box-shadow: 0 16px 32px -28px rgba(22, 66, 120, .45);
+}
+.portal-admin-section-tab {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  min-height: 68px;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  color: #5b6d83;
+  background: transparent;
+  text-align: left;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+.portal-admin-section-tab:hover {
+  border-color: #c8dcef;
+  background: rgba(255, 255, 255, .76);
+  transform: translateY(-1px);
+}
+.portal-admin-section-tab.is-active {
+  border-color: #b8d1ed;
+  color: #1559ae;
+  background: #fff;
+  box-shadow: 0 9px 18px -15px rgba(23, 88, 163, .6), inset 0 1px rgba(255, 255, 255, .95);
+}
+.portal-admin-section-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+  color: #4776a9;
+  background: #e6f0fb;
+}
+.portal-admin-section-tab.is-active .portal-admin-section-icon {
+  color: #1263d5;
+  background: #dcecff;
+}
+.portal-admin-section-icon svg { width: 17px; height: 17px; }
+.portal-admin-section-copy { display: grid; min-width: 0; gap: 2px; }
+.portal-admin-section-copy strong {
+  overflow: hidden;
+  color: #243852;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.portal-admin-section-tab.is-active .portal-admin-section-copy strong { color: #145bb8; }
+.portal-admin-section-copy small {
+  overflow: hidden;
+  color: #8393a7;
+  font-size: 10px;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.portal-admin-section-tab em {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  color: #68809b;
+  background: #edf3f9;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 750;
+}
+.portal-admin-section-tab.is-active em {
+  color: #155fca;
+  background: #e1efff;
+}
+.portal-admin-content > section {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid #dce7f3;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .76);
+  box-shadow: 0 18px 38px -32px rgba(22, 66, 120, .4);
+}
+.portal-admin-content > section > div:first-child h2 {
+  color: #172b47;
+  font-size: 18px;
+  letter-spacing: -.01em;
+}
+.portal-admin-content > section > div:first-child p {
+  margin-top: 4px;
+  color: #71839b;
+  font-size: 12px;
+  line-height: 18px;
+}
+.portal-admin-content > section > div:first-child button { min-height: 36px; }
+
+@media (max-width: 1000px) {
+  .portal-admin-section-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .portal-admin-content { gap: 16px; }
+  .portal-admin-section-nav {
+    display: flex;
+    overflow-x: auto;
+    padding: 6px;
+    scrollbar-width: none;
+  }
+  .portal-admin-section-nav::-webkit-scrollbar { display: none; }
+  .portal-admin-section-tab { flex: 0 0 166px; min-height: 62px; }
+  .portal-admin-content > section { padding: 16px; border-radius: 13px; }
+  .portal-admin-content > section > div:first-child { align-items: flex-start; }
+  .portal-admin-content > section > div:first-child h2 { font-size: 16px; }
+}
+
 /* ========================================================================
    Responsive layout contract
 

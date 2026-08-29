@@ -12,10 +12,12 @@ import {
   Plus,
   Save,
   Search,
+  Sparkles,
   Trash2,
   Upload,
   WandSparkles,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useModals } from "@/components/providers";
 import {
@@ -77,6 +79,20 @@ type PortalContent = {
   applicationShowcase: ApplicationShowcase[];
   capabilityShowcase: CapabilityShowcase[];
 };
+type PortalAdminSection = "carousel" | "applications" | "capabilities" | "notifications" | "models";
+
+const portalAdminSections: Array<{
+  id: PortalAdminSection;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+}> = [
+  { id: "carousel", label: "首页轮播", description: "主视觉与焦点内容", icon: ImagePlus },
+  { id: "applications", label: "应用展示", description: "热门与最新工具", icon: WandSparkles },
+  { id: "capabilities", label: "能力模块", description: "模型、Agent 与治理", icon: Sparkles },
+  { id: "notifications", label: "通知公告", description: "门户消息与跳转", icon: Megaphone },
+  { id: "models", label: "模型厂商", description: "API 厂商与模型", icon: Upload },
+];
 type CatalogModel = {
   model_name: string;
   vendor_key?: string;
@@ -1003,14 +1019,8 @@ export default function PortalContentAdminContent() {
   const [content, setContent] = useState<PortalContent>(emptyContent);
   const [catalogVendors, setCatalogVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingSection, setSavingSection] = useState<
-    | "carousel"
-    | "applications"
-    | "capabilities"
-    | "notifications"
-    | "models"
-    | null
-  >(null);
+  const [activeSection, setActiveSection] = useState<PortalAdminSection>("carousel");
+  const [savingSection, setSavingSection] = useState<PortalAdminSection | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const load = useCallback(async () => {
@@ -1119,7 +1129,36 @@ export default function PortalContentAdminContent() {
           正在加载配置…
         </p>
       ) : (
-        <div className="grid gap-8">
+        <div className="portal-admin-content">
+          <nav className="portal-admin-section-nav" aria-label="门户内容模块">
+            {portalAdminSections.map(({ id, label, description, icon: Icon }) => {
+              const count = id === "carousel"
+                ? content.carousel.length
+                : id === "applications"
+                  ? content.applicationShowcase.length
+                  : id === "capabilities"
+                    ? content.capabilityShowcase.length
+                    : id === "notifications"
+                      ? content.notifications.length
+                      : content.modelVendors.length;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`portal-admin-section-tab${activeSection === id ? " is-active" : ""}`}
+                  onClick={() => setActiveSection(id)}
+                  aria-current={activeSection === id ? "page" : undefined}
+                >
+                  <span className="portal-admin-section-icon"><Icon aria-hidden /></span>
+                  <span className="portal-admin-section-copy">
+                    <strong>{label}</strong>
+                    <small>{description}</small>
+                  </span>
+                  <em>{count}</em>
+                </button>
+              );
+            })}
+          </nav>
           {notice ? (
             <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
               {notice}
@@ -1130,7 +1169,7 @@ export default function PortalContentAdminContent() {
               {error}
             </p>
           ) : null}
-          <section className="grid gap-3">
+          {activeSection === "carousel" ? <section className="grid gap-3">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h2 className="font-semibold">首页轮播图</h2>
@@ -1297,8 +1336,8 @@ export default function PortalContentAdminContent() {
                 </div>
               </article>
             ))}
-          </section>
-          <ApplicationShowcaseManager
+          </section> : null}
+          {activeSection === "applications" ? <ApplicationShowcaseManager
             items={content.applicationShowcase}
             onChange={(applicationShowcase) =>
               setContent((current) => ({ ...current, applicationShowcase }))
@@ -1306,8 +1345,8 @@ export default function PortalContentAdminContent() {
             onSave={() => void save("applications")}
             saving={savingSection !== null}
             onError={setError}
-          />
-          <CapabilityShowcaseManager
+          /> : null}
+          {activeSection === "capabilities" ? <CapabilityShowcaseManager
             items={content.capabilityShowcase}
             onChange={(capabilityShowcase) =>
               setContent((current) => ({ ...current, capabilityShowcase }))
@@ -1315,16 +1354,16 @@ export default function PortalContentAdminContent() {
             onSave={() => void save("capabilities")}
             saving={savingSection !== null}
             onError={setError}
-          />
-          <NotificationManager
+          /> : null}
+          {activeSection === "notifications" ? <NotificationManager
             notifications={content.notifications}
             onChange={(notifications) =>
               setContent((current) => ({ ...current, notifications }))
             }
             onSave={() => void save("notifications")}
             saving={savingSection !== null}
-          />
-          <VendorEditor
+          /> : null}
+          {activeSection === "models" ? <VendorEditor
             vendors={content.modelVendors}
             catalogVendors={catalogVendors}
             onChange={(modelVendors) =>
@@ -1332,7 +1371,7 @@ export default function PortalContentAdminContent() {
             }
             onSave={() => void save("models")}
             saving={savingSection !== null}
-          />
+          /> : null}
         </div>
       )}
     </ConsolePage>
