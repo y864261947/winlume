@@ -25,6 +25,7 @@ import { type ReactNode } from "react";
 import { useModals } from "@/components/providers";
 import PortalHeader from "@/components/PortalHeader";
 import { cn } from "@/lib/utils";
+import { usePortalCanvasScale } from "@/components/usePortalCanvasScale";
 
 type NavItem = {
   href: string;
@@ -140,9 +141,10 @@ export default function AccountShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { account } = useModals();
   const isAdmin = account?.platform_role === "admin";
+  usePortalCanvasScale();
 
   return (
-    <div className="portal-home">
+    <div className="portal-home portal-density-shell">
       <div className="portal-frame portal-account-frame">
         <PortalHeader />
 

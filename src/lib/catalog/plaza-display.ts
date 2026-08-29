@@ -1,5 +1,5 @@
 import type { PlazaModel } from "@/lib/catalog";
-import { getVendorById, getVendorByKey, type PlazaVendor } from "@/lib/catalog/vendors";
+import { getVendorById, getVendorByKey, inferVendorFromModel, type PlazaVendor } from "@/lib/catalog/vendors";
 
 export type PlazaTag = {
   label: string;
@@ -10,10 +10,17 @@ export function resolvePlazaVendor(
   model: PlazaModel,
   fallback?: { name?: string; logo?: string },
 ): PlazaVendor {
-  if (model.vendor_key) {
-    const byKey = getVendorByKey(model.vendor_key);
-    if (byKey.key !== "other" || model.vendor_key === "other") return byKey;
+  const vendorKey = model.vendor_key?.trim().toLowerCase();
+  if (vendorKey) {
+    const byKey = getVendorByKey(vendorKey);
+    if (byKey.key !== "other" || vendorKey === "other") return byKey;
   }
+
+  // Older gateway responses may omit vendor_key and carry a stale vendor_logo.
+  // Infer known providers before ever accepting that remote logo as a fallback.
+  const inferred = inferVendorFromModel(`${model.model_name} ${model.vendor_name ?? fallback?.name ?? ""}`);
+  if (inferred.key !== "other") return inferred;
+
   if (model.vendor_id != null) {
     return getVendorById(model.vendor_id);
   }

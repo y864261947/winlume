@@ -14,12 +14,14 @@ import {
 import { useMemo, useState, type ReactNode } from "react";
 import PortalHeader from "@/components/PortalHeader";
 import { apiCategories } from "@/data/docs/api-catalog";
+import { usePortalCanvasScale } from "@/components/usePortalCanvasScale";
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export default function DocsShell({ children }: { children: ReactNode }) {
+  usePortalCanvasScale();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -137,7 +139,7 @@ export default function DocsShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="portal-home docs-root">
+    <div className="portal-home docs-root portal-density-shell">
       <div className="portal-frame docs-frame">
         <PortalHeader />
 

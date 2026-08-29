@@ -1,9 +1,7 @@
 /**
  * Vendor metadata for the public model plaza.
- * Brand marks use the pinned Lobe Icons static SVG collection (MIT). It ships
- * recognised AI provider marks without bundling a large icon package into the
- * client. The version is pinned so a CDN update cannot unexpectedly restyle
- * the portal.
+ * Brand marks are served from /public so the homepage, catalog and Studio use
+ * the same deterministic assets without a third-party request at render time.
  */
 
 export type PlazaVendor = {
@@ -25,8 +23,18 @@ export type PlazaVendor = {
   heroDark?: boolean;
 };
 
-const LOBE_ICON_CDN = "https://unpkg.com/@lobehub/icons-static-svg@1.94.0/icons";
-const brandIcon = (name: string) => `${LOBE_ICON_CDN}/${name}.svg`;
+const LOCAL_VENDOR_ICON_ALIASES: Record<string, string> = {
+  gemini: "google",
+  grok: "xai",
+  qwen: "alibaba",
+  ai360: "360",
+  doubao: "bytedance",
+  baiducloud: "baidu",
+  hunyuan: "tencent",
+  flux: "black-forest",
+};
+
+const brandIcon = (name: string) => `/vendors/${LOCAL_VENDOR_ICON_ALIASES[name] ?? name}.svg`;
 
 export const PLAZA_VENDORS: PlazaVendor[] = [
   {

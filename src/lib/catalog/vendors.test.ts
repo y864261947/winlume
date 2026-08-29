@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { inferVendorFromModel } from "./vendors";
-import { modelPriceLines, modelTags } from "./plaza-display";
+import { modelPriceLines, modelTags, resolvePlazaVendor } from "./plaza-display";
 import type { PlazaModel } from "@/lib/catalog";
 
 describe("inferVendorFromModel", () => {
@@ -20,6 +20,19 @@ describe("inferVendorFromModel", () => {
 
   it("falls back to other for unknown models", () => {
     expect(inferVendorFromModel("banana2-S").key).toBe("other");
+  });
+
+  it("uses the canonical local logo when old responses only provide a vendor name", () => {
+    const vendor = resolvePlazaVendor({
+      model_name: "gpt-5.5",
+      vendor_name: "OpenAI",
+      vendor_logo: "https://legacy.example/openai.svg",
+      quota_type: 0,
+      model_price: 0,
+      model_ratio: 1,
+    });
+    expect(vendor.key).toBe("openai");
+    expect(vendor.logo).toBe("/vendors/openai.svg");
   });
 });
 
