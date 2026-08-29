@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Composer, {
   type ComposerSendMeta,
+  type ComposerCatalogContext,
 } from "@/components/studio/Composer";
 import { useModals } from "@/components/providers";
 import type { Project, Session } from "@/lib/agent/types";
@@ -160,6 +161,7 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
     return () => window.clearTimeout(id);
   }, [starting]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+  const [catalogContext, setCatalogContext] = useState<ComposerCatalogContext | null>(null);
   const [capabilityPresetId, setCapabilityPresetId] = useState<string | null>(null);
   /**
    * Captured once at mount (lazy initializer), not derived reactively from
@@ -182,16 +184,34 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
       const tool = searchParams.get("tool")?.trim();
       const modelParam = searchParams.get("model")?.trim();
       const presetParam = searchParams.get("preset");
+      setCatalogContext(null);
       if (prompt) {
         const usable = usableComposerPrompt(prompt);
         if (usable) setDraft(usable);
         else setDraft("");
       } else if (tool) {
+        setCatalogContext({ kind: "tool", name: tool });
         setDraft(`请使用${tool}完成这个任务`);
       } else if (skillName) {
+        setCatalogContext({ kind: "skill", name: skillName });
         setDraft(`请使用${skillName}完成这个任务`);
       }
       if (skill) setSelectedSkillIds([skill]);
+      if (!skill && skillName) {
+        void fetch(`/api/skills?q=${encodeURIComponent(skillName)}&limit=20`, {
+          credentials: "same-origin",
+        })
+          .then(async (response) => {
+            if (!response.ok) return null;
+            return response.json() as Promise<{ skills?: Array<{ id: string; name: string }> }>;
+          })
+          .then((result) => {
+            if (cancelled || !result?.skills?.length) return;
+            const exact = result.skills.find((item) => item.name.trim() === skillName);
+            if (exact) setSelectedSkillIds([exact.id]);
+          })
+          .catch(() => undefined);
+      }
       setModel(getDefaultModel());
       setCapabilityPresetId(null);
 
@@ -563,6 +583,7 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
               onCapabilityPresetChange={setCapabilityPresetId}
               skillIds={selectedSkillIds}
               onSkillIdsChange={setSelectedSkillIds}
+              catalogContext={catalogContext}
               error={error}
               onClearError={() => setError(null)}
               draftKey={`home-${tabId}`}

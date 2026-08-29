@@ -38,6 +38,7 @@ import {
   RectangleVertical,
   SlidersHorizontal,
   Square,
+  Sparkles,
   Table2,
   Workflow,
   Zap,
@@ -286,6 +287,11 @@ export type ComposerSendMeta = {
   }>;
 };
 
+export type ComposerCatalogContext = {
+  kind: "tool" | "skill";
+  name: string;
+};
+
 /** A live turn already visible in the thread while the Composer prepares inputs. */
 export type ComposerSendPreparation = {
   setStatus: (label: string) => void;
@@ -317,6 +323,8 @@ export type ComposerProps = {
   onRetryError?: () => void;
   skillIds?: string[];
   onSkillIdsChange?: (ids: string[]) => void;
+  /** Display-only context carried from the application directory. */
+  catalogContext?: ComposerCatalogContext | null;
   pinnedSkillIds?: string[];
   onPinnedSkillIdsChange?: (ids: string[]) => void;
   queue?: StudioQueuedMessage[];
@@ -472,6 +480,7 @@ export default function Composer({
   onRetryError,
   skillIds: skillIdsProp,
   onSkillIdsChange,
+  catalogContext = null,
   pinnedSkillIds: pinnedSkillIdsProp,
   onPinnedSkillIdsChange,
   queue = [],
@@ -2017,6 +2026,23 @@ export default function Composer({
           onTogglePin={togglePin}
           disabled={disabled}
         />
+
+        {catalogContext && !(catalogContext.kind === "skill" && selectedIds.length > 0) ? (
+          <div className="studio-skill-chip-row" aria-label="已挂载目录上下文">
+            <span className="studio-skill-chip" title={`来自应用工具目录：${catalogContext.name}`}>
+              <span className="studio-skill-chip-mark">
+                {catalogContext.kind === "skill" ? (
+                  <Sparkles className="h-3 w-3" aria-hidden />
+                ) : (
+                  <Zap className="h-3 w-3" aria-hidden />
+                )}
+              </span>
+              <span className="studio-skill-chip-name">
+                {catalogContext.kind === "skill" ? "Skill" : "工具"} · {catalogContext.name}
+              </span>
+            </span>
+          </div>
+        ) : null}
 
         {(images.length > 0 || videos.length > 0 || workbooks.length > 0 || files.length > 0 || focusedSheet?.kind === "sheet") ? (
           <div className="composer-context-strip flex min-w-0 items-center gap-1.5 overflow-x-auto px-2 pt-1">
