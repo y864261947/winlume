@@ -9386,11 +9386,17 @@ html[data-studio-theme="dark"] .composer-mode-menu {
   }
 
   .portal-home .portal-app-tabs {
-    margin-top: 0;
+    margin-top: 4px;
   }
 
   .portal-home .portal-app-tabs-list {
-    transform: scale(1.06);
-    transform-origin: left top;
+    transform: none;
+    padding: 5px;
+  }
+
+  .portal-home .portal-app-tab {
+    min-width: 102px;
+    padding: 9px 17px;
+    font-size: 14px;
   }
 }

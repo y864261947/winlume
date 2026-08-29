@@ -1201,7 +1201,7 @@ export default function ModelMarket() {
         <section className="portal-app-showcase portal-app-showcase-v2" aria-label="应用工具">
           <div className="portal-app-showcase-head">
             <div />
-            <ArrowLink href="/products?cate=app">查看全部应用</ArrowLink>
+            <PortalLink href="/products?cate=app" className="portal-arrow-link">查看全部应用</PortalLink>
           </div>
           <Tabs defaultSelectedKey="popular" variant="secondary" className="portal-app-tabs">
             <Tabs.ListContainer className="portal-app-tabs-list-container">
