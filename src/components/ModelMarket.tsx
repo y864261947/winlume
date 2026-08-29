@@ -13,6 +13,7 @@ import { getConsoleOverview } from "@/lib/console/client";
 import type { ConsoleOverview } from "@/lib/console/types";
 import { getVendorByKey } from "@/lib/catalog/vendors";
 import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
+import { usePortalCanvasScale } from "@/components/usePortalCanvasScale";
 
 declare global {
   interface Window {
@@ -676,6 +677,7 @@ function swipeDirection(fromId: ProductPath["id"], toId: ProductPath["id"]): "le
 export default function ModelMarket() {
   const router = useRouter();
   const { account, balanceConfig } = useModals();
+  usePortalCanvasScale();
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [featuredIndex, setFeaturedIndex] = useState(0);
@@ -971,7 +973,7 @@ export default function ModelMarket() {
   }
 
   return (
-    <div className="portal-home">
+    <div className="portal-home portal-home-dashboard portal-density-shell">
       <div className="portal-frame">
         <PortalHeader />
 
@@ -1052,6 +1054,7 @@ export default function ModelMarket() {
                   <div className="portal-api-brands" aria-label={`${item.label}可用模型：${item.brands.map((brand) => brand.label).join("、")}`}>
                     {item.brands.slice(0, 4).map((brand) => (
                       <PortalLink key={brand.label} href={brand.href} className="portal-api-brand">
+                        <Image src={brand.icon} alt="" width={16} height={16} unoptimized />
                         {brand.label}
                       </PortalLink>
                     ))}

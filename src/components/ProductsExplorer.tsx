@@ -6,12 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   BookOpen,
   ChevronRight,
-  Database,
-  FileSearch,
-  MessageSquareText,
   Search,
-  Volume2,
-  Video,
   X,
 } from "lucide-react";
 import ApplicationDirectory from "@/components/ApplicationDirectory";
@@ -23,6 +18,7 @@ import {
 } from "@/lib/catalog/plaza-filters";
 import type { PlazaModel } from "@/lib/catalog";
 import { modelDescription, modelPriceLines, modelTags, resolvePlazaVendor } from "@/lib/catalog/plaza-display";
+import { usePortalCanvasScale } from "@/components/usePortalCanvasScale";
 
 interface Props {
   initialCate?: string;
@@ -35,12 +31,12 @@ interface Props {
 type ViewMode = "models" | "apps";
 
 const MODEL_CATEGORIES = [
-  { id: "llm", label: "语言推理", providers: "OpenAI · Anthropic · Gemini", icon: MessageSquareText },
-  { id: "image", label: "图像处理", providers: "DALL·E · FLUX · Stability AI", icon: FileSearch },
-  { id: "video", label: "视频处理", providers: "Sora · Kling · Runway · Pika", icon: Video },
-  { id: "audio", label: "音频处理", providers: "Whisper · ElevenLabs · MiniMax", icon: Volume2 },
-  { id: "embed", label: "RAG 知识库", providers: "Embedding · Rerank · Vector", icon: Database },
-  { id: "other", label: "信息检索", providers: "Jina AI · Cohere · Google", icon: Search },
+  { id: "llm", label: "语言推理", icon: "/figma-home/icon-chat.svg" },
+  { id: "image", label: "图像处理", icon: "/figma-home/icon-image.svg" },
+  { id: "video", label: "视频处理", icon: "/figma-home/icon-video.svg" },
+  { id: "audio", label: "音频处理", icon: "/figma-home/icon-voice.svg" },
+  { id: "embed", label: "RAG 知识库", icon: "/figma-home/icon-db.svg" },
+  { id: "other", label: "信息检索", icon: "/figma-home/icon-search.svg" },
 ] as const;
 
 function resolveMode(initialCate?: string): ViewMode {
@@ -49,7 +45,7 @@ function resolveMode(initialCate?: string): ViewMode {
 }
 
 function ModelDetailPanel({ model, onClose }: { model: PlazaModel; onClose: () => void }) {
-  const vendor = resolvePlazaVendor(model, { name: model.vendor_name, logo: model.vendor_logo });
+  const vendor = resolvePlazaVendor(model, { name: model.vendor_name });
   const price = modelPriceLines(model);
   return (
     <section className="portal-model-detail portal-model-detail-dock" aria-labelledby="portal-model-detail-title">
@@ -72,6 +68,7 @@ export default function ProductsExplorer({
   initialCategory,
 }: Props) {
   const router = useRouter();
+  usePortalCanvasScale();
 
   const mode = resolveMode(initialCate);
   const [query, setQuery] = useState(initialQuery ?? "");
@@ -113,7 +110,7 @@ export default function ProductsExplorer({
     : MODEL_CATEGORIES.find((category) => category.id === capability)?.label ?? "全部 API 模型";
 
   return (
-    <div className="portal-home">
+    <div className="portal-home portal-density-shell">
       <div className="portal-frame pb-16">
         <PortalHeader productMode={mode === "apps" ? "app" : "api"} />
 
@@ -126,10 +123,10 @@ export default function ProductsExplorer({
             <button type="button" className={`portal-directory-all ${capability === "all" ? "is-active" : ""}`} onClick={resetModelFilters}>
               全部模型<ChevronRight aria-hidden />
             </button>
-            {MODEL_CATEGORIES.map(({ id, label, providers, icon: Icon }) => (
+            {MODEL_CATEGORIES.map(({ id, label, icon }) => (
               <button key={id} type="button" className="portal-directory-model-row" data-active={capability === id || undefined} onClick={() => setCapability(id as PlazaCapabilityFilter)}>
-                <Icon aria-hidden />
-                <span><strong>{label}</strong><small>{providers}</small></span><ChevronRight aria-hidden />
+                <img src={icon} alt="" aria-hidden width={20} height={20} />
+                <span><strong>{label}</strong></span><ChevronRight aria-hidden />
               </button>
             ))}
             {selectedModel ? <ModelDetailPanel model={selectedModel} onClose={() => setSelectedModel(null)} /> : null}
@@ -139,9 +136,6 @@ export default function ProductsExplorer({
           <div className="portal-catalog-title-row">
             <div>
               <h1>{activeCategoryLabel}</h1>
-              <p className="portal-catalog-lead">
-                汇集全球优质 AI 模型，通过 API 快速集成到你的应用中。
-              </p>
             </div>
             <div className="portal-catalog-hero-links"><Link href="/docs/api"><BookOpen aria-hidden /> API 文档</Link><Link href="/pricing">计费说明</Link></div>
           </div>

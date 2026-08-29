@@ -34,7 +34,6 @@ type Props = {
 export function ModelPlazaCard({ model, docsHref, selected, onSelect, variant = "default" }: Props) {
   const vendor = resolvePlazaVendor(model, {
     name: model.vendor_name,
-    logo: model.vendor_logo,
   });
   const description = modelDescription(model, vendor);
   const tags = modelTags(model);

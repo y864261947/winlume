@@ -107,7 +107,6 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
         })}
         <div className="app-directory-help">
           <strong>不会选工具？</strong>
-          <p>智能推荐工具，帮你快速找到合适的能力。</p>
           <Link href="/studio/skills">智能推荐工具 →</Link>
         </div>
       </aside>
@@ -117,7 +116,6 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
           <div className="portal-catalog-title-row">
             <div>
               <h1>{activeCategory === "全部应用" ? "应用工具" : activeCategory}</h1>
-              <p className="portal-catalog-lead">按场景与角色快速找到可直接使用的 AI 工具。</p>
             </div>
             <div className="portal-catalog-hero-links">
               <Link href="/studio/skills">Skills 技能</Link>
