@@ -82,6 +82,18 @@ type PortalContent = {
 };
 type PortalAdminSection = "carousel" | "applications" | "capabilities" | "notifications" | "models";
 
+async function readPortalResponse<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    if (response.status === 413) {
+      throw new Error("图片总大小超过服务器限制，请压缩图片后重试。");
+    }
+    throw new Error(`服务器返回异常（${response.status}），请稍后重试。`);
+  }
+}
+
 const portalAdminSections: Array<{
   id: PortalAdminSection;
   label: string;
@@ -1031,15 +1043,18 @@ export default function PortalContentAdminContent() {
     setError("");
     try {
       const [settings, catalog] = await Promise.all([
-        fetch("/api/admin/portal-content", { credentials: "same-origin" }),
+        fetch(`/api/admin/portal-content?v=${Date.now()}`, {
+          credentials: "same-origin",
+          cache: "no-store",
+        }),
         fetch("/api/catalog/plaza", {
           credentials: "same-origin",
           cache: "no-store",
         }),
       ]);
-      const body = (await settings.json()) as PortalContent & {
+      const body = await readPortalResponse<PortalContent & {
         error?: string;
-      };
+      }>(settings);
       if (!settings.ok) throw new Error(body.error || "加载失败");
       setContent({
         carousel: body.carousel ?? [],
@@ -1074,11 +1089,20 @@ export default function PortalContentAdminContent() {
         method: "PUT",
         headers: { "content-type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify(content),
+        body: JSON.stringify({
+          section: section === "carousel" ? "carousel"
+            : section === "applications" ? "applicationShowcase"
+              : section === "capabilities" ? "capabilityShowcase"
+                : section === "notifications" ? "notifications" : "modelVendors",
+          value: section === "carousel" ? content.carousel
+            : section === "applications" ? content.applicationShowcase
+              : section === "capabilities" ? content.capabilityShowcase
+                : section === "notifications" ? content.notifications : content.modelVendors,
+        }),
       });
-      const body = (await response.json()) as PortalContent & {
+      const body = await readPortalResponse<PortalContent & {
         error?: string;
-      };
+      }>(response);
       if (!response.ok) throw new Error(body.error || "保存失败");
       setContent({
         carousel: body.carousel,

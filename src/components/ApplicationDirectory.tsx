@@ -4,9 +4,10 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BarChart3, BriefcaseBusiness, ChevronRight, Code2, FileText, ImageIcon,
+  ArrowLeft, BarChart3, BriefcaseBusiness, ChevronRight, Code2, FileText, ImageIcon,
   Megaphone, Presentation, Search, ShoppingCart, Sparkles, Video, X,
 } from "lucide-react";
+import Modal, { ModalCloseButton } from "./Modal";
 
 type ToolCategory = "内容与营销" | "视觉与媒体" | "电商与销售" | "财务与法务" | "产品与研发" | "办公与管理" | "数据与科研" | "开发与代码";
 
@@ -54,6 +55,8 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
   const resolvedCategory = categoryParam && categories.some((category) => category.name === categoryParam) ? categoryParam : "全部应用";
   const [activeCategory, setActiveCategory] = useState<ToolCategory | "全部应用">(resolvedCategory);
   const [query, setQuery] = useState(initialQuery);
+  const [recommendationOpen, setRecommendationOpen] = useState(false);
+  const [recommendationCategory, setRecommendationCategory] = useState<ToolCategory | null>(null);
 
   const visible = useMemo(() => {
     const value = query.trim().toLowerCase();
@@ -73,8 +76,18 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
     router.replace(`/products?${params.toString()}`, { scroll: false });
   };
 
+  const openRecommendation = () => {
+    setRecommendationCategory(null);
+    setRecommendationOpen(true);
+  };
+
+  const recommendationTools = recommendationCategory
+    ? tools.filter((tool) => tool.category === recommendationCategory)
+    : [];
+
   return (
-    <section className="portal-directory-layout" aria-label="应用工具目录">
+    <>
+      <section className="portal-directory-layout" aria-label="应用工具目录">
       <aside className="portal-directory-side">
         <h2>工具分类</h2>
         <button
@@ -107,7 +120,7 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
         })}
         <div className="app-directory-help">
           <strong>不会选工具？</strong>
-          <Link href="/studio/skills">智能推荐工具 →</Link>
+          <button type="button" onClick={openRecommendation}>智能推荐工具 <ChevronRight aria-hidden /></button>
         </div>
       </aside>
 
@@ -149,7 +162,88 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
 
         <SkillStrip category={activeCategory} />
       </div>
-    </section>
+      </section>
+
+      <Modal
+        open={recommendationOpen}
+        onClose={() => setRecommendationOpen(false)}
+        label="智能推荐工具"
+        size="onboarding"
+      >
+        <div className="app-recommendation-dialog">
+          <header className="app-recommendation-head">
+            <div>
+              <span><Sparkles aria-hidden /> 智能推荐</span>
+              <h2>帮你找到合适的工具</h2>
+              <p>{recommendationCategory ? "根据你的场景，为你推荐可直接使用的工具。" : "先选择你要完成的事情，我们会为你缩小选择范围。"}</p>
+            </div>
+            <ModalCloseButton onClose={() => setRecommendationOpen(false)} />
+          </header>
+
+          {recommendationCategory ? (
+            <div className="app-recommendation-results">
+              <button
+                type="button"
+                className="app-recommendation-back"
+                onClick={() => setRecommendationCategory(null)}
+              >
+                <ArrowLeft aria-hidden /> 重新选择场景
+              </button>
+              <div className="app-recommendation-context">
+                <span className="app-recommendation-context-icon"><CategoryIcon category={recommendationCategory} /></span>
+                <div>
+                  <strong>{recommendationCategory}</strong>
+                  <small>{recommendationTools.length} 个推荐工具</small>
+                </div>
+              </div>
+              <div className="app-recommendation-tool-grid">
+                {recommendationTools.map((tool) => {
+                  const Icon = tool.icon;
+                  return (
+                    <article key={tool.name} className={`app-recommendation-tool is-${tool.accent}`}>
+                      <span className="app-recommendation-tool-icon"><Icon aria-hidden /></span>
+                      <div>
+                        <h3>{tool.name}</h3>
+                        <p>{tool.description}</p>
+                      </div>
+                      <Link
+                        href={`/studio?entry=application-catalog&tool=${encodeURIComponent(tool.name)}`}
+                        onClick={() => setRecommendationOpen(false)}
+                      >
+                        立即使用 <ChevronRight aria-hidden />
+                      </Link>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="app-recommendation-categories">
+              <div className="app-recommendation-category-grid">
+                {categories.map((category) => {
+                  const Icon = category.icon;
+                  return (
+                    <button
+                      key={category.name}
+                      type="button"
+                      className="app-recommendation-category"
+                      onClick={() => setRecommendationCategory(category.name)}
+                    >
+                      <span className="app-recommendation-category-icon"><Icon aria-hidden /></span>
+                      <span className="app-recommendation-category-copy">
+                        <strong>{category.name}</strong>
+                        <small>{category.appCount} 个应用 · {category.skillCount} 项技能</small>
+                      </span>
+                      <ChevronRight aria-hidden />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+    </>
   );
 }
 
@@ -244,4 +338,9 @@ function ToolCard({ tool }: { tool: Tool }) {
       <Link href={`/studio?entry=application-catalog&tool=${encodeURIComponent(tool.name)}`}>立即使用</Link>
     </article>
   );
+}
+
+function CategoryIcon({ category }: { category: ToolCategory }) {
+  const Icon = categories.find((item) => item.name === category)?.icon ?? Sparkles;
+  return <Icon aria-hidden />;
 }

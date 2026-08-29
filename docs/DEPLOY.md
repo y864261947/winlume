@@ -205,7 +205,7 @@ location / {
     proxy_buffering off;
     proxy_read_timeout 3600;
     # Portal admin images are stored as data URLs in the JSON payload.
-    client_max_body_size 8m;
+    client_max_body_size 32m;
 }
 ```
 

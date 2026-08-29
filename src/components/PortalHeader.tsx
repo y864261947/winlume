@@ -37,7 +37,7 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/portal/content", { cache: "no-store" })
+    fetch(`/api/portal/content?v=${Date.now()}`, { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((content: { notifications?: Array<{ id: string; title: string; body: string; href: string; enabled?: boolean }> } | null) => {
         if (cancelled) return;
