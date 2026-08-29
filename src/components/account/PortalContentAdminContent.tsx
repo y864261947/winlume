@@ -1043,7 +1043,10 @@ export default function PortalContentAdminContent() {
     setError("");
     try {
       const [settings, catalog] = await Promise.all([
-        fetch("/api/admin/portal-content", { credentials: "same-origin" }),
+        fetch(`/api/admin/portal-content?v=${Date.now()}`, {
+          credentials: "same-origin",
+          cache: "no-store",
+        }),
         fetch("/api/catalog/plaza", {
           credentials: "same-origin",
           cache: "no-store",
@@ -1086,7 +1089,16 @@ export default function PortalContentAdminContent() {
         method: "PUT",
         headers: { "content-type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify(content),
+        body: JSON.stringify({
+          section: section === "carousel" ? "carousel"
+            : section === "applications" ? "applicationShowcase"
+              : section === "capabilities" ? "capabilityShowcase"
+                : section === "notifications" ? "notifications" : "modelVendors",
+          value: section === "carousel" ? content.carousel
+            : section === "applications" ? content.applicationShowcase
+              : section === "capabilities" ? content.capabilityShowcase
+                : section === "notifications" ? content.notifications : content.modelVendors,
+        }),
       });
       const body = await readPortalResponse<PortalContent & {
         error?: string;

@@ -316,7 +316,7 @@ html[data-studio-theme="dark"] .login-modal-notice {
 }
 
 /* Admin-managed homepage showcase images. */
-.portal-managed-showcase-image { position: absolute; inset: 0; display: block; overflow: hidden; }
+.portal-managed-showcase-image { position: absolute; z-index: 0; inset: -2px; display: block; overflow: hidden; border-radius: inherit; }
 .portal-managed-showcase-image img,
 .portal-managed-capability-image { object-fit: cover; }
 .portal-managed-showcase-image img {
@@ -325,6 +325,7 @@ html[data-studio-theme="dark"] .login-modal-notice {
   height: 100%;
   max-width: none;
   object-fit: cover;
+  transform: scale(1.015);
 }
 .portal-home .portal-app-showcase-v2 .portal-featured-app-card,
 .portal-home .portal-app-showcase-v2 .portal-app-support-card {
@@ -8067,9 +8068,11 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
 .portal-home .portal-workbench-button { min-height:60px; padding:0 22px; border-color:#0a4aab; border-radius:14px; color:#fff; background:linear-gradient(135deg,#0b4fb8,#073c91); box-shadow:0 16px 28px -18px rgba(5,55,135,.78); font-weight:800; }
 .portal-home .portal-workbench-button:hover { color:#fff; background:linear-gradient(135deg,#0d5ed2,#0845a4); }
 .portal-home .portal-workbench-button svg { width:18px; height:18px; }
-.portal-managed-showcase-image { position:absolute; inset:0; display:block; overflow:hidden; }
+.portal-managed-showcase-image { position:absolute; z-index:0; inset:-2px; display:block; overflow:hidden; border-radius:inherit; }
 .portal-managed-showcase-image img,.portal-managed-capability-image { object-fit:cover; }
 .portal-featured-app-card>.portal-managed-showcase-image,.portal-app-support-card>.portal-managed-showcase-image { z-index:0; }
+.portal-home .portal-featured-app-card,
+.portal-home .portal-app-support-card { padding: 0 !important; }
 .portal-capability-hero.has-managed-image::after { position:absolute; z-index:1; inset:25% 0 0; background:linear-gradient(180deg,transparent,rgba(5,13,30,.82)); content:""; }
 .portal-capability-hero.has-managed-image>span:last-child { position:absolute; right:21px; bottom:20px; left:21px; }
 @media (min-width:1181px) { .portal-home .portal-tool-card img { grid-column:1; grid-row:1 / 3; align-self:center; justify-self:center; } }

@@ -195,16 +195,44 @@ jobs:
           sudo -n systemctl disable winlume 2>/dev/null || true
           sudo -n systemctl restart reizo
           # The portal content manager persists uploaded images in its JSON
-          # request. Keep the live aaPanel vhost above the 1 MB nginx default.
-          nginx_conf=/www/server/nginx/conf/winlume.v2api.top.conf
-          if [ -f "$nginx_conf" ]; then
-            if grep -Eq '^[[:space:]]*client_max_body_size[[:space:]]' "$nginx_conf"; then
-              sudo -n sed -i -E 's/^[[:space:]]*client_max_body_size[[:space:]]+.*/    client_max_body_size 8m;/' "$nginx_conf"
-            else
-              sudo -n sed -i '/proxy_pass/a\    client_max_body_size 8m;' "$nginx_conf"
-            fi
-            sudo -n /www/server/nginx/sbin/nginx -t
-            sudo -n /www/server/nginx/sbin/nginx -s reload
+          # request. Keep the live vhost above nginx's 1 MB default. The
+          # runtime has used both aaPanel and Ubuntu nginx layouts, so inspect
+          # both instead of silently skipping the active configuration.
+          nginx_bin=/usr/sbin/nginx
+          if [ -x /www/server/nginx/sbin/nginx ]; then
+            nginx_bin=/www/server/nginx/sbin/nginx
+          elif ! command -v "$nginx_bin" >/dev/null 2>&1; then
+            nginx_bin=$(command -v nginx || true)
+          fi
+          nginx_targets=()
+          for candidate in \
+            /www/server/nginx/conf/winlume.v2api.top.conf \
+            /etc/nginx/sites-enabled/winlume.v2api.top.conf \
+            /etc/nginx/sites-enabled/reizo.v2api.top.conf \
+            /etc/nginx/conf.d/winlume.v2api.top.conf \
+            /etc/nginx/conf.d/reizo.v2api.top.conf; do
+            if [ -f "$candidate" ]; then nginx_targets+=("$candidate"); fi
+          done
+          # Also discover renamed/generated vhosts by their server_name. This
+          # catches Ubuntu sites-enabled files and aaPanel generated names.
+          while IFS= read -r candidate; do
+            case " ${nginx_targets[*]} " in
+              *" $candidate "*) ;;
+              *) nginx_targets+=("$candidate") ;;
+            esac
+          done < <(sudo -n grep -RIl --include='*.conf' -E 'server_name[^;]*(winlume|reizo)\.v2api\.top' /etc/nginx /www/server/nginx/conf 2>/dev/null || true)
+          if [ "${#nginx_targets[@]}" -gt 0 ] && [ -n "$nginx_bin" ]; then
+            for nginx_conf in "${nginx_targets[@]}"; do
+              if grep -Eq '^[[:space:]]*client_max_body_size[[:space:]]' "$nginx_conf"; then
+                sudo -n sed -i -E 's/^[[:space:]]*client_max_body_size[[:space:]]+.*/    client_max_body_size 32m;/' "$nginx_conf"
+              else
+                sudo -n sed -i '/^[[:space:]]*server[[:space:]]*{/a\    client_max_body_size 32m;' "$nginx_conf"
+              fi
+            done
+            sudo -n "$nginx_bin" -t
+            sudo -n "$nginx_bin" -s reload
+          else
+            echo 'Warning: nginx vhost was not found; portal upload size was not updated.' >&2
           fi
           # next-server may need a few seconds after systemd reports active
           code="000"

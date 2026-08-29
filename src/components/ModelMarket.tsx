@@ -717,7 +717,7 @@ export default function ModelMarket() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/portal/content", { cache: "no-store" })
+    fetch(`/api/portal/content?v=${Date.now()}`, { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((content: { carousel?: Array<{ id: string; imageUrl: string; alt: string; href: string; enabled?: boolean }>; applicationShowcase?: ManagedApplicationShowcase[]; capabilityShowcase?: ManagedCapabilityShowcase[] } | null) => {
         const slides = (content?.carousel ?? []).filter((slide) => slide.enabled !== false && slide.imageUrl && slide.alt).map((slide) => ({ id: slide.id, src: slide.imageUrl, alt: slide.alt, href: slide.href || "/products?cate=api" }));
