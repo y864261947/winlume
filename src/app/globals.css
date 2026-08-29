@@ -9032,3 +9032,200 @@ html[data-studio-theme="dark"] .composer-mode-menu {
     transform: none;
   }
 }
+
+/* ========================================================================
+   Responsive layout contract
+
+   Keep the public portal on one centered canvas. Older rules above represent
+   several visual iterations and intentionally remain untouched; this final
+   layer owns the geometry so viewport changes do not introduce manual side
+   offsets or mismatched card edges.
+   ======================================================================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.portal-home {
+  overflow-x: clip;
+}
+
+.portal-home .portal-frame {
+  width: min(1500px, calc(100% - clamp(24px, 5vw, 64px)));
+  margin-inline: auto;
+  padding-inline: 0;
+}
+
+/* The homepage rows share exactly the same tracks and gap. */
+.portal-home {
+  --portal-layout-gap: 14px;
+  --portal-dashboard-columns:
+    minmax(280px, .92fr)
+    minmax(420px, 1.25fr)
+    minmax(280px, .9fr);
+}
+
+.portal-home .portal-search-row,
+.portal-home .portal-discovery-grid {
+  column-gap: var(--portal-layout-gap);
+}
+
+@media (min-width: 1181px) {
+  .portal-home .portal-search-row {
+    grid-template-columns: var(--portal-dashboard-columns);
+    gap: var(--portal-layout-gap);
+  }
+
+  .portal-home .portal-discovery-grid {
+    grid-template-columns: var(--portal-dashboard-columns);
+    grid-template-rows: 360px 184px;
+    gap: var(--portal-layout-gap);
+  }
+
+  .portal-home .portal-search-card,
+  .portal-home .portal-enterprise-card.portal-search-aside {
+    height: 296px;
+  }
+
+  .portal-home .portal-search-waves {
+    height: 296px !important;
+  }
+
+  .portal-home .portal-search-card {
+    grid-column: 1 / 3;
+  }
+
+  .portal-home .portal-search-aside {
+    grid-column: 3;
+  }
+}
+
+/* A two-column tablet dashboard keeps the API and tool surfaces aligned. */
+@media (min-width: 821px) and (max-width: 1180px) {
+  .portal-home .portal-frame {
+    width: calc(100% - 32px);
+  }
+
+  .portal-home .portal-search-row {
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 320px);
+    gap: var(--portal-layout-gap);
+  }
+
+  .portal-home .portal-search-card {
+    grid-column: 1;
+  }
+
+  .portal-home .portal-search-aside {
+    grid-column: 2;
+  }
+
+  .portal-home .portal-search-card,
+  .portal-home .portal-enterprise-card.portal-search-aside {
+    height: 264px;
+  }
+
+  .portal-home .portal-search-waves {
+    height: 264px !important;
+  }
+
+  .portal-home .portal-discovery-grid {
+    grid-template-columns: minmax(0, .94fr) minmax(0, 1.06fr);
+    grid-template-rows: 360px 184px 190px 184px;
+    gap: var(--portal-layout-gap);
+  }
+
+  .portal-home .portal-discovery-grid > .portal-api-card {
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+
+  .portal-home .portal-discovery-grid > .portal-tools-card {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  .portal-home .portal-discovery-grid > .portal-featured-card {
+    grid-column: 1 / 3;
+    grid-row: 3;
+  }
+
+  .portal-home .portal-discovery-grid > .portal-side-cards {
+    grid-column: 1 / 3;
+    grid-row: 4;
+  }
+}
+
+/* Compact tablets and phones use content-driven heights, so copy never gets
+   clipped when browser zoom or font metrics differ between machines. */
+@media (max-width: 820px) {
+  .portal-home .portal-frame {
+    width: calc(100% - 24px);
+  }
+
+  .portal-home .portal-search-card {
+    height: auto;
+    min-height: 300px;
+  }
+
+  .portal-home .portal-search-waves {
+    height: 100% !important;
+  }
+
+  .portal-home .portal-enterprise-card.portal-search-aside {
+    height: 220px;
+  }
+
+  .portal-home .portal-discovery-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .portal-home .portal-frame {
+    width: calc(100% - 24px);
+    padding-inline: 0;
+  }
+
+  .portal-home .portal-search-card {
+    min-height: 354px;
+  }
+
+  .portal-home .portal-enterprise-card.portal-search-aside {
+    height: 220px;
+  }
+
+  .portal-home .portal-search-waves {
+    height: 100% !important;
+  }
+}
+
+/* Flyouts size from the API card instead of the viewport, avoiding drift on
+   wide monitors while retaining the fixed mobile dialog treatment above. */
+@media (min-width: 761px) {
+  .portal-home .portal-api-touch-card {
+    left: calc(100% + 14px);
+    width: min(720px, calc(100% + 400px));
+    max-width: calc(100vw - 32px);
+  }
+}
+
+/* Directory pages use the same centered frame and a fluid, bounded sidebar. */
+.portal-directory-layout {
+  grid-template-columns: clamp(220px, 20vw, 292px) minmax(0, 1fr) !important;
+  gap: 20px;
+}
+
+@media (max-width: 1180px) {
+  .portal-directory-layout {
+    grid-template-columns: clamp(220px, 23vw, 260px) minmax(0, 1fr) !important;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 760px) {
+  .portal-directory-layout {
+    display: block;
+  }
+}
