@@ -218,7 +218,11 @@ function SkillStrip({ category }: { category: ToolCategory | "全部应用" }) {
       </div>
       <div className="app-skill-grid" aria-label="Skills 技能列表">
         {skills.map((skill, index) => (
-          <Link key={skill.name} className={index === 0 ? "is-featured" : undefined} href={`/studio/skills?q=${encodeURIComponent(skill.name)}`}>
+          <Link
+            key={skill.name}
+            className={index === 0 ? "is-featured" : undefined}
+            href={`/studio?entry=application-catalog&skillName=${encodeURIComponent(skill.name)}`}
+          >
             <span className="app-skill-index">{String(index + 1).padStart(2, "0")}</span>
             <strong>{skill.name}</strong>
             <small>{index === 0 ? "精选技能" : "技能"}</small>
@@ -239,7 +243,7 @@ function ToolCard({ tool }: { tool: Tool }) {
         <h3>{tool.name}</h3>
         <p>{tool.description}</p>
       </div>
-      <Link href={`/studio?entry=tool-directory&tool=${encodeURIComponent(tool.name)}`}>立即使用</Link>
+      <Link href={`/studio?entry=application-catalog&tool=${encodeURIComponent(tool.name)}`}>立即使用</Link>
     </article>
   );
 }

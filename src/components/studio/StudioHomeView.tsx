@@ -178,12 +178,18 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
     const timer = window.setTimeout(() => {
       const prompt = searchParams.get("prompt");
       const skill = searchParams.get("skill");
+      const skillName = searchParams.get("skillName")?.trim();
+      const tool = searchParams.get("tool")?.trim();
       const modelParam = searchParams.get("model")?.trim();
       const presetParam = searchParams.get("preset");
       if (prompt) {
         const usable = usableComposerPrompt(prompt);
         if (usable) setDraft(usable);
         else setDraft("");
+      } else if (tool) {
+        setDraft(`请使用${tool}完成这个任务`);
+      } else if (skillName) {
+        setDraft(`请使用${skillName}完成这个任务`);
       }
       if (skill) setSelectedSkillIds([skill]);
       setModel(getDefaultModel());
