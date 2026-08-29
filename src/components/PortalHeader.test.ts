@@ -52,4 +52,10 @@ describe("portal top navigation", () => {
       expect(source).not.toContain("portal-main-links");
     }
   });
+
+  it("logs out through the modal provider so the visible account state is cleared", () => {
+    expect(navSource).toContain("const { account, openLogin, openMembership, signOut: signOutAccount } = useModals();");
+    expect(navSource).toContain("await signOutAccount();");
+    expect(navSource).not.toContain('import { logout } from "@/lib/account";');
+  });
 });

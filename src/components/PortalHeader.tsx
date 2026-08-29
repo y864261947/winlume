@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { Bell, Bot, ChevronDown, ChevronRight, Crown, KeyRound, LayoutDashboard, LogOut, WalletCards } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useModals } from "@/components/providers";
-import { logout } from "@/lib/account";
 import { getUnreadPortalNotifications, markPortalNotificationsRead } from "@/lib/portal/notification-read";
 
 type NavItem = {
@@ -24,7 +23,7 @@ const navItems: NavItem[] = [
 export default function PortalHeader({ productMode }: { productMode?: "app" | "api" }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { account, openLogin, openMembership } = useModals();
+  const { account, openLogin, openMembership, signOut: signOutAccount } = useModals();
   const [notice, setNotice] = useState("");
   const [apiMenuOpen, setApiMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -54,8 +53,8 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
     return () => { cancelled = true; };
   }, []);
 
-  async function signOut() {
-    await logout();
+  async function handleSignOut() {
+    await signOutAccount();
     router.push("/");
     router.refresh();
   }
@@ -150,7 +149,7 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
                   <Link href="/account/keys"><KeyRound aria-hidden />API Key</Link>
                   <Link href="/account/wallet"><WalletCards aria-hidden />钱包</Link>
                   <Link href="/studio"><Bot aria-hidden />工作区</Link>
-                  <button type="button" onClick={() => void signOut()}><LogOut aria-hidden />退出登录</button>
+                  <button type="button" onClick={() => void handleSignOut()}><LogOut aria-hidden />退出登录</button>
                 </div>
               </div>
             ) : (
