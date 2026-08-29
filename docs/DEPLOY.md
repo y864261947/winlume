@@ -204,6 +204,8 @@ location / {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_buffering off;
     proxy_read_timeout 3600;
+    # Portal admin images are stored as data URLs in the JSON payload.
+    client_max_body_size 8m;
 }
 ```
 

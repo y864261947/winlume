@@ -25,6 +25,7 @@ import {
   ConsolePage,
 } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
+import { PORTAL_IMAGE_MAX_FILE_BYTES } from "@/lib/portal/content-limits";
 
 type Category = "llm" | "image" | "audio" | "video" | "embed" | "other";
 type Slide = {
@@ -199,8 +200,10 @@ async function readImage(
 ) {
   const file = event.target.files?.[0];
   if (!file) return;
-  if (!file.type.startsWith("image/") || file.size > 700_000)
-    throw new Error("请上传 700KB 以内的图片文件，保证完整保存与快速加载。");
+  if (!file.type.startsWith("image/"))
+    throw new Error("请上传图片文件。");
+  if (file.size > PORTAL_IMAGE_MAX_FILE_BYTES)
+    throw new Error("请上传 5MB 以内的图片文件，保证完整保存与快速加载。");
   const reader = new FileReader();
   reader.onload = () =>
     typeof reader.result === "string" && onRead(reader.result);

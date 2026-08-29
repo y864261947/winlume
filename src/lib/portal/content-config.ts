@@ -1,4 +1,5 @@
 import { getPlatformRepositories } from "@/lib/platform/repositories";
+import { PORTAL_IMAGE_MAX_DATA_URL_LENGTH } from "@/lib/portal/content-limits";
 
 export const PORTAL_CONTENT_KEY = "public-portal";
 export const PORTAL_MODEL_CATEGORIES = ["llm", "image", "audio", "video", "embed", "other"] as const;
@@ -50,7 +51,7 @@ export function normalizePortalContent(input: unknown): PortalContentConfig {
   const raw = input && typeof input === "object" ? input as Record<string, unknown> : {};
   const carousel = Array.isArray(raw.carousel) ? raw.carousel.slice(0, 12).flatMap((item, index) => {
     const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
-    const imageUrl = string(row.imageUrl, 1_000_000); const alt = string(row.alt, 120); const href = string(row.href, 500) || "/";
+    const imageUrl = string(row.imageUrl, PORTAL_IMAGE_MAX_DATA_URL_LENGTH); const alt = string(row.alt, 120); const href = string(row.href, 500) || "/";
     return imageUrl && alt ? [{ id: id(row.id, `slide-${index + 1}`), imageUrl, alt, href, enabled: row.enabled !== false }] : [];
   }) : defaultPortalContent.carousel;
   const notifications = Array.isArray(raw.notifications) ? raw.notifications.slice(0, 30).flatMap((item, index) => {
@@ -66,15 +67,15 @@ export function normalizePortalContent(input: unknown): PortalContentConfig {
       const modelName = string(data.name, 120);
       return modelName ? [{ name: modelName, endpointTypes: Array.isArray(data.endpointTypes) ? data.endpointTypes.map((value) => string(value, 40)).filter(Boolean).slice(0, 8) : ["chat"], description: string(data.description, 300) || undefined }] : [];
     }) : [];
-    return name && models.length ? [{ id: id(row.id, `vendor-${index + 1}`), name, key, logoUrl: string(row.logoUrl, 1_000_000) || "/vendors/other.svg", category: category(row.category), enabled: row.enabled !== false, models }] : [];
+    return name && models.length ? [{ id: id(row.id, `vendor-${index + 1}`), name, key, logoUrl: string(row.logoUrl, PORTAL_IMAGE_MAX_DATA_URL_LENGTH) || "/vendors/other.svg", category: category(row.category), enabled: row.enabled !== false, models }] : [];
   }) : [];
   const applicationShowcase = Array.isArray(raw.applicationShowcase) ? raw.applicationShowcase.slice(0, 20).flatMap((item, index) => {
     const row = item && typeof item === "object" ? item as Record<string, unknown> : {}; const title = string(row.title, 100);
-    return title ? [{ id: id(row.id, `application-${index + 1}`), title, href: string(row.href, 500) || "/products?cate=app", imageUrl: string(row.imageUrl, 1_000_000), group: applicationGroup(row.group), enabled: row.enabled !== false }] : [];
+    return title ? [{ id: id(row.id, `application-${index + 1}`), title, href: string(row.href, 500) || "/products?cate=app", imageUrl: string(row.imageUrl, PORTAL_IMAGE_MAX_DATA_URL_LENGTH), group: applicationGroup(row.group), enabled: row.enabled !== false }] : [];
   }) : defaultPortalContent.applicationShowcase;
   const capabilityShowcase = Array.isArray(raw.capabilityShowcase) ? raw.capabilityShowcase.slice(0, 8).flatMap((item, index) => {
     const row = item && typeof item === "object" ? item as Record<string, unknown> : {}; const title = string(row.title, 100);
-    return title ? [{ id: id(row.id, `capability-${index + 1}`), title, eyebrow: string(row.eyebrow, 60), href: string(row.href, 500) || "/", imageUrl: string(row.imageUrl, 1_000_000), tone: capabilityTone(row.tone), enabled: row.enabled !== false }] : [];
+    return title ? [{ id: id(row.id, `capability-${index + 1}`), title, eyebrow: string(row.eyebrow, 60), href: string(row.href, 500) || "/", imageUrl: string(row.imageUrl, PORTAL_IMAGE_MAX_DATA_URL_LENGTH), tone: capabilityTone(row.tone), enabled: row.enabled !== false }] : [];
   }) : defaultPortalContent.capabilityShowcase;
   return { carousel: carousel.length ? carousel : defaultPortalContent.carousel, notifications, modelVendors, applicationShowcase, capabilityShowcase };
 }
