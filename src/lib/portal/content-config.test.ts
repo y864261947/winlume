@@ -8,6 +8,12 @@ describe("portal content configuration", () => {
     expect(content.capabilityShowcase).toEqual(defaultPortalContent.capabilityShowcase);
   });
 
+  it("keeps fallback showcases when stored sections are empty", () => {
+    const content = normalizePortalContent({ applicationShowcase: [], capabilityShowcase: [] });
+    expect(content.applicationShowcase).toEqual(defaultPortalContent.applicationShowcase);
+    expect(content.capabilityShowcase).toEqual(defaultPortalContent.capabilityShowcase);
+  });
+
   it("normalizes configurable tools, images, groups and capability tones", () => {
     const content = normalizePortalContent({
       applicationShowcase: [{ id: "custom app", title: "自定义工具", href: "/studio/tools/demo", imageUrl: "data:image/png;base64,abc", group: "latest", enabled: false }],

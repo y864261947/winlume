@@ -77,7 +77,13 @@ export function normalizePortalContent(input: unknown): PortalContentConfig {
     const row = item && typeof item === "object" ? item as Record<string, unknown> : {}; const title = string(row.title, 100);
     return title ? [{ id: id(row.id, `capability-${index + 1}`), title, eyebrow: string(row.eyebrow, 60), href: string(row.href, 500) || "/", imageUrl: string(row.imageUrl, PORTAL_IMAGE_MAX_DATA_URL_LENGTH), tone: capabilityTone(row.tone), enabled: row.enabled !== false }] : [];
   }) : defaultPortalContent.capabilityShowcase;
-  return { carousel: carousel.length ? carousel : defaultPortalContent.carousel, notifications, modelVendors, applicationShowcase, capabilityShowcase };
+  return {
+    carousel: carousel.length ? carousel : defaultPortalContent.carousel,
+    notifications,
+    modelVendors,
+    applicationShowcase: applicationShowcase.length ? applicationShowcase : defaultPortalContent.applicationShowcase,
+    capabilityShowcase: capabilityShowcase.length ? capabilityShowcase : defaultPortalContent.capabilityShowcase,
+  };
 }
 
 export async function getPortalContent(): Promise<PortalContentConfig> {

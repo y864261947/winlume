@@ -724,8 +724,14 @@ export default function ModelMarket() {
       .then((content: { carousel?: Array<{ id: string; imageUrl: string; alt: string; href: string; enabled?: boolean }>; applicationShowcase?: ManagedApplicationShowcase[]; capabilityShowcase?: ManagedCapabilityShowcase[] } | null) => {
         const slides = (content?.carousel ?? []).filter((slide) => slide.enabled !== false && slide.imageUrl && slide.alt).map((slide) => ({ id: slide.id, src: slide.imageUrl, alt: slide.alt, href: slide.href || "/products?cate=api" }));
         if (!cancelled && slides.length) { setFeaturedSlides(slides); setFeaturedIndex(0); }
-        if (!cancelled && Array.isArray(content?.applicationShowcase)) setManagedApplications(content.applicationShowcase);
-        if (!cancelled && Array.isArray(content?.capabilityShowcase)) setManagedCapabilities(content.capabilityShowcase);
+        // Keep the immediately rendered fallback cards when an older or empty
+        // portal-content record is returned during publish/sync.
+        if (!cancelled && Array.isArray(content?.applicationShowcase) && content.applicationShowcase.length) {
+          setManagedApplications(content.applicationShowcase);
+        }
+        if (!cancelled && Array.isArray(content?.capabilityShowcase) && content.capabilityShowcase.length) {
+          setManagedCapabilities(content.capabilityShowcase);
+        }
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
