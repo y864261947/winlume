@@ -10,8 +10,17 @@ import {
 import Modal, { ModalCloseButton } from "./Modal";
 import { catalogAccentStyle, skillMonogram } from "@/lib/studio/skill-mark";
 import type { SkillMeta } from "@/lib/agent/types";
+import {
+  applicationCatalogSkillHref,
+  portalCategoryFromSkill,
+  portalSkillCountsFromCatalogs,
+  portalSkillsHref,
+  skillsForPortalCategory,
+  type PortalToolCategory,
+} from "@/lib/portal/application-directory-skills";
+import { getStudioToolCategory, skillDepartmentToToolCategory } from "@/lib/studio/tool-categories";
 
-type ToolCategory = "内容与营销" | "视觉与媒体" | "电商与销售" | "财务与法务" | "产品与研发" | "办公与管理" | "数据与科研" | "开发与代码";
+type ToolCategory = PortalToolCategory;
 
 type Tool = {
   name: string;
@@ -59,28 +68,28 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
   const [query, setQuery] = useState(initialQuery);
   const [recommendationOpen, setRecommendationOpen] = useState(false);
   const [recommendationCategory, setRecommendationCategory] = useState<ToolCategory | null>(null);
-  const [skillIconMap, setSkillIconMap] = useState<Record<string, string>>({});
+  const [catalogSkills, setCatalogSkills] = useState<SkillMeta[]>([]);
+  const [catalogCounts, setCatalogCounts] = useState<Record<ToolCategory, number> | null>(null);
+  const [skillsLoading, setSkillsLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/skills?limit=100", { credentials: "same-origin" })
+    fetch("/api/skills", { credentials: "same-origin" })
       .then((response) => response.ok ? response.json() : null)
-      .then((payload: { skills?: SkillMeta[] } | null) => {
+      .then((payload: { skills?: SkillMeta[]; catalogs?: Array<{ id: string; count: number }> } | null) => {
         if (cancelled) return;
-        const skills = (payload?.skills ?? []).filter((skill) => skill.iconUrl);
-        const next: Record<string, string> = {};
-        for (const skill of skills) {
-          if (skill.iconUrl) next[skillIconKey(skill.name)] = skill.iconUrl;
-        }
-        for (const skill of allPortalSkills) {
-          const exact = next[skillIconKey(skill.name)];
-          if (exact) continue;
-          const related = skills.find((item) => skillIconRelated(item, skill));
-          if (related?.iconUrl) next[skillIconKey(skill.name)] = related.iconUrl;
-        }
-        setSkillIconMap(next);
+        setCatalogSkills(payload?.skills ?? []);
+        setCatalogCounts(portalSkillCountsFromCatalogs(payload?.catalogs ?? []));
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) {
+          setCatalogSkills([]);
+          setCatalogCounts(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSkillsLoading(false);
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -138,7 +147,7 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
               <Icon aria-hidden />
               <span>
                 <strong>{category.name}</strong>
-                <small>应用 {category.appCount} · Skills {category.skillCount}</small>
+                <small>应用 {category.appCount} · Skills {catalogCounts?.[category.name] ?? category.skillCount}</small>
               </span>
               <ChevronRight aria-hidden />
             </button>
@@ -186,7 +195,7 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
           {visible.length === 0 ? <div className="app-directory-empty">没有匹配的应用工具，试试搜索其他任务或切换分类。</div> : null}
         </section>
 
-        <SkillStrip category={activeCategory} iconMap={skillIconMap} />
+        <SkillStrip category={activeCategory} skills={catalogSkills} loading={skillsLoading} query={query} />
       </div>
       </section>
 
@@ -257,7 +266,7 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
                       <span className="app-recommendation-category-icon"><Icon aria-hidden /></span>
                       <span className="app-recommendation-category-copy">
                         <strong>{category.name}</strong>
-                        <small>{category.appCount} 个应用 · {category.skillCount} 项技能</small>
+                        <small>{category.appCount} 个应用 · {catalogCounts?.[category.name] ?? category.skillCount} 项技能</small>
                       </span>
                       <ChevronRight aria-hidden />
                     </button>
@@ -272,104 +281,11 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
   );
 }
 
-const featuredSkills: Array<{ name: string; category: ToolCategory }> = [
-  { name: "SEO 内容优化", category: "内容与营销" },
-  { name: "财务报表分析", category: "财务与法务" },
-  { name: "合同风险识别", category: "财务与法务" },
-  { name: "小红书文案", category: "内容与营销" },
-  { name: "PPT 排版优化", category: "办公与管理" },
-  { name: "数据清洗", category: "数据与科研" },
-  { name: "PRD 生成", category: "产品与研发" },
-  { name: "邮件跟进", category: "办公与管理" },
-  { name: "会议纪要", category: "办公与管理" },
-  { name: "竞品研究", category: "数据与科研" },
-  { name: "商品标题优化", category: "电商与销售" },
-  { name: "代码审阅", category: "开发与代码" },
-];
-
-const skillsByCategory: Record<ToolCategory, Array<{ name: string; category: ToolCategory }>> = {
-  "内容与营销": [
-    { name: "SEO 内容优化", category: "内容与营销" }, { name: "小红书文案", category: "内容与营销" },
-    { name: "品牌内容改写", category: "内容与营销" }, { name: "邮件营销文案", category: "内容与营销" },
-  ],
-  "视觉与媒体": [
-    { name: "海报视觉提案", category: "视觉与媒体" }, { name: "图片抠图与修复", category: "视觉与媒体" },
-    { name: "短视频分镜", category: "视觉与媒体" }, { name: "视频字幕优化", category: "视觉与媒体" },
-  ],
-  "电商与销售": [
-    { name: "商品标题优化", category: "电商与销售" }, { name: "商品详情页", category: "电商与销售" },
-    { name: "用户画像生成", category: "电商与销售" }, { name: "销售话术设计", category: "电商与销售" },
-  ],
-  "财务与法务": [
-    { name: "财务报表分析", category: "财务与法务" }, { name: "合同风险识别", category: "财务与法务" },
-    { name: "发票信息整理", category: "财务与法务" }, { name: "合规检查清单", category: "财务与法务" },
-  ],
-  "产品与研发": [
-    { name: "PRD 生成", category: "产品与研发" }, { name: "需求拆解", category: "产品与研发" },
-    { name: "用户故事编写", category: "产品与研发" }, { name: "竞品功能分析", category: "产品与研发" },
-  ],
-  "办公与管理": [
-    { name: "PPT 排版优化", category: "办公与管理" }, { name: "邮件跟进", category: "办公与管理" },
-    { name: "会议纪要", category: "办公与管理" }, { name: "文档摘要整理", category: "办公与管理" },
-  ],
-  "数据与科研": [
-    { name: "数据清洗", category: "数据与科研" }, { name: "研究报告生成", category: "数据与科研" },
-    { name: "数据可视化解读", category: "数据与科研" }, { name: "竞品研究", category: "数据与科研" },
-  ],
-  "开发与代码": [
-    { name: "代码审阅", category: "开发与代码" }, { name: "API 文档生成", category: "开发与代码" },
-    { name: "单元测试编写", category: "开发与代码" }, { name: "SQL 优化", category: "开发与代码" },
-  ],
-};
-
-const skillDescriptions: Record<string, string> = {
-  "SEO 内容优化": "围绕关键词生成结构清晰、适合搜索引擎的内容方案。",
-  "小红书文案": "生成适合小红书发布的标题、正文和互动话术。",
-  "品牌内容改写": "统一品牌语气，快速改写并优化现有内容。",
-  "邮件营销文案": "编写营销邮件、跟进邮件与转化导向的主题内容。",
-  "海报视觉提案": "整理视觉方向、版式建议与可执行的海报创意。",
-  "图片抠图与修复": "处理抠图、瑕疵修复与基础图片优化任务。",
-  "短视频分镜": "把创意拆解为镜头、节奏和拍摄执行清单。",
-  "视频字幕优化": "校对字幕并优化断句、时间轴和多语言表达。",
-};
-
-const skillAccentByCategory: Record<ToolCategory, string> = {
-  "内容与营销": "#7c5ce4",
-  "视觉与媒体": "#2f8fd7",
-  "电商与销售": "#d98b25",
-  "财务与法务": "#278d74",
-  "产品与研发": "#596fd6",
-  "办公与管理": "#d05b72",
-  "数据与科研": "#438cbd",
-  "开发与代码": "#64748b",
-};
-
-const allPortalSkills = [...featuredSkills, ...Object.values(skillsByCategory).flat()]
-  .filter((skill, index, list) => list.findIndex((item) => item.name === skill.name) === index);
-
-function skillIconKey(value: string): string {
-  return value.trim().toLowerCase().replace(/[\s·・\-_/（）()，,。.!！？?]+/g, "");
-}
-
-function skillIconRelated(item: SkillMeta, target: { name: string; category: ToolCategory }): boolean {
-  const source = skillIconKey(item.name);
-  const wanted = skillIconKey(target.name);
-  if (source.length >= 3 && wanted.length >= 3 && (source.includes(wanted) || wanted.includes(source))) return true;
-  const departments: Record<ToolCategory, string[]> = {
-    "内容与营销": ["marketing", "paid-media"],
-    "视觉与媒体": ["design"],
-    "电商与销售": ["sales", "marketing"],
-    "财务与法务": ["finance", "legal"],
-    "产品与研发": ["product", "engineering"],
-    "办公与管理": ["project-management", "support"],
-    "数据与科研": ["academic", "gis"],
-    "开发与代码": ["engineering", "testing"],
-  };
-  return departments[target.category]?.includes(item.category) ?? false;
-}
-
 function SkillMark({ name, iconUrl }: { name: string; iconUrl?: string }) {
   const [broken, setBroken] = useState(false);
+  useEffect(() => {
+    setBroken(false);
+  }, [iconUrl]);
   const showImage = Boolean(iconUrl) && !broken;
   return (
     <span className="studio-catalog-mark" data-logo={showImage ? "true" : "false"} aria-hidden>
@@ -392,43 +308,82 @@ const toolAccentByName: Record<Tool["accent"], string> = {
   slate: "#64748b",
 };
 
-function SkillStrip({ category, iconMap }: { category: ToolCategory | "全部应用"; iconMap: Record<string, string> }) {
-  const skills = category === "全部应用" ? featuredSkills : skillsByCategory[category];
+function SkillStrip({
+  category,
+  skills,
+  loading,
+  query,
+}: {
+  category: ToolCategory | "全部应用";
+  skills: SkillMeta[];
+  loading: boolean;
+  query: string;
+}) {
+  const visible = useMemo(() => {
+    const value = query.trim().toLowerCase();
+    const matched = value
+      ? skills.filter((skill) => `${skill.name}${skill.description}`.toLowerCase().includes(value))
+      : skills;
+    return skillsForPortalCategory(matched, category);
+  }, [category, query, skills]);
 
   return (
     <section className="app-skill-strip" aria-labelledby="app-skill-strip-title">
       <div className="app-skill-strip-head">
         <h2 id="app-skill-strip-title">技能</h2>
         <div className="app-skill-strip-actions">
-          <Link href="/studio/skills">查看全部<ChevronRight aria-hidden /></Link>
+          <Link href={portalSkillsHref(category)}>查看全部<ChevronRight aria-hidden /></Link>
         </div>
       </div>
-      <div className="studio-catalog-grid app-directory-skill-grid" aria-label="Skills 技能列表">
-        {skills.map((skill) => {
-          const description = skillDescriptions[skill.name] ?? "面向实际工作场景的可复用技能，点击即可挂到工作台。";
-          return (
-            <Link
-            key={skill.name}
-            className="studio-catalog-card"
-            style={catalogAccentStyle(skillAccentByCategory[skill.category])}
-            href={`/studio?entry=application-catalog&skillName=${encodeURIComponent(skill.name)}`}
-          >
-            <div className="flex items-start gap-3">
-              <SkillMark name={skill.name} iconUrl={iconMap[skillIconKey(skill.name)]} />
-              <div className="min-w-0 flex-1">
-                <h3 className="line-clamp-2 text-sm font-semibold leading-5 tracking-tight text-ink-900">{skill.name}</h3>
-                <span className="mt-1 inline-block text-[11px] leading-4 text-ink-400">{skill.category}</span>
+      {loading && visible.length === 0 ? (
+        <div className="studio-catalog-grid app-directory-skill-grid" aria-busy="true" aria-label="正在加载技能">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div key={index} className="studio-catalog-card studio-catalog-card-skeleton" aria-hidden>
+              <div className="flex items-start gap-3">
+                <span className="studio-catalog-mark" />
+                <div className="min-w-0 flex-1 space-y-2 pt-1">
+                  <span className="block h-3.5 w-2/3 rounded-md bg-ink-300/25" />
+                  <span className="block h-2.5 w-14 rounded-md bg-ink-300/20" />
+                </div>
               </div>
             </div>
-            <p className="mt-3 line-clamp-2 text-[13px] leading-5 text-ink-500">{description}</p>
-            <span className="mt-auto inline-flex items-center gap-1 pt-4 text-[13px] font-medium text-ink-700">
-              挂到工作台
-              <ArrowRight className="studio-catalog-card-go h-3.5 w-3.5" />
-            </span>
-            </Link>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="app-directory-empty">该分类暂无技能。</div>
+      ) : (
+        <div className="studio-catalog-grid app-directory-skill-grid" aria-label="Skills 技能列表">
+          {visible.map((skill) => {
+            const tag = getStudioToolCategory(skillDepartmentToToolCategory(skill.category));
+            const description = skill.description || "面向实际工作场景的可复用技能，点击即可挂到工作台。";
+            return (
+              <Link
+                key={skill.id}
+                className="studio-catalog-card"
+                style={catalogAccentStyle(tag?.accent ?? "#64748b")}
+                href={applicationCatalogSkillHref(skill)}
+              >
+                <div className="flex items-start gap-3">
+                  <SkillMark name={skill.name} iconUrl={skill.iconUrl} />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="line-clamp-2 text-sm font-semibold leading-5 tracking-tight text-ink-900">{skill.name}</h3>
+                    {category === "全部应用" ? (
+                      <span className="mt-1 inline-block text-[11px] leading-4 text-ink-400">
+                        {portalCategoryFromSkill(skill)}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <p className="mt-3 line-clamp-2 text-[13px] leading-5 text-ink-500">{description}</p>
+                <span className="mt-auto inline-flex items-center gap-1 pt-4 text-[13px] font-medium text-ink-700">
+                  挂到工作台
+                  <ArrowRight className="studio-catalog-card-go h-3.5 w-3.5" />
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

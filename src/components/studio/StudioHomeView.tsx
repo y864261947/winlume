@@ -196,19 +196,40 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
         setCatalogContext({ kind: "skill", name: skillName });
         setDraft(`请使用${skillName}完成这个任务`);
       }
-      if (skill) setSelectedSkillIds([skill]);
-      if (!skill && skillName) {
+      if (skill) {
+        setSelectedSkillIds([skill]);
+        void fetch(`/api/skills?id=${encodeURIComponent(skill)}`, {
+          credentials: "same-origin",
+        })
+          .then(async (response) => {
+            if (!response.ok) return null;
+            return response.json() as Promise<{ skill?: { id: string; name: string; iconUrl?: string } }>;
+          })
+          .then((result) => {
+            if (cancelled || !result?.skill) return;
+            setCatalogContext((current) =>
+              current?.kind === "skill"
+                ? { ...current, name: result.skill!.name, iconUrl: result.skill!.iconUrl }
+                : current,
+            );
+          })
+          .catch(() => undefined);
+      } else if (skillName) {
         void fetch(`/api/skills?q=${encodeURIComponent(skillName)}&limit=20`, {
           credentials: "same-origin",
         })
           .then(async (response) => {
             if (!response.ok) return null;
-            return response.json() as Promise<{ skills?: Array<{ id: string; name: string }> }>;
+            return response.json() as Promise<{
+              skills?: Array<{ id: string; name: string; iconUrl?: string }>;
+            }>;
           })
           .then((result) => {
             if (cancelled || !result?.skills?.length) return;
             const exact = result.skills.find((item) => item.name.trim() === skillName);
-            if (exact) setSelectedSkillIds([exact.id]);
+            if (!exact) return;
+            setSelectedSkillIds([exact.id]);
+            setCatalogContext({ kind: "skill", name: exact.name, iconUrl: exact.iconUrl });
           })
           .catch(() => undefined);
       }

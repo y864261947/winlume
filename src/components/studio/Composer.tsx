@@ -124,7 +124,7 @@ import {
   type ImageSize,
 } from "@/lib/studio/composer-options";
 import { isGenericSkillPrompt } from "@/lib/studio/skill-prompt";
-import SkillChips from "./SkillChips";
+import SkillChips, { SkillChipMark } from "./SkillChips";
 import SkillSlashMenu, {
   activateSlashMenuItem,
   getSlashMenuItems,
@@ -290,6 +290,7 @@ export type ComposerSendMeta = {
 export type ComposerCatalogContext = {
   kind: "tool" | "skill";
   name: string;
+  iconUrl?: string;
 };
 
 /** A live turn already visible in the thread while the Composer prepares inputs. */
@@ -2019,7 +2020,13 @@ export default function Composer({
         ) : null}
 
         <SkillChips
-          turnIds={selectedIds}
+          turnIds={
+            catalogContext?.kind === "skill" &&
+            selectedIds.length > 0 &&
+            !selectedIds.some((id) => skillsById.has(id))
+              ? []
+              : selectedIds
+          }
           pinnedIds={pinnedIds}
           skillsById={skillsById}
           onRemoveTurn={removeSkill}
@@ -2027,16 +2034,24 @@ export default function Composer({
           disabled={disabled}
         />
 
-        {catalogContext && !(catalogContext.kind === "skill" && selectedIds.length > 0) ? (
+        {catalogContext &&
+        !(
+          catalogContext.kind === "skill" &&
+          selectedIds.some((id) => skillsById.has(id))
+        ) ? (
           <div className="studio-skill-chip-row" aria-label="已挂载目录上下文">
             <span className="studio-skill-chip" title={`来自应用工具目录：${catalogContext.name}`}>
-              <span className="studio-skill-chip-mark">
-                {catalogContext.kind === "skill" ? (
-                  <Sparkles className="h-3 w-3" aria-hidden />
-                ) : (
-                  <Zap className="h-3 w-3" aria-hidden />
-                )}
-              </span>
+              {catalogContext.kind === "skill" && catalogContext.iconUrl ? (
+                <SkillChipMark name={catalogContext.name} iconUrl={catalogContext.iconUrl} />
+              ) : (
+                <span className="studio-skill-chip-mark">
+                  {catalogContext.kind === "skill" ? (
+                    <Sparkles className="h-3 w-3" aria-hidden />
+                  ) : (
+                    <Zap className="h-3 w-3" aria-hidden />
+                  )}
+                </span>
+              )}
               <span className="studio-skill-chip-name">
                 {catalogContext.kind === "skill" ? "Skill" : "工具"} · {catalogContext.name}
               </span>
