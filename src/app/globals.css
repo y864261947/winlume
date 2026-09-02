@@ -8404,6 +8404,10 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
   border-right-color: #e5e9f0 !important;
 }
 
+.studio-sidebar-brand {
+  text-decoration: none;
+}
+
 .studio-logo-mark {
   border-radius: 7px;
   background: #fff;
@@ -8493,6 +8497,40 @@ html[data-studio-theme="dark"] .studio-account-trigger[data-state="open"] {
 
 .studio-home-canvas {
   background: #f7f8fb;
+}
+
+.studio-root:not([data-theme="dark"]) .studio-workspace-tabbar {
+  min-height: 46px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid #e4e9f0;
+  background: #eef2f7;
+}
+
+.studio-root:not([data-theme="dark"]) .studio-workspace-tabbar > div {
+  border: 1px solid transparent;
+}
+
+.studio-root:not([data-theme="dark"]) .studio-workspace-tabbar > div:has(button:focus-visible),
+.studio-root:not([data-theme="dark"]) .studio-workspace-tabbar > div:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.studio-root:not([data-theme="dark"]) .studio-workspace-tabbar > div.bg-white\/85 {
+  border-color: #dfe6ef;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.studio-root:not([data-theme="dark"]) .studio-home-canvas {
+  background: #f8fafc;
+}
+
+.studio-root:not([data-theme="dark"]) .studio-home-canvas > .studio-home-utility {
+  position: fixed !important;
+  top: 8px !important;
+  right: 18px !important;
+  z-index: 60;
 }
 
 .studio-home-utility {

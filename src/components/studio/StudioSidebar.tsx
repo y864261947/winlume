@@ -198,10 +198,11 @@ export default function StudioSidebar({
       aria-hidden={collapsed || undefined}
     >
       <div className="mb-5 flex items-center gap-1">
-        <Link href="/" className="flex min-w-0 flex-1 items-center px-2" title="Reizo" aria-label="Reizo 首页">
+        <Link href="/" className="studio-sidebar-brand flex min-w-0 flex-1 items-center gap-2 px-2" title="Reizo" aria-label="Reizo 首页">
           <span className="studio-logo-mark flex h-[30px] w-[30px] shrink-0 items-center justify-center">
             <Image src="/brand/reizo-mark.png" alt="" width={30} height={30} priority />
           </span>
+          <span className="studio-brand-wordmark truncate">REIZO</span>
         </Link>
         <button
           type="button"
