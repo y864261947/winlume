@@ -234,6 +234,111 @@ jobs:
           else
             echo 'Warning: nginx vhost was not found; portal upload size was not updated.' >&2
           fi
+
+          # Configure the new public hostname without removing the legacy
+          # vhost yet. This keeps the old URL available while DNS and TLS
+          # propagation for reizo-ai.com are verified.
+          nginx_vhost_dir=/etc/nginx/conf.d
+          nginx_link_dir=
+          if [ -f /www/server/nginx/conf/winlume.v2api.top.conf ]; then
+            nginx_vhost_dir=/www/server/nginx/conf
+          elif [ -d /etc/nginx/sites-available ] && [ -d /etc/nginx/sites-enabled ]; then
+            nginx_vhost_dir=/etc/nginx/sites-available
+            nginx_link_dir=/etc/nginx/sites-enabled
+          elif [ -d /etc/nginx/conf.d ]; then
+            nginx_vhost_dir=/etc/nginx/conf.d
+          fi
+          new_vhost="$nginx_vhost_dir/reizo-ai.com.conf"
+          sudo -n mkdir -p "$nginx_vhost_dir" /var/www/certbot/.well-known/acme-challenge
+          sudo -n tee "$new_vhost" >/dev/null <<'NGINX'
+          server {
+              listen 80;
+              listen [::]:80;
+              server_name reizo-ai.com;
+
+              location ^~ /.well-known/acme-challenge/ {
+                  root /var/www/certbot;
+              }
+
+              location / {
+                  proxy_pass http://127.0.0.1:3001;
+                  proxy_http_version 1.1;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_buffering off;
+                  proxy_read_timeout 3600;
+                  client_max_body_size 32m;
+              }
+          }
+          NGINX
+          if [ -n "$nginx_link_dir" ]; then
+            sudo -n ln -sfn "$new_vhost" "$nginx_link_dir/reizo-ai.com.conf"
+          fi
+          sudo -n "$nginx_bin" -t
+          sudo -n "$nginx_bin" -s reload
+
+          # Issue the certificate only after the HTTP vhost is live. The
+          # command is idempotent and keeps an existing non-expired cert.
+          certbot_ok=false
+          if command -v certbot >/dev/null 2>&1; then
+            if sudo -n certbot certonly --webroot -w /var/www/certbot \
+              -d reizo-ai.com --non-interactive --agree-tos \
+              --register-unsafely-without-email --keep-until-expiring; then
+              certbot_ok=true
+            else
+              echo 'Warning: certbot could not issue reizo-ai.com certificate; keeping HTTP vhost.' >&2
+            fi
+          else
+            echo 'Warning: certbot is not installed; keeping HTTP vhost.' >&2
+          fi
+
+          if [ "$certbot_ok" = true ] && [ -f /etc/letsencrypt/live/reizo-ai.com/fullchain.pem ] && [ -f /etc/letsencrypt/live/reizo-ai.com/privkey.pem ]; then
+            sudo -n tee "$new_vhost" >/dev/null <<'NGINX'
+          server {
+              listen 80;
+              listen [::]:80;
+              server_name reizo-ai.com;
+              location ^~ /.well-known/acme-challenge/ { root /var/www/certbot; }
+              location / { return 301 https://reizo-ai.com$request_uri; }
+          }
+
+          server {
+              listen 443 ssl;
+              listen [::]:443 ssl;
+              server_name reizo-ai.com;
+              ssl_certificate /etc/letsencrypt/live/reizo-ai.com/fullchain.pem;
+              ssl_certificate_key /etc/letsencrypt/live/reizo-ai.com/privkey.pem;
+              ssl_session_timeout 1d;
+              ssl_session_cache shared:SSL:10m;
+              ssl_protocols TLSv1.2 TLSv1.3;
+
+              location / {
+                  proxy_pass http://127.0.0.1:3001;
+                  proxy_http_version 1.1;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_buffering off;
+                  proxy_read_timeout 3600;
+                  client_max_body_size 32m;
+              }
+          }
+          NGINX
+            sudo -n "$nginx_bin" -t
+            sudo -n "$nginx_bin" -s reload
+            for env_file in /opt/reizo/.env /etc/reizo/web.env; do
+              if [ -f "$env_file" ]; then
+                if grep -Eq '^[[:space:]]*NEXTAUTH_URL[[:space:]]*=' "$env_file"; then
+                  sudo -n sed -i -E 's|^[[:space:]]*NEXTAUTH_URL[[:space:]]*=.*|NEXTAUTH_URL=https://reizo-ai.com|' "$env_file"
+                else
+                  echo 'NEXTAUTH_URL=https://reizo-ai.com' | sudo -n tee -a "$env_file" >/dev/null
+                fi
+              fi
+            done
+            sudo -n systemctl restart reizo
+          fi
+
           # next-server may need a few seconds after systemd reports active
           code="000"
           for i in 1 2 3 4 5 6 7 8 9 10; do
