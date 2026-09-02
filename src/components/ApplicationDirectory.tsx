@@ -226,19 +226,18 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
                 {recommendationTools.map((tool) => {
                   const Icon = tool.icon;
                   return (
-                    <article key={tool.name} className={`app-recommendation-tool is-${tool.accent}`}>
+                    <Link
+                      key={tool.name}
+                      className={`app-recommendation-tool is-${tool.accent}`}
+                      href={`/studio?entry=application-catalog&tool=${encodeURIComponent(tool.name)}`}
+                      onClick={() => setRecommendationOpen(false)}
+                    >
                       <span className="app-recommendation-tool-icon"><Icon aria-hidden /></span>
                       <div>
                         <h3>{tool.name}</h3>
                         <p>{tool.description}</p>
                       </div>
-                      <Link
-                        href={`/studio?entry=application-catalog&tool=${encodeURIComponent(tool.name)}`}
-                        onClick={() => setRecommendationOpen(false)}
-                      >
-                        立即使用 <ChevronRight aria-hidden />
-                      </Link>
-                    </article>
+                    </Link>
                   );
                 })}
               </div>
@@ -437,14 +436,18 @@ function SkillStrip({ category, iconMap }: { category: ToolCategory | "全部应
 function ToolCard({ tool }: { tool: Tool }) {
   const Icon = tool.icon;
   return (
-    <article className={`app-tool-card is-${tool.accent}`} style={catalogAccentStyle(toolAccentByName[tool.accent])}>
+    <Link
+      className={`app-tool-card is-${tool.accent}`}
+      style={catalogAccentStyle(toolAccentByName[tool.accent])}
+      href={`/studio?entry=application-catalog&tool=${encodeURIComponent(tool.name)}`}
+      aria-label={`打开${tool.name}`}
+    >
       <span className="studio-catalog-mark app-tool-mark"><Icon aria-hidden /></span>
       <div>
         <h3>{tool.name}</h3>
         <p>{tool.description}</p>
       </div>
-      <Link href={`/studio?entry=application-catalog&tool=${encodeURIComponent(tool.name)}`}>立即使用</Link>
-    </article>
+    </Link>
   );
 }
 
