@@ -75,5 +75,11 @@ describe("homepage API categories", () => {
     expect(source).not.toContain("<p>MORE WITH REIZO</p>");
     expect(source).toContain('className="portal-tools-proof"');
   });
+
+  it("routes support footer links to dedicated destinations", () => {
+    expect(source).toContain('{ label: "常见问题", href: "/support/faq" }');
+    expect(source).toContain('{ label: "联系支持", href: "/support/contact" }');
+    expect(source).toContain('{ label: "商务合作", href: "/business" }');
+  });
 });
 

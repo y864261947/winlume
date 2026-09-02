@@ -527,8 +527,8 @@ const footerColumns = [
   {
     title: "支持",
     items: [
-      { label: "常见问题", href: "#portal-support" },
-      { label: "联系支持", href: "#portal-support" },
+      { label: "常见问题", href: "/support/faq" },
+      { label: "联系支持", href: "/support/contact" },
       { label: "商务合作", href: "/business" },
       { label: "© 2026 Reizo", href: "/" },
     ],
