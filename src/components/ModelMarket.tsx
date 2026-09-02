@@ -14,6 +14,7 @@ import type { ConsoleOverview } from "@/lib/console/types";
 import { getVendorByKey } from "@/lib/catalog/vendors";
 import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
 import { usePortalCanvasScale } from "@/components/usePortalCanvasScale";
+import type { PortalContentConfig } from "@/lib/portal/content-config";
 
 declare global {
   interface Window {
@@ -674,16 +675,23 @@ function swipeDirection(fromId: ProductPath["id"], toId: ProductPath["id"]): "le
   return forward <= backward ? "left" : "right";
 }
 
-export default function ModelMarket() {
+function contentFeaturedSlides(content?: PortalContentConfig): FeaturedSlide[] {
+  const slides = content?.carousel
+    ?.filter((slide) => slide.enabled !== false && slide.imageUrl && slide.alt)
+    .map((slide) => ({ id: slide.id, src: slide.imageUrl, alt: slide.alt, href: slide.href || "/products?cate=api" }));
+  return slides?.length ? slides : FEATURED_SLIDES;
+}
+
+export default function ModelMarket({ initialContent }: { initialContent?: PortalContentConfig }) {
   const router = useRouter();
   const { account, balanceConfig } = useModals();
   usePortalCanvasScale();
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [featuredIndex, setFeaturedIndex] = useState(0);
-  const [featuredSlides, setFeaturedSlides] = useState<FeaturedSlide[]>(FEATURED_SLIDES);
-  const [managedApplications, setManagedApplications] = useState<ManagedApplicationShowcase[]>(initialManagedApplications);
-  const [managedCapabilities, setManagedCapabilities] = useState<ManagedCapabilityShowcase[]>(initialManagedCapabilities);
+  const [featuredSlides, setFeaturedSlides] = useState<FeaturedSlide[]>(() => contentFeaturedSlides(initialContent));
+  const [managedApplications, setManagedApplications] = useState<ManagedApplicationShowcase[]>(() => initialContent?.applicationShowcase?.length ? initialContent.applicationShowcase : initialManagedApplications);
+  const [managedCapabilities, setManagedCapabilities] = useState<ManagedCapabilityShowcase[]>(() => initialContent?.capabilityShowcase?.length ? initialContent.capabilityShowcase : initialManagedCapabilities);
   const [featuredPaused, setFeaturedPaused] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [activePathId, setActivePathId] = useState<ProductPath["id"]>("api");
