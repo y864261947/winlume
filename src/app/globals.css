@@ -8374,9 +8374,9 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
 .app-recommendation-tool:hover { border-color: #8eb9f5; background: #f8fbff; box-shadow: 0 10px 24px -20px rgba(24,91,190,.45); }
 .app-directory-skill-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .app-directory-skill-grid .studio-catalog-card { min-height: 180px; padding: 16px; }
-.app-directory-skill-grid .studio-catalog-card h3 { font-size: 15px !important; line-height: 21px !important; }
+.app-directory-skill-grid .studio-catalog-card h3 { overflow: hidden; font-size: 15px !important; line-height: 21px !important; text-overflow: ellipsis; white-space: nowrap; }
 .app-directory-skill-grid .studio-catalog-card > div:first-child > div > span { font-size: 12px; line-height: 17px; }
-.app-directory-skill-grid .studio-catalog-card > p { font-size: 13px; line-height: 20px; }
+.app-directory-skill-grid .studio-catalog-card > p { display: -webkit-box; min-height: 40px; overflow: hidden; font-size: 13px; line-height: 20px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .app-directory-skill-grid .studio-catalog-card > span:last-child { font-size: 13px; }
 @media (max-width: 1100px) {
   .app-tool-grid, .app-directory-skill-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
