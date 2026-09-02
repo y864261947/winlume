@@ -8354,6 +8354,29 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
 .portal-directory-main .portal-catalog-section-head h2,
 .app-skill-strip h2 { font-size: 20px; letter-spacing: 0; }
 
+/* Portal catalog scale: the app and skill boards share one readable rhythm. */
+.app-tool-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.app-tool-card { min-height: 156px; grid-template-columns: 48px minmax(0, 1fr); gap: 8px 14px; padding: 16px; border-radius: 12px; }
+.app-tool-card .app-tool-mark { width: 42px; height: 42px; border-radius: 50%; }
+.app-tool-card .app-tool-mark svg { width: 20px; height: 20px; }
+.app-tool-card h3 { margin-top: 1px; font-size: 16px; line-height: 22px; }
+.app-tool-card p { margin-top: 4px; font-size: 13px; line-height: 19px; }
+.app-tool-card a { padding: 7px 11px; font-size: 12px; }
+.app-directory-skill-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.app-directory-skill-grid .studio-catalog-card { min-height: 180px; padding: 16px; }
+.app-directory-skill-grid .studio-catalog-card h3 { font-size: 15px !important; line-height: 21px !important; }
+.app-directory-skill-grid .studio-catalog-card > div:first-child > div > span { font-size: 12px; line-height: 17px; }
+.app-directory-skill-grid .studio-catalog-card > p { font-size: 13px; line-height: 20px; }
+.app-directory-skill-grid .studio-catalog-card > span:last-child { font-size: 13px; }
+@media (max-width: 1100px) {
+  .app-tool-grid, .app-directory-skill-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .app-tool-grid, .app-directory-skill-grid { grid-template-columns: 1fr; gap: 10px; }
+  .app-tool-card { min-height: 142px; }
+  .app-directory-skill-grid .studio-catalog-card { min-height: 160px; }
+}
+
 /* Studio workbench refinement: a compact, quiet creation console. */
 .studio-root {
   background: #f7f8fb;

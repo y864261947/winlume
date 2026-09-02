@@ -8,7 +8,7 @@ import {
   Megaphone, Presentation, Search, ShoppingCart, Sparkles, Video, X,
 } from "lucide-react";
 import Modal, { ModalCloseButton } from "./Modal";
-import { catalogAccentStyle } from "@/lib/studio/skill-mark";
+import { catalogAccentStyle, skillMonogram } from "@/lib/studio/skill-mark";
 
 type ToolCategory = "内容与营销" | "视觉与媒体" | "电商与销售" | "财务与法务" | "产品与研发" | "办公与管理" | "数据与科研" | "开发与代码";
 
@@ -320,20 +320,29 @@ const skillAccentByCategory: Record<ToolCategory, string> = {
   "开发与代码": "#64748b",
 };
 
+const toolAccentByName: Record<Tool["accent"], string> = {
+  violet: "#7c5ce4",
+  green: "#2f9b68",
+  blue: "#3c76e8",
+  orange: "#d98b25",
+  purple: "#7c5ce4",
+  red: "#d05b72",
+  slate: "#64748b",
+};
+
 function SkillStrip({ category }: { category: ToolCategory | "全部应用" }) {
   const skills = category === "全部应用" ? featuredSkills : skillsByCategory[category];
 
   return (
     <section className="app-skill-strip" aria-labelledby="app-skill-strip-title">
       <div className="app-skill-strip-head">
-        <h2 id="app-skill-strip-title">Skills 技能</h2>
+        <h2 id="app-skill-strip-title">技能</h2>
         <div className="app-skill-strip-actions">
           <Link href="/studio/skills">查看全部<ChevronRight aria-hidden /></Link>
         </div>
       </div>
       <div className="studio-catalog-grid app-directory-skill-grid" aria-label="Skills 技能列表">
         {skills.map((skill) => {
-          const SkillIcon = categories.find((item) => item.name === skill.category)?.icon ?? Sparkles;
           const description = skillDescriptions[skill.name] ?? "面向实际工作场景的可复用技能，点击即可挂到工作台。";
           return (
             <Link
@@ -343,7 +352,7 @@ function SkillStrip({ category }: { category: ToolCategory | "全部应用" }) {
             href={`/studio?entry=application-catalog&skillName=${encodeURIComponent(skill.name)}`}
           >
             <div className="flex items-start gap-3">
-              <span className="studio-catalog-mark"><SkillIcon className="h-4 w-4" /></span>
+              <span className="studio-catalog-mark" aria-hidden>{skillMonogram(skill.name)}</span>
               <div className="min-w-0 flex-1">
                 <h3 className="line-clamp-2 text-sm font-semibold leading-5 tracking-tight text-ink-900">{skill.name}</h3>
                 <span className="mt-1 inline-block text-[11px] leading-4 text-ink-400">{skill.category}</span>
@@ -365,8 +374,8 @@ function SkillStrip({ category }: { category: ToolCategory | "全部应用" }) {
 function ToolCard({ tool }: { tool: Tool }) {
   const Icon = tool.icon;
   return (
-    <article className={`app-tool-card is-${tool.accent}`}>
-      <Icon aria-hidden />
+    <article className={`app-tool-card is-${tool.accent}`} style={catalogAccentStyle(toolAccentByName[tool.accent])}>
+      <span className="studio-catalog-mark app-tool-mark"><Icon aria-hidden /></span>
       <div>
         <h3>{tool.name}</h3>
         <p>{tool.description}</p>
