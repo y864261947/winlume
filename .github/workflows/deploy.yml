@@ -280,12 +280,11 @@ jobs:
 
           # Issue the certificate only after the HTTP vhost is live. The
           # command is idempotent and keeps an existing non-expired cert.
-          certbot_ok=false
           if command -v certbot >/dev/null 2>&1; then
             if sudo -n certbot certonly --webroot -w /var/www/certbot \
               -d reizo-ai.com --non-interactive --agree-tos \
               --register-unsafely-without-email --keep-until-expiring; then
-              certbot_ok=true
+              echo 'Certificate request for reizo-ai.com completed.'
             else
               echo 'Warning: certbot could not issue reizo-ai.com certificate; keeping HTTP vhost.' >&2
             fi
@@ -293,7 +292,8 @@ jobs:
             echo 'Warning: certbot is not installed; keeping HTTP vhost.' >&2
           fi
 
-          if [ "$certbot_ok" = true ] && [ -f /etc/letsencrypt/live/reizo-ai.com/fullchain.pem ] && [ -f /etc/letsencrypt/live/reizo-ai.com/privkey.pem ]; then
+          if sudo -n test -f /etc/letsencrypt/live/reizo-ai.com/fullchain.pem && sudo -n test -f /etc/letsencrypt/live/reizo-ai.com/privkey.pem; then
+            echo 'Activating HTTPS vhost for reizo-ai.com.'
             sudo -n tee "$new_vhost" >/dev/null <<'NGINX'
           server {
               listen 80;
