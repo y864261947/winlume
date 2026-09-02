@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Modal, { ModalCloseButton } from "./Modal";
 import { catalogAccentStyle, skillMonogram } from "@/lib/studio/skill-mark";
+import type { SkillMeta } from "@/lib/agent/types";
 
 type ToolCategory = "内容与营销" | "视觉与媒体" | "电商与销售" | "财务与法务" | "产品与研发" | "办公与管理" | "数据与科研" | "开发与代码";
 
@@ -58,6 +59,30 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
   const [query, setQuery] = useState(initialQuery);
   const [recommendationOpen, setRecommendationOpen] = useState(false);
   const [recommendationCategory, setRecommendationCategory] = useState<ToolCategory | null>(null);
+  const [skillIconMap, setSkillIconMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/skills?limit=100", { credentials: "same-origin" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((payload: { skills?: SkillMeta[] } | null) => {
+        if (cancelled) return;
+        const skills = (payload?.skills ?? []).filter((skill) => skill.iconUrl);
+        const next: Record<string, string> = {};
+        for (const skill of skills) {
+          if (skill.iconUrl) next[skillIconKey(skill.name)] = skill.iconUrl;
+        }
+        for (const skill of allPortalSkills) {
+          const exact = next[skillIconKey(skill.name)];
+          if (exact) continue;
+          const related = skills.find((item) => skillIconRelated(item, skill));
+          if (related?.iconUrl) next[skillIconKey(skill.name)] = related.iconUrl;
+        }
+        setSkillIconMap(next);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
 
   const visible = useMemo(() => {
     const value = query.trim().toLowerCase();
@@ -161,7 +186,7 @@ export default function ApplicationDirectory({ initialQuery = "", initialCategor
           {visible.length === 0 ? <div className="app-directory-empty">没有匹配的应用工具，试试搜索其他任务或切换分类。</div> : null}
         </section>
 
-        <SkillStrip category={activeCategory} />
+        <SkillStrip category={activeCategory} iconMap={skillIconMap} />
       </div>
       </section>
 
@@ -320,6 +345,44 @@ const skillAccentByCategory: Record<ToolCategory, string> = {
   "开发与代码": "#64748b",
 };
 
+const allPortalSkills = [...featuredSkills, ...Object.values(skillsByCategory).flat()]
+  .filter((skill, index, list) => list.findIndex((item) => item.name === skill.name) === index);
+
+function skillIconKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s·・\-_/（）()，,。.!！？?]+/g, "");
+}
+
+function skillIconRelated(item: SkillMeta, target: { name: string; category: ToolCategory }): boolean {
+  const source = skillIconKey(item.name);
+  const wanted = skillIconKey(target.name);
+  if (source.length >= 3 && wanted.length >= 3 && (source.includes(wanted) || wanted.includes(source))) return true;
+  const departments: Record<ToolCategory, string[]> = {
+    "内容与营销": ["marketing", "paid-media"],
+    "视觉与媒体": ["design"],
+    "电商与销售": ["sales", "marketing"],
+    "财务与法务": ["finance", "legal"],
+    "产品与研发": ["product", "engineering"],
+    "办公与管理": ["project-management", "support"],
+    "数据与科研": ["academic", "gis"],
+    "开发与代码": ["engineering", "testing"],
+  };
+  return departments[target.category]?.includes(item.category) ?? false;
+}
+
+function SkillMark({ name, iconUrl }: { name: string; iconUrl?: string }) {
+  const [broken, setBroken] = useState(false);
+  const showImage = Boolean(iconUrl) && !broken;
+  return (
+    <span className="studio-catalog-mark" data-logo={showImage ? "true" : "false"} aria-hidden>
+      {showImage ? (
+        // SkillHub icons are hosted on mixed CDNs, so use a native image like the workbench.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={iconUrl} alt="" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+      ) : skillMonogram(name)}
+    </span>
+  );
+}
+
 const toolAccentByName: Record<Tool["accent"], string> = {
   violet: "#7c5ce4",
   green: "#2f9b68",
@@ -330,7 +393,7 @@ const toolAccentByName: Record<Tool["accent"], string> = {
   slate: "#64748b",
 };
 
-function SkillStrip({ category }: { category: ToolCategory | "全部应用" }) {
+function SkillStrip({ category, iconMap }: { category: ToolCategory | "全部应用"; iconMap: Record<string, string> }) {
   const skills = category === "全部应用" ? featuredSkills : skillsByCategory[category];
 
   return (
@@ -352,7 +415,7 @@ function SkillStrip({ category }: { category: ToolCategory | "全部应用" }) {
             href={`/studio?entry=application-catalog&skillName=${encodeURIComponent(skill.name)}`}
           >
             <div className="flex items-start gap-3">
-              <span className="studio-catalog-mark" aria-hidden>{skillMonogram(skill.name)}</span>
+              <SkillMark name={skill.name} iconUrl={iconMap[skillIconKey(skill.name)]} />
               <div className="min-w-0 flex-1">
                 <h3 className="line-clamp-2 text-sm font-semibold leading-5 tracking-tight text-ink-900">{skill.name}</h3>
                 <span className="mt-1 inline-block text-[11px] leading-4 text-ink-400">{skill.category}</span>
