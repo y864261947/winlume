@@ -327,6 +327,11 @@ function SkillStrip({
     return skillsForPortalCategory(matched, category);
   }, [category, query, skills]);
 
+  const compactDescription = (value: string) => {
+    const compact = value.replace(/\s+/g, " ").trim();
+    return compact.length > 60 ? `${Array.from(compact).slice(0, 60).join("")}...` : compact;
+  };
+
   return (
     <section className="app-skill-strip" aria-labelledby="app-skill-strip-title">
       <div className="app-skill-strip-head">
@@ -374,7 +379,7 @@ function SkillStrip({
                     ) : null}
                   </div>
                 </div>
-                <p className="mt-3 line-clamp-2 text-[13px] leading-5 text-ink-500">{description}</p>
+                <p className="mt-3 line-clamp-2 text-[13px] leading-5 text-ink-500">{compactDescription(description)}</p>
                 <span className="mt-auto inline-flex items-center gap-1 pt-4 text-[13px] font-medium text-ink-700">
                   挂到工作台
                   <ArrowRight className="studio-catalog-card-go h-3.5 w-3.5" />
