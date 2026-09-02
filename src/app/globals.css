@@ -1358,7 +1358,7 @@ html[data-studio-theme="dark"] .login-modal-notice {
 .studio-skill-chip-mark img {
   height: 100%;
   width: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 .studio-skill-chip-name {
   min-width: 0;
@@ -2528,7 +2528,7 @@ html[data-studio-theme="dark"] .login-modal-notice {
 .studio-catalog-mark img {
   height: 100%;
   width: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 .studio-catalog-featured {
   flex-shrink: 0;
@@ -2567,6 +2567,10 @@ html[data-studio-theme="dark"] .studio-catalog-mark,
 .studio-root[data-theme="dark"] .studio-catalog-mark {
   background: color-mix(in srgb, var(--studio-cat-accent) 22%, transparent);
   color: color-mix(in srgb, var(--studio-cat-accent) 72%, white);
+}
+html[data-studio-theme="dark"] .studio-catalog-mark[data-logo="true"],
+.studio-root[data-theme="dark"] .studio-catalog-mark[data-logo="true"] {
+  background: #fff;
 }
 html[data-studio-theme="dark"] .studio-catalog-featured,
 .studio-root[data-theme="dark"] .studio-catalog-featured {

@@ -64,6 +64,7 @@ export function recordToSkillMeta(record: StudioSkillRecord): SkillMeta & { prom
     enabled: skill.enabled,
     featured: skill.featured,
     defaultArtifact: skill.defaultArtifact,
+    iconUrl: skill.iconUrl,
     promptChars: record.systemPrompt.length,
   };
 }

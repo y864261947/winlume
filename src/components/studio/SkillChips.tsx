@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SkillMeta } from "@/lib/agent/types";
 import { skillMonogram } from "@/lib/studio/skill-mark";
 
@@ -22,8 +22,11 @@ function resolveMeta(
   return { id, name: meta?.name || id, iconUrl: meta?.iconUrl };
 }
 
-function ChipMark({ name, iconUrl }: { name: string; iconUrl?: string }) {
+export function SkillChipMark({ name, iconUrl }: { name: string; iconUrl?: string }) {
   const [broken, setBroken] = useState(false);
+  useEffect(() => {
+    setBroken(false);
+  }, [iconUrl]);
   const showImage = Boolean(iconUrl) && !broken;
   return (
     <span className="studio-skill-chip-mark" aria-hidden>
@@ -74,7 +77,7 @@ export default function SkillChips({
             title={`移除 ${skill.name}`}
             onClick={() => dismiss(id)}
           >
-            <ChipMark name={skill.name} iconUrl={skill.iconUrl} />
+            <SkillChipMark name={skill.name} iconUrl={skill.iconUrl} />
             <span className="studio-skill-chip-name">{skill.name}</span>
           </button>
         );
