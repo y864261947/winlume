@@ -1018,8 +1018,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
           </section>
 
           <article className="portal-enterprise-card portal-search-aside" aria-labelledby="portal-enterprise-title">
-            <SectionLabel>ENTERPRISE</SectionLabel>
-            <h2 id="portal-enterprise-title">企业 AI 部署</h2>
+            <h2 id="portal-enterprise-title">企业AI智能化解决方案</h2>
             <p>私有化部署、系统集成与专属服务，助力企业安全高效落地 AI。</p>
             <PortalLink href="/business" className="portal-enterprise-button">进入企业版<ChevronRight aria-hidden /></PortalLink>
             <Image src="/figma-home/building.svg" alt="" width={145} height={116} />
