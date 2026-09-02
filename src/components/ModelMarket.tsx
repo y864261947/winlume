@@ -693,6 +693,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
   const [managedApplications, setManagedApplications] = useState<ManagedApplicationShowcase[]>(() => initialContent?.applicationShowcase?.length ? initialContent.applicationShowcase : initialManagedApplications);
   const [managedCapabilities, setManagedCapabilities] = useState<ManagedCapabilityShowcase[]>(() => initialContent?.capabilityShowcase?.length ? initialContent.capabilityShowcase : initialManagedCapabilities);
   const [featuredPaused, setFeaturedPaused] = useState(false);
+  const [applicationTab, setApplicationTab] = useState<"popular" | "latest">("popular");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [activePathId, setActivePathId] = useState<ProductPath["id"]>("api");
   const [flyAways, setFlyAways] = useState<FlyAway[]>([]);
@@ -1219,14 +1220,19 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
             <div />
             <PortalLink href="/products?cate=app" className="portal-arrow-link">查看全部应用</PortalLink>
           </div>
-          <Tabs defaultSelectedKey="popular" variant="secondary" className="portal-app-tabs">
+          <Tabs
+            selectedKey={applicationTab}
+            onSelectionChange={(key) => setApplicationTab(key === "latest" ? "latest" : "popular")}
+            variant="secondary"
+            className="portal-app-tabs"
+          >
             <Tabs.ListContainer className="portal-app-tabs-list-container">
               <Tabs.List aria-label="应用工具分组" className="portal-app-tabs-list">
-                <Tabs.Tab id="popular" className="portal-app-tab">热门应用<Tabs.Indicator /></Tabs.Tab>
-                <Tabs.Tab id="latest" className="portal-app-tab">最新上架<Tabs.Indicator /></Tabs.Tab>
+                <Tabs.Tab id="popular" className="portal-app-tab" onMouseEnter={() => setApplicationTab("popular")} onFocus={() => setApplicationTab("popular")}>热门应用<Tabs.Indicator /></Tabs.Tab>
+                <Tabs.Tab id="latest" className="portal-app-tab" onMouseEnter={() => setApplicationTab("latest")} onFocus={() => setApplicationTab("latest")}>最新上架<Tabs.Indicator /></Tabs.Tab>
               </Tabs.List>
             </Tabs.ListContainer>
-            <Tabs.Panel id="popular" className="portal-app-tab-panel" shouldForceMount>
+            <Tabs.Panel id="popular" className={`portal-app-tab-panel${applicationTab === "popular" ? " is-active" : " is-inactive"}`} shouldForceMount>
               <div className="portal-featured-app-grid">
                 {popularApplications.slice(0, 1).map((app) => (
                   <PortalLink href={app.href} className="portal-featured-app-card" key={app.title}>
@@ -1244,7 +1250,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
                 </div>
               </div>
             </Tabs.Panel>
-            <Tabs.Panel id="latest" className="portal-app-tab-panel" shouldForceMount>
+            <Tabs.Panel id="latest" className={`portal-app-tab-panel${applicationTab === "latest" ? " is-active" : " is-inactive"}`} shouldForceMount>
               <div className="portal-featured-app-grid">
                 {latestApplications.slice(0, 1).map((app) => (
                   <PortalLink href={app.href} className="portal-featured-app-card" key={app.title}>
