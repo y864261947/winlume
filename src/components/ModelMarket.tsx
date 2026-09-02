@@ -301,7 +301,7 @@ function CapabilityEvidence({ kind }: { kind: PortalCapabilityEvidence }) {
 }
 
 function ManagedApplicationVisual({ item, fallback }: { item: ManagedApplicationShowcase; fallback: PortalApplicationPreview }) {
-  return item.imageUrl ? <span className="portal-managed-showcase-image"><Image src={item.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 50vw" unoptimized /></span> : <ApplicationResultPreview kind={fallback} />;
+  return item.imageUrl ? <span className="portal-managed-showcase-image"><Image src={item.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 50vw" priority unoptimized /></span> : <ApplicationResultPreview kind={fallback} />;
 }
 
 const productPaths = [
@@ -1143,7 +1143,7 @@ export default function ModelMarket() {
                     alt={slide.alt}
                     fill
                     sizes="(max-width: 1100px) 100vw, 812px"
-                    priority={index === 0}
+                    priority
                     unoptimized
                   />
                 </PortalLink>
@@ -1219,7 +1219,7 @@ export default function ModelMarket() {
                 <Tabs.Tab id="latest" className="portal-app-tab">最新上架<Tabs.Indicator /></Tabs.Tab>
               </Tabs.List>
             </Tabs.ListContainer>
-            <Tabs.Panel id="popular" className="portal-app-tab-panel">
+            <Tabs.Panel id="popular" className="portal-app-tab-panel" shouldForceMount>
               <div className="portal-featured-app-grid">
                 {popularApplications.slice(0, 1).map((app) => (
                   <PortalLink href={app.href} className="portal-featured-app-card" key={app.title}>
@@ -1237,7 +1237,7 @@ export default function ModelMarket() {
                 </div>
               </div>
             </Tabs.Panel>
-            <Tabs.Panel id="latest" className="portal-app-tab-panel">
+            <Tabs.Panel id="latest" className="portal-app-tab-panel" shouldForceMount>
               <div className="portal-featured-app-grid">
                 {latestApplications.slice(0, 1).map((app) => (
                   <PortalLink href={app.href} className="portal-featured-app-card" key={app.title}>
@@ -1260,7 +1260,7 @@ export default function ModelMarket() {
 
         <section className="portal-bottom-explore portal-system-rail" aria-labelledby="portal-bottom-explore-title">
           <div className="portal-bottom-explore-head"><div><h2 id="portal-bottom-explore-title">探索更多 REIZO 能力</h2></div></div>
-          <div className="portal-capability-showcase">{visibleCapabilities.map((card) => <PortalLink href={card.href} className={`portal-capability-hero is-${card.tone}${card.imageUrl ? " has-managed-image" : ""}`} key={card.id}>{card.imageUrl ? <Image className="portal-managed-capability-image" src={card.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 34vw" unoptimized /> : <CapabilityEvidence kind={card.tone === "agent" ? "agent" : card.tone === "usage" ? "usage" : "models"} />}<span><em>{card.eyebrow}</em><strong>{card.title}</strong></span></PortalLink>)}</div>
+          <div className="portal-capability-showcase">{visibleCapabilities.map((card) => <PortalLink href={card.href} className={`portal-capability-hero is-${card.tone}${card.imageUrl ? " has-managed-image" : ""}`} key={card.id}>{card.imageUrl ? <Image className="portal-managed-capability-image" src={card.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 34vw" priority unoptimized /> : <CapabilityEvidence kind={card.tone === "agent" ? "agent" : card.tone === "usage" ? "usage" : "models"} />}<span><em>{card.eyebrow}</em><strong>{card.title}</strong></span></PortalLink>)}</div>
           <HeroCard variant="tertiary" className="portal-bottom-help"><span><CircleHelp aria-hidden />没有找到合适的应用或技能？告诉我们你的使用场景，我们为你定制解决方案。</span><PortalLink href="/business" className="portal-bottom-help-link">提交需求<ChevronRight aria-hidden /></PortalLink></HeroCard>
           <footer className="portal-bottom-footer"><div className="portal-bottom-brand"><strong><Image className="portal-footer-mark" src="/brand/reizo-mark.png" alt="" width={26} height={26} />REIZO</strong><p>从 AI 能力到智能体，每一步都更简单。</p><small>© 2026 Reizo. All rights reserved.</small></div>{footerColumns.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.items.slice(0, 3).map((item) => <PortalLink href={item.href} key={item.label}>{item.label}</PortalLink>)}</div>)}<div><h3>关注我们</h3><span className="portal-bottom-social">𝕏　in　◉　✉</span></div></footer>
         </section>

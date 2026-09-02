@@ -8043,9 +8043,7 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
 
 .portal-home .portal-app-showcase-v2,
 .portal-home .portal-capability-showcase {
-  animation: portal-fade-in-up .5s ease both;
-  animation-timeline: view();
-  animation-range: entry 0% entry 28%;
+  animation: none;
 }
 
 /* Fallback for browsers without scroll-driven animations */
@@ -8219,7 +8217,7 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
 }
 .app-skill-strip-head { position: relative; align-items: end; padding-top: 12px; }
 .app-skill-strip-head h2 { color: #1d3554; font-size: 19px; font-weight: 760; letter-spacing: 0; }
-.app-skill-strip-head::before { position: absolute; top: 0; left: 0; color: #2c77ce; content: "CURATED WORKFLOWS"; font-size: 9px; font-weight: 800; letter-spacing: .16em; }
+.app-skill-strip-head::before { content: none; }
 .app-skill-strip-actions > a { display: inline-flex; align-items: center; gap: 4px; color: #1764c5; font-size: 12px; font-weight: 700; }
 .app-skill-strip-actions > a:hover { color: #0d4c9b; }
 .app-skill-grid { grid-template-columns: minmax(190px, 1.3fr) repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(58px, 1fr)); gap: 8px; margin-top: 20px; }
@@ -8343,6 +8341,18 @@ html[data-studio-theme="dark"] .skill-slash-menu-item-danger[aria-selected="true
   .app-skill-track { margin-top: 10px; }
   .app-skill-track > a { flex-basis: 142px; min-height: 58px; }
 }
+
+/* Keep the portal skill catalog visually aligned with the workbench cards. */
+.app-directory-skill-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.app-directory-skill-grid .studio-catalog-card { min-height: 172px; border-radius: 12px; border-color: #dfe7f1; background: rgba(255,255,255,.92); box-shadow: 0 10px 24px -22px rgba(32, 75, 126, .45); }
+.app-directory-skill-grid .studio-catalog-card:hover { box-shadow: 0 16px 28px -22px rgba(32, 75, 126, .48); }
+@media (max-width: 1100px) { .app-directory-skill-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .app-directory-skill-grid { grid-template-columns: 1fr; gap: 10px; } .app-directory-skill-grid .studio-catalog-card { min-height: 148px; } }
+
+/* Portal navigation headings use one compact type scale across desktop and mobile. */
+.portal-directory-side h2,
+.portal-directory-main .portal-catalog-section-head h2,
+.app-skill-strip h2 { font-size: 20px; letter-spacing: 0; }
 
 /* Studio workbench refinement: a compact, quiet creation console. */
 .studio-root {

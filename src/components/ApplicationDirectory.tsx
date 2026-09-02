@@ -4,10 +4,11 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, BarChart3, BriefcaseBusiness, ChevronRight, Code2, FileText, ImageIcon,
+  ArrowLeft, ArrowRight, BarChart3, BriefcaseBusiness, ChevronRight, Code2, FileText, ImageIcon,
   Megaphone, Presentation, Search, ShoppingCart, Sparkles, Video, X,
 } from "lucide-react";
 import Modal, { ModalCloseButton } from "./Modal";
+import { catalogAccentStyle } from "@/lib/studio/skill-mark";
 
 type ToolCategory = "内容与营销" | "视觉与媒体" | "电商与销售" | "财务与法务" | "产品与研发" | "办公与管理" | "数据与科研" | "开发与代码";
 
@@ -297,6 +298,28 @@ const skillsByCategory: Record<ToolCategory, Array<{ name: string; category: Too
   ],
 };
 
+const skillDescriptions: Record<string, string> = {
+  "SEO 内容优化": "围绕关键词生成结构清晰、适合搜索引擎的内容方案。",
+  "小红书文案": "生成适合小红书发布的标题、正文和互动话术。",
+  "品牌内容改写": "统一品牌语气，快速改写并优化现有内容。",
+  "邮件营销文案": "编写营销邮件、跟进邮件与转化导向的主题内容。",
+  "海报视觉提案": "整理视觉方向、版式建议与可执行的海报创意。",
+  "图片抠图与修复": "处理抠图、瑕疵修复与基础图片优化任务。",
+  "短视频分镜": "把创意拆解为镜头、节奏和拍摄执行清单。",
+  "视频字幕优化": "校对字幕并优化断句、时间轴和多语言表达。",
+};
+
+const skillAccentByCategory: Record<ToolCategory, string> = {
+  "内容与营销": "#7c5ce4",
+  "视觉与媒体": "#2f8fd7",
+  "电商与销售": "#d98b25",
+  "财务与法务": "#278d74",
+  "产品与研发": "#596fd6",
+  "办公与管理": "#d05b72",
+  "数据与科研": "#438cbd",
+  "开发与代码": "#64748b",
+};
+
 function SkillStrip({ category }: { category: ToolCategory | "全部应用" }) {
   const skills = category === "全部应用" ? featuredSkills : skillsByCategory[category];
 
@@ -308,19 +331,32 @@ function SkillStrip({ category }: { category: ToolCategory | "全部应用" }) {
           <Link href="/studio/skills">查看全部<ChevronRight aria-hidden /></Link>
         </div>
       </div>
-      <div className="app-skill-grid" aria-label="Skills 技能列表">
-        {skills.map((skill, index) => (
-          <Link
+      <div className="studio-catalog-grid app-directory-skill-grid" aria-label="Skills 技能列表">
+        {skills.map((skill) => {
+          const SkillIcon = categories.find((item) => item.name === skill.category)?.icon ?? Sparkles;
+          const description = skillDescriptions[skill.name] ?? "面向实际工作场景的可复用技能，点击即可挂到工作台。";
+          return (
+            <Link
             key={skill.name}
-            className={index === 0 ? "is-featured" : undefined}
+            className="studio-catalog-card"
+            style={catalogAccentStyle(skillAccentByCategory[skill.category])}
             href={`/studio?entry=application-catalog&skillName=${encodeURIComponent(skill.name)}`}
           >
-            <span className="app-skill-index">{String(index + 1).padStart(2, "0")}</span>
-            <strong>{skill.name}</strong>
-            <small>{index === 0 ? "精选技能" : "技能"}</small>
-            <ChevronRight aria-hidden />
-          </Link>
-        ))}
+            <div className="flex items-start gap-3">
+              <span className="studio-catalog-mark"><SkillIcon className="h-4 w-4" /></span>
+              <div className="min-w-0 flex-1">
+                <h3 className="line-clamp-2 text-sm font-semibold leading-5 tracking-tight text-ink-900">{skill.name}</h3>
+                <span className="mt-1 inline-block text-[11px] leading-4 text-ink-400">{skill.category}</span>
+              </div>
+            </div>
+            <p className="mt-3 line-clamp-2 text-[13px] leading-5 text-ink-500">{description}</p>
+            <span className="mt-auto inline-flex items-center gap-1 pt-4 text-[13px] font-medium text-ink-700">
+              挂到工作台
+              <ArrowRight className="studio-catalog-card-go h-3.5 w-3.5" />
+            </span>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );
