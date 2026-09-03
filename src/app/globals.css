@@ -9659,7 +9659,7 @@ body {
 }
 
 .portal-home .portal-app-showcase-v2 .portal-featured-app-card {
-  min-height: 278px;
+  min-height: 360px;
   border-radius: 13px;
 }
 
@@ -9668,7 +9668,7 @@ body {
 }
 
 .portal-home .portal-app-showcase-v2 .portal-app-support-card {
-  min-height: 133px;
+  min-height: 172px;
   border-radius: 13px;
 }
 
@@ -9717,7 +9717,7 @@ body {
 .portal-home .portal-capability-hero,
 .portal-home .portal-capability-hero.is-models {
   display: grid;
-  min-height: 132px;
+  min-height: 168px;
   grid-column: auto;
   grid-template-columns: minmax(0, 1fr) 42%;
   align-items: center;
@@ -9837,20 +9837,20 @@ body {
 @media (max-width: 1180px) {
   .portal-home .portal-app-showcase-v2 .portal-featured-app-grid { grid-template-columns: 1fr; }
   .portal-home .portal-app-showcase-v2 .portal-app-support-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .portal-home .portal-app-showcase-v2 .portal-app-support-card { min-height: 128px; }
+  .portal-home .portal-app-showcase-v2 .portal-app-support-card { min-height: 150px; }
   .portal-home .portal-capability-showcase { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .portal-home .portal-capability-hero { min-height: 128px; }
+  .portal-home .portal-capability-hero { min-height: 150px; }
 }
 
 @media (max-width: 760px) {
   .portal-home .portal-app-showcase-v2,
   .portal-home .portal-system-rail { padding: 14px 15px 0; }
   .portal-home .portal-app-showcase-v2 .portal-app-support-grid { grid-template-columns: 1fr; }
-  .portal-home .portal-app-showcase-v2 .portal-featured-app-card { min-height: 226px; }
+  .portal-home .portal-app-showcase-v2 .portal-featured-app-card { min-height: 250px; }
   .portal-home .portal-app-showcase-v2 .portal-featured-app-copy { max-width: 80%; }
   .portal-home .portal-capability-showcase { grid-template-columns: 1fr; gap: 10px; }
   .portal-home .portal-capability-hero,
-  .portal-home .portal-capability-hero.is-models { min-height: 118px; padding: 15px; }
+  .portal-home .portal-capability-hero.is-models { min-height: 140px; padding: 15px; }
   .portal-home .portal-capability-hero strong { font-size: 16px; line-height: 21px; }
   .portal-home .portal-capability-hero small { font-size: 11px; line-height: 16px; }
 }
