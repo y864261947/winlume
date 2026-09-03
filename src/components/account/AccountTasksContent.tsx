@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, CheckCircle2, ChevronDown, FileCog, MoreVertical, RefreshCw, Search, TimerReset, Workflow } from "lucide-react";
+import { Activity, CheckCircle2, ChevronDown, FileCog, MoreVertical, RefreshCw, Search, Workflow } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Session } from "@/lib/agent/types";
 
 type TaskFilter = "all" | "running" | "queued" | "completed";
 type TaskStatus = Exclude<TaskFilter, "all">;
 
-type TaskItem = { session: Session; status: TaskStatus; progress: number; remaining: string; workspace: string };
+type TaskItem = { session: Session; status: TaskStatus };
 
 const statusCopy: Record<TaskStatus, { label: string; tone: string }> = {
   running: { label: "进行中", tone: "is-running" },
@@ -16,16 +16,9 @@ const statusCopy: Record<TaskStatus, { label: string; tone: string }> = {
   completed: { label: "已完成", tone: "is-completed" },
 };
 
-function toTaskItem(session: Session, index: number): TaskItem {
-  const presets: Array<Omit<TaskItem, "session">> = [
-    { status: "running", progress: 68, remaining: "预计剩余：2 分钟", workspace: "内容营销工作台" },
-    { status: "running", progress: 41, remaining: "预计剩余：6 分钟", workspace: "数据分析工作台" },
-    { status: "running", progress: 75, remaining: "预计剩余：1 分钟", workspace: "视觉与创意工作台" },
-    { status: "queued", progress: 0, remaining: "预计开始：1 分钟后", workspace: "开发与代码工作台" },
-    { status: "completed", progress: 100, remaining: "任务已完成", workspace: "财务与报表工作台" },
-    { status: "completed", progress: 100, remaining: "任务已完成", workspace: "财务与法务工作台" },
-  ];
-  return { session, ...presets[index % presets.length] };
+/** Sessions from /api/sessions are finished conversations, not live jobs. */
+function toTaskItem(session: Session): TaskItem {
+  return { session, status: "completed" };
 }
 
 const formatTime = (value: string) => new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -62,7 +55,7 @@ export default function AccountTasksContent() {
   }), [tasks]);
   const visible = useMemo(() => tasks.filter((task) => {
     const matchesFilter = filter === "all" || task.status === filter;
-    const haystack = `${task.session.title} ${task.session.model} ${task.workspace}`.toLowerCase();
+    const haystack = `${task.session.title} ${task.session.model}`.toLowerCase();
     return matchesFilter && haystack.includes(query.trim().toLowerCase());
   }), [filter, query, tasks]);
   const recentDone = tasks.filter((task) => task.status === "completed").slice(0, 3);
@@ -76,15 +69,14 @@ export default function AccountTasksContent() {
   return (
     <div className="account-task-board">
       <header className="account-task-board-head">
-        <div><p>用户中心 / 任务看板</p><h1>任务看板</h1><span>查看工作台中任务的实时进度与状态</span></div>
+        <div><p>用户中心 / 任务看板</p><h1>任务看板</h1><span>工作台发出的会话会出现在这里</span></div>
         <button type="button" onClick={() => void load()}><RefreshCw aria-hidden />刷新</button>
       </header>
 
       <section className="account-task-summary" aria-label="任务概览">
         <article><span className="account-task-summary-icon"><FileCog aria-hidden /></span><div><small>全部任务</small><strong>{counts.all}</strong><p>进行中 {counts.running} · 排队中 {counts.queued} · 已完成 {counts.completed}</p></div></article>
-        <article><span className="account-task-summary-icon"><TimerReset aria-hidden /></span><div><small>进行中任务</small><strong>{counts.running}</strong><p>占全部 {counts.all ? Math.round((counts.running / counts.all) * 100) : 0}%</p></div></article>
-        <article><span className="account-task-summary-icon is-green"><CheckCircle2 aria-hidden /></span><div><small>已完成任务</small><strong>{counts.completed}</strong><p>占全部 {counts.all ? Math.round((counts.completed / counts.all) * 100) : 0}%</p></div></article>
-        <article className="account-task-quota"><span className="account-task-summary-icon is-quota"><Activity aria-hidden /></span><div><small>会员剩余额度</small><strong>80%</strong><p>本月可用</p></div></article>
+        <article><span className="account-task-summary-icon"><Activity aria-hidden /></span><div><small>进行中任务</small><strong>{counts.running}</strong><p>以工作台真实状态为准</p></div></article>
+        <article><span className="account-task-summary-icon is-green"><CheckCircle2 aria-hidden /></span><div><small>已完成任务</small><strong>{counts.completed}</strong><p>{counts.all ? `占全部 ${Math.round((counts.completed / counts.all) * 100)}%` : "还没有任务"}</p></div></article>
       </section>
 
       <div className="account-task-board-layout">
@@ -93,17 +85,17 @@ export default function AccountTasksContent() {
             <div className="account-task-filter-tabs" role="tablist" aria-label="任务状态筛选">
               {filters.map((item) => <button key={item.id} type="button" role="tab" aria-selected={filter === item.id} className={filter === item.id ? "is-active" : ""} onClick={() => setFilter(item.id)}>{item.label}</button>)}
             </div>
-            <div className="account-task-filter-tools"><label><Search aria-hidden /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务名称或关键词" /></label><button type="button" className="account-task-workspace-filter">全部工作台<ChevronDown aria-hidden /></button></div>
+            <div className="account-task-filter-tools"><label><Search aria-hidden /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务名称或关键词" /></label></div>
           </div>
 
-          {loading ? <p className="account-task-empty">正在同步任务…</p> : error ? <p className="account-task-empty">{error}</p> : visible.length === 0 ? <div className="account-task-empty"><Workflow aria-hidden /><strong>还没有匹配的任务</strong><span>进入智能体工作区创建第一个任务。</span><Link href="/studio">开始创作</Link></div> : (
+          {loading ? <p className="account-task-empty">正在同步任务…</p> : error ? <p className="account-task-empty">{error}</p> : visible.length === 0 ? <div className="account-task-empty"><Workflow aria-hidden /><strong>还没有任务</strong><span>工作台发一条就会出现在这里</span><Link href="/studio">进入工作台</Link></div> : (
             <div className="account-task-board-list">
               {visible.map((task) => {
                 const state = statusCopy[task.status];
                 return <article key={task.session.id} className={`account-task-board-item ${state.tone}`}>
                   <span className="account-task-board-item-icon"><Workflow aria-hidden /></span>
-                  <div className="account-task-board-item-body"><div className="account-task-board-item-title"><strong>{task.session.title || "未命名任务"}</strong><em>{task.workspace}</em></div><p>{task.status === "completed" ? "任务已生成完成，可进入工作区查看结果" : `${task.session.model} 正在处理任务内容`}</p><div className="account-task-progress"><span><i style={{ width: `${task.progress}%` }} /></span><b>{task.progress}%</b></div><small>开始时间：{formatTime(task.session.updatedAt)} <span>{task.remaining}</span></small></div>
-                  <div className="account-task-board-item-side"><em className={state.tone}>{state.label}</em><button type="button" aria-label="更多任务操作"><MoreVertical aria-hidden /></button><Link href={`/studio?session=${encodeURIComponent(task.session.id)}`}>{task.status === "completed" ? "查看结果" : task.status === "queued" ? "取消任务" : "查看详情"}<ChevronDown aria-hidden /></Link></div>
+                  <div className="account-task-board-item-body"><div className="account-task-board-item-title"><strong>{task.session.title || "未命名任务"}</strong><em>{task.session.model || "工作台"}</em></div><p>来自工作台的会话</p><small>更新时间：{formatTime(task.session.updatedAt)}</small></div>
+                  <div className="account-task-board-item-side"><em className={state.tone}>{state.label}</em><button type="button" aria-label="更多任务操作"><MoreVertical aria-hidden /></button><Link href={`/studio?session=${encodeURIComponent(task.session.id)}`}>查看会话<ChevronDown aria-hidden /></Link></div>
                 </article>;
               })}
             </div>
@@ -111,10 +103,7 @@ export default function AccountTasksContent() {
         </main>
 
         <aside className="account-task-insights">
-          <section className="account-task-token-card"><div className="account-task-insight-head"><h2>Token 消耗概览</h2><button type="button">今天<ChevronDown aria-hidden /></button></div><p>总消耗 Token</p><strong>1.24M</strong><small>≈ ¥0.25</small><div className="account-task-donut"><b>1.24M</b><span>Tokens</span></div><ul><li><i className="is-running" />进行中任务 <b>860K (69.4%)</b></li><li><i className="is-completed" />已完成任务 <b>320K (25.8%)</b></li><li><i className="is-queued" />排队中任务 <b>60K (4.8%)</b></li></ul></section>
-          <section className="account-task-quota-card"><span>80%</span><div><strong>会员剩余额度</strong><p>本月可用 · 重置日期：2026-09-30</p></div></section>
-          <section className="account-task-speed-card"><div className="account-task-insight-head"><h2>实时消耗速率</h2><span>（每分钟）</span></div><div className="account-task-speed-graph" aria-label="Token 消耗趋势图"><i /><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="account-task-speed-time"><span>13:00</span><span>13:15</span><span>13:30</span><span>13:45</span></div></section>
-          <section className="account-task-recent"><div className="account-task-insight-head"><h2>最近完成的任务</h2><button type="button">查看全部</button></div>{recentDone.length ? recentDone.map((task) => <Link href={`/studio?session=${encodeURIComponent(task.session.id)}`} key={task.session.id}><CheckCircle2 aria-hidden />{task.session.title}<span>{formatTime(task.session.updatedAt).slice(-5)}</span></Link>) : <p>完成的任务会显示在这里。</p>}</section>
+          <section className="account-task-recent"><div className="account-task-insight-head"><h2>最近完成的任务</h2></div>{recentDone.length ? recentDone.map((task) => <Link href={`/studio?session=${encodeURIComponent(task.session.id)}`} key={task.session.id}><CheckCircle2 aria-hidden />{task.session.title}<span>{formatTime(task.session.updatedAt).slice(-5)}</span></Link>) : <p>工作台发一条就会出现在这里</p>}</section>
         </aside>
       </div>
     </div>

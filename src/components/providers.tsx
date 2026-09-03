@@ -156,8 +156,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, []);
 
-  // 未选择过身份版本的访客，首访弹出身份选择
-  useEffect(() => { if (window.localStorage.getItem(audienceStorageKey)) return; const timer = window.setTimeout(() => setOnboardingOpen(true), 0); return () => window.clearTimeout(timer); }, []);
+  // W2: identity picker is opt-in. Auto-opening it stacked on the homepage
+  // spotlight (B8). Keep the modal mounted; nothing opens it on first visit.
   useEffect(() => { const onKey = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setSearchOpen((open) => !open); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
 
   const completeOnboarding = useCallback((next: Audience, industries: string[]) => { selectAudience(next, industries); setOnboardingOpen(false); }, [selectAudience]);

@@ -32,12 +32,11 @@ export const defaultPortalContent: PortalContentConfig = {
     { id: "finance-analysis", title: "财务分析助手", href: "/studio/skills?scene=growth-commerce", imageUrl: "", group: "latest", enabled: true },
     { id: "ppt-generate", title: "PPT 生成", href: "/studio/skills?scene=content-office", imageUrl: "", group: "latest", enabled: true },
     { id: "code-generate", title: "代码生成", href: "/studio/skills?scene=developer-api", imageUrl: "", group: "latest", enabled: true },
-    { id: "contract-review", title: "合同审查", href: "/studio/skills?scene=content-office", imageUrl: "", group: "latest", enabled: true },
   ],
   capabilityShowcase: [
     { id: "model-routing", title: "强大的模型接入与调度", eyebrow: "模型接入", href: "/products?cate=api", imageUrl: "", tone: "models", enabled: true },
     { id: "agent-execution", title: "Agent 智能体平台", eyebrow: "智能体", href: "/studio", imageUrl: "", tone: "agent", enabled: true },
-    { id: "knowledge-engine", title: "企业级知识引擎", eyebrow: "知识引擎", href: "/business/capabilities", imageUrl: "", tone: "usage", enabled: true },
+    { id: "knowledge-engine", title: "企业级知识引擎", eyebrow: "知识引擎", href: "/business", imageUrl: "", tone: "usage", enabled: true },
   ],
 };
 

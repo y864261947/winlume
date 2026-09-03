@@ -19,6 +19,14 @@ const navItems: NavItem[] = [
   { href: "/products?cate=app", label: "应用工具", active: (pathname, cate) => pathname === "/products" && cate === "app" },
 ];
 
+function isJunkPortalNotice(notice: { title: string; body?: string }) {
+  const title = notice.title.trim();
+  if (!title) return true;
+  if (/^(测试|test)\s*\d*$/i.test(title)) return true;
+  if (/^(测试|test)$/i.test(title)) return true;
+  return false;
+}
+
 /** One portal header for the home, catalog, docs, pricing, and account surfaces. */
 export default function PortalHeader({ productMode }: { productMode?: "app" | "api" }) {
   const pathname = usePathname();
@@ -40,7 +48,7 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
       .then((response) => response.ok ? response.json() : null)
       .then((content: { notifications?: Array<{ id: string; title: string; body: string; href: string; enabled?: boolean }> } | null) => {
         if (cancelled) return;
-        const enabledNotifications = (content?.notifications ?? []).filter((notice) => notice.enabled !== false);
+        const enabledNotifications = (content?.notifications ?? []).filter((notice) => notice.enabled !== false && !isJunkPortalNotice(notice));
         setNotifications(enabledNotifications);
         if (notificationOpenRef.current) {
           markPortalNotificationsRead(enabledNotifications);
@@ -114,6 +122,9 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
             <Link href="/studio" className={`portal-agent-entry${pathname.startsWith("/studio") ? " is-current" : ""}`}>
               <Bot aria-hidden />
               工作台
+            </Link>
+            <Link href="/docs" className={pathname.startsWith("/docs") ? "is-current" : undefined}>
+              教程
             </Link>
           </nav>
           <button type="button" className="portal-membership-entry" onClick={openMembership}>
