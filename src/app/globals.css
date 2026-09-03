@@ -9990,8 +9990,17 @@ body {
 
 /* Shared support submenu surface. Keep the pre-transform dimensions generous
    because MarketingDensityShell scales the desktop canvas for visual density. */
-.portal-support-page { min-height: 620px; padding: 24px 0 62px; color: var(--portal-ink); background: linear-gradient(180deg, #f7fbff 0%, #fff 42%, #fff 100%); }
-.portal-support-container { width: min(100% - 48px, 1180px); margin: 0 auto; }
+.portal-support-density-shell { min-height: 100vh; }
+.portal-support-marketing-main { display: block; }
+.portal-support-footer { margin-top: 26px; }
+.portal-support-page { min-height: 620px; padding: 24px 0 62px; color: var(--portal-ink); background: transparent; }
+.portal-support-container { width: min(100% - 48px, 1480px); margin: 0 auto; }
+/* The homepage uses a compact two-column support strip. Support subpages need
+   their own full-width content flow instead of inheriting that fixed-height grid. */
+.portal-support-page .portal-support-section { display: block; height: auto; min-height: 0; margin: 0; }
+.portal-support-page .portal-support-section-head { width: auto; min-height: 0; }
+.portal-support-page .portal-support-faq-list,
+.portal-support-page .portal-support-contact-grid { width: auto; }
 .portal-support-back { display: inline-flex; align-items: center; gap: 7px; color: #68819a; font-size: 13px; font-weight: 700; transition: color .18s ease; }
 .portal-support-back:hover { color: var(--portal-blue); }
 .portal-support-back svg { width: 15px; height: 15px; }
@@ -10053,7 +10062,7 @@ body {
 
 @media (max-width: 600px) {
   .portal-support-page { padding: 16px 0 38px; }
-  .portal-support-container { width: min(100% - 28px, 1180px); }
+  .portal-support-container { width: min(100% - 28px, 1480px); }
   .portal-support-hero { margin-top: 16px; padding: 25px 21px; border-radius: 14px; }
   .portal-support-hero h1 { margin-top: 13px; font-size: 34px; line-height: 1.1; }
   .portal-support-hero-description { font-size: 14px; line-height: 23px; }
@@ -10069,4 +10078,5 @@ body {
   .portal-support-inline-link { align-items: flex-start; flex-direction: column; gap: 8px; }
   .portal-support-cta { align-items: flex-start; flex-direction: column; padding: 21px; }
   .portal-support-cta-link { width: 100%; justify-content: center; }
+  .portal-support-footer { margin-top: 16px; }
 }
