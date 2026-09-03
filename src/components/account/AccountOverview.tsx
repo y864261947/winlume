@@ -22,7 +22,7 @@ export default function AccountOverview() {
     return () => window.clearTimeout(timer);
   }, [account, load]);
 
-  if (!account) return <section className="account-personal-empty"><UserRound aria-hidden /><h1>登录后查看个人中心</h1><p>账户信息、额度、API Keys 与任务看板会汇总在这里。</p><button type="button" onClick={() => openLogin("login")}>登录</button></section>;
+  if (!account) return <section className="account-personal-empty"><UserRound aria-hidden /><h1>登录后可查看个人中心</h1><p>登录后可在这里查看账户、生成 Key、查看任务。</p><button type="button" onClick={() => openLogin("login")}>登录</button></section>;
 
   const available = overview?.wallet.availableCredits ?? 0;
   const used = overview?.wallet.usedCredits ?? 0;

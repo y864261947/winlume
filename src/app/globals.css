@@ -9854,3 +9854,34 @@ body {
   .portal-home .portal-capability-hero strong { font-size: 16px; line-height: 21px; }
   .portal-home .portal-capability-hero small { font-size: 11px; line-height: 16px; }
 }
+
+/* W1: one brand footer. Mid-page portal-bottom-footer is gone from JSX;
+   keep it hidden if an older CMS shell reintroduces it. Social glyphs removed. */
+.portal-home .portal-bottom-footer { display: none !important; }
+.portal-home .portal-ed-footer-brand small {
+  display: block;
+  margin-top: 8px;
+  color: var(--p-ink-40);
+  font-size: 9px;
+}
+.portal-home .portal-ed {
+  margin-top: var(--p-section-gap);
+}
+.portal-home .portal-ed-footer {
+  border-top: 1px solid var(--p-line);
+  background: var(--p-surface-soft);
+}
+/* W1: keep 热门 chips and app-tab pills readable against glass. */
+.portal-home .portal-search-content > .portal-chip-list button {
+  color: #2b3b52;
+}
+.portal-home .portal-search-content > .portal-chip-list button svg {
+  color: #155fdc;
+}
+.portal-home .portal-app-showcase-v2 .portal-app-tab {
+  color: #2b3b52;
+}
+.portal-home .portal-app-showcase-v2 .portal-app-tab[data-selected],
+.portal-home .portal-app-showcase-v2 .portal-app-tab[aria-selected="true"] {
+  color: #fff;
+}
