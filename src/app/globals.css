@@ -9648,7 +9648,8 @@ body {
   box-shadow: 0 5px 12px -8px rgba(23, 86, 190, .9);
 }
 
-.portal-home .portal-app-showcase-v2 .portal-app-tab [data-slot="indicator"] {
+.portal-home .portal-app-showcase-v2 .portal-app-tab [data-slot="indicator"],
+.portal-home .portal-app-showcase-v2 .portal-app-tab [data-slot="tabs-indicator"] {
   display: none;
 }
 
