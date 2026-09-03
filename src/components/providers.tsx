@@ -3,7 +3,6 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import LoginModal from "./LoginModal";
 import SearchModal from "./SearchModal";
-import OnboardingModal from "./OnboardingModal";
 import MembershipModal from "./MembershipModal";
 import type { Product } from "@/data/products";
 import type { Audience } from "@/data/audience";
@@ -60,7 +59,6 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [loginMode, setLoginMode] = useState<LoginMode>("login");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membershipOpen, setMembershipOpen] = useState(false);
-  const [onboardingOpen, setOnboardingOpen] = useState(false);
   // 初始为空、挂载后再读 localStorage，避免 SSR 与客户端首帧不一致（hydration mismatch）
   const [favorites, setFavorites] = useState<string[]>([]);
   const [audience, setAudience] = useState<Audience | null>(null);
@@ -189,13 +187,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, []);
 
-  // 未选择过身份版本的访客，首访弹出身份选择
-  useEffect(() => { if (window.localStorage.getItem(audienceStorageKey)) return; const timer = window.setTimeout(() => setOnboardingOpen(true), 0); return () => window.clearTimeout(timer); }, []);
   useEffect(() => { const onKey = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setSearchOpen((open) => !open); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
-
-  const completeOnboarding = useCallback((next: Audience, industries: string[]) => { selectAudience(next, industries); setOnboardingOpen(false); }, [selectAudience]);
-  // 遮罩 / ESC 仅关闭，不写入"已完成"，下次访问还会再弹
-  const dismissOnboarding = useCallback(() => setOnboardingOpen(false), []);
 
   const value = useMemo<ModalContextValue>(() => ({ openLogin, closeLogin, openSearch, openMembership, openExperience, favorites, toggleFavorite, account, accountLoading, balanceConfig, refreshAccount, completeLogin, signOut, audience, industryPrefs, selectAudience }), [openLogin, closeLogin, openSearch, openMembership, openExperience, favorites, toggleFavorite, account, accountLoading, balanceConfig, refreshAccount, completeLogin, signOut, audience, industryPrefs, selectAudience]);
 
@@ -205,7 +197,6 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       <LoginModal open={loginOpen} initialMode={loginMode} onClose={closeLogin} />
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
       <MembershipModal open={membershipOpen} onClose={() => setMembershipOpen(false)} />
-      <OnboardingModal open={onboardingOpen} onComplete={completeOnboarding} onDismiss={dismissOnboarding} />
     </ModalContext.Provider>
   );
 }
