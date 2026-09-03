@@ -37,9 +37,9 @@ export const footerGroups: FooterGroup[] = [
     title: "帮助与支持",
     links: [
       { label: "客户端", href: "#" },
-      { label: "常见问题", href: "/#faq" },
-      { label: "联系我们", href: "#" },
-      { label: "帮助中心", href: "#" },
+      { label: "常见问题", href: "/support/faq" },
+      { label: "联系我们", href: "/support/contact" },
+      { label: "帮助中心", href: "/support/faq" },
     ],
   },
   {
