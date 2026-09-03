@@ -9915,21 +9915,21 @@ body {
   }
 
   .portal-home .portal-app-showcase-v2 .portal-featured-app-card {
-    height: 278px;
-    min-height: 278px;
+    height: 556px;
+    min-height: 556px;
     border-radius: 12px;
   }
 
   .portal-home .portal-app-showcase-v2 .portal-app-support-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(2, 133px);
+    grid-template-rows: repeat(2, 266px);
     gap: 12px 15px;
-    height: 278px;
+    height: 556px;
   }
 
   .portal-home .portal-app-showcase-v2 .portal-app-support-card {
-    height: 133px;
-    min-height: 133px;
+    height: 266px;
+    min-height: 266px;
     border-radius: 12px;
   }
 
@@ -9966,16 +9966,16 @@ body {
 
   .portal-home .portal-capability-hero,
   .portal-home .portal-capability-hero.is-models {
-    min-height: 112px;
-    height: 112px;
-    padding: 16px 18px;
+    min-height: 224px;
+    height: 224px;
+    padding: 24px 22px;
     grid-template-columns: minmax(0, 1fr) 39%;
     border-radius: 9px;
   }
 
-  .portal-home .portal-capability-hero strong { font-size: 15px; line-height: 20px; }
-  .portal-home .portal-capability-hero small { font-size: 10px; line-height: 15px; }
-  .portal-home .portal-capability-hero .portal-capability-evidence { min-height: 70px; margin-left: 8px; }
+  .portal-home .portal-capability-hero strong { font-size: 18px; line-height: 24px; }
+  .portal-home .portal-capability-hero small { font-size: 12px; line-height: 18px; }
+  .portal-home .portal-capability-hero .portal-capability-evidence { min-height: 140px; margin-left: 10px; }
 
   .portal-home .portal-bottom-help {
     justify-content: center;
