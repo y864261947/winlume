@@ -1246,14 +1246,14 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
                 {popularApplications.slice(0, 1).map((app) => (
                   <PortalLink href={app.href} className="portal-featured-app-card" key={app.title}>
                     <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[0]?.preview ?? "storyboard"} />
-                    <span className="portal-featured-app-copy"><strong>{app.title}</strong><small>{applicationDetail(app.title)}</small></span>
+                    <span className="portal-featured-app-copy"><em>热门应用</em><strong>{app.title}</strong><small>{applicationDetail(app.title)}</small><span className="portal-featured-app-cta">立即使用<ChevronRight aria-hidden /></span></span>
                   </PortalLink>
                 ))}
                 <div className="portal-app-support-grid">
                   {popularApplications.slice(1, 5).map((app, index) => (
                     <PortalLink href={app.href} className="portal-app-support-card" key={app.title}>
                       <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[index + 1]?.preview ?? "poster"} />
-                      <span><strong>{app.title}</strong></span>
+                      <span><strong>{app.title}</strong><small>{applicationDetail(app.title)}</small></span>
                     </PortalLink>
                   ))}
                 </div>
@@ -1264,14 +1264,14 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
                 {latestApplications.slice(0, 1).map((app) => (
                   <PortalLink href={app.href} className="portal-featured-app-card" key={app.title}>
                     <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[5]?.preview ?? "product"} />
-                    <span className="portal-featured-app-copy"><strong>{app.title}</strong></span>
+                    <span className="portal-featured-app-copy"><em>最新上架</em><strong>{app.title}</strong><small>{applicationDetail(app.title)}</small><span className="portal-featured-app-cta">立即使用<ChevronRight aria-hidden /></span></span>
                   </PortalLink>
                 ))}
                 <div className="portal-app-support-grid">
                   {latestApplications.slice(1, 5).map((app, index) => (
                     <PortalLink href={app.href} className="portal-app-support-card" key={app.title}>
                       <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[index + 6]?.preview ?? "finance"} />
-                      <span><strong>{app.title}</strong></span>
+                      <span><strong>{app.title}</strong><small>{applicationDetail(app.title)}</small></span>
                     </PortalLink>
                   ))}
                 </div>
