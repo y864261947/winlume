@@ -23,11 +23,11 @@ export const defaultPortalContent: PortalContentConfig = {
   ],
   modelVendors: [],
   applicationShowcase: [
+    { id: "finance-assistant", title: "AI财务分析助手", href: "/studio/skills?scene=growth-commerce", imageUrl: "", group: "popular", enabled: true },
+    { id: "copywriting", title: "AI文案创作", href: "/studio/skills?scene=content-office", imageUrl: "", group: "popular", enabled: true },
     { id: "video-generate", title: "AI视频生成", href: "/studio?preset=video-default", imageUrl: "", group: "popular", enabled: true },
-    { id: "poster-design", title: "视觉海报设计", href: "/studio?preset=image-default", imageUrl: "", group: "popular", enabled: true },
-    { id: "video-translate", title: "AI视频翻译", href: "/studio?preset=video-default", imageUrl: "", group: "popular", enabled: true },
-    { id: "digital-human", title: "AI视频数字人", href: "/studio", imageUrl: "", group: "popular", enabled: true },
-    { id: "smart-extract", title: "AI智能提取", href: "/studio/skills?scene=content-office", imageUrl: "", group: "popular", enabled: true },
+    { id: "image-design", title: "AI图片设计", href: "/studio?preset=image-default", imageUrl: "", group: "popular", enabled: true },
+    { id: "contract-review", title: "合同智能审查", href: "/studio/skills?scene=content-office", imageUrl: "", group: "popular", enabled: true },
     { id: "product-image", title: "产品图生成", href: "/studio?preset=image-default", imageUrl: "", group: "latest", enabled: true },
     { id: "finance-analysis", title: "财务分析助手", href: "/studio/skills?scene=growth-commerce", imageUrl: "", group: "latest", enabled: true },
     { id: "ppt-generate", title: "PPT 生成", href: "/studio/skills?scene=content-office", imageUrl: "", group: "latest", enabled: true },
@@ -35,9 +35,9 @@ export const defaultPortalContent: PortalContentConfig = {
     { id: "contract-review", title: "合同审查", href: "/studio/skills?scene=content-office", imageUrl: "", group: "latest", enabled: true },
   ],
   capabilityShowcase: [
-    { id: "model-routing", title: "模型路由，随任务切换", eyebrow: "模型路由", href: "/products?cate=api", imageUrl: "", tone: "models", enabled: true },
-    { id: "agent-execution", title: "Agent 自动完成一整件事", eyebrow: "Agent 执行", href: "/studio", imageUrl: "", tone: "agent", enabled: true },
-    { id: "usage-governance", title: "成本始终可见", eyebrow: "用量与治理", href: "/account/wallet", imageUrl: "", tone: "usage", enabled: true },
+    { id: "model-routing", title: "强大的模型接入与调度", eyebrow: "模型接入", href: "/products?cate=api", imageUrl: "", tone: "models", enabled: true },
+    { id: "agent-execution", title: "Agent 智能体平台", eyebrow: "智能体", href: "/studio", imageUrl: "", tone: "agent", enabled: true },
+    { id: "knowledge-engine", title: "企业级知识引擎", eyebrow: "知识引擎", href: "/business/capabilities", imageUrl: "", tone: "usage", enabled: true },
   ],
 };
 

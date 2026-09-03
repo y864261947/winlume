@@ -260,12 +260,12 @@ type ManagedApplicationShowcase = { id: string; title: string; href: string; ima
 type ManagedCapabilityShowcase = { id: string; title: string; eyebrow: string; href: string; imageUrl: string; tone: "models" | "agent" | "usage"; enabled: boolean };
 
 const portalApplicationShowcase: ReadonlyArray<{ title: string; detail: string; href: string; tone: string; preview: PortalApplicationPreview }> = [
-  { title: "AI视频生成", detail: "从脚本到短片，一键生成分镜与成片", href: "/studio?preset=video-default", tone: "violet", preview: "storyboard" },
-  { title: "视觉海报设计", detail: "营销海报、活动主视觉快速产出", href: "/studio?preset=image-default", tone: "rose", preview: "poster" },
-  { title: "AI视频翻译", detail: "字幕翻译、配音与多语种本地化", href: "/studio?preset=video-default", tone: "teal", preview: "subtitles" },
-  { title: "AI视频数字人", detail: "创建口播讲解、培训与产品演示", href: "/studio", tone: "blue", preview: "avatar" },
+  { title: "AI财务分析助手", detail: "自动生成图表、报告、趋势分析和可视化图表，提升财务决策效率。", href: "/studio/skills?scene=growth-commerce", tone: "green", preview: "finance" },
+  { title: "AI文案创作", detail: "高质量文案、营销内容一键生成", href: "/studio/skills?scene=content-office", tone: "rose", preview: "poster" },
+  { title: "AI视频生成", detail: "文本/图像一键生成高质量视频", href: "/studio?preset=video-default", tone: "violet", preview: "storyboard" },
+  { title: "AI图片设计", detail: "电商图、海报、素材快速设计", href: "/studio?preset=image-default", tone: "cyan", preview: "product" },
+  { title: "合同智能审查", detail: "合同风险识别与条款建议", href: "/studio/skills?scene=content-office", tone: "amber", preview: "contract" },
   { title: "AI智能提取", detail: "从文档、网页和图片提取结构化信息", href: "/studio/skills?scene=content-office", tone: "amber", preview: "extract" },
-  { title: "产品图生成", detail: "商品场景图、主图和电商素材", href: "/studio?preset=image-default", tone: "cyan", preview: "product" },
   { title: "财务分析助手", detail: "报表解读、指标分析与结论整理", href: "/studio/skills?scene=growth-commerce", tone: "green", preview: "finance" },
   { title: "PPT 生成", detail: "快速把想法整理成可演示的页面", href: "/studio/skills?scene=content-office", tone: "indigo", preview: "slides" },
   { title: "代码生成", detail: "从需求到代码、调试和接口说明", href: "/studio/skills?scene=developer-api", tone: "slate", preview: "code" },
@@ -273,9 +273,9 @@ const portalApplicationShowcase: ReadonlyArray<{ title: string; detail: string; 
 ];
 
 const portalCapabilityCards: ReadonlyArray<{ title: string; detail: string; badge: string; href: string; tone: string; evidence: PortalCapabilityEvidence }> = [
-  { title: "模型路由，随任务切换", detail: "GPT、Claude、Gemini、DeepSeek 等模型统一接入，按能力选择最适合的执行路径。", badge: "MODEL ROUTING", href: "/products?cate=api", tone: "models", evidence: "models" },
-  { title: "Agent 自动完成一整件事", detail: "把模型、工具和 2600+ Skills 编排为可复用的执行流程。", badge: "AGENT EXECUTION", href: "/studio", tone: "agent", evidence: "agent" },
-  { title: "成本始终可见", detail: "额度、消耗与预算阈值实时同步，团队使用有迹可循。", badge: "USAGE & GOVERNANCE", href: "/account/wallet", tone: "usage", evidence: "usage" },
+  { title: "强大的模型接入与调度", detail: "100+ 主流模型接入，智能路由，稳定高效", badge: "MODEL ROUTING", href: "/products?cate=api", tone: "models", evidence: "models" },
+  { title: "Agent 智能体平台", detail: "构建、编排和运行你的专属智能体", badge: "AGENT EXECUTION", href: "/studio", tone: "agent", evidence: "agent" },
+  { title: "企业级知识引擎", detail: "RAG 知识库、文档理解、多源数据融合", badge: "KNOWLEDGE ENGINE", href: "/business/capabilities", tone: "usage", evidence: "usage" },
 ];
 
 const initialManagedApplications: ManagedApplicationShowcase[] = portalApplicationShowcase.map((item, index) => ({ id: `application-${index + 1}`, title: item.title, href: item.href, imageUrl: "", group: index < 5 ? "popular" : "latest", enabled: true }));
@@ -303,6 +303,16 @@ function CapabilityEvidence({ kind }: { kind: PortalCapabilityEvidence }) {
 
 function ManagedApplicationVisual({ item, fallback }: { item: ManagedApplicationShowcase; fallback: PortalApplicationPreview }) {
   return item.imageUrl ? <span className="portal-managed-showcase-image"><Image src={item.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 50vw" priority unoptimized /></span> : <ApplicationResultPreview kind={fallback} />;
+}
+
+function applicationDetail(title: string) {
+  return portalApplicationShowcase.find((item) => item.title === title)?.detail ?? "一站式完成任务，快速获得可用成果。";
+}
+
+function capabilityDetail(tone: ManagedCapabilityShowcase["tone"]) {
+  if (tone === "agent") return "构建、编排和运行你的专属智能体";
+  if (tone === "usage") return "RAG 知识库、文档理解、多源数据融合";
+  return "100+ 主流模型接入，智能路由，稳定高效";
 }
 
 const productPaths = [
@@ -1216,28 +1226,27 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
         </div>
 
         <section className="portal-app-showcase portal-app-showcase-v2" aria-label="应用工具">
-          <div className="portal-app-showcase-head">
-            <div />
-            <PortalLink href="/products?cate=app" className="portal-arrow-link">查看全部应用</PortalLink>
-          </div>
           <Tabs
             selectedKey={applicationTab}
             onSelectionChange={(key) => setApplicationTab(key === "latest" ? "latest" : "popular")}
             variant="secondary"
             className="portal-app-tabs"
           >
-            <Tabs.ListContainer className="portal-app-tabs-list-container">
-              <Tabs.List aria-label="应用工具分组" className="portal-app-tabs-list">
-                <Tabs.Tab id="popular" className="portal-app-tab" onMouseEnter={() => setApplicationTab("popular")} onFocus={() => setApplicationTab("popular")}>热门应用<Tabs.Indicator /></Tabs.Tab>
-                <Tabs.Tab id="latest" className="portal-app-tab" onMouseEnter={() => setApplicationTab("latest")} onFocus={() => setApplicationTab("latest")}>最新上架<Tabs.Indicator /></Tabs.Tab>
-              </Tabs.List>
-            </Tabs.ListContainer>
+            <div className="portal-app-showcase-head">
+              <Tabs.ListContainer className="portal-app-tabs-list-container">
+                <Tabs.List aria-label="应用工具分组" className="portal-app-tabs-list">
+                  <Tabs.Tab id="popular" className="portal-app-tab" onMouseEnter={() => setApplicationTab("popular")} onFocus={() => setApplicationTab("popular")}>热门应用<Tabs.Indicator /></Tabs.Tab>
+                  <Tabs.Tab id="latest" className="portal-app-tab" onMouseEnter={() => setApplicationTab("latest")} onFocus={() => setApplicationTab("latest")}>最新上架<Tabs.Indicator /></Tabs.Tab>
+                </Tabs.List>
+              </Tabs.ListContainer>
+              <PortalLink href="/products?cate=app" className="portal-arrow-link">查看全部应用</PortalLink>
+            </div>
             <Tabs.Panel id="popular" className={`portal-app-tab-panel${applicationTab === "popular" ? " is-active" : " is-inactive"}`} shouldForceMount>
               <div className="portal-featured-app-grid">
                 {popularApplications.slice(0, 1).map((app) => (
                   <PortalLink href={app.href} className="portal-featured-app-card" key={app.title}>
                     <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[0]?.preview ?? "storyboard"} />
-                    <span className="portal-featured-app-copy"><strong>{app.title}</strong></span>
+                    <span className="portal-featured-app-copy"><strong>{app.title}</strong><small>{applicationDetail(app.title)}</small></span>
                   </PortalLink>
                 ))}
                 <div className="portal-app-support-grid">
@@ -1273,7 +1282,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
 
         <section className="portal-bottom-explore portal-system-rail" aria-labelledby="portal-bottom-explore-title">
           <div className="portal-bottom-explore-head"><div><h2 id="portal-bottom-explore-title">探索更多 REIZO 能力</h2></div></div>
-          <div className="portal-capability-showcase">{visibleCapabilities.map((card) => <PortalLink href={card.href} className={`portal-capability-hero is-${card.tone}${card.imageUrl ? " has-managed-image" : ""}`} key={card.id}>{card.imageUrl ? <Image className="portal-managed-capability-image" src={card.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 34vw" priority unoptimized /> : <CapabilityEvidence kind={card.tone === "agent" ? "agent" : card.tone === "usage" ? "usage" : "models"} />}<span><em>{card.eyebrow}</em><strong>{card.title}</strong></span></PortalLink>)}</div>
+          <div className="portal-capability-showcase">{visibleCapabilities.map((card) => <PortalLink href={card.href} className={`portal-capability-hero is-${card.tone}${card.imageUrl ? " has-managed-image" : ""}`} key={card.id}>{card.imageUrl ? <Image className="portal-managed-capability-image" src={card.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 34vw" priority unoptimized /> : <CapabilityEvidence kind={card.tone === "agent" ? "agent" : card.tone === "usage" ? "usage" : "models"} />}<span className="portal-capability-copy"><strong>{card.title}</strong><small>{capabilityDetail(card.tone)}</small></span></PortalLink>)}</div>
           <HeroCard variant="tertiary" className="portal-bottom-help"><span><CircleHelp aria-hidden />没有找到合适的应用或技能？告诉我们你的使用场景，我们为你定制解决方案。</span><PortalLink href="/business" className="portal-bottom-help-link">提交需求<ChevronRight aria-hidden /></PortalLink></HeroCard>
           <footer className="portal-bottom-footer"><div className="portal-bottom-brand"><strong><Image className="portal-footer-mark" src="/brand/reizo-mark.png" alt="" width={26} height={26} />REIZO</strong><p>从 AI 能力到智能体，每一步都更简单。</p><small>© 2026 Reizo. All rights reserved.</small></div>{footerColumns.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.items.slice(0, 3).map((item) => <PortalLink href={item.href} key={item.label}>{item.label}</PortalLink>)}</div>)}<div><h3>关注我们</h3><span className="portal-bottom-social">𝕏　in　◉　✉</span></div></footer>
         </section>
