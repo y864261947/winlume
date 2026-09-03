@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getPortalContent } from "@/lib/portal/content-config";
+import { getPublicPortalContent } from "@/lib/portal/content-config";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json(await getPortalContent(), { headers: { "cache-control": "no-store" } });
+  return NextResponse.json(await getPublicPortalContent(), { headers: { "cache-control": "public, max-age=60, stale-while-revalidate=300" } });
 }

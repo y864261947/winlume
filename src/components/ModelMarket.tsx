@@ -699,9 +699,9 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [featuredIndex, setFeaturedIndex] = useState(0);
-  const [featuredSlides, setFeaturedSlides] = useState<FeaturedSlide[]>(() => contentFeaturedSlides(initialContent));
-  const [managedApplications, setManagedApplications] = useState<ManagedApplicationShowcase[]>(() => initialContent?.applicationShowcase?.length ? initialContent.applicationShowcase : initialManagedApplications);
-  const [managedCapabilities, setManagedCapabilities] = useState<ManagedCapabilityShowcase[]>(() => initialContent?.capabilityShowcase?.length ? initialContent.capabilityShowcase : initialManagedCapabilities);
+  const featuredSlides = contentFeaturedSlides(initialContent);
+  const managedApplications = initialContent?.applicationShowcase?.length ? initialContent.applicationShowcase : initialManagedApplications;
+  const managedCapabilities = initialContent?.capabilityShowcase?.length ? initialContent.capabilityShowcase : initialManagedCapabilities;
   const [featuredPaused, setFeaturedPaused] = useState(false);
   const [applicationTab, setApplicationTab] = useState<"popular" | "latest">("popular");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -735,26 +735,6 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
   useEffect(() => {
     activePathIdRef.current = activePathId;
   }, [activePathId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/portal/content?v=${Date.now()}`, { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : null)
-      .then((content: { carousel?: Array<{ id: string; imageUrl: string; alt: string; href: string; enabled?: boolean }>; applicationShowcase?: ManagedApplicationShowcase[]; capabilityShowcase?: ManagedCapabilityShowcase[] } | null) => {
-        const slides = (content?.carousel ?? []).filter((slide) => slide.enabled !== false && slide.imageUrl && slide.alt).map((slide) => ({ id: slide.id, src: slide.imageUrl, alt: slide.alt, href: slide.href || "/products?cate=api" }));
-        if (!cancelled && slides.length) { setFeaturedSlides(slides); setFeaturedIndex(0); }
-        // Keep the immediately rendered fallback cards when an older or empty
-        // portal-content record is returned during publish/sync.
-        if (!cancelled && Array.isArray(content?.applicationShowcase) && content.applicationShowcase.length) {
-          setManagedApplications(content.applicationShowcase);
-        }
-        if (!cancelled && Array.isArray(content?.capabilityShowcase) && content.capabilityShowcase.length) {
-          setManagedCapabilities(content.capabilityShowcase);
-        }
-      })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     if (!account) return;
@@ -1000,7 +980,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
   return (
     <div className="portal-home portal-home-dashboard portal-density-shell">
       <div className="portal-frame">
-        <PortalHeader />
+        <PortalHeader notifications={initialContent?.notifications} />
 
         <div className="portal-search-row">
           <section className={`portal-search-card${onboardingStep === 0 ? " is-onboarding-target" : ""}`} data-onboarding-target="agent" aria-labelledby="portal-search-title">

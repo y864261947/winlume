@@ -7,6 +7,10 @@ import {
 } from "@/lib/platform";
 import { provisionPlatformUser } from "@/lib/platform/provision";
 
+// The response depends on the Auth.js session cookie and must never be
+// statically rendered or reused between visitors.
+export const dynamic = "force-dynamic";
+
 function legacyGatewayUrl(): string | undefined {
   const configured = process.env.NEW_API_URL?.trim();
   return configured ? configured.replace(/\/+$/, "") : undefined;

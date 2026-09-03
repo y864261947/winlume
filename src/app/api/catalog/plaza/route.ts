@@ -5,7 +5,7 @@ import { resolveStudioToken } from "@/lib/agent/provider/studio-token";
 import { getAuthMode } from "@/lib/platform/auth";
 import { inferVendorFromModel, PLAZA_VENDORS } from "@/lib/catalog/vendors";
 import type { PlazaModel } from "@/lib/catalog";
-import { getPortalContent } from "@/lib/portal/content-config";
+import { getPublicPortalContent } from "@/lib/portal/content-config";
 
 type NativeModelsPayload = {
   data?: Array<{ id?: unknown; owned_by?: unknown }>;
@@ -121,7 +121,7 @@ function mergeLiveAndCuratedModels(liveModels: PlazaModel[]) {
 }
 
 async function mergePortalManagedModels(models: PlazaModel[]) {
-  const content = await getPortalContent();
+  const content = await getPublicPortalContent();
   const known = new Set(models.map((model) => model.model_name.trim().toLowerCase()));
   const managed = content.modelVendors
     .filter((vendor) => vendor.enabled)

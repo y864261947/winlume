@@ -68,21 +68,27 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [balanceConfig, setBalanceConfig] = useState<BalanceConfig | null>(null);
   const [accountLoading, setAccountLoading] = useState(true);
+  const accountRequestVersion = useRef(0);
 
   const refreshAccount = useCallback(async () => {
+    const requestVersion = ++accountRequestVersion.current;
     // Load balance/auth feature flags even when the visitor is logged out so
     // LoginModal can show Google OAuth without a session cookie.
     const configPromise = getBalanceConfig()
-      .then((config) => setBalanceConfig(config))
-      .catch(() => setBalanceConfig(null));
+      .then((config) => {
+        if (requestVersion === accountRequestVersion.current) setBalanceConfig(config);
+      })
+      .catch(() => {
+        if (requestVersion === accountRequestVersion.current) setBalanceConfig(null);
+      });
     try {
       const currentAccount = await getAccount();
-      setAccount(currentAccount);
+      if (requestVersion === accountRequestVersion.current) setAccount(currentAccount);
     } catch {
-      setAccount(null);
+      if (requestVersion === accountRequestVersion.current) setAccount(null);
     } finally {
       await configPromise;
-      setAccountLoading(false);
+      if (requestVersion === accountRequestVersion.current) setAccountLoading(false);
     }
   }, []);
 
@@ -110,12 +116,27 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   }, []);
   const toggleFavorite = useCallback((productId: string) => { setFavorites((current) => current.includes(productId) ? current.filter((id) => id !== productId) : [...current, productId]); }, []);
   const signOut = useCallback(async () => {
-    // 请求失败会抛给调用方处理，本地账户状态保持不变
-    await logoutRequest();
+    // Invalidate an in-flight account request before clearing the UI. Without
+    // this, a request started before logout can restore the old account.
+    ++accountRequestVersion.current;
     setAccount(null);
+    setAccountLoading(false);
+    try {
+      await logoutRequest();
+    } catch (error) {
+      // If logout failed, resync the server session instead of claiming it
+      // succeeded in the UI.
+      void refreshAccount();
+      throw error;
+    }
+    // A focus/visibility sync may have started while signOut was in flight;
+    // invalidate it once more after the cookie has been cleared.
+    ++accountRequestVersion.current;
+    setAccount(null);
+    setAccountLoading(false);
     // Keep public auth feature flags (e.g. google_oauth_enabled) after logout.
     void getBalanceConfig().then(setBalanceConfig).catch(() => setBalanceConfig(null));
-  }, []);
+  }, [refreshAccount]);
 
   const selectAudience = useCallback((next: Audience, industries: string[] = []) => {
     setAudience(next);
@@ -126,9 +147,21 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // 推迟到下一帧执行，避免在 effect 体内同步 setState
-    const timer = window.setTimeout(() => void refreshAccount(), 0);
-    return () => window.clearTimeout(timer);
+    // OAuth callbacks and sign-out can update the session while this provider
+    // stays mounted. Recheck whenever the page becomes active again.
+    const initialSync = window.setTimeout(() => void refreshAccount(), 0);
+    const syncAccount = () => {
+      if (document.visibilityState === "visible") void refreshAccount();
+    };
+    window.addEventListener("focus", syncAccount);
+    window.addEventListener("pageshow", syncAccount);
+    document.addEventListener("visibilitychange", syncAccount);
+    return () => {
+      window.clearTimeout(initialSync);
+      window.removeEventListener("focus", syncAccount);
+      window.removeEventListener("pageshow", syncAccount);
+      document.removeEventListener("visibilitychange", syncAccount);
+    };
   }, [refreshAccount]);
 
   // 挂载后读取本地收藏；写入 effect 跳过首次执行，避免用空数组覆盖已有数据

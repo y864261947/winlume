@@ -7,6 +7,7 @@ import { Bell, Bot, ChevronDown, ChevronRight, Crown, KeyRound, LayoutDashboard,
 import { useEffect, useRef, useState } from "react";
 import { useModals } from "@/components/providers";
 import { getUnreadPortalNotifications, markPortalNotificationsRead } from "@/lib/portal/notification-read";
+import type { PortalNotification } from "@/lib/portal/content-config";
 
 type NavItem = {
   href: string;
@@ -20,15 +21,16 @@ const navItems: NavItem[] = [
 ];
 
 /** One portal header for the home, catalog, docs, pricing, and account surfaces. */
-export default function PortalHeader({ productMode }: { productMode?: "app" | "api" }) {
+export default function PortalHeader({ productMode, notifications: initialNotifications }: { productMode?: "app" | "api"; notifications?: PortalNotification[] }) {
   const pathname = usePathname();
   const router = useRouter();
   const { account, openLogin, openMembership, signOut: signOutAccount } = useModals();
-  const [notice, setNotice] = useState("");
   const [apiMenuOpen, setApiMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Array<{ id: string; title: string; body: string; href: string }>>([]);
+  const [notifications, setNotifications] = useState<Array<{ id: string; title: string; body: string; href: string }>>(() =>
+    (initialNotifications ?? []).filter((item) => item.enabled !== false),
+  );
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const notificationOpenRef = useRef(false);
   const accountName = account ? account.display_name || account.username : "";
@@ -36,7 +38,17 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/portal/content?v=${Date.now()}`, { cache: "no-store" })
+    if (initialNotifications) {
+      const enabledNotifications = initialNotifications.filter((item) => item.enabled !== false);
+      if (notificationOpenRef.current) {
+        markPortalNotificationsRead(enabledNotifications);
+        setUnreadNotificationCount(0);
+      } else {
+        setUnreadNotificationCount(getUnreadPortalNotifications(enabledNotifications).length);
+      }
+      return;
+    }
+    fetch(`/api/portal/content`, { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((content: { notifications?: Array<{ id: string; title: string; body: string; href: string; enabled?: boolean }> } | null) => {
         if (cancelled) return;
@@ -51,7 +63,7 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, []);
+  }, [initialNotifications]);
 
   async function handleSignOut() {
     await signOutAccount();
@@ -160,7 +172,6 @@ export default function PortalHeader({ productMode }: { productMode?: "app" | "a
           </div>
         </header>
       </div>
-      {notice ? <p className="portal-account-notice" role="status">{notice}</p> : null}
     </>
   );
 }

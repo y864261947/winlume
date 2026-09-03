@@ -36,6 +36,8 @@ async function responsePayload<T>(response: Response): Promise<ApiResponse<T>> {
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
+    // Auth/account responses must always reflect the current session cookie.
+    cache: "no-store",
     headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
     credentials: "same-origin",
   });

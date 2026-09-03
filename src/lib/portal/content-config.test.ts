@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultPortalContent, normalizePortalContent } from "./content-config";
+import { defaultPortalContent, normalizePortalContent, toPublicPortalContent } from "./content-config";
 
 describe("portal content configuration", () => {
   it("backfills the two managed homepage showcases for legacy records", () => {
@@ -21,5 +21,16 @@ describe("portal content configuration", () => {
     });
     expect(content.applicationShowcase[0]).toMatchObject({ id: "custom-app", group: "latest", enabled: false, href: "/studio/tools/demo" });
     expect(content.capabilityShowcase[0]).toMatchObject({ id: "custom-capability", tone: "usage", imageUrl: "/custom.png" });
+  });
+
+  it("replaces managed data URLs with versioned public image endpoints", () => {
+    const content = normalizePortalContent({
+      carousel: [{ id: "banner", imageUrl: "data:image/png;base64,aGVsbG8=", alt: "Banner", href: "/" }],
+      applicationShowcase: [{ id: "custom app", title: "自定义工具", href: "/studio", imageUrl: "data:image/png;base64,aGVsbG8=", group: "popular" }],
+    });
+    const publicContent = toPublicPortalContent(content);
+    expect(publicContent.carousel[0].imageUrl).toMatch(/^\/api\/portal\/image\?section=carousel&id=banner&v=/);
+    expect(publicContent.applicationShowcase[0].imageUrl).toMatch(/^\/api\/portal\/image\?section=applicationShowcase&id=custom-app&v=/);
+    expect(publicContent.carousel[0].imageUrl).not.toContain("data:image");
   });
 });

@@ -1,7 +1,10 @@
 import { getPlatformRepositories } from "@/lib/platform/repositories";
 import { PORTAL_IMAGE_MAX_DATA_URL_LENGTH } from "@/lib/portal/content-limits";
+import { createHash } from "node:crypto";
 
 export const PORTAL_CONTENT_KEY = "public-portal";
+const PORTAL_CONTENT_CACHE_MS = 60_000;
+let portalContentCache: { expiresAt: number; value: PortalContentConfig } | null = null;
 export const PORTAL_MODEL_CATEGORIES = ["llm", "image", "audio", "video", "embed", "other"] as const;
 export type PortalModelCategory = (typeof PORTAL_MODEL_CATEGORIES)[number];
 
@@ -86,9 +89,65 @@ export function normalizePortalContent(input: unknown): PortalContentConfig {
   };
 }
 
-export async function getPortalContent(): Promise<PortalContentConfig> {
+export async function getPortalContent(options: { fresh?: boolean } = {}): Promise<PortalContentConfig> {
+  if (!options.fresh && portalContentCache && portalContentCache.expiresAt > Date.now()) {
+    return portalContentCache.value;
+  }
   const repositories = getPlatformRepositories();
   if (!repositories) return defaultPortalContent;
-  try { return normalizePortalContent(await repositories.portalContent.get(PORTAL_CONTENT_KEY)); }
+  try {
+    const value = normalizePortalContent(await repositories.portalContent.get(PORTAL_CONTENT_KEY));
+    portalContentCache = { value, expiresAt: Date.now() + PORTAL_CONTENT_CACHE_MS };
+    return value;
+  }
   catch { return defaultPortalContent; }
+}
+
+export function invalidatePortalContentCache() {
+  portalContentCache = null;
+}
+
+const DATA_IMAGE_PATTERN = /^data:(image\/(?:png|jpe?g|webp|gif|svg\+xml));base64,([a-z0-9+/=\s]+)$/i;
+type PortalImageSection = "carousel" | "applicationShowcase" | "capabilityShowcase" | "modelVendors";
+
+function publicImageUrl(section: PortalImageSection, id: string, imageUrl: string): string {
+  if (!DATA_IMAGE_PATTERN.test(imageUrl)) return imageUrl;
+  const version = createHash("sha256").update(imageUrl).digest("hex").slice(0, 12);
+  return `/api/portal/image?section=${encodeURIComponent(section)}&id=${encodeURIComponent(id)}&v=${version}`;
+}
+
+/**
+ * Public pages receive image references instead of multi-megabyte data URLs.
+ * The admin endpoint intentionally continues to use getPortalContent().
+ */
+export function toPublicPortalContent(content: PortalContentConfig): PortalContentConfig {
+  return {
+    ...content,
+    carousel: content.carousel.map((item) => ({ ...item, imageUrl: publicImageUrl("carousel", item.id, item.imageUrl) })),
+    modelVendors: content.modelVendors.map((vendor) => ({ ...vendor, logoUrl: publicImageUrl("modelVendors", vendor.id, vendor.logoUrl) })),
+    applicationShowcase: content.applicationShowcase.map((item) => ({ ...item, imageUrl: publicImageUrl("applicationShowcase", item.id, item.imageUrl) })),
+    capabilityShowcase: content.capabilityShowcase.map((item) => ({ ...item, imageUrl: publicImageUrl("capabilityShowcase", item.id, item.imageUrl) })),
+  };
+}
+
+export async function getPublicPortalContent(): Promise<PortalContentConfig> {
+  return toPublicPortalContent(await getPortalContent());
+}
+
+/** Resolve one managed image without exposing the stored data URL in JSON. */
+export async function getPortalImage(section: string, requestedId: string): Promise<{ mimeType: string; data: Buffer } | null> {
+  const allowedSections: PortalImageSection[] = ["carousel", "applicationShowcase", "capabilityShowcase", "modelVendors"];
+  if (!allowedSections.includes(section as PortalImageSection) || !requestedId) return null;
+  const content = await getPortalContent();
+  const rows = content[section as PortalImageSection];
+  const row = rows.find((item) => item.id === requestedId) as Record<string, unknown> | undefined;
+  const imageUrl = typeof row?.imageUrl === "string" ? row.imageUrl : typeof row?.logoUrl === "string" ? row.logoUrl : "";
+  const match = DATA_IMAGE_PATTERN.exec(imageUrl);
+  if (!match) return null;
+  try {
+    const data = Buffer.from(match[2].replace(/\s+/g, ""), "base64");
+    return data.length ? { mimeType: match[1].toLowerCase(), data } : null;
+  } catch {
+    return null;
+  }
 }

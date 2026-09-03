@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PlatformAdminError, requirePlatformAdmin } from "@/lib/platform/admin";
 import { getPlatformRepositories } from "@/lib/platform/repositories";
-import { getPortalContent, normalizePortalContent, PORTAL_CONTENT_KEY } from "@/lib/portal/content-config";
+import { getPortalContent, invalidatePortalContentCache, normalizePortalContent, PORTAL_CONTENT_KEY } from "@/lib/portal/content-config";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ function errorResponse(error: unknown) {
 }
 
 export async function GET() {
-  try { await requirePlatformAdmin(); return NextResponse.json(await getPortalContent(), { headers: noStoreHeaders }); }
+  try { await requirePlatformAdmin(); return NextResponse.json(await getPortalContent({ fresh: true }), { headers: noStoreHeaders }); }
   catch (error) { return errorResponse(error); }
 }
 
@@ -31,7 +31,7 @@ export async function PUT(request: NextRequest) {
       editableSections.includes((input as { section?: unknown }).section as typeof editableSections[number])
     ) {
       const patch = input as { section: typeof editableSections[number]; value: unknown };
-      const current = await getPortalContent();
+      const current = await getPortalContent({ fresh: true });
       value = normalizePortalContent({ ...current, [patch.section]: patch.value });
     } else {
       // Keep accepting the original full-document shape for scripts and older
@@ -39,6 +39,7 @@ export async function PUT(request: NextRequest) {
       value = normalizePortalContent(input);
     }
     await repositories.portalContent.set(PORTAL_CONTENT_KEY, value as unknown as Record<string, unknown>);
+    invalidatePortalContentCache();
     return NextResponse.json(value, { headers: noStoreHeaders });
   } catch (error) { return errorResponse(error); }
 }
