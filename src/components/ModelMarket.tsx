@@ -129,12 +129,12 @@ const apiProvider = (label: string, key: string, description: string): ApiBrandL
 });
 
 const searchSuggestions = [
-  { label: "产品图生成", icon: FileImage },
-  { label: "短视频创作", icon: Video },
-  { label: "PPT 生成", icon: Presentation },
-  { label: "财务分析", icon: BarChart3 },
-  { label: "代码生成", icon: Code2 },
-  { label: "电商运营", icon: ShoppingBag },
+  { label: "产品图生成", icon: FileImage, category: "视觉与媒体" },
+  { label: "短视频创作", icon: Video, category: "视觉与媒体" },
+  { label: "PPT 生成", icon: Presentation, category: "办公与管理" },
+  { label: "财务分析", icon: BarChart3, category: "财务与法务" },
+  { label: "代码生成", icon: Code2, category: "开发与代码" },
+  { label: "电商运营", icon: ShoppingBag, category: "电商与销售" },
 ] as const;
 
 /** Hardcoded Model Review carousel slides (generated banners in public/). */
@@ -1020,8 +1020,21 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
                 <PortalLink href="/studio" className="portal-workbench-button"><LayoutGrid aria-hidden />进入工作台<ChevronRight aria-hidden /></PortalLink>
               </div>
               <div className="portal-chip-list" aria-label="热门能力">
-                {searchSuggestions.map(({ label, icon: Icon }) => (
-                  <HeroButton key={label} type="button" variant={query === label ? "primary" : "tertiary"} size="sm" className="portal-hero-chip" onClick={() => { setQuery(label); setSubmittedQuery(label); router.push(`/products?cate=app&q=${encodeURIComponent(label)}`); }}><Icon aria-hidden />{label}</HeroButton>
+                {searchSuggestions.map(({ label, icon: Icon, category }) => (
+                  <HeroButton
+                    key={label}
+                    type="button"
+                    variant={query === label ? "primary" : "tertiary"}
+                    size="sm"
+                    className="portal-hero-chip"
+                    onClick={() => {
+                      setQuery(label);
+                      setSubmittedQuery(label);
+                      router.push(`/products?cate=app&category=${encodeURIComponent(category)}`);
+                    }}
+                  >
+                    <Icon aria-hidden />{label}
+                  </HeroButton>
                 ))}
                 <HeroButton type="button" variant="tertiary" size="sm" className="portal-hero-chip" onClick={() => router.push("/products?cate=app")}><LayoutGrid aria-hidden />更多</HeroButton>
               </div>

@@ -81,5 +81,12 @@ describe("homepage API categories", () => {
     expect(source).toContain('{ label: "联系支持", href: "/support/contact" }');
     expect(source).toContain('{ label: "商务合作", href: "/business" }');
   });
+
+  it("routes homepage quick tools to their application categories", () => {
+    expect(source).toContain('{ label: "产品图生成", icon: FileImage, category: "视觉与媒体" }');
+    expect(source).toContain('{ label: "PPT 生成", icon: Presentation, category: "办公与管理" }');
+    expect(source).toContain('{ label: "财务分析", icon: BarChart3, category: "财务与法务" }');
+    expect(source).toContain("/products?cate=app&category=${encodeURIComponent(category)}");
+  });
 });
 
