@@ -254,7 +254,10 @@ jobs:
           server {
               listen 80;
               listen [::]:80;
-              server_name reizo-ai.com;
+              # Keep the OAuth flow on one host. NextAuth's CSRF/state cookies
+              # are host-only, so serving the application on both root and www
+              # makes a Google callback to the canonical root lose its state.
+              server_name reizo-ai.com www.reizo-ai.com;
 
               location ^~ /.well-known/acme-challenge/ {
                   root /var/www/certbot;
@@ -282,7 +285,7 @@ jobs:
           # command is idempotent and keeps an existing non-expired cert.
           if command -v certbot >/dev/null 2>&1; then
             if sudo -n certbot certonly --webroot -w /var/www/certbot \
-              -d reizo-ai.com --non-interactive --agree-tos \
+              -d reizo-ai.com -d www.reizo-ai.com --non-interactive --agree-tos \
               --register-unsafely-without-email --keep-until-expiring; then
               echo 'Certificate request for reizo-ai.com completed.'
             else
@@ -298,9 +301,23 @@ jobs:
           server {
               listen 80;
               listen [::]:80;
-              server_name reizo-ai.com;
+              server_name reizo-ai.com www.reizo-ai.com;
               location ^~ /.well-known/acme-challenge/ { root /var/www/certbot; }
-              location / { return 301 https://reizo-ai.com$request_uri; }
+              location / { return 308 https://reizo-ai.com$request_uri; }
+          }
+
+          server {
+              listen 443 ssl;
+              listen [::]:443 ssl;
+              server_name www.reizo-ai.com;
+              ssl_certificate /etc/letsencrypt/live/reizo-ai.com/fullchain.pem;
+              ssl_certificate_key /etc/letsencrypt/live/reizo-ai.com/privkey.pem;
+              ssl_session_timeout 1d;
+              ssl_session_cache shared:SSL:10m;
+              ssl_protocols TLSv1.2 TLSv1.3;
+              # Preserve POST when an already-open www page starts OAuth.
+              # A 301 may be retried as GET and drops the sign-in request.
+              location / { return 308 https://reizo-ai.com$request_uri; }
           }
 
           server {
