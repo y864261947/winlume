@@ -557,7 +557,6 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
                 <h1 className="text-[28px] font-semibold leading-tight text-[#172033]">
                   今天想完成什么？
                 </h1>
-                <p className="mt-2 text-sm text-[#8A8298]">输入任务或从左侧选 Skill</p>
               </div>
             ) : null}
             {entryContext ? (

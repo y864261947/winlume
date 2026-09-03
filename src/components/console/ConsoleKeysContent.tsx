@@ -3,7 +3,6 @@
 import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { Check, Copy, KeyRound, Pencil, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { useModals } from "@/components/providers";
 import { createConsoleKey, listConsoleKeys, revokeConsoleKey, updateConsoleKey } from "@/lib/console/client";
 import type { ConsoleApiKey, ConsoleOrganization } from "@/lib/console/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -36,7 +35,6 @@ import { DataTableToolbar } from "@/components/data-table/data-table-toolbar";
 import { createSelectionColumn } from "@/components/data-table/selection-column";
 import { useDataTable } from "@/components/data-table/use-data-table";
 import { ConsoleEmptyState, ConsolePage } from "./ConsolePage";
-import { DOCS_BASE_URL } from "@/data/docs/api-catalog";
 
 function date(value: string | null, empty = "从未使用") {
   if (!value) return empty;
@@ -253,7 +251,6 @@ function ConsoleKeysTable({
 }
 
 export default function ConsoleKeysContent() {
-  const { account, accountLoading, openLogin } = useModals();
   const [keys, setKeys] = useState<ConsoleApiKey[]>([]);
   const [organizations, setOrganizations] = useState<ConsoleOrganization[]>([]);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
@@ -302,10 +299,9 @@ export default function ConsoleKeysContent() {
   }, []);
 
   useEffect(() => {
-    if (!account) return;
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
-  }, [account, load]);
+  }, [load]);
 
   const activeOrganization = organizationId ? organizations.find((org) => org.id === organizationId) ?? null : null;
   const canManage = activeOrganization?.role === "owner" || activeOrganization?.role === "admin";
@@ -459,21 +455,10 @@ export default function ConsoleKeysContent() {
     return base;
   }, [canManage, organizationId, revoking]);
 
-  if (!accountLoading && !account) {
-    return (
-      <section className="account-personal-empty">
-        <KeyRound aria-hidden />
-        <h1>登录后可生成 API Key</h1>
-        <p>登录后可在这里创建、复制和撤销密钥。</p>
-        <button type="button" onClick={() => openLogin("login")}>登录</button>
-      </section>
-    );
-  }
-
   return (
     <ConsolePage
       title="API Keys"
-      description={`创建、限制和撤销密钥。Base URL ${DOCS_BASE_URL}/v1`}
+      description="创建、限制和撤销密钥。余额和消耗不在这里看。"
       actions={canManage ? (
         <Button onClick={() => { setEditing(null); setShowDialog(true); }}>
           <Plus data-icon="inline-start" />
