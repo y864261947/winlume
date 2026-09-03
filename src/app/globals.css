@@ -9916,21 +9916,21 @@ body {
   }
 
   .portal-home .portal-app-showcase-v2 .portal-featured-app-card {
-    height: 556px;
-    min-height: 556px;
+    height: 417px;
+    min-height: 417px;
     border-radius: 12px;
   }
 
   .portal-home .portal-app-showcase-v2 .portal-app-support-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(2, 266px);
-    gap: 12px 15px;
-    height: 556px;
+    grid-template-rows: repeat(2, 201px);
+    gap: 15px;
+    height: 417px;
   }
 
   .portal-home .portal-app-showcase-v2 .portal-app-support-card {
-    height: 266px;
-    min-height: 266px;
+    height: 201px;
+    min-height: 201px;
     border-radius: 12px;
   }
 
