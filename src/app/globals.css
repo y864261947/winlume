@@ -9942,11 +9942,13 @@ body {
     gap: 5px;
   }
 
-  .portal-home .portal-featured-app-copy strong { font-size: 24px; line-height: 30px; }
-  .portal-home .portal-featured-app-copy small { font-size: 13px; line-height: 19px; }
-  .portal-home .portal-app-support-card > span:not(.portal-managed-showcase-image) { right: 16px; bottom: 14px; left: 16px; gap: 3px; }
-  .portal-home .portal-app-support-card strong { font-size: 15px; line-height: 20px; }
-  .portal-home .portal-app-support-card > span:not(.portal-managed-showcase-image) small { font-size: 10px; line-height: 14px; }
+  .portal-home .portal-featured-app-copy strong { font-size: 32px; line-height: 38px; }
+  .portal-home .portal-featured-app-copy small { font-size: 16px; line-height: 23px; }
+  .portal-home .portal-featured-app-copy em { padding: 5px 10px; font-size: 12px; }
+  .portal-home .portal-featured-app-cta { margin-top: 10px; padding: 10px 15px; font-size: 13px; }
+  .portal-home .portal-app-support-card > span:not(.portal-managed-showcase-image) { right: 20px; bottom: 18px; left: 20px; gap: 5px; }
+  .portal-home .portal-app-support-card strong { font-size: 20px; line-height: 26px; }
+  .portal-home .portal-app-support-card > span:not(.portal-managed-showcase-image) small { font-size: 13px; line-height: 18px; }
 
   .portal-home .portal-system-rail {
     margin-top: 14px;
@@ -9974,8 +9976,8 @@ body {
     border-radius: 9px;
   }
 
-  .portal-home .portal-capability-hero strong { font-size: 18px; line-height: 24px; }
-  .portal-home .portal-capability-hero small { font-size: 12px; line-height: 18px; }
+  .portal-home .portal-capability-hero strong { font-size: 22px; line-height: 28px; }
+  .portal-home .portal-capability-hero small { font-size: 14px; line-height: 20px; }
   .portal-home .portal-capability-hero .portal-capability-evidence { min-height: 140px; margin-left: 10px; }
 
   .portal-home .portal-bottom-help {
