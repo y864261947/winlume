@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { DOCS_BASE_URL } from "@/data/docs/api-catalog";
 import { ArrowRight, Bot, Boxes, CheckCircle2, Code2, KeyRound, Layers3, Workflow } from "lucide-react";
 
 const entries = [
@@ -42,11 +41,11 @@ export default function ApiAccessGuide() {
         <h2>核心配置</h2>
         <div className="api-guide-config">
           <dl>
-            <div><dt>Base URL</dt><dd>{`${DOCS_BASE_URL}/v1`}</dd></div>
+            <div><dt>Base URL</dt><dd>https://api.reizo.ai/v1</dd></div>
             <div><dt>API Key</dt><dd>在个人中心生成</dd></div>
             <div><dt>协议</dt><dd>OpenAI Compatible</dd></div>
           </dl>
-          <pre><code>{`curl ${DOCS_BASE_URL}/v1/chat/completions \\
+          <pre><code>{`curl https://api.reizo.ai/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer $REIZO_API_KEY" \\
   -d '{"model":"your-model","messages":[{"role":"user","content":"你好"}]}'`}</code></pre>

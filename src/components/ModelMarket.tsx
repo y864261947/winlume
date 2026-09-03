@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button as HeroButton, Card as HeroCard, Tabs } from "@heroui/react";
-import { BarChart3, Bot, ChevronLeft, ChevronRight, CircleHelp, Code2, Crown, FileImage, LayoutGrid, Search, ArrowUp, Presentation, ShoppingBag, Video } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, CircleHelp, Code2, Crown, FileImage, LayoutGrid, Search, ArrowUp, Presentation, ShoppingBag, Video } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
 import PortalHeader from "@/components/PortalHeader";
@@ -15,7 +15,6 @@ import { getVendorByKey } from "@/lib/catalog/vendors";
 import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
 import { usePortalCanvasScale } from "@/components/usePortalCanvasScale";
 import type { PortalContentConfig } from "@/lib/portal/content-config";
-import { DOCS_BASE_URL } from "@/data/docs/api-catalog";
 
 declare global {
   interface Window {
@@ -59,14 +58,8 @@ const onboardingSteps = [
   {
     target: "tools" as const,
     title: "AI应用工具与Skills技能",
-    lead: "覆盖电商、营销、财务、法务、办公与开发等多行业场景。",
+    lead: "300+ 应用工具 · 2600+ Skills 技能。",
     body: "覆盖电商、营销、财务、法务、科研、办公、开发等多行业场景的一键式 AI 指令，快速找到适合你的 AI 能力。",
-  },
-  {
-    target: "studio" as const,
-    title: "进入工作台",
-    lead: "输入任务或从左侧选 Skill。",
-    body: "点「进入工作台」开始第一条任务；也可以从顶栏打开「教程」看接入说明。",
   },
 ] as const;
 
@@ -280,9 +273,9 @@ const portalApplicationShowcase: ReadonlyArray<{ title: string; detail: string; 
 ];
 
 const portalCapabilityCards: ReadonlyArray<{ title: string; detail: string; badge: string; href: string; tone: string; evidence: PortalCapabilityEvidence }> = [
-  { title: "强大的模型接入与调度", detail: "主流模型接入，智能路由，稳定高效", badge: "MODEL ROUTING", href: "/products?cate=api", tone: "models", evidence: "models" },
+  { title: "强大的模型接入与调度", detail: "100+ 主流模型接入，智能路由，稳定高效", badge: "MODEL ROUTING", href: "/products?cate=api", tone: "models", evidence: "models" },
   { title: "Agent 智能体平台", detail: "构建、编排和运行你的专属智能体", badge: "AGENT EXECUTION", href: "/studio", tone: "agent", evidence: "agent" },
-  { title: "企业级知识引擎", detail: "RAG 知识库、文档理解、多源数据融合", badge: "KNOWLEDGE ENGINE", href: "/business", tone: "usage", evidence: "usage" },
+  { title: "企业级知识引擎", detail: "RAG 知识库、文档理解、多源数据融合", badge: "KNOWLEDGE ENGINE", href: "/business/capabilities", tone: "usage", evidence: "usage" },
 ];
 
 const initialManagedApplications: ManagedApplicationShowcase[] = portalApplicationShowcase.map((item, index) => ({ id: `application-${index + 1}`, title: item.title, href: item.href, imageUrl: "", group: index < 5 ? "popular" : "latest", enabled: true }));
@@ -308,46 +301,8 @@ function CapabilityEvidence({ kind }: { kind: PortalCapabilityEvidence }) {
   return <span className="portal-capability-evidence is-usage" aria-hidden><i /><i /><i /><i /><i /><b>本月 ¥ 86.42</b></span>;
 }
 
-function catalogForApp(item: { id?: string; title: string }) {
-  return portalApplicationShowcase.find((row) => row.title === item.title);
-}
-
-function hydrateApplication(item: ManagedApplicationShowcase): ManagedApplicationShowcase {
-  const catalog = catalogForApp(item);
-  return {
-    ...item,
-    href: catalog?.href || item.href,
-  };
-}
-
 function ManagedApplicationVisual({ item, fallback }: { item: ManagedApplicationShowcase; fallback: PortalApplicationPreview }) {
-  const [broken, setBroken] = useState(false);
-  const preview = catalogForApp(item)?.preview ?? fallback;
-  if (item.imageUrl && !broken) {
-    return (
-      <span className="portal-managed-showcase-image">
-        <Image
-          src={item.imageUrl}
-          alt=""
-          fill
-          sizes="(max-width: 760px) 100vw, 50vw"
-          priority
-          unoptimized
-          onError={() => setBroken(true)}
-        />
-      </span>
-    );
-  }
-  return <ApplicationResultPreview kind={preview} />;
-}
-
-function uniqueById<T extends { id: string }>(items: T[]): T[] {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    if (seen.has(item.id)) return false;
-    seen.add(item.id);
-    return true;
-  });
+  return item.imageUrl ? <span className="portal-managed-showcase-image"><Image src={item.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 50vw" priority unoptimized /></span> : <ApplicationResultPreview kind={fallback} />;
 }
 
 function applicationDetail(title: string) {
@@ -357,7 +312,7 @@ function applicationDetail(title: string) {
 function capabilityDetail(tone: ManagedCapabilityShowcase["tone"]) {
   if (tone === "agent") return "构建、编排和运行你的专属智能体";
   if (tone === "usage") return "RAG 知识库、文档理解、多源数据融合";
-  return "主流模型接入，智能路由，稳定高效";
+  return "100+ 主流模型接入，智能路由，稳定高效";
 }
 
 const productPaths = [
@@ -622,7 +577,7 @@ function PathPreviewVisual({ path, interactive }: { path: ProductPath; interacti
         </dl>
         {preview.kind === "api" ? (
           <pre className="portal-ed-preview-code" tabIndex={interactive ? 0 : -1}>
-{`curl ${DOCS_BASE_URL}/v1/chat/completions \\
+{`curl https://api.winlume.ai/v1/chat/completions \\
   -H "Authorization: Bearer $KEY" \\
   -d '{"model":"kimi-k2","stream":true}'`}
           </pre>
@@ -745,7 +700,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [featuredSlides, setFeaturedSlides] = useState<FeaturedSlide[]>(() => contentFeaturedSlides(initialContent));
-  const [managedApplications, setManagedApplications] = useState<ManagedApplicationShowcase[]>(() => initialContent?.applicationShowcase?.length ? initialContent.applicationShowcase.map(hydrateApplication) : initialManagedApplications);
+  const [managedApplications, setManagedApplications] = useState<ManagedApplicationShowcase[]>(() => initialContent?.applicationShowcase?.length ? initialContent.applicationShowcase : initialManagedApplications);
   const [managedCapabilities, setManagedCapabilities] = useState<ManagedCapabilityShowcase[]>(() => initialContent?.capabilityShowcase?.length ? initialContent.capabilityShowcase : initialManagedCapabilities);
   const [featuredPaused, setFeaturedPaused] = useState(false);
   const [applicationTab, setApplicationTab] = useState<"popular" | "latest">("popular");
@@ -773,10 +728,8 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
     : null;
   const activePath = productPaths.find((path) => path.id === activePathId) ?? productPaths[0];
   const stackPaths = stackOrderFrom(activePath.id).slice(0, STACK_VISIBLE);
-  const enabledApplications = uniqueById(managedApplications.filter((item) => item.enabled));
-  const popularApplications = enabledApplications.filter((item) => item.group === "popular");
-  const popularIds = new Set(popularApplications.map((item) => item.id));
-  const latestApplications = enabledApplications.filter((item) => item.group === "latest" && !popularIds.has(item.id));
+  const popularApplications = managedApplications.filter((item) => item.enabled && item.group === "popular");
+  const latestApplications = managedApplications.filter((item) => item.enabled && item.group === "latest");
   const visibleCapabilities = managedCapabilities.filter((item) => item.enabled).slice(0, 3);
 
   useEffect(() => {
@@ -793,7 +746,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
         // Keep the immediately rendered fallback cards when an older or empty
         // portal-content record is returned during publish/sync.
         if (!cancelled && Array.isArray(content?.applicationShowcase) && content.applicationShowcase.length) {
-          setManagedApplications(content.applicationShowcase.map(hydrateApplication));
+          setManagedApplications(content.applicationShowcase);
         }
         if (!cancelled && Array.isArray(content?.capabilityShowcase) && content.capabilityShowcase.length) {
           setManagedCapabilities(content.capabilityShowcase);
@@ -1064,7 +1017,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
                   <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务、应用、模型或 API，例如：产品图、财务分析、PPT" aria-label="搜索 AI 能力" />
                   <HeroButton type="submit" variant="primary" size="md" className="portal-hero-search-button"><Search aria-hidden />搜索</HeroButton>
                 </form>
-                <PortalLink href="/studio" className="portal-workbench-button" data-onboarding-target="studio"><LayoutGrid aria-hidden />进入工作台<ChevronRight aria-hidden /></PortalLink>
+                <PortalLink href="/studio" className="portal-workbench-button"><LayoutGrid aria-hidden />进入工作台<ChevronRight aria-hidden /></PortalLink>
               </div>
               <div className="portal-chip-list" aria-label="热门能力">
                 {searchSuggestions.map(({ label, icon: Icon }) => (
@@ -1165,6 +1118,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
             <div className="portal-tools-head">
               <h2 id="portal-tools-title">应用工具</h2>
               <div className="portal-tools-head-actions">
+                <div className="portal-tools-proof" aria-label="平台能力规模"><span><strong>300+</strong> 应用</span><i aria-hidden /><span><strong>2600+</strong> Skills</span></div>
                 <ArrowLink href="/products?cate=app">查看全部工具</ArrowLink>
               </div>
             </div>
@@ -1330,6 +1284,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
           <div className="portal-bottom-explore-head"><div><h2 id="portal-bottom-explore-title">探索更多 REIZO 能力</h2></div></div>
           <div className="portal-capability-showcase">{visibleCapabilities.map((card) => <PortalLink href={card.href} className={`portal-capability-hero is-${card.tone}${card.imageUrl ? " has-managed-image" : ""}`} key={card.id}>{card.imageUrl ? <Image className="portal-managed-capability-image" src={card.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 34vw" priority unoptimized /> : <CapabilityEvidence kind={card.tone === "agent" ? "agent" : card.tone === "usage" ? "usage" : "models"} />}<span className="portal-capability-copy"><strong>{card.title}</strong><small>{capabilityDetail(card.tone)}</small></span></PortalLink>)}</div>
           <HeroCard variant="tertiary" className="portal-bottom-help"><span><CircleHelp aria-hidden />没有找到合适的应用或技能？告诉我们你的使用场景，我们为你定制解决方案。</span><PortalLink href="/business" className="portal-bottom-help-link">提交需求<ChevronRight aria-hidden /></PortalLink></HeroCard>
+          <footer className="portal-bottom-footer"><div className="portal-bottom-brand"><strong><Image className="portal-footer-mark" src="/brand/reizo-mark.png" alt="" width={26} height={26} />REIZO</strong><p>从 AI 能力到智能体，每一步都更简单。</p><small>© 2026 Reizo. All rights reserved.</small></div>{footerColumns.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.items.slice(0, 3).map((item) => <PortalLink href={item.href} key={item.label}>{item.label}</PortalLink>)}</div>)}<div><h3>关注我们</h3><span className="portal-bottom-social">𝕏　in　◉　✉</span></div></footer>
         </section>
 
         <section className="portal-industry-section" aria-labelledby="portal-industry-title">
@@ -1508,8 +1463,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
           <footer className="portal-ed-footer">
             <div className="portal-ed-footer-brand">
               <strong><Image className="portal-footer-mark" src="/brand/reizo-mark.png" alt="" width={26} height={26} />Reizo</strong>
-              <p>从 AI 能力到智能体，每一步都更简单。</p>
-              <small>© 2026 Reizo. All rights reserved.</small>
+              <p>把 AI 能力放进每天的工作里。</p>
             </div>
             {footerColumns.map((group) => (
               <div className="portal-ed-footer-col" key={group.title}>
@@ -1545,7 +1499,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
               <div className="portal-onboarding-progress">{onboardingStep + 1}/{onboardingSteps.length}</div>
               <div className="portal-onboarding-title-row">
                 <span className={`portal-onboarding-icon is-${onboardingSteps[onboardingStep].target}`} aria-hidden>
-                  {onboardingStep === 0 ? <LayoutGrid /> : onboardingStep === 1 ? <Search /> : onboardingStep === 2 ? <Crown /> : <Bot />}
+                  {onboardingStep === 0 ? <LayoutGrid /> : onboardingStep === 1 ? <Search /> : <Crown />}
                 </span>
                 <h2 id="portal-onboarding-title">{onboardingSteps[onboardingStep].title}</h2>
               </div>

@@ -3,7 +3,7 @@
  * 结构对齐 New API 文档分类，内容与示例统一为 Reizo 品牌。
  */
 
-export const DOCS_BASE_URL = "https://reizo-ai.com";
+export const DOCS_BASE_URL = "https://api.winlume.ai";
 export const DOCS_API_KEY_ENV = "REIZO_API_KEY";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
@@ -743,10 +743,10 @@ export const apiCategories: ApiDocCategory[] = [
           },
         ],
         notes: [
-          `连接示例：wss://reizo-ai.com/v1/realtime?model=gpt-4o-realtime-preview`,
+          `连接示例：wss://api.winlume.ai/v1/realtime?model=gpt-4o-realtime-preview`,
           "鉴权可通过 Authorization 头或子协议传递 API Key（视客户端实现而定）。",
         ],
-        requestExample: `wss://reizo-ai.com/v1/realtime?model=gpt-4o-realtime-preview`,
+        requestExample: `wss://api.winlume.ai/v1/realtime?model=gpt-4o-realtime-preview`,
         responseExample: JSON.stringify(
           {
             type: "session.created",

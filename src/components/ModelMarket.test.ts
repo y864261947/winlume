@@ -41,17 +41,15 @@ describe("homepage API categories", () => {
     expect(source).not.toContain('className="portal-nav"');
   });
 
-  it("includes the first-visit four-step product guide", () => {
+  it("includes the first-visit three-step product guide", () => {
     expect(source).toContain("PORTAL_ONBOARDING_STORAGE_KEY");
     expect(source).toContain("Agent 智能工作台");
     expect(source).toContain("API 模型中心");
     expect(source).toContain("AI应用工具与Skills技能");
-    expect(source).toContain("进入工作台");
     expect(source).toContain("portal-onboarding-card");
     expect(source).toContain("data-onboarding-target=\"agent\"");
     expect(source).toContain("data-onboarding-target=\"api\"");
     expect(source).toContain("data-onboarding-target=\"tools\"");
-    expect(source).toContain("data-onboarding-target=\"studio\"");
   });
 
   it("uses result previews and workflow evidence instead of icon-only showcase covers", () => {
@@ -75,18 +73,13 @@ describe("homepage API categories", () => {
     expect(source).not.toContain('className="portal-search-kicker"');
     expect(source).not.toContain("<p>APPLICATIONS</p>");
     expect(source).not.toContain("<p>MORE WITH REIZO</p>");
-    expect(source).not.toContain("2600+");
+    expect(source).toContain('className="portal-tools-proof"');
   });
 
   it("routes support footer links to dedicated destinations", () => {
     expect(source).toContain('{ label: "常见问题", href: "/support/faq" }');
     expect(source).toContain('{ label: "联系支持", href: "/support/contact" }');
     expect(source).toContain('{ label: "商务合作", href: "/business" }');
-  });
-
-  it("points path-preview curl at reizo-ai.com, not api.winlume.ai", () => {
-    expect(source).toContain("${DOCS_BASE_URL}/v1/chat/completions");
-    expect(source).not.toContain("api.winlume.ai");
   });
 });
 
