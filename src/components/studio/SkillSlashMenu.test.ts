@@ -12,6 +12,7 @@ describe("slash menu tools", () => {
   it("matches 抠图 aliases before skills", () => {
     expect(filterStudioTools(tools, "抠图").map((tool) => tool.id)).toEqual([
       "background-removal",
+      "ecommerce-image-set",
     ]);
     expect(filterStudioTools(tools, "transparent").map((tool) => tool.id)).toEqual([]);
     expect(filterStudioTools(tools, "cutout")[0]?.id).toBe("background-removal");

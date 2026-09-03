@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scrollLock";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { cn } from "@/lib/utils";
 
 interface ModalProps {
   open: boolean;
@@ -141,13 +142,16 @@ export default function Modal({
   );
 }
 
-export function ModalCloseButton({ onClose }: { onClose: () => void }) {
+export function ModalCloseButton({ onClose, className }: { onClose: () => void; className?: string }) {
   return (
     <button
       type="button"
       onClick={onClose}
       aria-label="关闭"
-      className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-400 transition hover:bg-canvas hover:text-ink-700"
+      className={cn(
+        "flex h-9 w-9 items-center justify-center rounded-lg text-ink-400 transition hover:bg-canvas hover:text-ink-700",
+        className,
+      )}
     >
       <X className="h-4 w-4" />
     </button>

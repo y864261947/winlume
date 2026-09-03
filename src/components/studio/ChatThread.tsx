@@ -211,7 +211,8 @@ function DirectPartsBubble({
             </span>
           ) : (
             <span className="studio-assistant-avatar mt-0.5" aria-hidden>
-              <Image src="/brand/reizo-mark.png" alt="" width={22} height={22} />
+              <Image className="reizo-logo-day" src="/brand/logo-day.png" alt="" width={22} height={22} unoptimized />
+              <Image className="reizo-logo-night" src="/brand/logo-night.png" alt="" width={22} height={22} unoptimized />
             </span>
           )
         ) : null}

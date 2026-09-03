@@ -41,11 +41,20 @@ export default function DrawToolFamily({
         aria-label={`返回${site.name}工作台`}
       >
         <Image
-          src="/brand/reizo-mark.png"
+          src="/brand/logo-day.png"
           alt=""
           width={22}
           height={22}
-          className="studio-mode-workbench-mark"
+          unoptimized
+          className="studio-mode-workbench-mark reizo-logo-day"
+        />
+        <Image
+          src="/brand/logo-night.png"
+          alt=""
+          width={22}
+          height={22}
+          unoptimized
+          className="studio-mode-workbench-mark reizo-logo-night"
         />
         <span>工作台</span>
       </Link>

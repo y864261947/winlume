@@ -38,14 +38,26 @@ export default function StudioModeRail({
                 className="studio-mode-item flex w-full flex-col items-center gap-1 rounded-[12px] px-1 py-2 text-center"
               >
                 {item.id === "workbench" ? (
-                  <Image
-                    src="/brand/reizo-mark.png"
-                    alt=""
-                    width={22}
-                    height={22}
-                    priority
-                    className="studio-mode-workbench-mark"
-                  />
+                  <>
+                    <Image
+                      src="/brand/logo-day.png"
+                      alt=""
+                      width={22}
+                      height={22}
+                      priority
+                      unoptimized
+                      className="studio-mode-workbench-mark reizo-logo-day"
+                    />
+                    <Image
+                      src="/brand/logo-night.png"
+                      alt=""
+                      width={22}
+                      height={22}
+                      priority
+                      unoptimized
+                      className="studio-mode-workbench-mark reizo-logo-night"
+                    />
+                  </>
                 ) : Icon ? (
                   <Icon className="size-[18px]" strokeWidth={1.8} />
                 ) : null}

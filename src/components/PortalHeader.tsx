@@ -89,7 +89,7 @@ export default function PortalHeader({ productMode, notifications: initialNotifi
         <div className="portal-nav-shell-fill" aria-hidden />
         <header className="portal-nav" aria-label="主导航">
           <Link href="/" className="portal-brand" aria-label="返回首页">
-            <Image className="portal-brand-mark" src="/brand/reizo-mark.png" alt="" width={32} height={32} priority />
+            <Image className="portal-brand-mark" src="/brand/logo-day.png" alt="Reizo" width={32} height={32} priority unoptimized />
             Reizo
           </Link>
           <nav className="portal-main-links" aria-label="页面导航">

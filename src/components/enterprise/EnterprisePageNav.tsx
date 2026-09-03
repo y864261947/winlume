@@ -23,7 +23,7 @@ export default function EnterprisePageNav({ active }: { active: EnterprisePage }
   return (
     <header className={styles.nav}>
       <Link className={styles.brand} href="/business" aria-label="Reizo 企业版首页">
-        <Image className={styles.brandMark} src="/brand/reizo-mark.png" alt="" width={30} height={30} priority />
+        <Image className={styles.brandMark} src="/brand/logo-day.png" alt="Reizo" width={30} height={30} priority unoptimized />
         Reizo
       </Link>
       <p>AI that works for real business</p>

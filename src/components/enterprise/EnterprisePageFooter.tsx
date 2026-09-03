@@ -5,7 +5,7 @@ import styles from "./enterprise-portal.module.css";
 export default function EnterprisePageFooter() {
   return (
     <footer className={styles.footer}>
-      <strong><Image className={styles.footerMark} src="/brand/reizo-mark.png" alt="" width={24} height={24} />REIZO</strong>
+      <strong><Image className={styles.footerMark} src="/brand/logo-day.png" alt="Reizo" width={24} height={24} unoptimized />REIZO</strong>
       <span>© 2026 Reizo. 保留所有权利。</span>
       <nav aria-label="企业版页脚导航">
         <Link href="/business/capabilities">产品能力</Link>

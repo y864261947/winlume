@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -77,7 +77,7 @@ export default function StudioProjectPage() {
     return () => window.clearTimeout(timer);
   }, [account, load]);
 
-  const headerContent = project ? (
+  const headerContent = useMemo(() => project ? (
     <LiquidGlassSurface>
       <header className="studio-session-header studio-glass-soft flex shrink-0 items-center gap-3 border-b border-white/50 px-4 py-3 sm:px-6">
       <Link
@@ -102,7 +102,7 @@ export default function StudioProjectPage() {
       </Link>
       </header>
     </LiquidGlassSurface>
-  ) : null;
+  ) : null, [project, sessions.length]);
 
   useStudioHeaderSlot(headerContent);
 

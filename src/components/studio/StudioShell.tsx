@@ -47,10 +47,12 @@ export function useStudioTheme(): StudioTheme {
  */
 export function useStudioHeaderSlot(content: ReactNode, active = true) {
   const ctx = useContext(HeaderSlotContext);
-  // Sync every render (no deps) so the slot always reflects latest content.
+  // Publish only when the caller's memoized content or foreground status
+  // changes. Calling setHeader on every render creates a parent/child update
+  // loop when callers construct a fresh React node each time.
   useLayoutEffect(() => {
     if (active) ctx?.setHeader(content);
-  });
+  }, [active, content, ctx]);
   // Clear only on unmount — avoids a null flash between re-renders above.
   useEffect(() => {
     return () => ctx?.setHeader(null);

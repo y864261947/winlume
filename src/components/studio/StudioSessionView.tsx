@@ -725,7 +725,7 @@ export default function StudioSessionView({
   const showThreadSkeleton = !hasHandoff && initialMessages === undefined;
 
   /** Published into StudioShell's persistent header slot — never unmounts on navigation. */
-  const headerContent = (
+  const headerContent = useMemo(() => (
       <header className="studio-session-header flex shrink-0 items-center gap-3 border-b border-white/50 px-4 py-3 sm:px-6">
       <Link
         href="/studio"
@@ -851,7 +851,20 @@ export default function StudioSessionView({
         </button>
       </div>
       </header>
-  );
+  ), [
+    artifacts.length,
+    chat.model,
+    closeWorksRail,
+    listOpen,
+    mobileTab,
+    openWorksRail,
+    previewOpen,
+    project,
+    selectedId,
+    session?.model,
+    title,
+    worksRailOpen,
+  ]);
 
   useStudioHeaderSlot(headerContent, active);
 
