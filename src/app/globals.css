@@ -9127,7 +9127,8 @@ html[data-studio-theme="dark"] .composer-model-custom,
 
 @media (max-width: 760px) {
   .composer-model-picker {
-    top: calc(100% + 8px);
+    top: auto;
+    bottom: calc(100% + 8px);
     left: 0;
     width: min(19rem, calc(100vw - 2rem));
     transform-origin: 0 0;

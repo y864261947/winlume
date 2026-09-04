@@ -44,7 +44,7 @@ import {
   Zap,
   X,
 } from "lucide-react";
-import { fetchPlaza, type PlazaModel } from "@/lib/catalog";
+import type { PlazaModel } from "@/lib/catalog";
 import { getVendorByKey, inferVendorFromModel } from "@/lib/catalog/vendors";
 import type { Artifact, SkillMeta } from "@/lib/agent/types";
 import {
@@ -697,34 +697,65 @@ export default function Composer({
   useEffect(() => {
     let cancelled = false;
     setModelsLoading(true);
-    fetchPlaza()
+    // The public plaza intentionally merges curated showcase models. Studio
+    // must use the authenticated live catalog so a displayed model is also a
+    // model the current New API account can actually route.
+    fetch("/api/capabilities", {
+      credentials: "same-origin",
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("capabilities");
+        return response.json() as Promise<{ models?: unknown }>;
+      })
       .then((data) => {
         if (cancelled) return;
-        const listedModels = data.models
-          .filter((model) => Boolean(model.model_name?.trim()))
+        const names = Array.isArray(data.models)
+          ? data.models.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+          : [];
+        const listedModels: PlazaModel[] = names
+          .map((name) => {
+            const vendor = inferVendorFromModel(name);
+            return {
+              model_name: name.trim(),
+              vendor_id: vendor.id,
+              vendor_key: vendor.key,
+              vendor_name: vendor.name,
+              vendor_logo: vendor.logo,
+              quota_type: 0,
+              model_price: 0,
+              model_ratio: 1,
+              completion_ratio: 1,
+              supported_endpoint_types: ["openai"],
+            } satisfies PlazaModel;
+          })
           .slice(0, PLAZA_LIMIT);
-        const names = [
+        const listedNames = [
           ...new Set(
             listedModels
               .map((m) => m.model_name)
               .filter((n): n is string => Boolean(n?.trim())),
           ),
         ];
-        if (names.length) {
+        if (listedNames.length) {
           setModelCatalog(listedModels);
-          // Always stay on the list control; inject current model if missing.
-          setModelOptions(() => {
-            const base = names;
-            if (model && !base.includes(model)) {
-              return [model, ...base.filter((n) => n !== model)];
-            }
-            return base;
-          });
+          // Do not keep stale models from a previous session in the live
+          // picker. Select the first routable model when the saved model has
+          // disappeared from the current New API account.
+          setModelOptions(listedNames);
+          if (!model || !listedNames.includes(model)) onModelChange(listedNames[0]);
           setCustomMode(false);
+        } else {
+          // A successful empty response means the current account has no
+          // routable models. Do not silently retain stale showcase/fallback
+          // entries that would fail only after the user sends a message.
+          setModelCatalog([]);
+          setModelOptions([]);
+          if (model) onModelChange("");
         }
       })
       .catch(() => {
-        /* keep fallback */
+        // Keep the small local fallback only when the live catalog is down.
       })
       .finally(() => {
         if (!cancelled) setModelsLoading(false);
@@ -732,7 +763,7 @@ export default function Composer({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per Composer mount
   }, []);
 
   useEffect(() => {
@@ -2785,9 +2816,8 @@ export default function Composer({
               </PopoverTrigger>
               <PopoverContent
                 align="end"
-                side="bottom"
+                side="top"
                 sideOffset={8}
-                avoidCollisions={false}
                 className="composer-settings-popover w-[21rem] max-w-[calc(100vw-2rem)]"
               >
                 <div className="composer-settings-heading">
