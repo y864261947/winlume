@@ -22,6 +22,7 @@ export interface ProvisionPlatformUserInput {
 }
 
 const STUDIO_TOKEN_NAME = "studio";
+const NEW_API_DISPLAY_NAME_MAX_LENGTH = 20;
 
 // new-api's model.User enforces `validate:"max=20"` on Username and
 // `validate:"min=8,max=20"` on Password (E:\CodeCode\new-api\model\user.go) —
@@ -34,6 +35,11 @@ function generateNewApiUsername(): string {
 
 function generateNewApiPassword(): string {
   return randomBytes(9).toString("hex"); // 18 hex chars, within min=8/max=20
+}
+
+function truncateDisplayName(value: string, maxLength: number): string {
+  // Array.from counts Unicode code points, avoiding a split surrogate pair.
+  return Array.from(value).slice(0, maxLength).join("");
 }
 
 /**
@@ -50,11 +56,12 @@ export async function provisionPlatformUser(
   const username = normalizeUsername(input.username);
   if (!username) throw new Error("A username is required.");
   const displayName = input.displayName?.trim() || username;
+  const newApiDisplayName = truncateDisplayName(displayName, NEW_API_DISPLAY_NAME_MAX_LENGTH);
 
   const newApiUsername = generateNewApiUsername();
   const newApiPassword = generateNewApiPassword();
 
-  await createNewApiUser({ username: newApiUsername, password: newApiPassword, displayName });
+  await createNewApiUser({ username: newApiUsername, password: newApiPassword, displayName: newApiDisplayName });
   const newApiUserId = await findNewApiUserIdByUsername(newApiUsername);
   if (newApiUserId === null) {
     throw new Error("new-api user was created but could not be found afterward.");

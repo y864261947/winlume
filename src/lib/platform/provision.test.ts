@@ -69,6 +69,15 @@ describe("provisionPlatformUser", () => {
     expect(call.password.length).toBeLessThanOrEqual(20);
   });
 
+  it("caps the new-api display name while keeping the local profile name intact", async () => {
+    const database = fakeDatabase();
+    const displayName = "这是一个超过 New API 昵称长度限制的 Google 昵称";
+    await provisionPlatformUser(database, { username: "google-user", displayName, passwordHash: "hash" });
+    const call = vi.mocked(createNewApiUser).mock.calls[0][0];
+    expect(Array.from(call.displayName)).toHaveLength(20);
+    expect(call.displayName).toBe(Array.from(displayName).slice(0, 20).join(""));
+  });
+
   it("attempts to disable the new-api user if the local transaction fails", async () => {
     const database = fakeDatabase({ txShouldFail: true });
     await expect(
