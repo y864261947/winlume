@@ -38,13 +38,30 @@ export type ConsoleLedgerEntry = {
 export type ConsolePaymentOrder = {
   id: string;
   reference: string;
-  status: string;
+  status: "pending" | "crediting" | "success" | "failed";
   amount: number;
   currency: string;
   credits: number;
   provider: string;
+  paymentMethod: string;
   createdAt: string;
   paidAt: string | null;
+};
+
+export type ConsoleTopupMethod = {
+  type: string;
+  name: string;
+};
+
+export type ConsoleTopupConfig = {
+  enabled: boolean;
+  provider: "epay";
+  currency: string;
+  /** ¥1 = this many credits (fixed 1:1 with v2api today) */
+  creditsPerUnit: number;
+  minTopup: number;
+  amountOptions: number[];
+  methods: ConsoleTopupMethod[];
 };
 
 export type ConsoleWalletDetails = {

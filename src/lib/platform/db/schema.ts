@@ -23,6 +23,12 @@ export const presetScopeEnum = pgEnum("preset_scope", ["personal", "organization
 export const skillSourceEnum = pgEnum("skill_source", ["bundled", "imported", "user"]);
 export const feedbackTypeEnum = pgEnum("feedback_type", ["bug", "feature"]);
 export const feedbackStatusEnum = pgEnum("feedback_status", ["open", "resolved"]);
+export const epayOrderStatusEnum = pgEnum("epay_order_status", [
+  "pending",
+  "crediting",
+  "success",
+  "failed",
+]);
 
 const createdAt = timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
 const updatedAt = timestamp("updated_at", { withTimezone: true }).defaultNow().notNull();
@@ -257,6 +263,49 @@ export const feedbackReports = pgTable(
   (table) => [
     index("feedback_reports_user_index").on(table.userId),
     index("feedback_reports_status_index").on(table.status),
+  ],
+);
+
+/**
+ * 易支付 (kyren / 启润) online top-up orders. This table is a payment audit
+ * trail and idempotency guard only — it is NOT the balance. The single source
+ * of truth for a workspace's balance stays the mapped new-api user's quota;
+ * a settled order credits that quota via the new-api admin API.
+ *
+ * `amountCredits` == CNY paid at the fixed 1:1 rate (¥1 = 1 credit = 500_000
+ * quota). `payMoney` is the exact `money` string signed into the purchase
+ * request and must be reused verbatim if the request is ever rebuilt.
+ */
+export const epayOrders = pgTable(
+  "epay_orders",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tradeNo: varchar("trade_no", { length: 64 }).notNull(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    newApiUserId: integer("new_api_user_id").notNull(),
+    provider: varchar("provider", { length: 32 }).notNull().default("epay"),
+    paymentMethod: varchar("payment_method", { length: 32 }).notNull(),
+    amountCredits: integer("amount_credits").notNull(),
+    payMoney: varchar("pay_money", { length: 32 }).notNull(),
+    currency: varchar("currency", { length: 8 }).notNull().default("CNY"),
+    status: epayOrderStatusEnum("status").notNull().default("pending"),
+    epayTradeNo: varchar("epay_trade_no", { length: 128 }),
+    quotaGranted: integer("quota_granted"),
+    notifyPayload: jsonb("notify_payload").$type<Record<string, unknown>>(),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    uniqueIndex("epay_orders_trade_no_unique").on(table.tradeNo),
+    index("epay_orders_organization_index").on(table.organizationId),
+    index("epay_orders_user_index").on(table.userId),
+    index("epay_orders_status_index").on(table.status),
   ],
 );
 
