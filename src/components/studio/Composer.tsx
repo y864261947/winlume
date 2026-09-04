@@ -840,13 +840,6 @@ export default function Composer({
     };
   }, []);
 
-  // Keep select list as primary UX — never auto-switch to free-text mode.
-  useEffect(() => {
-    if (model && !modelOptions.includes(model) && !customMode) {
-      setModelOptions((prev) => [model, ...prev.filter((m) => m !== model)]);
-    }
-  }, [model, modelOptions, customMode]);
-
   const modelVendorGroups = useMemo((): ModelVendorGroup[] => {
     const catalogByName = new Map(modelCatalog.map((item) => [item.model_name, item]));
     const groups = new Map<string, ModelVendorGroup>();
