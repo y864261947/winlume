@@ -14,6 +14,8 @@ import type {
   ConsoleToolPreset,
   ConsoleUsageByKey,
   ConsoleUsageLog,
+  ConsolePaymentOrder,
+  ConsoleTopupConfig,
   ConsoleWalletDetails,
 } from "./types";
 
@@ -69,6 +71,52 @@ export function redeemConsoleCode(input: { organizationId?: string | null; code:
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export type ConsoleTopupSnapshot = {
+  organizationId: string | null;
+  config: ConsoleTopupConfig;
+  orders: ConsolePaymentOrder[];
+  order: ConsolePaymentOrder | null;
+};
+
+export function getConsoleTopup(input?: { organizationId?: string | null; order?: string | null }) {
+  const params = new URLSearchParams();
+  if (input?.organizationId) params.set("organizationId", input.organizationId);
+  if (input?.order) params.set("order", input.order);
+  const search = params.toString();
+  return request<ConsoleTopupSnapshot>(
+    `/api/console/wallet/topup${search ? `?${search}` : ""}`,
+    { cache: "no-store" },
+  );
+}
+
+export function createConsoleTopup(input: {
+  organizationId?: string | null;
+  amount: number;
+  paymentMethod: string;
+}) {
+  return request<{ tradeNo: string; url: string; params: Record<string, string> }>(
+    "/api/console/wallet/topup",
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+/** Submit the signed cashier form as a real navigation (top-level POST). */
+export function submitEpayCashierForm(url: string, params: Record<string, string>): void {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = url;
+  form.style.display = "none";
+  for (const [key, value] of Object.entries(params)) {
+    const field = document.createElement("input");
+    field.type = "hidden";
+    field.name = key;
+    field.value = value;
+    form.appendChild(field);
+  }
+  document.body.appendChild(form);
+  form.submit();
 }
 
 export function listConsoleKeys(organizationId?: string | null) {
