@@ -769,8 +769,8 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
       if (!target) return;
 
       const rect = target.getBoundingClientRect();
-      const cardWidth = Math.min(344, window.innerWidth - 32);
-      const cardHeight = 278;
+      const cardWidth = Math.min(392, window.innerWidth - 32);
+      const cardHeight = 320;
       const targetOnRight = step.target === "tools";
       const preferredLeft = targetOnRight ? rect.left - cardWidth - 28 : rect.right + 28;
       const left = Math.max(16, Math.min(preferredLeft, window.innerWidth - cardWidth - 16));

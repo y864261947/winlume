@@ -47,39 +47,39 @@ const groups: NavGroup[] = [
     items: [
       { href: "/account", label: "个人中心", mobileLabel: "个人", icon: LayoutDashboard, exact: true },
       { href: "/account/tasks", label: "任务看板", mobileLabel: "任务", icon: ClipboardList },
+      { href: "/account/security", label: "账户安全", mobileLabel: "安全", icon: LockKeyhole },
     ],
   },
   {
-    label: "接入",
-    items: [{ href: "/account/keys", label: "API Keys", mobileLabel: "Keys", icon: KeyRound }],
-  },
-  {
-    label: "计费",
+    label: "充值及会员",
     items: [
       { href: "/account/wallet", label: "钱包与充值", mobileLabel: "钱包", icon: WalletCards, aliases: ["/account/usage"] },
-      { href: "/account/logs", label: "请求日志", mobileLabel: "日志", icon: ScrollText },
       { href: "/account/pricing", label: "会员购买", mobileLabel: "会员", icon: Receipt },
       { href: "/account/enterprise", label: "对公结算", mobileLabel: "对公", icon: Building2 },
     ],
   },
   {
-    label: "账户安全",
+    label: "工作区",
     items: [
-      { href: "/account/security", label: "修改密码", mobileLabel: "密码", icon: LockKeyhole },
-      { href: "/account/invite", label: "邀请好友", mobileLabel: "邀请", icon: UserPlus },
+      { href: "/account/keys", label: "API Keys", mobileLabel: "Keys", icon: KeyRound },
+      { href: "/account/logs", label: "请求日志", mobileLabel: "日志", icon: ScrollText },
+      { href: "/account/personalization", label: "人格与工具", mobileLabel: "设置", icon: Settings2 },
+      { href: "/account/team", label: "团队", mobileLabel: "团队", icon: UsersRound },
     ],
   },
   {
-    label: "工作区",
+    label: "邀请与社区",
     items: [
-      { href: "/account/personalization", label: "人格与工具", mobileLabel: "设置", icon: Settings2 },
-      { href: "/account/team", label: "团队", mobileLabel: "团队", icon: UsersRound },
+      { href: "/account/invite", label: "邀请好友", mobileLabel: "邀请", icon: UserPlus },
       { href: "/account/community", label: "交流社区", mobileLabel: "社区", icon: Store },
     ],
   },
 ];
 
-const mobileItems = groups.flatMap((group) => group.items).slice(0, 5);
+const mobileHrefs = ["/account", "/account/tasks", "/account/wallet", "/account/keys", "/account/invite"];
+const mobileItems = mobileHrefs.flatMap((href) =>
+  groups.flatMap((group) => group.items).filter((item) => item.href === href),
+);
 
 function isActive(pathname: string, item: NavItem) {
   const paths = [item.href, ...(item.aliases ?? [])];
@@ -161,7 +161,7 @@ export default function AccountShell({ children }: { children: ReactNode }) {
               </Link>
               <Link href="/account/community">
                 <CircleHelp aria-hidden />
-                联系支持
+                帮助支持
               </Link>
             </div>
           </aside>

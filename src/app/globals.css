@@ -6900,9 +6900,9 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-onboarding-card {
   position: fixed;
   z-index: 44;
-  width: min(344px, calc(100vw - 32px));
-  min-height: 270px;
-  padding: 22px 24px 20px;
+  width: min(392px, calc(100vw - 32px));
+  min-height: 320px;
+  padding: 27px 29px 23px;
   border: 1px solid rgba(255, 255, 255, .88);
   border-radius: 16px;
   color: #172033;
@@ -6920,13 +6920,13 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-onboarding-title-row {
   display: flex;
   align-items: center;
-  gap: 9px;
-  margin-top: 9px;
+  gap: 11px;
+  margin-top: 11px;
 }
 .portal-onboarding-icon {
   display: grid;
-  width: 31px;
-  height: 31px;
+  width: 36px;
+  height: 36px;
   flex: 0 0 auto;
   place-items: center;
   border-radius: 10px;
@@ -6936,31 +6936,31 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 }
 .portal-onboarding-icon.is-api { color: #5a59dd; background: linear-gradient(145deg, #e8e7ff, #fafaff); }
 .portal-onboarding-icon.is-tools { color: #783cf2; background: linear-gradient(145deg, #eee6ff, #fcfaff); }
-.portal-onboarding-icon svg { width: 18px; height: 18px; }
+.portal-onboarding-icon svg { width: 20px; height: 20px; }
 .portal-onboarding-title-row h2 {
   margin: 0;
   color: #17233a;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 750;
-  line-height: 30px;
+  line-height: 32px;
 }
 .portal-onboarding-lead {
-  margin: 16px 0 0;
+  margin: 18px 0 0;
   color: #253854;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
-  line-height: 21px;
+  line-height: 24px;
 }
 .portal-onboarding-copy {
-  margin: 8px 0 0;
+  margin: 9px 0 0;
   color: #617187;
-  font-size: 13px;
-  line-height: 21px;
+  font-size: 14px;
+  line-height: 23px;
 }
 .portal-onboarding-dots {
   display: flex;
   gap: 6px;
-  margin-top: 16px;
+  margin-top: 19px;
 }
 .portal-onboarding-dots i {
   width: 6px;
@@ -6979,12 +6979,12 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 }
 .portal-onboarding-actions > div { display: flex; gap: 8px; }
 .portal-onboarding-actions button {
-  min-height: 34px;
+  min-height: 40px;
   padding: 0 14px;
   border: 1px solid transparent;
   border-radius: 9px;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -7005,12 +7005,12 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
     left: 12px !important;
     width: auto;
     min-height: 0;
-    padding: 18px 18px 16px;
+    padding: 20px 19px 17px;
   }
   .portal-onboarding-line { display: none; }
-  .portal-onboarding-title-row h2 { font-size: 19px; line-height: 26px; }
+  .portal-onboarding-title-row h2 { font-size: 20px; line-height: 27px; }
   .portal-onboarding-lead { margin-top: 12px; }
-  .portal-onboarding-copy { font-size: 12px; line-height: 19px; }
+  .portal-onboarding-copy { font-size: 13px; line-height: 21px; }
   .portal-onboarding-dots { margin-top: 12px; }
   .portal-onboarding-actions { margin-top: 13px; }
 }
@@ -10212,4 +10212,43 @@ body {
   .portal-support-cta { align-items: flex-start; flex-direction: column; padding: 21px; }
   .portal-support-cta-link { width: 100%; justify-content: center; }
   .portal-support-footer { margin-top: 16px; }
+}
+
+/* Keep the portal hierarchy intact after the later dashboard density rules. */
+.portal-home .portal-section-header h2,
+.portal-home .portal-api-card-head h2,
+.portal-home .portal-tools-head h2 { font-size: 22px; line-height: 29px; }
+.portal-home .portal-section-header p,
+.portal-home .portal-tools-proof,
+.portal-home .portal-hero-chip { font-size: 15px; line-height: 22px; }
+.portal-home .portal-tool-card strong { font-size: 15px; line-height: 20px; }
+.portal-home .portal-tool-card span { font-size: 13px; line-height: 18px; }
+.portal-home .portal-api-trigger,
+.portal-home .portal-api-unavailable { font-size: 15px; }
+.portal-account-side-title { font-size: 25px; line-height: 32px; }
+.portal-account-side-nav a { min-height: 40px; font-size: 15px; }
+.portal-account-side-kicker { font-size: 12px; line-height: 18px; }
+.portal-account-main .account-personal header h1,
+.portal-account-main .account-tasks header h1 { font-size: 38px; line-height: 46px; }
+.portal-account-main .account-personal header p,
+.portal-account-main .account-tasks header p { font-size: 14px; line-height: 22px; }
+.portal-account-main .account-personal-stats span,
+.portal-account-main .account-task-stats span { font-size: 14px; }
+.portal-account-main .account-personal-panel h2 { font-size: 22px; line-height: 29px; }
+.portal-account-main .account-personal-panel>div { font-size: 15px; }
+
+@media (max-width: 760px) {
+  .portal-home .portal-section-header h2,
+  .portal-home .portal-api-card-head h2,
+  .portal-home .portal-tools-head h2 { font-size: 19px; line-height: 26px; }
+  .portal-home .portal-section-header p,
+  .portal-home .portal-tools-proof { font-size: 13px; line-height: 19px; }
+  .portal-home .portal-tool-card strong { font-size: 14px; line-height: 19px; }
+  .portal-home .portal-tool-card span { font-size: 12px; line-height: 17px; }
+  .portal-account-main .account-personal header h1,
+  .portal-account-main .account-tasks header h1 { font-size: 30px; line-height: 38px; }
+  .portal-account-main .account-personal header p,
+  .portal-account-main .account-tasks header p { font-size: 13px; line-height: 20px; }
+  .portal-account-main .account-personal-stats span,
+  .portal-account-main .account-task-stats span { font-size: 13px; }
 }
