@@ -86,6 +86,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/ali-oss": "^6.23.3",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
