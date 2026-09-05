@@ -6909,18 +6909,20 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-home .portal-api-touch-card { z-index: 80; }
 .portal-home { overflow-x: clip; }
 
-/* First-visit guide: a single bright route through Agent, API models and tools. */
+/* First-visit guide: a clear focus ring and a short orthogonal route to each surface. */
 .portal-home .is-onboarding-target {
   z-index: 42;
+  outline: 2px solid rgba(126, 204, 255, .96);
+  outline-offset: 4px;
   box-shadow:
-    0 0 0 2px rgba(120, 193, 255, .94),
-    0 0 0 7px rgba(91, 170, 255, .14),
-    0 24px 52px -24px rgba(4, 51, 116, .74);
+    0 0 0 8px rgba(91, 170, 255, .16),
+    0 20px 52px -24px rgba(4, 51, 116, .74);
 }
 .portal-onboarding {
   position: fixed;
-  z-index: 40;
+  z-index: 100;
   inset: 0;
+  pointer-events: none;
 }
 .portal-onboarding-scrim {
   position: absolute;
@@ -6929,62 +6931,89 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
   animation: portal-onboarding-fade 260ms ease both;
+  pointer-events: auto;
 }
-.portal-onboarding-line {
+.portal-onboarding-scrim.is-spotlight { background: transparent; }
+.portal-onboarding-highlight {
   position: fixed;
-  z-index: 43;
-  height: 2px;
-  transform-origin: 0 50%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(75, 151, 255, .16), #3a8cff 30%, #8bc4ff 100%);
-  box-shadow: 0 0 10px rgba(72, 151, 255, .86);
-  animation: portal-onboarding-line 420ms cubic-bezier(.22, .75, .25, 1) both;
+  z-index: 101;
+  border: 2px solid rgba(126, 204, 255, .98);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 7px rgba(91, 170, 255, .18),
+    0 0 0 9999px rgba(5, 17, 38, .68),
+    0 20px 52px -24px rgba(4, 51, 116, .78);
+  pointer-events: none;
+  animation: portal-onboarding-highlight 360ms cubic-bezier(.2, .85, .25, 1) both;
 }
-.portal-onboarding-line::after {
-  position: absolute;
-  top: 50%;
-  right: -1px;
-  width: 8px;
-  height: 8px;
-  border-top: 2px solid #a9d6ff;
-  border-right: 2px solid #a9d6ff;
-  content: "";
-  filter: drop-shadow(0 0 4px rgba(90, 168, 255, .9));
-  transform: translateY(-50%) rotate(45deg);
+.portal-onboarding-connector {
+  position: fixed;
+  z-index: 102;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: visible;
+  pointer-events: none;
+  animation: portal-onboarding-connector 420ms cubic-bezier(.22, .75, .25, 1) both;
+}
+.portal-onboarding-connector-path {
+  fill: none;
+  stroke: #69b4ff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: portal-onboarding-route 560ms cubic-bezier(.2, .8, .2, 1) 80ms forwards;
+}
+.portal-onboarding-connector-dot,
+.portal-onboarding-connector-target {
+  fill: #d9efff;
+  stroke: #328df2;
+  stroke-width: 2;
+  filter: drop-shadow(0 0 7px rgba(83, 170, 255, .95));
+}
+.portal-onboarding-connector-dot {
+  animation: portal-onboarding-dot 320ms ease 280ms both;
+}
+.portal-onboarding-connector-target {
+  fill: #fff;
+  animation: portal-onboarding-target 800ms ease-in-out 380ms infinite alternate;
 }
 .portal-onboarding-card {
   position: fixed;
-  z-index: 44;
-  width: min(392px, calc(100vw - 32px));
-  min-height: 320px;
-  padding: 27px 29px 23px;
+  z-index: 103;
+  width: min(440px, calc(100vw - 32px));
+  min-height: 352px;
+  padding: 30px 32px 25px;
   border: 1px solid rgba(255, 255, 255, .88);
-  border-radius: 16px;
+  border-radius: 18px;
   color: #172033;
-  background: linear-gradient(145deg, rgba(255, 255, 255, .98), rgba(244, 250, 255, .95));
-  box-shadow: 0 28px 72px -24px rgba(0, 13, 40, .72), inset 0 1px 0 rgba(255, 255, 255, .96);
+  background: linear-gradient(145deg, rgba(255, 255, 255, .99), rgba(241, 249, 255, .96));
+  box-shadow: 0 30px 76px -24px rgba(0, 13, 40, .78), inset 0 1px 0 rgba(255, 255, 255, .96);
   animation: portal-onboarding-card 340ms cubic-bezier(.2, .85, .25, 1) both;
+  pointer-events: auto;
 }
 .portal-onboarding-progress {
   color: #1466df;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
-  line-height: 20px;
+  line-height: 21px;
   letter-spacing: .03em;
 }
 .portal-onboarding-title-row {
   display: flex;
   align-items: center;
-  gap: 11px;
-  margin-top: 11px;
+  gap: 13px;
+  margin-top: 13px;
 }
 .portal-onboarding-icon {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 10px;
+  border-radius: 12px;
   color: #1668e8;
   background: linear-gradient(145deg, #ddecff, #f7fbff);
   box-shadow: 0 7px 16px -10px rgba(24, 103, 220, .68);
@@ -6995,51 +7024,51 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-onboarding-title-row h2 {
   margin: 0;
   color: #17233a;
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 750;
-  line-height: 32px;
+  line-height: 34px;
 }
 .portal-onboarding-lead {
-  margin: 18px 0 0;
+  margin: 22px 0 0;
   color: #253854;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
-  line-height: 24px;
+  line-height: 26px;
 }
 .portal-onboarding-copy {
-  margin: 9px 0 0;
+  margin: 11px 0 0;
   color: #617187;
-  font-size: 14px;
-  line-height: 23px;
+  font-size: 15px;
+  line-height: 25px;
 }
 .portal-onboarding-dots {
   display: flex;
   gap: 6px;
-  margin-top: 19px;
+  margin-top: 24px;
 }
 .portal-onboarding-dots i {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   background: #c6d2e2;
   transition: width 180ms ease, background-color 180ms ease;
 }
-.portal-onboarding-dots i.is-active { width: 17px; background: #1a6eea; }
+.portal-onboarding-dots i.is-active { width: 21px; background: #1a6eea; }
 .portal-onboarding-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 16px;
+  margin-top: 24px;
 }
-.portal-onboarding-actions > div { display: flex; gap: 8px; }
+.portal-onboarding-actions > div { display: flex; gap: 10px; }
 .portal-onboarding-actions button {
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: 44px;
+  padding: 0 17px;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 10px;
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -7049,10 +7078,17 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
 .portal-onboarding-actions button:hover { transform: translateY(-1px); }
 @keyframes portal-onboarding-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes portal-onboarding-card { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
-@keyframes portal-onboarding-line { from { opacity: 0; } to { opacity: 1; } }
+@keyframes portal-onboarding-connector { from { opacity: 0; } to { opacity: 1; } }
+@keyframes portal-onboarding-route { to { stroke-dashoffset: 0; } }
+@keyframes portal-onboarding-dot { from { opacity: 0; transform: scale(.5); transform-origin: center; } to { opacity: 1; transform: scale(1); transform-origin: center; } }
+@keyframes portal-onboarding-target { from { opacity: .58; } to { opacity: 1; } }
+@keyframes portal-onboarding-highlight { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
 
 @media (max-width: 760px) {
-  .portal-home .is-onboarding-target { box-shadow: 0 0 0 2px rgba(120, 193, 255, .95), 0 0 0 5px rgba(91, 170, 255, .14); }
+  .portal-home .is-onboarding-target {
+    outline-offset: 3px;
+    box-shadow: 0 0 0 6px rgba(91, 170, 255, .14);
+  }
   .portal-onboarding-card {
     top: auto !important;
     right: 12px;
@@ -7060,19 +7096,22 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
     left: 12px !important;
     width: auto;
     min-height: 0;
-    padding: 20px 19px 17px;
+    padding: 22px 20px 19px;
   }
-  .portal-onboarding-line { display: none; }
-  .portal-onboarding-title-row h2 { font-size: 20px; line-height: 27px; }
-  .portal-onboarding-lead { margin-top: 12px; }
-  .portal-onboarding-copy { font-size: 13px; line-height: 21px; }
-  .portal-onboarding-dots { margin-top: 12px; }
-  .portal-onboarding-actions { margin-top: 13px; }
+  .portal-onboarding-highlight { border-radius: 13px; }
+  .portal-onboarding-connector { display: none; }
+  .portal-onboarding-title-row h2 { font-size: 21px; line-height: 28px; }
+  .portal-onboarding-lead { margin-top: 14px; font-size: 16px; line-height: 24px; }
+  .portal-onboarding-copy { font-size: 14px; line-height: 22px; }
+  .portal-onboarding-dots { margin-top: 15px; }
+  .portal-onboarding-actions { margin-top: 17px; }
+  .portal-onboarding-actions button { min-height: 42px; font-size: 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .portal-onboarding-scrim,
-  .portal-onboarding-line,
+  .portal-onboarding-highlight,
+  .portal-onboarding-connector,
   .portal-onboarding-card { animation: none; }
   .portal-onboarding-dots i,
   .portal-onboarding-actions button { transition: none; }

@@ -52,6 +52,14 @@ describe("homepage API categories", () => {
     expect(source).toContain("data-onboarding-target=\"tools\"");
   });
 
+  it("uses a spotlight target and routed SVG connector for the guide", () => {
+    expect(source).toContain('type OnboardingPlacementMode = "below" | "above" | "side" | "spotlight"');
+    expect(source).toContain("portal-onboarding-highlight");
+    expect(source).toContain("portal-onboarding-connector");
+    expect(source).toContain('markerEnd="url(#portal-onboarding-arrow)"');
+    expect(source).toContain("onboardingPlacement?.connectorPath");
+  });
+
   it("uses result previews and workflow evidence instead of icon-only showcase covers", () => {
     expect(source).toContain("ApplicationResultPreview");
     expect(source).toContain('preview: "storyboard"');

@@ -63,13 +63,18 @@ const onboardingSteps = [
   },
 ] as const;
 
+type OnboardingPlacementMode = "below" | "above" | "side" | "spotlight";
+
 type OnboardingPlacement = {
   left: number;
   top: number;
-  lineLeft: number;
-  lineTop: number;
-  lineWidth: number;
-  lineAngle: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  mode: OnboardingPlacementMode;
+  connectorPath: string;
+  connectorStart: { x: number; y: number };
+  connectorTarget: { x: number; y: number };
+  targetRect: { left: number; top: number; width: number; height: number };
 };
 
 type AssetIconProps = { src: string; alt?: string; className?: string };
@@ -717,6 +722,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
   const [chatwootReady, setChatwootReady] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
   const [onboardingPlacement, setOnboardingPlacement] = useState<OnboardingPlacement | null>(null);
+  const onboardingCardRef = useRef<HTMLElement | null>(null);
   const [activeApiId, setActiveApiId] = useState<string | null>(null);
   const apiFlyoutCloseTimerRef = useRef<number | null>(null);
   const [overview, setOverview] = useState<ConsoleOverview | null>(null);
@@ -769,33 +775,108 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
       if (!target) return;
 
       const rect = target.getBoundingClientRect();
-      const cardWidth = Math.min(392, window.innerWidth - 32);
-      const cardHeight = 320;
-      const targetOnRight = step.target === "tools";
-      const preferredLeft = targetOnRight ? rect.left - cardWidth - 28 : rect.right + 28;
-      const left = Math.max(16, Math.min(preferredLeft, window.innerWidth - cardWidth - 16));
-      const top = Math.max(84, Math.min(rect.top + Math.min(34, rect.height * .18), window.innerHeight - cardHeight - 16));
-      const targetX = targetOnRight ? rect.left : rect.right;
-      const targetY = Math.max(74, Math.min(rect.top + rect.height * .5, window.innerHeight - 42));
-      const lineStartX = targetOnRight ? left + cardWidth : left;
-      const lineStartY = top + 132;
-      const dx = targetX - lineStartX;
-      const dy = targetY - lineStartY;
+      const measuredCard = onboardingCardRef.current?.getBoundingClientRect();
+      const cardWidth = Math.min(440, window.innerWidth - 32);
+      const cardHeight = Math.max(352, measuredCard?.height ?? 352);
+      const margin = 28;
+      const safeTop = 84;
+      const safeBottom = 24;
+      const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, Math.max(min, max)));
+      const availableRight = window.innerWidth - rect.right - margin - cardWidth;
+      const availableLeft = rect.left - margin - cardWidth;
+      let left = 0;
+      let top = 0;
+      let mode: OnboardingPlacementMode = "spotlight";
+      let connectorPath = "";
+      let connectorStart = { x: 0, y: 0 };
+      let connectorTarget = { x: 0, y: 0 };
+
+      if (step.target === "agent") {
+        const belowTop = rect.bottom + margin;
+        const aboveTop = rect.top - margin - cardHeight;
+        const useBelow = belowTop + cardHeight <= window.innerHeight - safeBottom;
+        const useAbove = aboveTop >= safeTop;
+        mode = useBelow ? "below" : useAbove ? "above" : "spotlight";
+        top = useBelow
+          ? belowTop
+          : useAbove
+            ? aboveTop
+            : clamp(rect.top + rect.height * .24, safeTop, window.innerHeight - cardHeight - safeBottom);
+        left = clamp(rect.left + Math.min(56, rect.width * .16), 16, window.innerWidth - cardWidth - 16);
+        if (mode !== "spotlight") {
+          const isBelow = mode === "below";
+          connectorStart = { x: clamp(left + cardWidth * .5, 24, window.innerWidth - 24), y: isBelow ? top : top + cardHeight };
+          connectorTarget = { x: clamp(rect.left + rect.width * .5, 24, window.innerWidth - 24), y: isBelow ? rect.bottom : rect.top };
+          const elbowY = isBelow ? rect.bottom + 13 : rect.top - 13;
+          connectorPath = `M ${connectorStart.x} ${connectorStart.y} V ${elbowY} H ${connectorTarget.x} V ${connectorTarget.y}`;
+        }
+      } else {
+        const canPlaceRight = availableRight >= 0;
+        const canPlaceLeft = availableLeft >= 0;
+        const placeLeft = step.target === "tools" ? canPlaceLeft : !canPlaceRight && canPlaceLeft;
+        if (canPlaceRight || canPlaceLeft) {
+          mode = "side";
+          left = placeLeft
+            ? clamp(rect.left - cardWidth - margin, 16, window.innerWidth - cardWidth - 16)
+            : clamp(rect.right + margin, 16, window.innerWidth - cardWidth - 16);
+          top = clamp(rect.top + Math.min(38, rect.height * .14), safeTop, window.innerHeight - cardHeight - safeBottom);
+          const targetX = placeLeft ? rect.left : rect.right;
+          const targetY = clamp(rect.top + rect.height * .5, 74, window.innerHeight - 42);
+          const startY = clamp(top + cardHeight * .5, top + 66, top + cardHeight - 56);
+          const startX = placeLeft ? left + cardWidth : left;
+          const elbowX = placeLeft ? startX + 18 : startX - 18;
+          connectorStart = { x: startX, y: startY };
+          connectorTarget = { x: targetX, y: targetY };
+          connectorPath = `M ${startX} ${startY} H ${elbowX} V ${targetY} H ${targetX}`;
+        } else {
+          const belowTop = rect.bottom + margin;
+          const aboveTop = rect.top - margin - cardHeight;
+          const useBelow = belowTop + cardHeight <= window.innerHeight - safeBottom;
+          const useAbove = aboveTop >= safeTop;
+          mode = useBelow ? "below" : useAbove ? "above" : "spotlight";
+          top = useBelow
+            ? belowTop
+            : useAbove
+              ? aboveTop
+              : clamp(rect.top + rect.height * .18, safeTop, window.innerHeight - cardHeight - safeBottom);
+          left = clamp(rect.left + (rect.width - cardWidth) * .5, 16, window.innerWidth - cardWidth - 16);
+          if (mode !== "spotlight") {
+            const isBelow = mode === "below";
+            connectorStart = { x: clamp(left + cardWidth * .5, 24, window.innerWidth - 24), y: isBelow ? top : top + cardHeight };
+            connectorTarget = { x: clamp(rect.left + rect.width * .5, 24, window.innerWidth - 24), y: isBelow ? rect.bottom : rect.top };
+            const elbowY = isBelow ? rect.bottom + 13 : rect.top - 13;
+            connectorPath = `M ${connectorStart.x} ${connectorStart.y} V ${elbowY} H ${connectorTarget.x} V ${connectorTarget.y}`;
+          }
+        }
+      }
 
       setOnboardingPlacement({
         left,
         top,
-        lineLeft: lineStartX,
-        lineTop: lineStartY,
-        lineWidth: Math.max(24, Math.hypot(dx, dy)),
-        lineAngle: Math.atan2(dy, dx) * (180 / Math.PI),
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        mode,
+        connectorPath,
+        connectorStart,
+        connectorTarget,
+        targetRect: {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+        },
       });
     };
 
     updatePlacement();
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updatePlacement);
+    const target = document.querySelector(selector);
+    if (target) resizeObserver?.observe(target);
+    if (onboardingCardRef.current) resizeObserver?.observe(onboardingCardRef.current);
     window.addEventListener("resize", updatePlacement);
     window.addEventListener("scroll", updatePlacement, true);
     return () => {
+      resizeObserver?.disconnect();
       window.removeEventListener("resize", updatePlacement);
       window.removeEventListener("scroll", updatePlacement, true);
     };
@@ -1472,21 +1553,51 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
 
         {onboardingStep != null ? (
           <div className="portal-onboarding" role="dialog" aria-modal="true" aria-labelledby="portal-onboarding-title" aria-describedby="portal-onboarding-description">
-            <div className="portal-onboarding-scrim" aria-hidden />
+            <div className={`portal-onboarding-scrim${onboardingPlacement ? " is-spotlight" : ""}`} aria-hidden />
             {onboardingPlacement ? (
               <span
-                className="portal-onboarding-line"
+                className="portal-onboarding-highlight"
                 aria-hidden
                 style={{
-                  left: onboardingPlacement.lineLeft,
-                  top: onboardingPlacement.lineTop,
-                  width: onboardingPlacement.lineWidth,
-                  transform: `rotate(${onboardingPlacement.lineAngle}deg)`,
+                  left: onboardingPlacement.targetRect.left,
+                  top: onboardingPlacement.targetRect.top,
+                  width: onboardingPlacement.targetRect.width,
+                  height: onboardingPlacement.targetRect.height,
                 }}
               />
             ) : null}
+            {onboardingPlacement?.connectorPath ? (
+              <svg
+                className="portal-onboarding-connector"
+                aria-hidden
+                viewBox={`0 0 ${onboardingPlacement.viewportWidth} ${onboardingPlacement.viewportHeight}`}
+                preserveAspectRatio="none"
+              >
+                <defs>
+                  <filter id="portal-onboarding-arrow-glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                  <marker id="portal-onboarding-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+                    <path d="M 1 1 L 8 5 L 1 9" fill="none" stroke="#c5e4ff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </marker>
+                </defs>
+                <path
+                  className="portal-onboarding-connector-path"
+                  d={onboardingPlacement.connectorPath}
+                  markerEnd="url(#portal-onboarding-arrow)"
+                  filter="url(#portal-onboarding-arrow-glow)"
+                />
+                <circle className="portal-onboarding-connector-dot" cx={onboardingPlacement.connectorStart.x} cy={onboardingPlacement.connectorStart.y} r="4" />
+                <circle className="portal-onboarding-connector-target" cx={onboardingPlacement.connectorTarget.x} cy={onboardingPlacement.connectorTarget.y} r="4" />
+              </svg>
+            ) : null}
             <section
-              className="portal-onboarding-card"
+              ref={onboardingCardRef}
+              className={`portal-onboarding-card${onboardingPlacement ? " is-ready" : ""}`}
               style={onboardingPlacement ? { left: onboardingPlacement.left, top: onboardingPlacement.top } : undefined}
             >
               <div className="portal-onboarding-progress">{onboardingStep + 1}/{onboardingSteps.length}</div>
