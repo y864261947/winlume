@@ -212,26 +212,16 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
             <span className="block h-9 animate-pulse rounded-lg bg-canvas" aria-label="正在加载账户" />
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2 border-t border-line p-4">
+          <div className="border-t border-line p-4">
             <button
               type="button"
               onClick={() => {
                 onClose();
-                openLogin("login");
+                openLogin();
               }}
-              className="rounded-lg border border-line py-2 text-sm text-ink-800 transition hover:bg-canvas"
+              className="w-full rounded-full bg-primary-500 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600"
             >
-              登录
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                openLogin("register");
-              }}
-              className="rounded-lg bg-primary-500 py-2 text-sm font-medium text-white transition hover:bg-primary-600"
-            >
-              注册
+              登录 / 注册
             </button>
           </div>
         )}
@@ -403,8 +393,7 @@ export default function SiteHeader() {
               </div>
             ) : !accountLoading ? (
               <>
-                <button type="button" onClick={() => openLogin("login")} className="hidden rounded-lg px-3 py-1.5 text-sm text-ink-700 transition hover:bg-canvas sm:block">登录</button>
-                <button type="button" onClick={() => openLogin("register")} className="hidden rounded-lg bg-primary-500 px-4 py-1.5 text-sm font-medium text-white shadow-sm shadow-primary-500/25 transition hover:bg-primary-600 sm:block">注册</button>
+                <button type="button" onClick={() => openLogin()} className="hidden rounded-full bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-primary-500/20 transition hover:bg-primary-600 sm:block">登录 / 注册</button>
               </>
             ) : <span className="hidden h-8 w-40 animate-pulse rounded-lg bg-canvas sm:block" aria-label="正在加载账户" />}
 

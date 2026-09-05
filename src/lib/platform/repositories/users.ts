@@ -87,6 +87,13 @@ export class UserRepository {
     return updated.length === 1;
   }
 
+  async markEmailVerified(userId: string, at = new Date()): Promise<void> {
+    await this.database
+      .update(users)
+      .set({ emailVerifiedAt: at, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
   async setPasswordHash(userId: string, passwordHash: string): Promise<void> {
     await this.database
       .update(users)

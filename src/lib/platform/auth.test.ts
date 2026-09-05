@@ -22,6 +22,8 @@ function platformUser(overrides: Partial<PlatformUserRecord> = {}): PlatformUser
     passwordHash: null,
     status: "active",
     platformRole: "user",
+    isServiceAccount: false,
+    currentOrganizationId: null,
     authVersion: 3,
     lastLoginAt: null,
     createdAt: new Date(),
@@ -49,6 +51,7 @@ describe("Reizo credential helpers", () => {
     const user = platformUser({ passwordHash, platformRole: "admin" });
     const repository = {
       findByUsername: vi.fn().mockResolvedValue(user),
+      findByEmail: vi.fn(),
       recordSuccessfulLogin: vi.fn().mockResolvedValue(undefined),
       replacePasswordHashAfterLogin: vi.fn().mockResolvedValue(true),
     };
@@ -66,6 +69,7 @@ describe("Reizo credential helpers", () => {
   it("rejects suspended users before issuing claims", async () => {
     const repository = {
       findByUsername: vi.fn().mockResolvedValue(platformUser({ status: "suspended" })),
+      findByEmail: vi.fn(),
       recordSuccessfulLogin: vi.fn(),
       replacePasswordHashAfterLogin: vi.fn(),
     };
@@ -106,5 +110,23 @@ describe("Reizo credential helpers", () => {
     expect(getAuthMode({})).toBe("reizo");
     expect(getAuthMode({ REIZO_AUTH_MODE: "legacy" })).toBe("legacy");
     expect(getAuthMode({ REIZO_AUTH_MODE: "new-api" })).toBe("reizo");
+  });
+
+  it("authenticates by email when the identifier contains @", async () => {
+    const passwordHash = await hashPassword("s3cret", 4);
+    const user = platformUser({ passwordHash });
+    const repository = {
+      findByUsername: vi.fn(),
+      findByEmail: vi.fn().mockResolvedValue(user),
+      recordSuccessfulLogin: vi.fn().mockResolvedValue(undefined),
+      replacePasswordHashAfterLogin: vi.fn().mockResolvedValue(true),
+    };
+    const authenticated = await authenticatePlatformCredentials(
+      { username: "Alice@example.com", password: "s3cret" },
+      repository,
+    );
+    expect(authenticated?.username).toBe("alice");
+    expect(repository.findByEmail).toHaveBeenCalledWith("Alice@example.com");
+    expect(repository.findByUsername).not.toHaveBeenCalled();
   });
 });

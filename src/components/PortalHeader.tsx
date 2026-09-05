@@ -166,7 +166,7 @@ export default function PortalHeader({ productMode, notifications: initialNotifi
               </div>
             ) : (
               <button type="button" className="portal-account" onClick={() => openLogin("login")}>
-                <span>{accountInitial}</span>登录<ChevronRight aria-hidden />
+                <span>{accountInitial}</span>登录 / 注册<ChevronRight aria-hidden />
               </button>
             )}
           </div>

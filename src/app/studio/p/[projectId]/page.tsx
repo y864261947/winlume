@@ -114,9 +114,9 @@ export default function StudioProjectPage() {
         <button
           type="button"
           onClick={() => openLogin("login")}
-          className="studio-send-btn rounded-[10px] px-4 py-2 text-sm font-medium text-white"
+          className="studio-send-btn rounded-full px-4 py-2 text-sm font-medium text-white"
         >
-          登录
+          登录 / 注册
         </button>
       </div>
     );

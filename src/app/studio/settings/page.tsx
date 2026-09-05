@@ -136,22 +136,13 @@ export default function StudioSettingsPage() {
               <p className="text-sm text-ink-500">
                 尚未登录。登录后可查看余额与使用记录。
               </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => openLogin("login")}
-                  className="rounded-lg border border-line px-3 py-2 text-sm text-ink-800 transition hover:bg-canvas"
-                >
-                  登录
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openLogin("register")}
-                  className="rounded-lg bg-primary-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-primary-600"
-                >
-                  注册
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => openLogin()}
+                className="rounded-full bg-primary-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-600"
+              >
+                登录 / 注册
+              </button>
             </div>
           )}
         </section>

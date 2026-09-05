@@ -62,6 +62,28 @@ export const users = pgTable(
   ],
 );
 
+export const authChallengePurposeEnum = pgEnum("auth_challenge_purpose", ["signup", "password_reset"]);
+
+export const authChallenges = pgTable(
+  "auth_challenges",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    purpose: authChallengePurposeEnum("purpose").notNull(),
+    email: varchar("email", { length: 320 }).notNull(),
+    username: varchar("username", { length: 64 }),
+    passwordHash: varchar("password_hash", { length: 255 }),
+    codeHash: varchar("code_hash", { length: 64 }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt,
+  },
+  (table) => [
+    index("auth_challenges_email_purpose_index").on(table.email, table.purpose),
+    index("auth_challenges_expires_index").on(table.expiresAt),
+  ],
+);
+
 export const authIdentities = pgTable(
   "auth_identities",
   {

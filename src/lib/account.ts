@@ -10,6 +10,8 @@ export interface BalanceConfig {
   usd_exchange_rate?: number;
   /** Present in native mode when AUTH_GOOGLE_ID/SECRET are configured. */
   google_oauth_enabled?: boolean;
+  /** Present in native mode when AUTH_GITHUB_ID/SECRET are configured. */
+  github_oauth_enabled?: boolean;
 }
 
 export interface Account {
@@ -56,13 +58,22 @@ export async function login(username: string, password: string) {
   return getAccount();
 }
 
-/** Starts the Google OAuth redirect (full navigation). */
-export async function loginWithGoogle(callbackUrl?: string) {
-  const target = callbackUrl
+function oauthCallbackUrl(callbackUrl?: string) {
+  return callbackUrl
     || (typeof window !== "undefined"
       ? `${window.location.pathname}${window.location.search}`
-      : "/studio");
-  await signIn("google", { callbackUrl: target || "/studio" });
+      : "/studio")
+    || "/studio";
+}
+
+/** Starts the Google OAuth redirect (full navigation). */
+export async function loginWithGoogle(callbackUrl?: string) {
+  await signIn("google", { callbackUrl: oauthCallbackUrl(callbackUrl) });
+}
+
+/** Starts the GitHub OAuth redirect (full navigation). */
+export async function loginWithGitHub(callbackUrl?: string) {
+  await signIn("github", { callbackUrl: oauthCallbackUrl(callbackUrl) });
 }
 export async function register(input: { username: string; password: string; email: string; display_name: string }) {
   const response = await fetch("/api/account/register", {
@@ -73,6 +84,68 @@ export async function register(input: { username: string; password: string; emai
   });
   const payload = await responsePayload<unknown>(response);
   if (!response.ok || !payload.success) throw new Error(payload.message || "注册未完成，请稍后重试。");
+}
+
+export type IdentifyStatus = "password" | "oauth" | "register" | "unknown_username";
+
+export interface IdentifyResult {
+  status: IdentifyStatus;
+  identifierType: "email" | "username";
+  identifier: string;
+  maskedEmail?: string;
+}
+
+export interface SignupStartResult {
+  status: "needs_verification" | "created";
+  debugCode?: string;
+}
+
+export interface RecoveryStartResult {
+  status: "sent";
+  maskedEmail?: string;
+  debugCode?: string;
+}
+
+export async function identifyAccount(identifier: string) {
+  return api<IdentifyResult>("/api/account/identify", {
+    method: "POST",
+    body: JSON.stringify({ identifier }),
+  });
+}
+
+export async function startSignup(input: { email: string; username: string; password: string }) {
+  return api<SignupStartResult>("/api/account/signup", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function verifySignup(input: { email: string; code: string }) {
+  return api<{ username: string }>("/api/account/signup-verify", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function resendSignupCode(email: string) {
+  return api<{ debugCode?: string }>("/api/account/signup-resend", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function startRecovery(identifier: string) {
+  return api<RecoveryStartResult>("/api/account/recover", {
+    method: "POST",
+    body: JSON.stringify({ identifier }),
+  });
+}
+
+export async function completeRecovery(input: { identifier: string; code: string; password: string }) {
+  return api<{ reset: boolean }>("/api/account/recover-complete", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 export async function changePassword(input: { currentPassword: string; nextPassword: string }) {
   return api<{ changed: boolean }>("/api/account/password", {

@@ -59,8 +59,13 @@ export interface PlatformCredentialInput {
 
 export interface CredentialUserRepository {
   findByUsername(username: string): Promise<PlatformUserRecord | null>;
+  findByEmail(email: string): Promise<PlatformUserRecord | null>;
   recordSuccessfulLogin(userId: string): Promise<void>;
   replacePasswordHashAfterLogin(userId: string, previousHash: string, nextHash: string): Promise<boolean>;
+}
+
+function looksLikeEmail(value: string): boolean {
+  return value.includes("@");
 }
 
 function toPlatformAuthUser(user: PlatformUserRecord): PlatformAuthUser {
@@ -82,12 +87,14 @@ export async function authenticatePlatformCredentials(
   input: PlatformCredentialInput,
   repository?: CredentialUserRepository,
 ): Promise<PlatformAuthUser | null> {
-  const username = normalizeUsername(input.username);
-  if (!username || !input.password) return null;
+  const identifier = input.username.trim();
+  if (!identifier || !input.password) return null;
 
   const users = repository ?? getPlatformRepositories()?.users;
   if (!users) return null;
-  const user = await users.findByUsername(username);
+  const user = looksLikeEmail(identifier)
+    ? await users.findByEmail(identifier)
+    : await users.findByUsername(normalizeUsername(identifier));
   if (!user || user.status !== "active" || !user.passwordHash) return null;
   if (!(await verifyPassword(input.password, user.passwordHash))) return null;
 

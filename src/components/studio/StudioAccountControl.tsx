@@ -141,14 +141,14 @@ export default function StudioAccountControl() {
           <button
             type="button"
             onClick={() => openLogin("login")}
-            className="studio-account-trigger flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left outline-none transition-colors duration-150 focus-visible:outline-none"
+            className="studio-account-trigger flex w-full items-center gap-2.5 rounded-2xl px-2 py-2 text-left outline-none transition-colors duration-150 focus-visible:outline-none"
           >
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-canvas text-sm font-medium text-ink-500">
               登
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-medium text-ink-900">登录</span>
-              <span className="text-[12px] text-ink-500">开始对话并保存作品</span>
+              <span className="block text-sm font-medium text-ink-900">登录 / 注册</span>
+              <span className="text-[12px] text-ink-500">没有账户也可以在这里创建</span>
             </span>
           </button>
         )}

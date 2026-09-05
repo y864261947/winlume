@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  authenticateGitHubOAuth,
   authenticateGoogleOAuth,
+  isGitHubOAuthConfigured,
   isGoogleOAuthConfigured,
   usernameStemFromGoogleEmail,
 } from "./google-oauth";
@@ -18,6 +20,8 @@ function platformUser(overrides: Partial<PlatformUserRecord> = {}): PlatformUser
     passwordHash: null,
     status: "active",
     platformRole: "user",
+    isServiceAccount: false,
+    currentOrganizationId: null,
     authVersion: 1,
     lastLoginAt: null,
     createdAt: new Date(),
@@ -31,6 +35,12 @@ describe("Google OAuth helpers", () => {
     expect(isGoogleOAuthConfigured({})).toBe(false);
     expect(isGoogleOAuthConfigured({ AUTH_GOOGLE_ID: "id", AUTH_GOOGLE_SECRET: "secret" })).toBe(true);
     expect(isGoogleOAuthConfigured({ AUTH_GOOGLE_ID: "  ", AUTH_GOOGLE_SECRET: "secret" })).toBe(false);
+  });
+
+  it("detects GitHub credentials separately from Google", () => {
+    expect(isGitHubOAuthConfigured({})).toBe(false);
+    expect(isGitHubOAuthConfigured({ AUTH_GITHUB_ID: "id", AUTH_GITHUB_SECRET: "secret" })).toBe(true);
+    expect(isGitHubOAuthConfigured({ AUTH_GITHUB_ID: "id", AUTH_GITHUB_SECRET: "  " })).toBe(false);
   });
 
   it("derives a safe username stem from email", () => {
@@ -140,6 +150,34 @@ describe("Google OAuth helpers", () => {
       userId: "new-user",
       provider: "google",
       providerAccountId: "g-sub-3",
+    });
+  });
+
+  it("links a GitHub identity with provider github", async () => {
+    const user = platformUser({ passwordHash: "hash" });
+    const repository = {
+      users: {
+        findById: vi.fn(),
+        findByEmail: vi.fn().mockResolvedValue(user),
+        recordSuccessfulLogin: vi.fn().mockResolvedValue(undefined),
+      },
+      identities: {
+        findByProviderAccount: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: "id-gh" }),
+      },
+      provision: vi.fn(),
+    };
+
+    const authenticated = await authenticateGitHubOAuth(
+      { providerAccountId: "gh-99", email: "alice@example.com", usernameHint: "Alice-W" },
+      repository,
+    );
+
+    expect(authenticated?.id).toBe(user.id);
+    expect(repository.identities.create).toHaveBeenCalledWith({
+      userId: user.id,
+      provider: "github",
+      providerAccountId: "gh-99",
     });
   });
 
