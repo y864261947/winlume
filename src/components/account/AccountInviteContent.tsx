@@ -12,7 +12,7 @@ export default function AccountInviteContent() {
   const inviteCode = useMemo(() => account ? `REIZO-${account.id.replace(/-/g, "").slice(0, 8).toUpperCase()}` : "", [account]);
   const inviteUrl = origin && inviteCode ? `${origin}/?invite=${inviteCode}` : "";
 
-  if (!account) return <section className="account-personal-empty"><UserPlus aria-hidden /><h1>登录后邀请好友</h1><p>登录后可生成专属邀请链接，分享给团队成员或朋友。</p><button type="button" onClick={() => openLogin("login")}>登录</button></section>;
+  if (!account) return <section className="account-personal-empty"><UserPlus aria-hidden /><h1>登录后邀请好友</h1><p>登录后可生成专属邀请链接，分享给团队成员或朋友。</p><button type="button" onClick={() => openLogin("login")}>登录 / 注册</button></section>;
 
   async function copyInvite() {
     if (!inviteUrl) return;

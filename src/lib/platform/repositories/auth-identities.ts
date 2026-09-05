@@ -6,6 +6,7 @@ import { authIdentities } from "../db/schema";
 export type AuthIdentityRecord = InferSelectModel<typeof authIdentities>;
 
 export const GOOGLE_AUTH_PROVIDER = "google";
+export const GITHUB_AUTH_PROVIDER = "github";
 
 export interface CreateAuthIdentityInput {
   userId: string;

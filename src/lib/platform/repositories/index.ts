@@ -7,10 +7,12 @@ import { FeedbackRepository } from "./feedback";
 import { PortalContentRepository } from "./portal-content";
 import { SkillRepository } from "./skills";
 import { TeamNewApiMappingRepository } from "./team-new-api-mapping";
+import { AuthChallengeRepository } from "./auth-challenges";
 import { UserRepository } from "./users";
 
 export class PlatformRepositories {
   readonly users: UserRepository;
+  readonly challenges: AuthChallengeRepository;
   readonly identities: AuthIdentityRepository;
   readonly organizations: OrganizationRepository;
   readonly apiKeys: ApiKeyRepository;
@@ -22,6 +24,7 @@ export class PlatformRepositories {
 
   constructor(database: PlatformDatabase) {
     this.users = new UserRepository(database);
+    this.challenges = new AuthChallengeRepository(database);
     this.identities = new AuthIdentityRepository(database);
     this.organizations = new OrganizationRepository(database);
     this.apiKeys = new ApiKeyRepository(database);
@@ -39,6 +42,7 @@ export function getPlatformRepositories(): PlatformRepositories | null {
 }
 
 export * from "./api-keys";
+export * from "./auth-challenges";
 export * from "./auth-identities";
 export * from "./organizations";
 export * from "./presets";

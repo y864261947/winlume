@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthMode } from "@/lib/platform/auth";
-import { isGoogleOAuthConfigured } from "@/lib/platform/google-oauth";
+import { isGitHubOAuthConfigured, isGoogleOAuthConfigured } from "@/lib/platform/social-oauth";
 
 function legacyGatewayUrl(): string | undefined {
   const configured = process.env.NEW_API_URL?.trim();
@@ -19,6 +19,7 @@ export async function GET() {
         custom_currency_exchange_rate: 1,
         usd_exchange_rate: 1,
         google_oauth_enabled: isGoogleOAuthConfigured(),
+        github_oauth_enabled: isGitHubOAuthConfigured(),
       },
     }, { headers: { "cache-control": "no-store" } });
   }

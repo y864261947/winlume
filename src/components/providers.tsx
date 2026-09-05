@@ -56,7 +56,6 @@ export function useModals(): ModalContextValue {
 
 export function ModalProvider({ children }: { children: ReactNode }) {
   const [loginOpen, setLoginOpen] = useState(false);
-  const [loginMode, setLoginMode] = useState<LoginMode>("login");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membershipOpen, setMembershipOpen] = useState(false);
   // 初始为空、挂载后再读 localStorage，避免 SSR 与客户端首帧不一致（hydration mismatch）
@@ -95,7 +94,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     setAccountLoading(false);
     void getBalanceConfig().then(setBalanceConfig).catch(() => setBalanceConfig(null));
   }, []);
-  const openLogin = useCallback((mode: LoginMode = "login") => { setLoginMode(mode); setLoginOpen(true); }, []);
+  const openLogin = useCallback<ModalContextValue["openLogin"]>(() => { setLoginOpen(true); }, []);
   const closeLogin = useCallback(() => setLoginOpen(false), []);
   const openSearch = useCallback(() => setSearchOpen(true), []);
   const openMembership = useCallback(() => setMembershipOpen(true), []);
@@ -194,7 +193,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   return (
     <ModalContext.Provider value={value}>
       {children}
-      <LoginModal open={loginOpen} initialMode={loginMode} onClose={closeLogin} />
+      <LoginModal open={loginOpen} onClose={closeLogin} />
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
       <MembershipModal open={membershipOpen} onClose={() => setMembershipOpen(false)} />
     </ModalContext.Provider>

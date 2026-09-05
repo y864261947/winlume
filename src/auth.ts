@@ -1,6 +1,7 @@
 import type { NextAuthOptions, User } from "next-auth";
 import type { AdapterUser } from "next-auth/adapters";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GitHubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
 import type { OAuthConfig } from "next-auth/providers/oauth";
 import {
@@ -11,10 +12,13 @@ import {
   type PlatformAuthUser,
 } from "@/lib/platform/auth";
 import {
-  authenticateGoogleOAuth,
+  authenticateSocialOAuth,
+  getGitHubOAuthCredentials,
   getGoogleOAuthCredentials,
+  isGitHubOAuthConfigured,
   isGoogleOAuthConfigured,
-} from "@/lib/platform/google-oauth";
+  type SocialAuthProvider,
+} from "@/lib/platform/social-oauth";
 
 type GatewayLoginPayload = {
   success?: boolean;
@@ -69,9 +73,53 @@ function createGoogleProvider() {
   return GoogleProvider({
     clientId: credentials.clientId,
     clientSecret: credentials.clientSecret,
-    // Account linking is handled in authenticateGoogleOAuth via verified email.
+    // Account linking is handled in authenticateSocialOAuth via verified email.
     allowDangerousEmailAccountLinking: false,
   });
+}
+
+function createGitHubProvider() {
+  const credentials = getGitHubOAuthCredentials();
+  if (!credentials) return null;
+  return GitHubProvider({
+    clientId: credentials.clientId,
+    clientSecret: credentials.clientSecret,
+    allowDangerousEmailAccountLinking: false,
+  });
+}
+
+function isSocialAuthProvider(value: string | undefined): value is SocialAuthProvider {
+  return value === "google" || value === "github";
+}
+
+function socialProfileFromCallback(input: {
+  provider: SocialAuthProvider;
+  account: { providerAccountId?: string | null };
+  user?: { email?: string | null; name?: string | null; image?: string | null } | null;
+  profile?: unknown;
+}) {
+  const providerAccountId = input.account.providerAccountId?.trim();
+  if (!providerAccountId) return null;
+  const profile = input.profile && typeof input.profile === "object" ? input.profile as Record<string, unknown> : {};
+  const email = (typeof profile.email === "string" ? profile.email : input.user?.email) ?? null;
+  const name = (typeof profile.name === "string" ? profile.name : input.user?.name) ?? null;
+  const image = (typeof input.user?.image === "string" ? input.user.image : null)
+    ?? (typeof profile.avatar_url === "string" ? profile.avatar_url : null);
+  const emailVerified = typeof profile.email_verified === "boolean"
+    ? profile.email_verified
+    : true;
+  const usernameHint = input.provider === "github" && typeof profile.login === "string"
+    ? profile.login
+    : null;
+  return {
+    provider: input.provider,
+    providerAccountId,
+    email,
+    name,
+    image,
+    emailVerified,
+    usernameHint,
+  };
 }
 
 function legacyGatewayUrl(): string | undefined {
@@ -153,6 +201,8 @@ function createLegacyProviders(): NextAuthOptions["providers"] {
 
 function createReizoProviders(): NextAuthOptions["providers"] {
   const providers: NextAuthOptions["providers"] = [createReizoCredentialsProvider()];
+  const github = createGitHubProvider();
+  if (github) providers.unshift(github);
   const google = createGoogleProvider();
   if (google) providers.unshift(google);
   return providers;
@@ -177,51 +227,41 @@ export function createAuthOptions(mode = getAuthMode()): NextAuthOptions {
         if (!account || account.provider === "credentials" || account.provider === "v2api") {
           return true;
         }
-        if (account.provider !== "google") return false;
-        if (mode === "legacy" || !isGoogleOAuthConfigured()) return false;
+        if (!isSocialAuthProvider(account.provider) || mode === "legacy") return false;
+        if (account.provider === "google" && !isGoogleOAuthConfigured()) return false;
+        if (account.provider === "github" && !isGitHubOAuthConfigured()) return false;
 
-        const providerAccountId = account.providerAccountId?.trim();
-        if (!providerAccountId) return false;
-
-        const email = (typeof profile?.email === "string" ? profile.email : user.email) ?? null;
-        const emailVerified = typeof profile === "object" && profile !== null && "email_verified" in profile
-          ? Boolean((profile as { email_verified?: boolean }).email_verified)
-          : true;
+        const social = socialProfileFromCallback({
+          provider: account.provider,
+          account,
+          user,
+          profile,
+        });
+        if (!social) return false;
 
         try {
-          const platformUser = await authenticateGoogleOAuth({
-            providerAccountId,
-            email,
-            name: (typeof profile?.name === "string" ? profile.name : user.name) ?? null,
-            image: (typeof user.image === "string" ? user.image : null),
-            emailVerified,
-          });
+          const platformUser = await authenticateSocialOAuth(social);
           return platformUser !== null;
         } catch (error) {
-          console.error("Google OAuth sign-in failed", error);
+          console.error(`${account.provider} OAuth sign-in failed`, error);
           return false;
         }
       },
       async jwt({ token, user, account, profile }) {
-        if (account?.provider === "google") {
-          const providerAccountId = account.providerAccountId?.trim();
-          if (!providerAccountId) return token;
-          const email = (typeof profile?.email === "string" ? profile.email : user?.email) ?? null;
-          const emailVerified = typeof profile === "object" && profile !== null && "email_verified" in profile
-            ? Boolean((profile as { email_verified?: boolean }).email_verified)
-            : true;
+        if (account && isSocialAuthProvider(account.provider)) {
+          const social = socialProfileFromCallback({
+            provider: account.provider,
+            account,
+            user,
+            profile,
+          });
+          if (!social) return token;
           try {
-            const platformUser = await authenticateGoogleOAuth({
-              providerAccountId,
-              email,
-              name: (typeof profile?.name === "string" ? profile.name : user?.name) ?? null,
-              image: (typeof user?.image === "string" ? user.image : null),
-              emailVerified,
-            });
+            const platformUser = await authenticateSocialOAuth(social);
             if (!platformUser) return token;
             return applySessionClaimsToToken(token, platformUser) as typeof token;
           } catch (error) {
-            console.error("Google OAuth JWT mapping failed", error);
+            console.error(`${account.provider} OAuth JWT mapping failed`, error);
             return token;
           }
         }

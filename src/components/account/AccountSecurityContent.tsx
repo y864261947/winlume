@@ -15,7 +15,7 @@ export default function AccountSecurityContent() {
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
 
-  if (!account) return <section className="account-personal-empty"><LockKeyhole aria-hidden /><h1>登录后修改密码</h1><p>使用当前密码验证身份后，可为账户设置新的登录密码。</p><button type="button" onClick={() => openLogin("login")}>登录</button></section>;
+  if (!account) return <section className="account-personal-empty"><LockKeyhole aria-hidden /><h1>登录后修改密码</h1><p>使用当前密码验证身份后，可为账户设置新的登录密码。</p><button type="button" onClick={() => openLogin("login")}>登录 / 注册</button></section>;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
