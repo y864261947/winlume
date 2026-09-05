@@ -34,6 +34,10 @@ describe("homepage API categories", () => {
     expect(source).toContain("portal-api-touch-card");
   });
 
+  it("keeps API billing and the all-models link together on the right side of the card header", () => {
+    expect(source).toContain('<div className="portal-api-card-actions"><span className="portal-api-billing-badge">按量计费</span><ArrowLink href="/products?cate=api">查看全部API模型</ArrowLink></div>');
+  });
+
   it("opens content destinations in a new tab while keeping primary navigation in place", () => {
     expect(source).toContain('target = "_blank"');
     expect(source).toContain('rel={target === "_blank" ? "noopener noreferrer" : undefined}');
@@ -75,6 +79,12 @@ describe("homepage API categories", () => {
     expect(source).toContain("portal-app-support-grid");
     expect(source).toContain("portal-capability-showcase");
     expect(source).toContain("portal-capability-hero");
+  });
+
+  it("keeps the capability cards but removes the redundant exploration and demand prompt", () => {
+    expect(source).not.toContain("探索更多 REIZO 能力");
+    expect(source).not.toContain("没有找到合适的应用或技能");
+    expect(source).not.toContain("提交需求");
   });
 
   it("keeps homepage labels concise and moves platform scale into the tools header", () => {

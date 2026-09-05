@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button as HeroButton, Card as HeroCard, Tabs } from "@heroui/react";
+import { Button as HeroButton, Tabs } from "@heroui/react";
 import { BarChart3, ChevronLeft, ChevronRight, CircleHelp, Code2, Crown, FileImage, LayoutGrid, Search, ArrowUp, Presentation, ShoppingBag, Video } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
@@ -1115,8 +1115,8 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
         <div className="portal-discovery-grid">
           <aside className={`portal-api-card${onboardingStep === 1 ? " is-onboarding-target" : ""}`} data-onboarding-target="api" aria-labelledby="portal-api-title">
             <div className="portal-api-card-head">
-              <div className="portal-api-title-line"><h2 id="portal-api-title">API模型</h2><span className="portal-api-billing-badge">按量计费</span></div>
-              <ArrowLink href="/products?cate=api">查看全部API模型</ArrowLink>
+              <div className="portal-api-title-line"><h2 id="portal-api-title">API模型</h2></div>
+              <div className="portal-api-card-actions"><span className="portal-api-billing-badge">按量计费</span><ArrowLink href="/products?cate=api">查看全部API模型</ArrowLink></div>
             </div>
             <div className="portal-api-list" role="list">
               {apiCategories.map((item) => (
@@ -1354,10 +1354,8 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
           </Tabs>
         </section>
 
-        <section className="portal-bottom-explore portal-system-rail" aria-labelledby="portal-bottom-explore-title">
-          <div className="portal-bottom-explore-head"><div><h2 id="portal-bottom-explore-title">探索更多 REIZO 能力</h2></div></div>
+        <section className="portal-bottom-explore portal-system-rail">
           <div className="portal-capability-showcase">{visibleCapabilities.map((card) => <PortalLink href={card.href} className={`portal-capability-hero is-${card.tone}${card.imageUrl ? " has-managed-image" : ""}`} key={card.id}>{card.imageUrl ? <Image className="portal-managed-capability-image" src={card.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 34vw" priority unoptimized /> : <CapabilityEvidence kind={card.tone === "agent" ? "agent" : card.tone === "usage" ? "usage" : "models"} />}<span className="portal-capability-copy"><strong>{card.title}</strong><small>{capabilityDetail(card.tone)}</small></span></PortalLink>)}</div>
-          <HeroCard variant="tertiary" className="portal-bottom-help"><span><CircleHelp aria-hidden />没有找到合适的应用或技能？告诉我们你的使用场景，我们为你定制解决方案。</span><PortalLink href="/business" className="portal-bottom-help-link">提交需求<ChevronRight aria-hidden /></PortalLink></HeroCard>
           <footer className="portal-bottom-footer"><div className="portal-bottom-brand"><strong><Image className="portal-footer-mark" src="/brand/logo-day.png" alt="" width={26} height={26} unoptimized />REIZO</strong><p>从 AI 能力到智能体，每一步都更简单。</p><small>© 2026 Reizo. All rights reserved.</small></div>{footerColumns.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.items.slice(0, 3).map((item) => <PortalLink href={item.href} key={item.label}>{item.label}</PortalLink>)}</div>)}<div><h3>关注我们</h3><span className="portal-bottom-social">𝕏　in　◉　✉</span></div></footer>
         </section>
 
