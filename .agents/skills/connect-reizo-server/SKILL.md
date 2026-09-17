@@ -1,19 +1,30 @@
 ---
 name: connect-reizo-server
-description: Connect to, inspect, deploy, and operate the Reizo production server at 176.122.164.148. Use when asked to deploy Reizo, inspect Reizo production logs or service health, update its server-side environment, or operate winlume.v2api.top.
+description: Connect to the previous Reizo host at 176.122.164.148. Use when asked to SSH 176.122 or operate that box specifically. Current Reizo runtime is connect-15-204-123-217. For starting the Ubuntu local Next.js app, use start-local-dev.
 ---
 
 # Connect Reizo Server
 
-Use this host only for Reizo paths and service operations. It may contain other services; do not modify them.
+Current Reizo runtime is `connect-15-204-123-217`. Use this skill only for `176.122.164.148`. It may contain other services; do not modify them.
 
 ## Connection
 
 - Host: `176.122.164.148`
 - User: `root`
-- Authentication: `C:\Users\XXB\.ssh\winlume-176-deploy` (local key filename kept until rotated)
+- Key filename: `winlume-176-deploy` (filename kept until rotated)
 
-Never copy, print, commit, or read back the private-key contents. Use OpenSSH in batch mode:
+Never copy, print, commit, or read back the private-key contents. Resolve the first usable key:
+
+1. `$HOME/.ssh/winlume-176-deploy` — preferred on this Ubuntu / WSL checkout
+2. `/mnt/c/Users/XXB/.ssh/winlume-176-deploy` — Windows key via WSL. Copy it first (`install -m 600 … "$HOME/.ssh/winlume-176-deploy"`); OpenSSH rejects the `/mnt/c` file because NTFS mode is too open
+3. `C:\Users\XXB\.ssh\winlume-176-deploy` — native Windows
+
+```bash
+ssh -i "$HOME/.ssh/winlume-176-deploy" \
+  -o BatchMode=yes -o ConnectTimeout=20 \
+  root@176.122.164.148 \
+  'hostname; systemctl is-active reizo.service'
+```
 
 ```powershell
 ssh -i 'C:\Users\XXB\.ssh\winlume-176-deploy' `

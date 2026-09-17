@@ -1,0 +1,4 @@
+interface:
+  display_name: "Start Local Dev"
+  short_description: "Bring up the Ubuntu/WSL Next.js dev server and Postgres tunnel."
+  default_prompt: "Use $start-local-dev to start Reizo locally on this Ubuntu checkout."

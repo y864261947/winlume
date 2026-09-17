@@ -1,0 +1,4 @@
+interface:
+  display_name: "Connect 15.204.123.217"
+  short_description: "SSH the current Reizo runtime at 15.204.123.217."
+  default_prompt: "Use $connect-15-204-123-217 to inspect or operate the current Reizo host."

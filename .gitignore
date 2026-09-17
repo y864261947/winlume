@@ -54,6 +54,14 @@ next-env.d.ts
 .superpowers/
 AGENTS.md
 
+# local reference assets (kept out of the repo)
+/docs/yiketu-art-reference/
+/docs/yiketu-reference/
+/public/studio-prototype/
+/日间logo-removebg-preview.png
+/夜间logo-removebg-preview.png
+*:Zone.Identifier
+
 # runtime data
 /data/users/
 /data/*.db

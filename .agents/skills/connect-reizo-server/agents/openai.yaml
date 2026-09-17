@@ -1,4 +1,4 @@
 interface:
   display_name: "Connect Reizo Server"
-  short_description: "Operate the Reizo production server safely."
-  default_prompt: "Use $connect-reizo-server to inspect or deploy Reizo safely."
+  short_description: "Operate the previous Reizo host at 176.122.164.148."
+  default_prompt: "Use $connect-reizo-server only when operating 176.122.164.148."
