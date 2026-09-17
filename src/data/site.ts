@@ -45,10 +45,10 @@ export const footerGroups: FooterGroup[] = [
   {
     title: "法律声明",
     links: [
-      { label: "使用条款", href: "#" },
-      { label: "隐私政策", href: "#" },
-      { label: "退款政策", href: "#" },
-      { label: "知识产权", href: "#" },
+      { label: "使用条款", href: "/legal/terms" },
+      { label: "隐私政策", href: "/legal/privacy" },
+      { label: "免责声明", href: "/legal/disclaimer" },
+      { label: "知识产权", href: "/legal/terms" },
     ],
   },
 ];

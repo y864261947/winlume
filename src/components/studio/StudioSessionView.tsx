@@ -726,7 +726,7 @@ export default function StudioSessionView({
 
   /** Published into StudioShell's persistent header slot — never unmounts on navigation. */
   const headerContent = useMemo(() => (
-      <header className="studio-session-header flex shrink-0 items-center gap-3 border-b border-white/50 px-4 py-3 sm:px-6">
+      <header className="studio-session-header flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6">
       <Link
         href="/studio"
         className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[#615A73] transition hover:bg-white/60 hover:text-[#241E36]"
@@ -737,7 +737,7 @@ export default function StudioSessionView({
       </Link>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <h1 className="min-w-0 truncate text-sm font-semibold text-[#241E36]">{title}</h1>
+          <h1 className="studio-session-title min-w-0 truncate text-sm">{title}</h1>
           {project ? (
             <Link
               href={`/studio/p/${encodeURIComponent(project.id)}`}
@@ -750,7 +750,7 @@ export default function StudioSessionView({
           ) : null}
         </div>
         {session?.model && !loadError ? (
-          <p className="truncate font-mono text-[11px] text-[#8A8298]">
+          <p className="studio-session-meta truncate font-mono text-[11px]">
             {chat.model || session?.model}
           </p>
         ) : null}
@@ -1069,7 +1069,7 @@ export default function StudioSessionView({
         {renderChatColumn(active)}
 
         <div
-          className="studio-works-shell border-l border-white/40"
+          className="studio-works-shell"
           data-open={worksRailOpen ? "true" : "false"}
           data-width-animating={worksRailWidthAnimating ? "true" : "false"}
           style={{ width: worksRailLayoutWidth }}

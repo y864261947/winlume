@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button as HeroButton } from "@heroui/react";
-import { BarChart3, ChevronLeft, ChevronRight, CircleHelp, Code2, Crown, FileImage, LayoutGrid, Search, ArrowUp, Presentation, ShoppingBag, Video } from "lucide-react";
+import { BarChart3, Bot, ChevronLeft, ChevronRight, CircleHelp, Code2, Crown, FileImage, LayoutGrid, Search, ArrowUp, Presentation, ShoppingBag, Video } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useModals } from "@/components/providers";
 import PortalHeader from "@/components/PortalHeader";
@@ -452,6 +452,14 @@ const footerColumns = [
       { label: "常见问题", href: "/support/faq" },
       { label: "联系支持", href: "/support/contact" },
       { label: "商务合作", href: "/business" },
+    ],
+  },
+  {
+    title: "法律",
+    items: [
+      { label: "隐私政策", href: "/legal/privacy" },
+      { label: "服务条款", href: "/legal/terms" },
+      { label: "免责声明", href: "/legal/disclaimer" },
     ],
   },
 ] as const;
@@ -983,7 +991,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
                   <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务、应用、模型或 API，例如：产品图、财务分析、PPT" aria-label="搜索 AI 能力" />
                   <HeroButton type="submit" variant="primary" size="md" className="portal-hero-search-button"><Search aria-hidden />搜索</HeroButton>
                 </form>
-                <PortalLink href="/studio" className="portal-workbench-button"><LayoutGrid aria-hidden />进入Agent工作台<ChevronRight aria-hidden /></PortalLink>
+                <PortalLink href="/studio" className="portal-workbench-button"><Bot aria-hidden />进入Agent工作台<ChevronRight aria-hidden /></PortalLink>
               </div>
               <div className="portal-chip-list" aria-label="热门能力">
                 {searchSuggestions.map(({ label, icon: Icon, category }) => (
@@ -1498,7 +1506,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
               <div className="portal-onboarding-progress">{onboardingStep + 1}/{onboardingSteps.length}</div>
               <div className="portal-onboarding-title-row">
                 <span className={`portal-onboarding-icon is-${onboardingSteps[onboardingStep].target}`} aria-hidden>
-                  {onboardingStep === 0 ? <LayoutGrid /> : onboardingStep === 1 ? <Search /> : <Crown />}
+                  {onboardingStep === 0 ? <Bot /> : onboardingStep === 1 ? <Search /> : <Crown />}
                 </span>
                 <h2 id="portal-onboarding-title">{onboardingSteps[onboardingStep].title}</h2>
               </div>

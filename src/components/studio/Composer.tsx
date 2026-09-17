@@ -20,7 +20,6 @@ import {
   AtSign,
   Check,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   Clapperboard,
   Copy,
@@ -32,7 +31,6 @@ import {
   MicOff,
   MessageSquare,
   Paperclip,
-  PenLine,
   Pin,
   Scissors,
   RotateCw,
@@ -79,7 +77,12 @@ import {
   loadComposerDraft,
   saveComposerDraft,
 } from "@/lib/studio/composer-draft";
+import {
+  loadRecentModels,
+  rememberRecentModel,
+} from "@/lib/studio/composer-recent-models";
 import { afterNextPaint } from "@/lib/studio/next-paint";
+import { cn } from "@/lib/utils";
 import { studioToolHref } from "@/lib/studio/studio-mode";
 import {
   startVideoAnalysis,
@@ -143,15 +146,27 @@ import {
 import {
   Popover,
   PopoverContent,
-  PopoverAnchor,
+  PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxLabel,
+  ComboboxList,
+  ComboboxTrigger,
+  ComboboxValue,
+} from "@/components/motion/combobox";
+import {
+  Select as MotionSelect,
+  SelectContent as MotionSelectContent,
+  SelectItem as MotionSelectItem,
+  SelectTrigger as MotionSelectTrigger,
+  SelectValue as MotionSelectValue,
+} from "@/components/motion/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   MAX_MESSAGE_QUEUE_SIZE,
@@ -203,6 +218,144 @@ function VendorMark({ vendorKey }: { vendorKey: string }) {
         }}
       />
     </span>
+  );
+}
+
+const CUSTOM_MODEL_VALUE = "__custom__";
+
+function ComposerModelCombobox({
+  model,
+  groups,
+  disabled,
+  allowCustom,
+  onModelChange,
+  onCustom,
+  triggerClassName,
+  className,
+}: {
+  model: string;
+  groups: ModelVendorGroup[];
+  disabled?: boolean;
+  allowCustom?: boolean;
+  onModelChange: (model: string) => void;
+  onCustom: () => void;
+  triggerClassName?: string;
+  className?: string;
+}) {
+  const active = groups.find((group) => group.models.includes(model)) ?? null;
+  const available = useMemo(
+    () => new Set(groups.flatMap((group) => group.models)),
+    [groups],
+  );
+  const [recent, setRecent] = useState<string[]>([]);
+
+  useEffect(() => {
+    const stored = loadRecentModels().filter((name) => available.has(name));
+    if (model && available.has(model) && !stored.includes(model)) {
+      setRecent(rememberRecentModel(model).filter((name) => available.has(name)));
+      return;
+    }
+    setRecent(stored);
+  }, [available, model]);
+
+  const recentVisible = recent.filter((name) => available.has(name)).slice(0, 6);
+  const recentSet = new Set(recentVisible);
+  const restGroups = groups
+    .map((group) => ({
+      ...group,
+      models: group.models.filter((name) => !recentSet.has(name)),
+    }))
+    .filter((group) => group.models.length);
+
+  const vendorFor = (name: string) =>
+    groups.find((group) => group.models.includes(name)) ?? null;
+
+  const pick = (next: string) => {
+    if (next === CUSTOM_MODEL_VALUE) {
+      onCustom();
+      return;
+    }
+    setRecent(rememberRecentModel(next).filter((name) => available.has(name)));
+    onModelChange(next);
+  };
+
+  return (
+    <Combobox
+      value={model || undefined}
+      onValueChange={pick}
+      disabled={disabled}
+      className={className}
+    >
+      <ComboboxTrigger
+        className={cn("cursor-pointer focus-within:ring-0", triggerClassName)}
+      >
+        <ComboboxValue placeholder="选择模型">
+          {(value, label) =>
+            value ? (
+              <span className="composer-selected-model-copy">
+                {active ? <VendorMark vendorKey={active.key} /> : null}
+                <span className="composer-selected-model-name">{label ?? value}</span>
+                {active ? (
+                  <span className="composer-selected-model-vendor">{active.name}</span>
+                ) : null}
+              </span>
+            ) : (
+              "选择模型"
+            )
+          }
+        </ComboboxValue>
+      </ComboboxTrigger>
+      <ComboboxContent side="top" align="start" sideOffset={8} className="w-72">
+        <ComboboxInput placeholder="搜索模型或提供商…" />
+        <ComboboxList ariaLabel="可用模型">
+          {recentVisible.length ? (
+            <ComboboxGroup>
+              <ComboboxLabel>最近使用</ComboboxLabel>
+              {recentVisible.map((name) => {
+                const vendor = vendorFor(name);
+                return (
+                  <ComboboxItem
+                    key={`recent-${name}`}
+                    value={name}
+                    textValue={name}
+                    keywords={vendor ? [vendor.name, "recent", "最近"] : ["recent", "最近"]}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      {vendor ? <VendorMark vendorKey={vendor.key} /> : null}
+                      <span className="truncate">{name}</span>
+                    </span>
+                  </ComboboxItem>
+                );
+              })}
+            </ComboboxGroup>
+          ) : null}
+          {restGroups.map((group) => (
+            <ComboboxGroup key={group.key}>
+              <ComboboxLabel>{group.name}</ComboboxLabel>
+              {group.models.map((name) => (
+                <ComboboxItem
+                  key={name}
+                  value={name}
+                  textValue={name}
+                  keywords={[group.name]}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <VendorMark vendorKey={group.key} />
+                    <span className="truncate">{name}</span>
+                  </span>
+                </ComboboxItem>
+              ))}
+            </ComboboxGroup>
+          ))}
+          {allowCustom ? (
+            <ComboboxItem value={CUSTOM_MODEL_VALUE} textValue="自定义模型">
+              自定义模型
+            </ComboboxItem>
+          ) : null}
+          <ComboboxEmpty>没有匹配的可用模型</ComboboxEmpty>
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   );
 }
 
@@ -530,11 +683,7 @@ export default function Composer({
     Partial<Record<ComposerMode, "available" | "degraded" | "needs_setup" | "unavailable">>
   >({});
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [modelPickerOpen, setModelPickerOpen] = useState(false);
-  const [modelSearch, setModelSearch] = useState("");
   const [generationModel, setGenerationModel] = useState("");
-  const [modelPickerVendor, setModelPickerVendor] = useState<string | null>(null);
-  const [lastModelPickerVendor, setLastModelPickerVendor] = useState<string | null>(null);
   const [voiceListening, setVoiceListening] = useState(false);
   const [allSkills, setAllSkills] = useState<SkillMeta[]>([]);
   const [departments, setDepartments] = useState<SkillDepartment[]>([]);
@@ -569,10 +718,7 @@ export default function Composer({
 
   const editorRef = useRef<MentionPromptEditorHandle>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const modelPickerRef = useRef<HTMLDivElement>(null);
-  const modelButtonRef = useRef<HTMLButtonElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
-  const modelOpenedFromFooter = useRef(false);
   const skillMenuAnchorRef = useRef<HTMLButtonElement>(null);
   const mentionMenuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -871,52 +1017,6 @@ export default function Composer({
     }
     return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
   }, [modelCatalog, modelOptions]);
-
-  const activeModelVendor = useMemo(
-    () => modelVendorGroups.find((group) => group.models.includes(model))
-      ?? modelVendorGroups[0]
-      ?? null,
-    [model, modelVendorGroups],
-  );
-
-  const browsingVendor = useMemo(
-    () => modelVendorGroups.find((group) => group.key === modelPickerVendor) ?? null,
-    [modelPickerVendor, modelVendorGroups],
-  );
-
-  const modelsVendor = useMemo(
-    () =>
-      browsingVendor
-      ?? modelVendorGroups.find((group) => group.key === lastModelPickerVendor)
-      ?? activeModelVendor,
-    [activeModelVendor, browsingVendor, lastModelPickerVendor, modelVendorGroups],
-  );
-
-  const openModelPicker = useCallback(() => {
-    setModelPickerVendor(null);
-    setModelSearch("");
-    setCustomMode(false);
-    setModelPickerOpen(true);
-  }, []);
-
-  const openModelPickerFromFooter = useCallback(() => {
-    modelOpenedFromFooter.current = true;
-    if (settingsOpen && modelPickerOpen) {
-      setSettingsOpen(false);
-      setModelPickerOpen(false);
-      return;
-    }
-    setSettingsOpen(true);
-    openModelPicker();
-  }, [openModelPicker, settingsOpen, modelPickerOpen]);
-
-  useEffect(() => {
-    if (!settingsOpen || !modelPickerOpen) return;
-    const frame = requestAnimationFrame(() => {
-      modelPickerRef.current?.querySelector<HTMLInputElement>("input")?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [settingsOpen, modelPickerOpen]);
 
   const skillsById = useMemo(() => {
     const map = new Map<string, SkillMeta>();
@@ -2298,31 +2398,16 @@ export default function Composer({
               </button>
             </div>
           ) : (
-            <div className="relative">
-              <select
-                id={modelId}
-                value={modelOptions.includes(model) ? model : modelOptions[0] ?? model}
-                onChange={(e) => {
-                  if (e.target.value === "__custom__") {
-                    setCustomMode(true);
-                    return;
-                  }
-                  onModelChange(e.target.value);
-                }}
-                disabled={disabled || modelsLoading}
-                className="studio-liquid-chip appearance-none rounded-[10px] py-1 pl-2.5 pr-7 font-mono text-xs text-[#241E36] disabled:opacity-60"
-              >
-                {modelOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-                {allowCustomModel ? (
-                  <option value="__custom__">自定义…</option>
-                ) : null}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8A8298]" />
-            </div>
+            <ComposerModelCombobox
+              model={model}
+              groups={modelVendorGroups}
+              disabled={disabled || modelsLoading}
+              allowCustom={allowCustomModel}
+              onModelChange={onModelChange}
+              onCustom={() => setCustomMode(true)}
+              className="w-auto max-w-[17rem]"
+              triggerClassName="composer-selected-model h-8 min-h-8 min-w-0 max-w-[17rem] w-auto"
+            />
           )}
 
           <button
@@ -2784,15 +2869,52 @@ export default function Composer({
               <Zap className="h-[18px] w-[18px]" />
             </button>
           </div>
-          <div className="composer-footer-actions relative flex shrink-0 items-center gap-1.5">
+          <div className="composer-footer-actions relative flex shrink-0 items-center gap-1.5 overflow-visible">
+            {customMode && allowCustomModel ? (
+              <div className="flex min-w-0 items-center gap-1.5">
+                <input
+                  type="text"
+                  value={model}
+                  onChange={(event) => onModelChange(event.target.value)}
+                  placeholder="输入模型名称"
+                  disabled={disabled}
+                  className="composer-selected-model h-8 min-w-0 max-w-[12rem] font-mono"
+                />
+                <button
+                  type="button"
+                  className="composer-settings-reset"
+                  onClick={() => {
+                    setCustomMode(false);
+                    if (!modelOptions.includes(model) && modelOptions[0]) {
+                      onModelChange(modelOptions[0]);
+                    }
+                  }}
+                >
+                  列表
+                </button>
+              </div>
+            ) : (
+              <ComposerModelCombobox
+                model={model}
+                groups={modelVendorGroups}
+                disabled={disabled || modelsLoading}
+                allowCustom={allowCustomModel}
+                onModelChange={(next) => {
+                  setSettingsOpen(false);
+                  onModelChange(next);
+                }}
+                onCustom={() => {
+                  setSettingsOpen(false);
+                  setCustomMode(true);
+                }}
+                className="w-auto max-w-[17rem]"
+                triggerClassName="composer-selected-model h-8 min-h-8 min-w-0 max-w-[17rem] w-auto"
+              />
+            )}
             <Popover
               open={settingsOpen}
               onOpenChange={(open) => {
                 setSettingsOpen(open);
-                if (!open) {
-                  setModelPickerOpen(false);
-                  setModelPickerVendor(null);
-                }
                 if (open) {
                   closeMenu();
                   setMentionOpen(false);
@@ -2801,214 +2923,48 @@ export default function Composer({
                 }
               }}
             >
-              <PopoverAnchor asChild>
-                <button
-                  ref={modelButtonRef}
-                  type="button"
-                  disabled={disabled || modelsLoading}
-                  onClick={openModelPickerFromFooter}
-                  aria-haspopup="dialog"
-                  aria-expanded={settingsOpen && modelPickerOpen}
-                  className="composer-selected-model"
-                  title={`当前模型：${model || "选择模型"}`}
-                  aria-label={`当前模型：${model || "选择模型"}`}
-                >
-                  <span className="composer-selected-model-copy">
-                    {activeModelVendor ? <VendorMark vendorKey={activeModelVendor.key} /> : null}
-                    <span className="composer-selected-model-name">{model || "选择模型"}</span>
-                    {activeModelVendor ? <span className="composer-selected-model-vendor">{activeModelVendor.name}</span> : null}
-                  </span>
-                  <ChevronDown className="composer-selected-model-chevron" aria-hidden />
-                </button>
-              </PopoverAnchor>
+              <PopoverTrigger asChild>
                 <button
                   type="button"
                   disabled={disabled}
                   className={`composer-icon-button ${settingsOpen ? "composer-icon-button-active" : ""}`}
                   ref={settingsButtonRef}
-                  onClick={() => { modelOpenedFromFooter.current = false; setModelPickerOpen(false); setSettingsOpen(!settingsOpen || modelPickerOpen); }}
                   aria-haspopup="dialog"
-                  aria-expanded={settingsOpen && !modelPickerOpen}
+                  aria-expanded={settingsOpen}
                   title="高级设置"
                   aria-label="高级设置"
                 >
                   <SlidersHorizontal className="h-[18px] w-[18px]" />
                 </button>
+              </PopoverTrigger>
               <PopoverContent
                 align="end"
                 side="top"
                 sideOffset={8}
                 collisionPadding={12}
-                data-model-selection={modelPickerOpen || undefined}
-                aria-label={modelPickerOpen ? "选择模型" : "高级设置"}
-                onInteractOutside={(event) => {
-                  const target = event.target as Node;
-                  if (modelButtonRef.current?.contains(target) || settingsButtonRef.current?.contains(target)) event.preventDefault();
-                }}
-                onEscapeKeyDown={(event) => {
-                  if (modelPickerOpen && modelPickerVendor && !modelSearch.trim()) {
-                    event.preventDefault();
-                    setModelPickerVendor(null);
-                  }
-                }}
+                aria-label="高级设置"
                 onCloseAutoFocus={(event) => {
                   event.preventDefault();
-                  (modelOpenedFromFooter.current ? modelButtonRef : settingsButtonRef).current?.focus();
+                  settingsButtonRef.current?.focus();
                 }}
                 className="composer-settings-popover w-[21rem] max-w-[calc(100vw-2rem)]"
               >
                 <div className="composer-settings-heading">
-                  <span>{modelPickerOpen ? "选择模型" : "高级设置"}</span>
-                  <button type="button" aria-label="关闭设置" onClick={() => { setSettingsOpen(false); setModelPickerOpen(false); }}><X className="h-4 w-4" /></button>
+                  <span>高级设置</span>
+                  <button type="button" aria-label="关闭设置" onClick={() => setSettingsOpen(false)}><X className="h-4 w-4" /></button>
                 </div>
-                <div className="composer-settings-field composer-model-field">
-                  {!modelPickerOpen ? <span>模型</span> : null}
-                  {customMode && allowCustomModel ? (
-                    <input
-                      type="text"
-                      value={model}
-                      onChange={(event) => onModelChange(event.target.value)}
-                      placeholder="输入模型名称"
-                      disabled={disabled}
-                    />
-                  ) : (
-                      <div ref={modelPickerRef} className="composer-model-picker-anchor">
-                      {!modelPickerOpen ? <button
-                        type="button"
-                        disabled={disabled || modelsLoading}
-                        onClick={() => {
-                          if (modelPickerOpen) setModelPickerOpen(false);
-                          else openModelPicker();
-                        }}
-                        className="composer-model-picker-trigger"
-                        aria-label={`当前模型：${model || "选择模型"}`}
-                        aria-haspopup="dialog"
-                        aria-expanded={modelPickerOpen}
-                      >
-                        <span>
-                          {activeModelVendor ? <VendorMark vendorKey={activeModelVendor.key} /> : null}
-                          <span className="truncate">{model || "选择模型"}</span>
-                        </span>
-                        <ChevronDown className={`h-4 w-4 shrink-0 opacity-50 transition-transform ${modelPickerOpen ? "rotate-180" : ""}`} />
-                      </button> : null}
-                      {modelPickerOpen ? (
-                        <div
-                          className="composer-model-picker"
-                          data-view={browsingVendor ? "models" : "vendors"}
-                          role="group"
-                          aria-label={browsingVendor ? browsingVendor.name : "选择厂商"}
-                        >
-                          <input aria-label="搜索模型或提供商" placeholder="搜索模型或提供商…" value={modelSearch} onChange={(event) => setModelSearch(event.target.value)} className="composer-model-search" />
-                          {modelSearch.trim() ? (
-                            <div className="composer-model-search-results" role="listbox" aria-label="搜索结果">
-                              {modelVendorGroups.flatMap(vendor => vendor.models.filter(name => `${name} ${vendor.name}`.toLowerCase().includes(modelSearch.trim().toLowerCase())).map(name => (
-                                <button key={name} type="button" role="option" aria-selected={name === model} onClick={() => { onModelChange(name); setModelPickerOpen(false); setSettingsOpen(false); setModelSearch(""); }}>
-                                  <VendorMark vendorKey={vendor.key} /><span className="min-w-0 break-all">{name}</span>{name === model ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
-                                </button>
-                              )))}
-                              {!modelVendorGroups.some(vendor => vendor.models.some(name => `${name} ${vendor.name}`.toLowerCase().includes(modelSearch.trim().toLowerCase()))) ? <p className="p-3 text-sm opacity-60">没有匹配的可用模型</p> : null}
-                            </div>
-                          ) : null}
-                          <div className="composer-model-stack" style={modelSearch.trim() ? { display: "none" } : undefined}>
-                            <div
-                              className="composer-model-pane"
-                              data-pane="vendors"
-                              inert={browsingVendor ? true : undefined}
-                            >
-                              {modelVendorGroups.map((vendor) => (
-                                <button
-                                  key={vendor.key}
-                                  type="button"
-                                  role="option"
-                                  aria-selected={vendor.key === activeModelVendor?.key}
-                                  className="composer-model-vendor"
-                                  onClick={() => {
-                                    setLastModelPickerVendor(vendor.key);
-                                    setModelPickerVendor(vendor.key);
-                                  }}
-                                >
-                                  <VendorMark vendorKey={vendor.key} />
-                                  <span className="truncate">{vendor.name}</span>
-                                  <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-40" />
-                                </button>
-                              ))}
-                              {allowCustomModel ? (
-                                <button
-                                  type="button"
-                                  className="composer-model-custom"
-                                  onClick={() => {
-                                    setCustomMode(true);
-                                    setModelPickerOpen(false);
-                                    setModelPickerVendor(null);
-                                  }}
-                                >
-                                  <span className="composer-vendor-mark" aria-hidden>
-                                    <PenLine className="h-3.5 w-3.5" strokeWidth={1.8} />
-                                  </span>
-                                  <span>自定义模型</span>
-                                </button>
-                              ) : null}
-                            </div>
-                            <div
-                              className="composer-model-pane"
-                              data-pane="models"
-                              inert={browsingVendor ? undefined : true}
-                            >
-                              {modelsVendor ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    className="composer-model-back"
-                                    onClick={() => setModelPickerVendor(null)}
-                                  >
-                                    <ChevronLeft className="h-4 w-4 shrink-0 opacity-60" />
-                                    <VendorMark vendorKey={modelsVendor.key} />
-                                    <span className="truncate">{modelsVendor.name}</span>
-                                  </button>
-                                  <div className="composer-model-rows">
-                                    {modelsVendor.models.map((name) => (
-                                      <button
-                                        key={name}
-                                        type="button"
-                                        role="option"
-                                        aria-selected={name === model}
-                                        onClick={() => {
-                                          onModelChange(name);
-                                          setModelPickerOpen(false);
-                                          setModelPickerVendor(null);
-                                          setSettingsOpen(false);
-                                        }}
-                                      >
-                                        <span className="truncate">{name}</span>
-                                        {name === model ? <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2} /> : null}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-                {!modelPickerOpen ? <>
-                {customMode && allowCustomModel ? (
-                  <button type="button" className="composer-settings-reset" onClick={() => setCustomMode(false)}>
-                    使用模型列表
-                  </button>
-                ) : null}
                 {!isImageGenerationModel(model) ? (
                   <label className="composer-settings-field">
                     <span>生图模型</span>
-                    <Select value={generationModel || "auto"} onValueChange={value => setGenerationModel(value === "auto" ? "" : value)} disabled={disabled}>
-                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent position="popper" side="top" collisionPadding={12} className="composer-mode-menu">
-                        <SelectItem value="auto">自动选择可用图片模型</SelectItem>
-                        {modelOptions.filter(isImageGenerationModel).map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <MotionSelect value={generationModel || "auto"} onValueChange={(value) => setGenerationModel(value === "auto" ? "" : value)} disabled={disabled}>
+                      <MotionSelectTrigger className="w-full"><MotionSelectValue /></MotionSelectTrigger>
+                      <MotionSelectContent className="composer-mode-menu">
+                        <MotionSelectItem value="auto">自动选择可用图片模型</MotionSelectItem>
+                        {modelOptions.filter(isImageGenerationModel).map((name) => (
+                          <MotionSelectItem key={name} value={name}>{name}</MotionSelectItem>
+                        ))}
+                      </MotionSelectContent>
+                    </MotionSelect>
                     <small className="opacity-60">保留当前对话模型，需要生图时调用此图片模型。</small>
                   </label>
                 ) : null}
@@ -3016,74 +2972,63 @@ export default function Composer({
                   <div className="composer-settings-grid">
                     <label className="composer-settings-field">
                       <span>比例与尺寸</span>
-                      <Select value={imageSize} disabled={disabled} onValueChange={(value) => setImageSize(value as ImageSize)}>
-                        <SelectTrigger className="!h-[2.65rem] !w-full min-w-0 rounded-[10px] border-line bg-white/70 text-[#241E36]"><SelectValue /></SelectTrigger>
-                        <SelectContent position="popper" align="end" side="top" sideOffset={6} collisionPadding={12} className="composer-mode-menu">
+                      <MotionSelect value={imageSize} disabled={disabled} onValueChange={(value) => setImageSize(value as ImageSize)}>
+                        <MotionSelectTrigger className="h-[2.65rem] w-full min-w-0"><MotionSelectValue /></MotionSelectTrigger>
+                        <MotionSelectContent className="composer-mode-menu">
                           {IMAGE_SIZE_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <span className="inline-flex items-center gap-2">
-                                <ImageSizeIcon value={option.value} />
-                                <span>{option.label}</span>
-                              </span>
-                            </SelectItem>
+                            <MotionSelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MotionSelectItem>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </MotionSelectContent>
+                      </MotionSelect>
                     </label>
                     <label className="composer-settings-field">
                       <span>生成数量</span>
-                      <Select value={String(imageCount)} disabled={disabled} onValueChange={(value) => setImageCount(Number(value) as 1 | 2 | 3 | 4)}>
-                        <SelectTrigger className="!h-[2.65rem] !w-full min-w-0 rounded-[10px] border-line bg-white/70 text-[#241E36]"><SelectValue /></SelectTrigger>
-                        <SelectContent position="popper" align="end" side="top" sideOffset={6} collisionPadding={12} className="composer-mode-menu">
-                          {[1, 2, 3, 4].map((count) => <SelectItem key={count} value={String(count)}>{count} 张</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <MotionSelect value={String(imageCount)} disabled={disabled} onValueChange={(value) => setImageCount(Number(value) as 1 | 2 | 3 | 4)}>
+                        <MotionSelectTrigger className="h-[2.65rem] w-full min-w-0"><MotionSelectValue /></MotionSelectTrigger>
+                        <MotionSelectContent className="composer-mode-menu">
+                          {[1, 2, 3, 4].map((count) => (
+                            <MotionSelectItem key={count} value={String(count)}>{count} 张</MotionSelectItem>
+                          ))}
+                        </MotionSelectContent>
+                      </MotionSelect>
                     </label>
                   </div>
                 ) : null}
-                </> : null}
               </PopoverContent>
             </Popover>
-            <Select
+            <MotionSelect
               value={composerMode}
               disabled={disabled}
               onValueChange={(value) => {
                 setSettingsOpen(false);
                 selectComposerMode(value as ComposerMode);
               }}
+              className="w-auto"
             >
-              <SelectTrigger className="composer-mode-trigger">
-                <SelectValue placeholder="对话" />
-              </SelectTrigger>
-              <SelectContent
-                position="popper"
-                align="end"
-                side="top"
-                sideOffset={6}
-                collisionPadding={12}
-                className="composer-mode-menu"
-              >
+              <MotionSelectTrigger className="composer-mode-trigger">
+                <ComposerModeIcon mode={composerMode} />
+                <MotionSelectValue placeholder="对话" />
+              </MotionSelectTrigger>
+              <MotionSelectContent className="composer-mode-menu min-w-40">
                 {COMPOSER_MODE_ITEMS.map((item) => {
                   const unavailable =
                     item.id === "video" ||
                     capabilityAvailability[item.id] === "needs_setup" ||
                     capabilityAvailability[item.id] === "unavailable";
                   return (
-                    <SelectItem
+                    <MotionSelectItem
                       key={item.id}
                       value={item.id}
                       disabled={unavailable}
-                      title={unavailable ? `${item.title} · 暂不可用` : item.title}
                     >
-                      <span className="inline-flex items-center gap-2.5">
-                        <ComposerModeIcon mode={item.id} className="h-4 w-4" />
-                        <span>{item.id === "chat" ? "对话" : item.label}</span>
-                      </span>
-                    </SelectItem>
+                      {item.id === "chat" ? "对话" : item.label}
+                    </MotionSelectItem>
                   );
                 })}
-              </SelectContent>
-            </Select>
+              </MotionSelectContent>
+            </MotionSelect>
             <button
               type="button"
               onClick={toggleVoice}

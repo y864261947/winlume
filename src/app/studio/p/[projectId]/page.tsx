@@ -81,7 +81,7 @@ export default function StudioProjectPage() {
 
   const headerContent = useMemo(() => project ? (
     <LiquidGlassSurface>
-      <header className="studio-session-header studio-glass-soft flex shrink-0 items-center gap-3 border-b border-white/50 px-4 py-3 sm:px-6">
+      <header className="studio-session-header studio-glass-soft flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6">
       <Link
         href="/studio"
         className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[#615A73] transition hover:bg-white/60 hover:text-[#241E36]"
@@ -92,8 +92,8 @@ export default function StudioProjectPage() {
       </Link>
       <FolderKanban className="h-4 w-4 shrink-0 text-[#0F172A]" strokeWidth={1.8} />
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-sm font-semibold text-[#241E36]">{project.name}</h1>
-        <p className="truncate text-[11px] text-[#8A8298]">项目工作区 · {sessions.length} 个对话</p>
+        <h1 className="studio-session-title truncate text-sm">{project.name}</h1>
+        <p className="studio-session-meta truncate text-[11px]">项目工作区 · {sessions.length} 个对话</p>
       </div>
       <Link
         href={`/studio?projectId=${encodeURIComponent(project.id)}`}
