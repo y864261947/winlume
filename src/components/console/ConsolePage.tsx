@@ -10,7 +10,7 @@ export function ConsolePage({
 }: {
   eyebrow?: string;
   title: string;
-  description: string;
+  description?: string;
   actions?: ReactNode;
   children: ReactNode;
 }) {
@@ -20,7 +20,7 @@ export function ConsolePage({
         <div className="min-w-0">
           {eyebrow ? <p className="mb-1 text-xs font-medium text-muted-foreground">{eyebrow}</p> : null}
           <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
-          <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
+          {description ? <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p> : null}
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
       </div>
