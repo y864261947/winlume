@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, type Transition } from "motion/react";
+import { motion, type Transition } from "framer-motion";
 import {
   type CSSProperties,
   type ReactNode,

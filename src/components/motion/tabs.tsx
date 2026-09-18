@@ -1,7 +1,7 @@
 "use client";
 // beui.dev/components/motion/tabs
 
-import { motion, MotionConfig, useReducedMotion, type Transition } from "motion/react";
+import { motion, MotionConfig, useReducedMotion, type Transition } from "framer-motion";
 import {
   createContext,
   useCallback,

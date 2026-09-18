@@ -6,12 +6,18 @@ import {
   type RowSelectionState,
   type SortingState,
   type VisibilityState,
+  useReactTable,
+} from "@tanstack/react-table";
+// `@tanstack/react-table` only re-exports these via `export * from
+// "@tanstack/table-core"`, which webpack fails to follow across the package
+// boundary in the RSC build (they arrive as undefined and the page crashes with
+// `getCoreRowModel is not a function`). Import them from the source package.
+import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
-  useReactTable,
-} from "@tanstack/react-table";
+} from "@tanstack/table-core";
 import { useState } from "react";
 
 interface UseDataTableOptions<TData, TValue> {

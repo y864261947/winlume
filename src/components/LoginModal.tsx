@@ -2,7 +2,7 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import Image from "next/image";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AlertCircle, CheckCircle2, ChevronLeft, Eye, EyeOff, LoaderCircle } from "lucide-react";
 import Modal, { ModalCloseButton } from "./Modal";
 import {

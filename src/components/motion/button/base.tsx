@@ -5,7 +5,7 @@ import {
   type HTMLMotionProps,
   motion,
   useReducedMotion,
-} from "motion/react";
+} from "framer-motion";
 import {
   forwardRef,
   type PointerEvent,

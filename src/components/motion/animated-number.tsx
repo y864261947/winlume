@@ -1,7 +1,7 @@
 "use client";
 // beui.dev/components/motion/number
 
-import { animate, useInView, useReducedMotion } from "motion/react";
+import { animate, useInView, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { EASE_OUT } from "@/lib/ease";
 import { cn } from "@/lib/utils";

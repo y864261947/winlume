@@ -7,7 +7,7 @@ import {
   type Transition,
   useReducedMotion,
   type Variants,
-} from "motion/react";
+} from "framer-motion";
 import {
   createContext,
   type ReactNode,
