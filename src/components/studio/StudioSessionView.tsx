@@ -50,6 +50,7 @@ import {
 import { subscribeArtifactStream } from "@/lib/studio/artifact-stream-client";
 import { hasMentionToken } from "@/lib/studio/mention-editor";
 import { FALLBACK_DEFAULT_MODEL } from "@/lib/studio/prefs";
+import { estimateConversationTextTokens } from "@/lib/studio/context-usage";
 
 type MobileTab = "chat" | "works";
 
@@ -435,6 +436,11 @@ export default function StudioSessionView({
       void refreshArtifacts();
     },
   });
+
+  const estimatedContextTokens = useMemo(
+    () => estimateConversationTextTokens(chat.messages),
+    [chat.messages],
+  );
 
   // Resolve the shared project context independently from the chat bundle so
   // older sessions (without projectId) continue to render unchanged.
@@ -996,6 +1002,7 @@ export default function StudioSessionView({
           streaming={chat.streaming || (hasHandoff && loading)}
           disabled={showThreadSkeleton || (loading && hasHandoff)}
           model={chat.model}
+          estimatedContextTokens={showThreadSkeleton ? null : estimatedContextTokens}
           onModelChange={chat.setModel}
           capabilityPresetId={session?.capabilityPresetId}
           pinnedSkillIds={pinnedSkillIds}

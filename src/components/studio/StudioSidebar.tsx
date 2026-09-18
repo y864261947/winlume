@@ -373,7 +373,6 @@ export default function StudioSidebar({
             <ChevronRight className={`size-3.5 shrink-0 transition-transform ${recentsOpen ? "rotate-90" : ""}`} />
             对话
           </button>
-          {account ? <button type="button" onClick={() => { setArchiveView(true); setSearchOpen(true); }} className="studio-nav-item flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#8A8298]"><Archive className="size-3.5" />已归档</button> : null}
           {archiveError ? <p role="alert" className="px-3 py-2 text-xs text-red-500">{archiveError}</p> : null}
           {recentsOpen ? (
             <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
@@ -422,7 +421,12 @@ export default function StudioSidebar({
 
       <div className="mt-auto flex items-center gap-1">
         <div className="min-w-0 flex-1">
-          <StudioAccountControl />
+          <StudioAccountControl
+            onOpenArchived={() => {
+              setArchiveView(true);
+              setSearchOpen(true);
+            }}
+          />
         </div>
         <button
           type="button"

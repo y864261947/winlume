@@ -82,6 +82,13 @@ import {
   rememberRecentModel,
 } from "@/lib/studio/composer-recent-models";
 import { afterNextPaint } from "@/lib/studio/next-paint";
+import { formatEstimatedTextTokens } from "@/lib/studio/context-usage";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { studioToolHref } from "@/lib/studio/studio-mode";
 import {
@@ -470,6 +477,8 @@ export type ComposerProps = {
   streaming?: boolean;
   disabled?: boolean;
   model: string;
+  /** Text-only estimate from the live conversation; absent on an empty home. */
+  estimatedContextTokens?: number | null;
   onModelChange: (model: string) => void;
   placeholder?: string;
   allowCustomModel?: boolean;
@@ -627,6 +636,7 @@ export default function Composer({
   streaming = false,
   disabled = false,
   model,
+  estimatedContextTokens = null,
   onModelChange,
   placeholder = "输入需求，或输入 @ 引用产物、/选择技能",
   allowCustomModel = true,
@@ -2869,7 +2879,28 @@ export default function Composer({
               <Zap className="h-[18px] w-[18px]" />
             </button>
           </div>
-          <div className="composer-footer-actions relative flex shrink-0 items-center gap-1.5 overflow-visible">
+          <div className="composer-footer-actions relative flex min-w-0 flex-wrap items-center justify-end gap-1.5 overflow-visible">
+            {!isHero && estimatedContextTokens !== null ? (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-8 shrink-0 cursor-help items-center rounded-md px-1 text-[11px] tabular-nums opacity-80 outline-offset-2 hover:opacity-100 focus-visible:outline-2 focus-visible:outline-current"
+                      aria-label={`上下文文本估算：约 ${estimatedContextTokens.toLocaleString("en-US")} tokens`}
+                    >
+                      约 {formatEstimatedTextTokens(estimatedContextTokens)} tokens
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={8} className="max-w-72 leading-relaxed">
+                    <p className="font-medium">上下文文本估算</p>
+                    <p>仅估算当前对话中用户与助手的正文。按约 4 个英文字符或 1 个非英文字符折算 1 token，实际分词因模型而异。</p>
+                    <p>不含隐藏系统提示、思考、工具及图片等内容，也不含未发送的草稿或队列。不是实际用量或计费依据。</p>
+                    <p>当前模型：{model || "未选择"}。暂未提供上下文上限，因此不显示占用百分比。</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null}
             {customMode && allowCustomModel ? (
               <div className="flex min-w-0 items-center gap-1.5">
                 <input

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import Link from "next/link";
-import { LoaderCircle, LogOut, Settings2, UserRound, Wallet } from "lucide-react";
+import { Archive, ChartNoAxesCombined, LoaderCircle, LogOut, Settings2, UserRound, Wallet } from "lucide-react";
 import { useModals } from "@/components/providers";
 import { formatBalance } from "@/lib/account";
 import {
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import StudioSettingsDialog from "./StudioSettingsDialog";
+import StudioUsageDialog from "./StudioUsageDialog";
 
 function useSignOutAction() {
   const { signOut } = useModals();
@@ -39,10 +40,15 @@ function useSignOutAction() {
 const menuItemClass =
   "h-10 cursor-pointer rounded-[12px] px-2.5 text-[14px] text-ink-900 shadow-none outline-none ring-0 focus:bg-[rgba(255,255,255,0.06)] focus:shadow-none focus:outline-none focus:ring-0 focus-visible:bg-[rgba(255,255,255,0.06)] focus-visible:shadow-none focus-visible:outline-none focus-visible:ring-0 data-[highlighted]:bg-[rgba(255,255,255,0.06)] data-[highlighted]:shadow-none data-[highlighted]:outline-none";
 
-export default function StudioAccountControl() {
+export default function StudioAccountControl({
+  onOpenArchived,
+}: {
+  onOpenArchived: () => void;
+}) {
   const { account, accountLoading, balanceConfig, openLogin } = useModals();
   const signOutAction = useSignOutAction();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [usageOpen, setUsageOpen] = useState(false);
   const avatarLetter = (account?.display_name || account?.username || "W")
     .trim()
     .charAt(0)
@@ -80,6 +86,19 @@ export default function StudioAccountControl() {
             <Wallet className="size-4 text-ink-500" />
             钱包与用量
           </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem className={menuItemClass} onSelect={() => window.setTimeout(() => setUsageOpen(true), 10)}>
+          <ChartNoAxesCombined className="size-4 text-ink-500" />
+          额度用量
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className={menuItemClass}
+          onSelect={() => {
+            window.setTimeout(onOpenArchived, 10);
+          }}
+        >
+          <Archive className="size-4 text-ink-500" />
+          已归档
         </DropdownMenuItem>
       </DropdownMenuGroup>
       <DropdownMenuSeparator className="mx-1 my-1 bg-line" />
@@ -154,6 +173,7 @@ export default function StudioAccountControl() {
         )}
       </div>
       <StudioSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <StudioUsageDialog open={usageOpen} onOpenChange={setUsageOpen} />
     </>
   );
 }
