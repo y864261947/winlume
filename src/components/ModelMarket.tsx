@@ -16,6 +16,7 @@ import { homepageApiCategories } from "@/lib/portal/homepage-vendors";
 import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
 import { usePortalCanvasScale } from "@/components/usePortalCanvasScale";
 import type { PortalContentConfig, PortalImageAdjust } from "@/lib/portal/content-config";
+import { portalImageStyle } from "@/lib/portal/image-framing";
 
 declare global {
   interface Window {
@@ -125,19 +126,10 @@ const searchSuggestions = [
 type FeaturedSlide = { id: string; src: string; alt: string; href: string; adjust?: PortalImageAdjust };
 
 /**
- * Inline framing for admin-adjusted images. baseScale mirrors the CSS default
- * (`.portal-managed-showcase-image img` scales 1.08, capability hero 1.04) so an
- * explicit zoom multiplies it instead of replacing it.
+ * Inline framing for admin-adjusted images now lives in
+ * `@/lib/portal/image-framing`, shared with the admin preview dialog so the
+ * editor and the homepage can never disagree about how an upload is cropped.
  */
-function imageAdjustStyle(adjust: PortalImageAdjust | undefined, baseScale: number): CSSProperties | undefined {
-  if (!adjust) return undefined;
-  const style: CSSProperties = {};
-  if (adjust.fit) style.objectFit = adjust.fit;
-  if (adjust.x != null || adjust.y != null) style.objectPosition = `${adjust.x ?? 50}% ${adjust.y ?? 50}%`;
-  const zoom = adjust.zoom ?? 1;
-  if (zoom !== 1 || baseScale !== 1) style.transform = `scale(${Math.round(baseScale * zoom * 1000) / 1000})`;
-  return Object.keys(style).length ? style : undefined;
-}
 
 const FEATURED_SLIDES: FeaturedSlide[] = [
   {
@@ -228,8 +220,8 @@ function CapabilityEvidence({ kind }: { kind: PortalCapabilityEvidence }) {
   return <span className="portal-capability-evidence is-usage" aria-hidden><i /><i /><i /><i /><i /></span>;
 }
 
-function ManagedApplicationVisual({ item, fallback }: { item: ManagedApplicationShowcase; fallback: PortalApplicationPreview }) {
-  return item.imageUrl ? <span className="portal-managed-showcase-image"><Image src={item.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 50vw" priority unoptimized style={imageAdjustStyle(item.imageAdjust, 1.08)} /></span> : <ApplicationResultPreview kind={fallback} />;
+function ManagedApplicationVisual({ item, fallback, kind }: { item: ManagedApplicationShowcase; fallback: PortalApplicationPreview; kind: "application-featured" | "application-support" }) {
+  return item.imageUrl ? <span className="portal-managed-showcase-image"><Image src={item.imageUrl} alt="" fill sizes={kind === "application-featured" ? "(max-width: 760px) 100vw, 45vw" : "(max-width: 760px) 100vw, 25vw"} priority unoptimized style={portalImageStyle(kind, item.imageAdjust)} /></span> : <ApplicationResultPreview kind={fallback} />;
 }
 
 const productPaths = [
@@ -1177,7 +1169,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
                     sizes="(max-width: 1100px) 100vw, 812px"
                     priority
                     unoptimized
-                    style={imageAdjustStyle(slide.adjust, 1)}
+                    style={portalImageStyle("carousel", slide.adjust)}
                   />
                 </PortalLink>
               ))}
@@ -1250,13 +1242,13 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
           <div className="portal-featured-app-grid">
             {popularApplications.slice(0, 1).map((app) => (
               <PortalLink href={app.href} aria-label={app.title} className="portal-featured-app-card" key={app.title}>
-                <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[0]?.preview ?? "storyboard"} />
+                <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[0]?.preview ?? "storyboard"} kind="application-featured" />
               </PortalLink>
             ))}
             <div className="portal-app-support-grid">
               {popularApplications.slice(1, 5).map((app, index) => (
                 <PortalLink href={app.href} aria-label={app.title} className="portal-app-support-card" key={app.title}>
-                  <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[index + 1]?.preview ?? "poster"} />
+                  <ManagedApplicationVisual item={app} fallback={portalApplicationShowcase[index + 1]?.preview ?? "poster"} kind="application-support" />
                 </PortalLink>
               ))}
             </div>
@@ -1264,7 +1256,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
         </section>
 
         <section className="portal-bottom-explore portal-system-rail">
-          <div className="portal-capability-showcase">{visibleCapabilities.map((card) => <div role="img" aria-label={card.title} className={`portal-capability-hero is-${card.tone}${card.imageUrl ? " has-managed-image" : ""}`} key={card.id}>{card.imageUrl ? <Image className="portal-managed-capability-image" src={card.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 34vw" priority unoptimized style={imageAdjustStyle(card.imageAdjust, 1.04)} /> : <CapabilityEvidence kind={card.tone === "agent" ? "agent" : card.tone === "usage" ? "usage" : "models"} />}</div>)}</div>
+          <div className="portal-capability-showcase">{visibleCapabilities.map((card) => <div role="img" aria-label={card.title} className={`portal-capability-hero is-${card.tone}${card.imageUrl ? " has-managed-image" : ""}`} key={card.id}>{card.imageUrl ? <Image className="portal-managed-capability-image" src={card.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 34vw" priority unoptimized style={portalImageStyle("capability", card.imageAdjust)} /> : <CapabilityEvidence kind={card.tone === "agent" ? "agent" : card.tone === "usage" ? "usage" : "models"} />}</div>)}</div>
           <footer className="portal-bottom-footer portal-five-column-footer">
             <div className="portal-bottom-brand">
               <strong><Image className="portal-footer-mark" src="/brand/logo-day.png" alt="" width={26} height={26} unoptimized />REIZO</strong>

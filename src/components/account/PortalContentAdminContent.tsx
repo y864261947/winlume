@@ -719,7 +719,13 @@ function ApplicationShowcaseManager({
         <PortalImageAdjustDialog
           open
           onOpenChange={(open) => { if (!open) setAdjustIndex(null); }}
-          kind="application"
+          kind={
+            items
+              .filter((entry) => entry.enabled && entry.group === items[adjustIndex].group)
+              .findIndex((entry) => entry.id === items[adjustIndex].id) === 0
+              ? "application-featured"
+              : "application-support"
+          }
           imageUrl={items[adjustIndex].imageUrl}
           title={items[adjustIndex].title}
           value={items[adjustIndex].imageAdjust}

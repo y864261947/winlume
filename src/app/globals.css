@@ -494,12 +494,11 @@ html[data-studio-theme="dark"] .login-modal-input:-webkit-autofill:focus {
   width: 100%;
   height: 100%;
   max-width: none;
-  object-fit: cover;
-  /* Generated uploads can include a dark safety frame; crop it beneath the
-     card edge so artwork reaches the rounded boundary. */
-  transform: scale(1.08);
+  /* Framing (object-fit/position/scale) is supplied inline from
+     `@/lib/portal/image-framing`, shared with the admin preview dialog.
+     Do not re-introduce a hardcoded transform here: it silently cropped
+     uploads in a way the editor never showed. */
 }
-.portal-managed-capability-image { transform: scale(1.04); }
 .portal-home .portal-app-showcase-v2 .portal-featured-app-card,
 .portal-home .portal-app-showcase-v2 .portal-app-support-card {
   padding: 0;
@@ -4921,7 +4920,10 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   z-index: 1;
 }
 .portal-featured-slide-img {
-  object-fit: contain;
+  /* Framing is supplied inline from `@/lib/portal/image-framing`; admin-managed
+     slides default to `cover`. The hardcoded fallback slides in public/ are
+     authored at the card ratio, so they fill it either way. */
+  object-fit: cover;
   object-position: center;
 }
 .portal-featured-nav {
@@ -10528,7 +10530,8 @@ body {
 
 .portal-home .portal-capability-hero.has-managed-image .portal-managed-capability-image {
   z-index: 0;
-  object-position: right center;
+  /* object-position comes from the inline framing style (default `100% 50%`
+     for capability cards, so the subject clears the white scrim above). */
 }
 
 
