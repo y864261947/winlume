@@ -10,12 +10,14 @@ let portalContentCache: { expiresAt: number; value: PortalContentConfig } | null
 export const PORTAL_MODEL_CATEGORIES = ["llm", "image", "audio", "video", "embed", "other"] as const;
 export type PortalModelCategory = (typeof PORTAL_MODEL_CATEGORIES)[number];
 
-export type PortalCarouselSlide = { id: string; imageUrl: string; alt: string; href: string; enabled: boolean };
+/** Per-image framing set in the admin preview editor (drag = x/y, zoom = scale). */
+export type PortalImageAdjust = { fit?: "contain" | "cover"; x?: number; y?: number; zoom?: number };
+export type PortalCarouselSlide = { id: string; imageUrl: string; alt: string; href: string; enabled: boolean; imageAdjust?: PortalImageAdjust };
 export type PortalNotification = { id: string; title: string; body: string; href: string; enabled: boolean; createdAt: string };
 export type PortalVendorModel = { name: string; endpointTypes: string[]; description?: string };
 export type PortalModelVendor = { id: string; name: string; key: string; logoUrl: string; category: PortalModelCategory; enabled: boolean; models: PortalVendorModel[] };
-export type PortalApplicationShowcaseItem = { id: string; title: string; href: string; imageUrl: string; group: "popular" | "latest"; enabled: boolean };
-export type PortalCapabilityShowcaseItem = { id: string; title: string; eyebrow: string; href: string; imageUrl: string; tone: "models" | "agent" | "usage"; enabled: boolean };
+export type PortalApplicationShowcaseItem = { id: string; title: string; href: string; imageUrl: string; group: "popular" | "latest"; enabled: boolean; imageAdjust?: PortalImageAdjust };
+export type PortalCapabilityShowcaseItem = { id: string; title: string; eyebrow: string; href: string; imageUrl: string; tone: "models" | "agent" | "usage"; enabled: boolean; imageAdjust?: PortalImageAdjust };
 export type PortalContentConfig = { toolDirectory: ToolPresentation[]; carousel: PortalCarouselSlide[]; notifications: PortalNotification[]; modelVendors: PortalModelVendor[]; applicationShowcase: PortalApplicationShowcaseItem[]; capabilityShowcase: PortalCapabilityShowcaseItem[] };
 
 export const defaultPortalContent: PortalContentConfig = {
@@ -53,12 +55,32 @@ function category(value: unknown): PortalModelCategory { return PORTAL_MODEL_CAT
 function applicationGroup(value: unknown): PortalApplicationShowcaseItem["group"] { return value === "latest" ? "latest" : "popular"; }
 function capabilityTone(value: unknown): PortalCapabilityShowcaseItem["tone"] { return value === "agent" || value === "usage" ? value : "models"; }
 
+function clampNumber(value: unknown, min: number, max: number): number | undefined {
+  const num = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(num) ? Math.min(max, Math.max(min, Math.round(num * 10) / 10)) : undefined;
+}
+
+/** Keep only meaningful adjustments so the stored JSON stays compact. */
+function normalizeImageAdjust(value: unknown): PortalImageAdjust | undefined {
+  const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const fit = row.fit === "cover" || row.fit === "contain" ? row.fit : undefined;
+  const x = clampNumber(row.x, 0, 100);
+  const y = clampNumber(row.y, 0, 100);
+  const zoom = clampNumber(row.zoom, 1, 2.5);
+  const adjust: PortalImageAdjust = {};
+  if (fit) adjust.fit = fit;
+  if (x != null && x !== 50) adjust.x = x;
+  if (y != null && y !== 50) adjust.y = y;
+  if (zoom != null && zoom !== 1) adjust.zoom = zoom;
+  return Object.keys(adjust).length ? adjust : undefined;
+}
+
 export function normalizePortalContent(input: unknown): PortalContentConfig {
   const raw = input && typeof input === "object" ? input as Record<string, unknown> : {};
   const carousel = Array.isArray(raw.carousel) ? raw.carousel.slice(0, 12).flatMap((item, index) => {
     const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
     const imageUrl = string(row.imageUrl, PORTAL_IMAGE_MAX_DATA_URL_LENGTH); const alt = string(row.alt, 120); const href = string(row.href, 500) || "/";
-    return imageUrl && alt ? [{ id: id(row.id, `slide-${index + 1}`), imageUrl, alt, href, enabled: row.enabled !== false }] : [];
+    return imageUrl && alt ? [{ id: id(row.id, `slide-${index + 1}`), imageUrl, alt, href, enabled: row.enabled !== false, imageAdjust: normalizeImageAdjust(row.imageAdjust) }] : [];
   }) : defaultPortalContent.carousel;
   const notifications = Array.isArray(raw.notifications) ? raw.notifications.slice(0, 30).flatMap((item, index) => {
     const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
@@ -77,11 +99,11 @@ export function normalizePortalContent(input: unknown): PortalContentConfig {
   }) : [];
   const applicationShowcase = Array.isArray(raw.applicationShowcase) ? raw.applicationShowcase.slice(0, 20).flatMap((item, index) => {
     const row = item && typeof item === "object" ? item as Record<string, unknown> : {}; const title = string(row.title, 100);
-    return title ? [{ id: id(row.id, `application-${index + 1}`), title, href: string(row.href, 500) || "/products?cate=app", imageUrl: string(row.imageUrl, PORTAL_IMAGE_MAX_DATA_URL_LENGTH), group: applicationGroup(row.group), enabled: row.enabled !== false }] : [];
+    return title ? [{ id: id(row.id, `application-${index + 1}`), title, href: string(row.href, 500) || "/products?cate=app", imageUrl: string(row.imageUrl, PORTAL_IMAGE_MAX_DATA_URL_LENGTH), group: applicationGroup(row.group), enabled: row.enabled !== false, imageAdjust: normalizeImageAdjust(row.imageAdjust) }] : [];
   }) : defaultPortalContent.applicationShowcase;
   const capabilityShowcase = Array.isArray(raw.capabilityShowcase) ? raw.capabilityShowcase.slice(0, 8).flatMap((item, index) => {
     const row = item && typeof item === "object" ? item as Record<string, unknown> : {}; const title = string(row.title, 100);
-    return title ? [{ id: id(row.id, `capability-${index + 1}`), title, eyebrow: string(row.eyebrow, 60), href: string(row.href, 500) || "/", imageUrl: string(row.imageUrl, PORTAL_IMAGE_MAX_DATA_URL_LENGTH), tone: capabilityTone(row.tone), enabled: row.enabled !== false }] : [];
+    return title ? [{ id: id(row.id, `capability-${index + 1}`), title, eyebrow: string(row.eyebrow, 60), href: string(row.href, 500) || "/", imageUrl: string(row.imageUrl, PORTAL_IMAGE_MAX_DATA_URL_LENGTH), tone: capabilityTone(row.tone), enabled: row.enabled !== false, imageAdjust: normalizeImageAdjust(row.imageAdjust) }] : [];
   }) : defaultPortalContent.capabilityShowcase;
   return {
     carousel: carousel.length ? carousel : defaultPortalContent.carousel,

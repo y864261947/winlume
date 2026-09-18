@@ -28,6 +28,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { PORTAL_IMAGE_MAX_FILE_BYTES } from "@/lib/portal/content-limits";
+import type { PortalImageAdjust } from "@/lib/portal/content-config";
+import PortalImageAdjustDialog from "./PortalImageAdjustDialog";
 import ModelPricingDialog from "./ModelPricingDialog";
 import { applicationTools, defaultToolPresentation, normalizeToolPresentation, resolveApplicationTools, representativeTools, toolCategoryDescriptions, type ToolPresentation } from "@/lib/portal/application-tools";
 
@@ -38,6 +40,7 @@ type Slide = {
   alt: string;
   href: string;
   enabled: boolean;
+  imageAdjust?: PortalImageAdjust;
 };
 type Notice = {
   id: string;
@@ -67,6 +70,7 @@ type ApplicationShowcase = {
   imageUrl: string;
   group: "popular" | "latest";
   enabled: boolean;
+  imageAdjust?: PortalImageAdjust;
 };
 type CapabilityShowcase = {
   id: string;
@@ -76,6 +80,7 @@ type CapabilityShowcase = {
   imageUrl: string;
   tone: "models" | "agent" | "usage";
   enabled: boolean;
+  imageAdjust?: PortalImageAdjust;
 };
 type PortalContent = {
   toolDirectory: ToolPresentation[];
@@ -564,6 +569,7 @@ function ApplicationShowcaseManager({
   saving: boolean;
   onError: (message: string) => void;
 }) {
+  const [adjustIndex, setAdjustIndex] = useState<number | null>(null);
   const update = (index: number, patch: Partial<ApplicationShowcase>) =>
     onChange(
       items.map((item, itemIndex) =>
@@ -620,11 +626,22 @@ function ApplicationShowcaseManager({
             key={item.id}
             className="grid gap-3 rounded-xl border border-border bg-background p-4 lg:grid-cols-[180px_1fr_auto]"
           >
-            <ShowcaseImage
-              value={item.imageUrl}
-              onChange={(imageUrl) => update(index, { imageUrl })}
-              onError={onError}
-            />
+            <div className="grid content-start gap-2">
+              <ShowcaseImage
+                value={item.imageUrl}
+                onChange={(imageUrl) => update(index, { imageUrl })}
+                onError={onError}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!item.imageUrl}
+                onClick={() => setAdjustIndex(index)}
+              >
+                预览与调整
+              </Button>
+            </div>
             <div className="grid content-start gap-2">
               <input
                 className="h-9 rounded-md border border-border px-3 text-sm"
@@ -698,6 +715,17 @@ function ApplicationShowcaseManager({
           </article>
         ))}
       </div>
+      {adjustIndex != null && items[adjustIndex] ? (
+        <PortalImageAdjustDialog
+          open
+          onOpenChange={(open) => { if (!open) setAdjustIndex(null); }}
+          kind="application"
+          imageUrl={items[adjustIndex].imageUrl}
+          title={items[adjustIndex].title}
+          value={items[adjustIndex].imageAdjust}
+          onChange={(imageAdjust) => update(adjustIndex, { imageAdjust })}
+        />
+      ) : null}
     </section>
   );
 }
@@ -715,6 +743,7 @@ function CapabilityShowcaseManager({
   saving: boolean;
   onError: (message: string) => void;
 }) {
+  const [adjustIndex, setAdjustIndex] = useState<number | null>(null);
   const update = (index: number, patch: Partial<CapabilityShowcase>) =>
     onChange(
       items.map((item, itemIndex) =>
@@ -772,11 +801,22 @@ function CapabilityShowcaseManager({
             key={item.id}
             className="grid gap-3 rounded-xl border border-border bg-background p-4 lg:grid-cols-[180px_1fr_auto]"
           >
-            <ShowcaseImage
-              value={item.imageUrl}
-              onChange={(imageUrl) => update(index, { imageUrl })}
-              onError={onError}
-            />
+            <div className="grid content-start gap-2">
+              <ShowcaseImage
+                value={item.imageUrl}
+                onChange={(imageUrl) => update(index, { imageUrl })}
+                onError={onError}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!item.imageUrl}
+                onClick={() => setAdjustIndex(index)}
+              >
+                预览与调整
+              </Button>
+            </div>
             <div className="grid content-start gap-2">
               <input
                 className="h-9 rounded-md border border-border px-3 text-sm"
@@ -859,6 +899,18 @@ function CapabilityShowcaseManager({
           </article>
         ))}
       </div>
+      {adjustIndex != null && items[adjustIndex] ? (
+        <PortalImageAdjustDialog
+          open
+          onOpenChange={(open) => { if (!open) setAdjustIndex(null); }}
+          kind="capability"
+          imageUrl={items[adjustIndex].imageUrl}
+          title={items[adjustIndex].title}
+          eyebrow={items[adjustIndex].eyebrow}
+          value={items[adjustIndex].imageAdjust}
+          onChange={(imageAdjust) => update(adjustIndex, { imageAdjust })}
+        />
+      ) : null}
     </section>
   );
 }
@@ -1055,6 +1107,7 @@ export default function PortalContentAdminContent({ initialSection = "carousel" 
   const [catalogError, setCatalogError] = useState("");
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<PortalAdminSection>(initialSection);
+  const [adjustSlideIndex, setAdjustSlideIndex] = useState<number | null>(null);
   const [savingSection, setSavingSection] = useState<PortalAdminSection | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -1243,7 +1296,7 @@ export default function PortalContentAdminContent({ initialSection = "carousel" 
               <div>
                 <h2 className="font-semibold">首页轮播图</h2>
                 <p className="text-sm text-muted-foreground">
-                  上传一张横版图片即可适配桌面与笔记本，建议沿用 3:2（如 1536×1024）；图片等比完整展示，不裁切。
+                  上传一张横版图片即可适配桌面与笔记本，建议沿用 3:2（如 1536×1024）；默认等比完整展示。上传后点「预览与调整」可拖拽构图、放大消除白边。
                 </p>
               </div>
               <div className="flex gap-2">
@@ -1390,6 +1443,15 @@ export default function PortalContentAdminContent({ initialSection = "carousel" 
                   <Button
                     type="button"
                     variant="ghost"
+                    size="sm"
+                    disabled={!slide.imageUrl}
+                    onClick={() => setAdjustSlideIndex(index)}
+                  >
+                    预览调整
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
                     size="icon"
                     onClick={() =>
                       setContent((current) => ({
@@ -1405,6 +1467,24 @@ export default function PortalContentAdminContent({ initialSection = "carousel" 
                 </div>
               </article>
             ))}
+            {adjustSlideIndex != null && content.carousel[adjustSlideIndex] ? (
+              <PortalImageAdjustDialog
+                open
+                onOpenChange={(open) => { if (!open) setAdjustSlideIndex(null); }}
+                kind="carousel"
+                imageUrl={content.carousel[adjustSlideIndex].imageUrl}
+                title={content.carousel[adjustSlideIndex].alt}
+                value={content.carousel[adjustSlideIndex].imageAdjust}
+                onChange={(imageAdjust) =>
+                  setContent((current) => ({
+                    ...current,
+                    carousel: current.carousel.map((item, itemIndex) =>
+                      itemIndex === adjustSlideIndex ? { ...item, imageAdjust } : item,
+                    ),
+                  }))
+                }
+              />
+            ) : null}
           </section> : null}
           {activeSection === "tools" && <ToolDirectoryManager items={content.toolDirectory} saving={savingSection !== null} onSave={() => void save("tools")} onError={setError} onChange={(toolDirectory) => setContent((current) => ({ ...current, toolDirectory }))} />}
 

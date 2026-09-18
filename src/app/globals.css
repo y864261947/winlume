@@ -4897,6 +4897,12 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   padding: 0;
   background: #ebe4d8;
 }
+/* Slides are letterboxed with object-fit: contain, so the card background shows
+   above/below the image. Later `.portal-home .portal-featured-card` rules paint a
+   white gradient over the beige that matches the slide edges — pin it back here. */
+.portal-home .portal-featured-card.portal-featured-carousel {
+  background: #ebe4d8;
+}
 .portal-featured-track {
   position: absolute;
   inset: 0;
@@ -7346,7 +7352,8 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   }
 }
 
-/* The icon and title share a deliberate first row; detail text always starts below it. */
+/* The icon spans both rows so it stays vertically centered against the whole
+   title + detail block; detail text always starts below the title. */
 @media (min-width: 1181px) {
   .portal-home .portal-tool-card {
     grid-template-columns: 40px minmax(0, 1fr);
@@ -7357,7 +7364,7 @@ a.zen-button.zen-button-dark { color: #fff !important; background: #20232d; box-
   }
   .portal-home .portal-tool-card img {
     grid-column: 1;
-    grid-row: 1;
+    grid-row: 1 / 3;
     align-self: center;
     width: var(--portal-category-icon-size);
     height: var(--portal-category-icon-size);

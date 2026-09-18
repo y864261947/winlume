@@ -15,7 +15,7 @@ import type { ConsoleOverview } from "@/lib/console/types";
 import { homepageApiCategories } from "@/lib/portal/homepage-vendors";
 import { WORK_SCENES, type WorkSceneId } from "@/lib/studio/work-scenes";
 import { usePortalCanvasScale } from "@/components/usePortalCanvasScale";
-import type { PortalContentConfig } from "@/lib/portal/content-config";
+import type { PortalContentConfig, PortalImageAdjust } from "@/lib/portal/content-config";
 
 declare global {
   interface Window {
@@ -122,7 +122,22 @@ const searchSuggestions = [
 ] as const;
 
 /** Hardcoded Model Review carousel slides (generated banners in public/). */
-type FeaturedSlide = { id: string; src: string; alt: string; href: string };
+type FeaturedSlide = { id: string; src: string; alt: string; href: string; adjust?: PortalImageAdjust };
+
+/**
+ * Inline framing for admin-adjusted images. baseScale mirrors the CSS default
+ * (`.portal-managed-showcase-image img` scales 1.08, capability hero 1.04) so an
+ * explicit zoom multiplies it instead of replacing it.
+ */
+function imageAdjustStyle(adjust: PortalImageAdjust | undefined, baseScale: number): CSSProperties | undefined {
+  if (!adjust) return undefined;
+  const style: CSSProperties = {};
+  if (adjust.fit) style.objectFit = adjust.fit;
+  if (adjust.x != null || adjust.y != null) style.objectPosition = `${adjust.x ?? 50}% ${adjust.y ?? 50}%`;
+  const zoom = adjust.zoom ?? 1;
+  if (zoom !== 1 || baseScale !== 1) style.transform = `scale(${Math.round(baseScale * zoom * 1000) / 1000})`;
+  return Object.keys(style).length ? style : undefined;
+}
 
 const FEATURED_SLIDES: FeaturedSlide[] = [
   {
@@ -168,8 +183,8 @@ const toolApplications = [
 
 type PortalApplicationPreview = "storyboard" | "poster" | "subtitles" | "avatar" | "extract" | "product" | "finance" | "slides" | "code" | "contract";
 type PortalCapabilityEvidence = "models" | "skills" | "agent" | "usage";
-type ManagedApplicationShowcase = { id: string; title: string; href: string; imageUrl: string; group: "popular" | "latest"; enabled: boolean };
-type ManagedCapabilityShowcase = { id: string; title: string; eyebrow: string; href: string; imageUrl: string; tone: "models" | "agent" | "usage"; enabled: boolean };
+type ManagedApplicationShowcase = { id: string; title: string; href: string; imageUrl: string; group: "popular" | "latest"; enabled: boolean; imageAdjust?: PortalImageAdjust };
+type ManagedCapabilityShowcase = { id: string; title: string; eyebrow: string; href: string; imageUrl: string; tone: "models" | "agent" | "usage"; enabled: boolean; imageAdjust?: PortalImageAdjust };
 
 const portalApplicationShowcase: ReadonlyArray<{ title: string; detail: string; href: string; tone: string; preview: PortalApplicationPreview }> = [
   { title: "AI财务分析助手", detail: "自动生成图表、报告、趋势分析和可视化图表，提升财务决策效率。", href: "/studio/skills?scene=growth-commerce", tone: "green", preview: "finance" },
@@ -214,7 +229,7 @@ function CapabilityEvidence({ kind }: { kind: PortalCapabilityEvidence }) {
 }
 
 function ManagedApplicationVisual({ item, fallback }: { item: ManagedApplicationShowcase; fallback: PortalApplicationPreview }) {
-  return item.imageUrl ? <span className="portal-managed-showcase-image"><Image src={item.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 50vw" priority unoptimized /></span> : <ApplicationResultPreview kind={fallback} />;
+  return item.imageUrl ? <span className="portal-managed-showcase-image"><Image src={item.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 50vw" priority unoptimized style={imageAdjustStyle(item.imageAdjust, 1.08)} /></span> : <ApplicationResultPreview kind={fallback} />;
 }
 
 const productPaths = [
@@ -607,7 +622,7 @@ function swipeDirection(fromId: ProductPath["id"], toId: ProductPath["id"]): "le
 function contentFeaturedSlides(content?: PortalContentConfig): FeaturedSlide[] {
   const slides = content?.carousel
     ?.filter((slide) => slide.enabled !== false && slide.imageUrl && slide.alt)
-    .map((slide) => ({ id: slide.id, src: slide.imageUrl, alt: slide.alt, href: slide.href || "/products?cate=api" }));
+    .map((slide) => ({ id: slide.id, src: slide.imageUrl, alt: slide.alt, href: slide.href || "/products?cate=api", adjust: slide.imageAdjust }));
   return slides?.length ? slides : FEATURED_SLIDES;
 }
 
@@ -1162,6 +1177,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
                     sizes="(max-width: 1100px) 100vw, 812px"
                     priority
                     unoptimized
+                    style={imageAdjustStyle(slide.adjust, 1)}
                   />
                 </PortalLink>
               ))}
@@ -1248,7 +1264,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
         </section>
 
         <section className="portal-bottom-explore portal-system-rail">
-          <div className="portal-capability-showcase">{visibleCapabilities.map((card) => <div role="img" aria-label={card.title} className={`portal-capability-hero is-${card.tone}${card.imageUrl ? " has-managed-image" : ""}`} key={card.id}>{card.imageUrl ? <Image className="portal-managed-capability-image" src={card.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 34vw" priority unoptimized /> : <CapabilityEvidence kind={card.tone === "agent" ? "agent" : card.tone === "usage" ? "usage" : "models"} />}</div>)}</div>
+          <div className="portal-capability-showcase">{visibleCapabilities.map((card) => <div role="img" aria-label={card.title} className={`portal-capability-hero is-${card.tone}${card.imageUrl ? " has-managed-image" : ""}`} key={card.id}>{card.imageUrl ? <Image className="portal-managed-capability-image" src={card.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 34vw" priority unoptimized style={imageAdjustStyle(card.imageAdjust, 1.04)} /> : <CapabilityEvidence kind={card.tone === "agent" ? "agent" : card.tone === "usage" ? "usage" : "models"} />}</div>)}</div>
           <footer className="portal-bottom-footer portal-five-column-footer">
             <div className="portal-bottom-brand">
               <strong><Image className="portal-footer-mark" src="/brand/logo-day.png" alt="" width={26} height={26} unoptimized />REIZO</strong>

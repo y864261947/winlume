@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reizo 项目进度报告 · 2026-09-13</title>
+    <style>
+      :root { --ink:#10243d; --muted:#61758a; --blue:#0759c8; --line:#cfe0ee; --bg:#f5f9fd; --surface:rgba(255,255,255,.84); --done:#157657; --partial:#a76410; --todo:#9b3a48; }
+      * { box-sizing:border-box; } body { margin:0; color:var(--ink); background:radial-gradient(circle at 9% 0%,#dff4ff 0,transparent 31rem),radial-gradient(circle at 93% 7%,#f9efe1 0,transparent 27rem),var(--bg); font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif; }
+      main { width:min(1220px,calc(100% - 40px)); margin:auto; padding:48px 0 72px; }.hero { position:relative; overflow:hidden; padding:42px 48px; border:1px solid var(--line); border-radius:20px; background:linear-gradient(120deg,rgba(248,253,255,.96),rgba(255,253,248,.9)); }.hero::after { position:absolute; right:-70px; bottom:-150px; width:340px; height:340px; border:1px solid #91c9ed; border-radius:50%; box-shadow:0 0 0 35px rgba(145,201,237,.11),0 0 0 70px rgba(89,205,174,.07); content:""; }.eyebrow { margin:0; color:var(--blue); font-size:11px; font-weight:800; letter-spacing:.14em; }h1 { max-width:760px; margin:11px 0; font-size:clamp(32px,4.4vw,52px); letter-spacing:-.05em; line-height:1.07; }.intro { max-width:760px; margin:0; color:var(--muted); font-size:15px; line-height:1.75; }
+      .note { margin-top:14px; padding:13px 16px; border-left:3px solid var(--blue); color:#45627d; background:rgba(235,247,255,.76); font-size:13px; line-height:1.7; }.metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:14px; }.metric { padding:17px; border:1px solid var(--line); border-radius:13px; background:var(--surface); }.metric b { display:block; color:var(--blue); font-size:25px; }.metric span { color:var(--muted); font-size:12px; }
+      section { margin-top:36px; }h2 { margin:0 0 8px; font-size:25px; letter-spacing:-.035em; }.lead { margin:0 0 14px; color:var(--muted); font-size:14px; line-height:1.65; }.section-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }.section-card { padding:20px; border:1px solid var(--line); border-radius:14px; background:var(--surface); }.section-card h3 { margin:0; font-size:17px; }.section-card > p { margin:7px 0 0; color:var(--muted); font-size:13px; line-height:1.65; }
+      table { width:100%; overflow:hidden; border:1px solid var(--line); border-radius:14px; border-spacing:0; background:var(--surface); font-size:13px; }th { padding:12px 15px; color:#56718a; background:#edf6fd; text-align:left; font-size:11px; letter-spacing:.04em; }td { padding:13px 15px; border-top:1px solid #dbe8f2; color:#4f677f; vertical-align:top; line-height:1.55; }td:first-child { width:18%; color:var(--ink); font-weight:750; }td:nth-child(2) { width:19%; }td:nth-child(3) { width:36%; }td:nth-child(4) { width:27%; }.status { display:inline-flex; padding:3px 7px; border-radius:99px; font-size:11px; font-weight:800; white-space:nowrap; }.done { color:var(--done); background:#e3f7ef; }.partial { color:var(--partial); background:#fff1da; }.todo { color:var(--todo); background:#ffe9ed; }.route { color:var(--blue); font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:12px; }
+      ul { margin:10px 0 0; padding-left:19px; color:var(--muted); font-size:13px; line-height:1.8; }.priority { display:grid; grid-template-columns:54px 1fr; gap:15px; padding:19px; border:1px solid #b8d7f0; border-radius:14px; background:linear-gradient(135deg,#fafdff,#eff8ff); }.priority + .priority { margin-top:11px; }.priority strong { display:grid; width:40px; height:40px; place-items:center; border-radius:10px; color:#fff; background:var(--blue); }.priority h3 { margin:0; font-size:16px; }.priority p { margin:5px 0 0; color:var(--muted); font-size:13px; line-height:1.65; }footer { margin-top:32px; padding-top:17px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+      @media(max-width:760px) { main { width:min(100% - 28px,1220px); padding-top:25px; }.hero { padding:29px 23px; }.metrics,.section-grid { grid-template-columns:1fr 1fr; }table { display:block; overflow-x:auto; white-space:normal; min-width:760px; }.note { font-size:12px; } }
+    </style>
+  <style>
+a { color:var(--blue); text-underline-offset:3px; } .hero::after { pointer-events:none; }
+.table-wrap { overflow-x:auto; border-radius:14px; } .metrics b { font-size:21px; }
+.flow { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; } .flow article { padding:20px; border:1px solid var(--line); border-radius:14px; background:white; }
+.flow h3 { margin:0 0 8px; } .flow p { color:var(--muted); line-height:1.7; font-size:13px; margin:0; }
+code { overflow-wrap:anywhere; } .stamp { margin-top:18px; font-size:12px; color:var(--muted); }
+@media(max-width:760px) { .flow,.section-grid { grid-template-columns:1fr; } table { display:table; min-width:740px; } .hero { padding:26px 20px; } h1 { font-size:34px; } }
+@media print { body { background:white; } main { width:100%; padding:0; } .hero { padding:22px; } .hero::after { display:none; } section { margin-top:22px; } .table-wrap { overflow:visible; } table { min-width:0; } tr,.section-card,.priority { break-inside:avoid; } }
+</style></head>
+  <body><main>
+<header class="hero"><p class="eyebrow">REIZO / DELIVERY &amp; NEXT STEPS / 2026.09.13</p>
+<h1>项目进度报告</h1>
+<p class="intro">个人版正在从页面与接口接入，推进到可稳定使用的模型工作台。本轮重点补齐了注册、Key 管理、跨模型路由、图片生成和笔记本交互；商业计费闭环与新网关迁移仍需继续建设。</p>
+<div class="note"><strong>当前判断：</strong>相关修复已部署，代码回归、模拟浏览器流程及部分线上接口检查已通过。尚未完成真实付费文本、图片调用与账单对账的整体验收，不能据此认定所有模型均已可用。</div>
+<p class="stamp">更新：2026-09-13 · 代码快照：7b669ea · 最近运行时代码：ceebd2f · <a href="https://github.com/y864261947/winlume/actions/runs/34692606454">最近生产部署成功</a></p></header>
+<div class="metrics"><div class="metric"><b>new-api</b><span>当前生产网关</span></div><div class="metric"><b>图片能力已接入</b><span>待真实付费闭环验收</span></div><div class="metric"><b>额度计费待建设</b><span>规则方向已确认</span></div><div class="metric"><b>codex-proxy 待迁移</b><span>尚未替换生产网关</span></div></div>
+
+<section><h2>本轮完成与验证边界</h2><p class="lead">“已上线”说明实现已部署；验证范围单独列出，避免把接口接通等同于商业闭环完成。</p>
+<div class="table-wrap"><table><thead><tr><th>模块</th><th>状态</th><th>本轮交付</th><th>验证与剩余工作</th></tr></thead><tbody>
+<tr><td>注册与账号开通</td><td><span class="status done">已修复上线</span></td><td>修复 new-api 管理凭据失效引起的注册失败。注册链路创建工作区和内部 Studio Key。</td><td>线上临时账号开通、工作区、内部 Key 和目录读取检查通过；测试资源已清理或停用。仍需完整前台注册与付费调用回归。</td></tr>
+<tr><td>统一 Key 管理</td><td><span class="status done">首阶段已上线</span></td><td>工作台无需用户手动创建 Key。外部 Key 可设置模型、IP、过期限制；历史 new-api Key 可识别并手动纳管，支持启停、撤销。</td><td>创建、启停、余额读取及模拟浏览器纳管流程通过。历史 Key 未批量迁入；同名 Key 与创建失败补偿仍需完善。</td></tr>
+<tr><td>Claude / Gemini 等路由</td><td><span class="status done">路由修复已上线</span></td><td>新建或更新 Reizo 管理的 Key 时，根据账户许可配置跨组路由，避免只继承原来有限的自动分组。</td><td>修复 6 个 Key；新测试 Key 目录可见 61 个模型，包含 Claude 与 GPT。2 个 Key 跳过，包含保留特殊历史授权的情况。目录可见不代表全部真实调用成功。</td></tr>
+<tr><td>模型卡片进入工作台</td><td><span class="status done">已修复上线</span></td><td>带模型参数进入工作台创建新入口；按账号隔离标签缓存，避免旧会话覆盖模型。会话加载失败不再展示兜底模型名。</td><td>模拟浏览器连续切换文本、图片模型通过。原有会话权限校验保留。</td></tr>
+<tr><td>图片模型直接生成</td><td><span class="status done">已接入上线</span></td><td>识别图片模型后走图片接口，保留所选模型；支持尺寸、数量、显式参考图编辑、产物预览与下载、失败状态。</td><td>相关运行时、网关与路由 34 项测试通过；图片入口浏览器回归通过。真实付费生图未验收；自定义模型别名和上游协议仍需逐一适配。</td></tr>
+<tr><td>文本对话调用生图工具</td><td><span class="status done">已接入上线</span></td><td>保留文本对话模型，模型调用生图工具时选择账户可用图片模型；高级设置可指定“生图模型”，默认自动选择。</td><td>本轮相关 20 项测试通过。生成意图依赖文本模型的工具调用能力；不是任意文本模型都天然支持该流程。</td></tr>
+<tr><td>下拉框与模型选择</td><td><span class="status done">已优化上线</span></td><td>菜单优先向上展开并避让边界，长内容可滚动；模型列表放入设置面板，支持搜索模型名与提供商。</td><td>1280 × 600 浏览器菜单边界、模型搜索选择验证通过；图片模型发送后保持图片模式。</td></tr>
+<tr><td>部署可靠性</td><td><span class="status done">已修复</span></td><td>环境文件更新保留权限信息；部署停服前检查文件可读性，补充恢复工作流。</td><td>曾出现权限问题导致部署失败，已恢复。最近生产构建、类型检查与部署成功。</td></tr>
+</tbody></table></div></section>
+
+<section><h2>当前架构与目标边界</h2><p class="lead">目前仍是 Next.js 全栈应用配合 new-api。新网关已经明确方向，但尚未完成接入。</p>
+<div class="flow"><article><h3>Reizo · 用户产品</h3><p>门户、账号、工作台、Key 管理、会员与钱包界面。Postgres 保存用户、组织、映射、Key 与配置；工作台会话和产物索引仍有文件存储。</p></article><article><h3>new-api · 当前执行与计费</h3><p>生产模型路由、上游调用及现行配额扣除仍依赖 new-api。Key 与余额已有 WorkspaceGateway 抽象，但目录、推理、价格、日志仍有直接依赖。</p></article><article><h3>codex-proxy · 后续替换</h3><p>目标是只向管理员开放的调用网关。需先明确鉴权、模型协议、用量事件与错误契约，再逐步迁移；当前不能只改一个地址就完成替换。</p></article></div>
+<div class="note">详细结构参见 <a href="reizo-current-architecture-2026-09-12.html">当前项目架构文档</a>。该文档是 9 月 12 日快照，后续路由与图片交互进展以本报告为准。</div></section>
+
+<section><h2>计费：方向已确认，实现尚未闭环</h2><div class="section-grid">
+<article class="section-card"><h3>已确认的产品规则</h3><ul><li>会员额度向用户展示剩余百分比与重置日期。</li><li>先做月度额度池，暂不增加 5 小时或周窗口。</li><li>充值余额按输入、输出、缓存及媒体用量计价。</li><li>优先使用会员额度；余额兜底由用户选择开启，避免重复扣费。</li><li>目标由 Reizo 管理用户权益、客户价格和账本，网关提供调用结果与实际用量。</li></ul></article>
+<article class="section-card"><h3>当前代码与未决项</h3><ul><li>已增加额度状态、百分比计算等基础类型和界面区分。</li><li>未启用独立会员额度扣除，也未建立新的财务账本。</li><li>月度额度数值、换算规则、周期时区及结转规则尚待确定。</li><li>展示价格与实际扣费一致性尚需完整对账验收。</li><li>充值、额度扣除、余额兜底、退款与失败回滚需一起验证。</li></ul></article></div></section>
+
+<section><h2>仍待完成</h2><div class="table-wrap"><table><thead><tr><th>事项</th><th>状态</th><th>具体缺口</th><th>完成标准</th></tr></thead><tbody>
+<tr><td>真实用户调用闭环</td><td><span class="status partial">最高优先级</span></td><td>最新回归主要是自动测试、模拟浏览器和真实目录读取，没有实际付费文本与生图验收。</td><td>新账号完成注册、文本调用、生图、产物恢复、Key 调用、扣费对账及失败处理。</td></tr>
+<tr><td>模型元数据统一</td><td><span class="status partial">继续完善</span></td><td>门户展示、账户权限、协议能力和价格需要统一来源；图片分类仍依赖名称识别。</td><td>发布的模型具备明确协议、权限和价格；不可用模型有准确提示。</td></tr>
+<tr><td>历史授权与动态分组</td><td><span class="status partial">存在边界情况</span></td><td>new-api 特殊授权的可见组与可选组存在差异；显式路由列表不会随着新增组永久自动同步。</td><td>解决特殊账户兼容，并建立分组变更后的同步与验证流程。</td></tr>
+<tr><td>视频生成</td><td><span class="status todo">尚未接入</span></td><td>视频生成工具尚无完整执行链路。已有媒体分析代码不能等同于视频生成。</td><td>提交、排队、状态查询、产物保存与失败处理均打通。</td></tr>
+<tr><td>存储与后台任务</td><td><span class="status partial">需要增强</span></td><td>文件型会话存储的多实例能力、后台图片任务在重启后的恢复能力需完善。</td><td>并发写入、重启恢复与任务幂等验证通过。</td></tr>
+<tr><td>企业版运营链路</td><td><span class="status partial">本轮未验收</span></td><td>历史清单中的评估入库、销售通知、线索跟进和交付后台未在本轮验证。</td><td>单独盘点并完成评估提交到负责人跟进的闭环。</td></tr>
+</tbody></table></div></section>
+
+<section><h2>下一阶段建议顺序</h2>
+<article class="priority"><strong>01</strong><div><h3>先完成小额真实调用与对账</h3><p>用新账号验证文本、图片、外部 Key 三条链路，记录请求、产物、余额变化和失败反馈。先确认个人版核心流程可交付。</p></div></article>
+<article class="priority"><strong>02</strong><div><h3>定稿月度额度规则并建设统一账本</h3><p>确定套餐额度和换算，再实现幂等用量入账、额度扣减、余额兜底、失败回滚与账单展示，统一门户定价和实际扣费口径。</p></div></article>
+<article class="priority"><strong>03</strong><div><h3>统一模型目录与网关契约</h3><p>把模型权限、能力、协议与计价整理成稳定配置，同时完善 WorkspaceGateway 边界，为 codex-proxy 迁移准备契约测试。</p></div></article>
+<article class="priority"><strong>04</strong><div><h3>逐步迁移，再扩展视频能力</h3><p>codex-proxy 按模型和账户小范围切换，保留回退路径；补齐任务持久化之后，再扩展视频生成及企业运营功能。</p></div></article>
+</section>
+<section><h2>验证记录与历史资料</h2><p class="lead">各测试批次覆盖范围有重叠，不叠加为“总测试数”；浏览器流程使用模拟接口，不冒充真实付费调用。</p><ul>
+<li><a href="https://github.com/y864261947/winlume/actions/runs/34686780430">注册修复与线上开通检查</a>：工作区、内部 Key、目录读取通过。</li>
+<li><a href="https://github.com/y864261947/winlume/actions/runs/34688827555">路由修复检查</a>：6 个修复、2 个跳过，新 Key 目录包含 61 个模型。</li>
+<li><a href="https://github.com/y864261947/winlume/actions/runs/34692606454">最近生产部署</a>：工作台菜单、模型搜索与文本生图选择已发布。</li>
+<li>本地回归脚本：<code>scripts/verify-unified-keys.cjs</code>、<code>scripts/verify-studio-entry.cjs</code>。</li>
+<li><a href="project-progress-2026-08-12.html">8 月 12 日历史完成清单</a>：保留当时门户与企业版盘点，不作为本轮复验结论。</li>
+</ul></section>
+<footer>Reizo 项目进度报告 · 2026-09-13 · 基于本轮代码、测试和部署记录更新。未开展的验收及未建设的能力已明确标注。</footer>
+</main></body></html>
