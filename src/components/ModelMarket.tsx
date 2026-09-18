@@ -461,15 +461,23 @@ const footerColumns = [
       { label: "商务合作", href: "/business" },
     ],
   },
-  {
-    title: "法律",
-    items: [
-      { label: "隐私政策", href: "/legal/privacy" },
-      { label: "服务条款", href: "/legal/terms" },
-      { label: "免责声明", href: "/legal/disclaimer" },
-    ],
-  },
 ] as const;
+
+const footerLegalLinks = [
+  { label: "隐私政策", href: "/legal/privacy" },
+  { label: "服务条款", href: "/legal/terms" },
+  { label: "免责声明", href: "/legal/disclaimer" },
+] as const;
+
+function FooterLegalLinks() {
+  return (
+    <nav className="portal-footer-legal" aria-label="法律信息">
+      {footerLegalLinks.map((item) => (
+        <PortalLink href={item.href} key={item.href}>{item.label}</PortalLink>
+      ))}
+    </nav>
+  );
+}
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="portal-label">{children}</p>;
@@ -1262,6 +1270,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
               <strong><Image className="portal-footer-mark" src="/brand/logo-day.png" alt="" width={26} height={26} unoptimized />REIZO</strong>
               <p>从 AI 能力到智能体，每一步都更简单。</p>
               <small>© 2026 Reizo. All rights reserved.</small>
+              <FooterLegalLinks />
             </div>
             {footerColumns.map((group) => (
               <div key={group.title}>
@@ -1449,6 +1458,7 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
             <div className="portal-ed-footer-brand">
               <strong><Image className="portal-footer-mark" src="/brand/logo-day.png" alt="" width={26} height={26} unoptimized />Reizo</strong>
               <p>把 AI 能力放进每天的工作里。</p>
+              <FooterLegalLinks />
             </div>
             {footerColumns.map((group) => (
               <div className="portal-ed-footer-col" key={group.title}>

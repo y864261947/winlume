@@ -11616,9 +11616,9 @@ body {
   }
 }
 
-/* Brand plus six navigation groups. */
+/* Brand and inline legal links, followed by five navigation groups. */
 .portal-home .portal-five-column-footer {
-  grid-template-columns: minmax(200px, 1.25fr) repeat(6, minmax(0, 1fr)) !important;
+  grid-template-columns: max-content repeat(5, minmax(0, 1fr)) !important;
   align-items: start;
   min-height: 300px;
   padding: 56px 28px 48px;
@@ -11634,6 +11634,26 @@ body {
 .portal-home .portal-five-column-footer > .portal-bottom-brand,
 .portal-home .portal-five-column-footer > .portal-ed-footer-brand {
   grid-column: auto;
+}
+
+.portal-home .portal-five-column-footer > .portal-bottom-brand p,
+.portal-home .portal-five-column-footer > .portal-ed-footer-brand p {
+  max-width: none;
+  white-space: nowrap;
+}
+
+.portal-home .portal-five-column-footer .portal-footer-legal {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.portal-home .portal-five-column-footer .portal-footer-legal a {
+  display: inline-block;
+  margin: 0;
+  white-space: nowrap;
 }
 
 .legal-page {
