@@ -11618,11 +11618,11 @@ body {
 
 /* Brand and inline legal links, followed by five navigation groups. */
 .portal-home .portal-five-column-footer {
-  grid-template-columns: max-content repeat(5, minmax(0, 1fr)) !important;
+  grid-template-columns: minmax(max-content, 1fr) repeat(5, max-content) !important;
   align-items: start;
   min-height: 300px;
   padding: 56px 28px 48px;
-  gap: 24px 16px;
+  gap: 24px clamp(32px, 4vw, 72px);
 }
 
 .portal-home .portal-five-column-footer > div {
