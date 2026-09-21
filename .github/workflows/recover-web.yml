@@ -23,6 +23,17 @@ jobs:
           . ./.env
           . /etc/reizo/web.env
           set +a
+          # Recover the local PostgreSQL cluster used by this deployment only.
+          if command -v pg_lsclusters >/dev/null 2>&1; then
+            pg_lsclusters --no-header
+            while read -r version cluster port status rest; do
+              if [ "$port" = 5432 ] && [ "$status" = down ]; then
+                pg_ctlcluster "$version" "$cluster" start
+              fi
+            done < <(pg_lsclusters --no-header)
+          fi
+          node -e 'const u=new URL(process.env.DATABASE_URL); console.log("Database target:",u.hostname,u.port||"5432")'
+          ss -ltn '( sport = :5432 )'
           node scripts/db-migrate.mjs
           systemctl restart reizo
           for i in $(seq 1 30); do
