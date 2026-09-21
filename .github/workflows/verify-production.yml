@@ -26,6 +26,9 @@ jobs:
           ssh -i ~/.ssh/reizo-verify -o BatchMode=yes -o IdentitiesOnly=yes \
             -o ConnectTimeout=20 "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<'REMOTE'
           set -euo pipefail
+          systemctl show reizo.service -p WorkingDirectory -p MainPID
+          pid=$(systemctl show reizo.service -p MainPID --value)
+          sudo -n readlink "/proc/$pid/cwd"
           for attempt in 1 2; do
             systemctl is-active reizo.service
             for route in /studio /api/skills '/products?cate=app'; do
