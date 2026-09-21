@@ -1266,18 +1266,18 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
         <section className="portal-bottom-explore portal-system-rail">
           <div className="portal-capability-showcase">{visibleCapabilities.map((card) => <div role="img" aria-label={card.title} className={`portal-capability-hero is-${card.tone}${card.imageUrl ? " has-managed-image" : ""}`} key={card.id}>{card.imageUrl ? <Image className="portal-managed-capability-image" src={card.imageUrl} alt="" fill sizes="(max-width: 760px) 100vw, 34vw" priority unoptimized style={portalImageStyle("capability", card.imageAdjust)} /> : <CapabilityEvidence kind={card.tone === "agent" ? "agent" : card.tone === "usage" ? "usage" : "models"} />}</div>)}</div>
           <footer className="portal-bottom-footer portal-five-column-footer">
-            <div className="portal-bottom-brand">
-              <strong><Image className="portal-footer-mark" src="/brand/logo-day.png" alt="" width={26} height={26} unoptimized />REIZO</strong>
-              <p>从 AI 能力到智能体，每一步都更简单。</p>
-              <small>© 2026 Reizo. All rights reserved.</small>
-              <FooterLegalLinks />
-            </div>
             {footerColumns.map((group) => (
               <div key={group.title}>
                 <h3>{group.title}</h3>
                 {group.items.map((item) => <PortalLink href={item.href} key={item.label}>{item.label}</PortalLink>)}
               </div>
             ))}
+            <div className="portal-bottom-brand">
+              <strong><Image className="portal-footer-mark" src="/brand/logo-day.png" alt="" width={26} height={26} unoptimized />REIZO</strong>
+              <p>从 AI 能力到智能体，每一步都更简单。</p>
+              <small>© 2026 Reizo. All rights reserved.</small>
+              <FooterLegalLinks />
+            </div>
           </footer>
         </section>
 
@@ -1455,11 +1455,6 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
           </section>
 
           <footer className="portal-ed-footer portal-five-column-footer">
-            <div className="portal-ed-footer-brand">
-              <strong><Image className="portal-footer-mark" src="/brand/logo-day.png" alt="" width={26} height={26} unoptimized />Reizo</strong>
-              <p>把 AI 能力放进每天的工作里。</p>
-              <FooterLegalLinks />
-            </div>
             {footerColumns.map((group) => (
               <div className="portal-ed-footer-col" key={group.title}>
                 <h2>{group.title}</h2>
@@ -1468,6 +1463,11 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
                 ))}
               </div>
             ))}
+            <div className="portal-ed-footer-brand">
+              <strong><Image className="portal-footer-mark" src="/brand/logo-day.png" alt="" width={26} height={26} unoptimized />Reizo</strong>
+              <p>把 AI 能力放进每天的工作里。</p>
+              <FooterLegalLinks />
+            </div>
           </footer>
         </div>
         </div>
