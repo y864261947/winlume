@@ -1,9 +1,20 @@
 ---
 name: connect-reizo-server
-description: Connect to, inspect, deploy, and operate the Reizo production server at 176.122.164.148. Use when asked to deploy Reizo, inspect Reizo production logs or service health, update its server-side environment, or operate winlume.v2api.top.
+description: Connect to, inspect, deploy, and operate the Reizo production server at 40.160.139.134. Use when asked to deploy Reizo, inspect Reizo production logs or service health, update its server-side environment, or operate winlume.v2api.top.
 ---
 
 # Connect Reizo Server
+
+## Current production target — confirmed 2026-09-21
+
+- Public origin `https://reizo-ai.com` now resolves to `40.160.139.134`; SSH user is `ubuntu`.
+- The user supplied password access in the current session. Pass it through a temporary environment variable; never write it into repository files or logs. No local key for this host has been confirmed.
+- Runtime: `/opt/reizo`, service `reizo`, port `3001`.
+- Current source/build: `/opt/reizo-footer-build-20260921`, based on `/opt/reizo-build-banana-20260919`, preserving the production pricing updates.
+- GitHub's `DEPLOY_HOST` still points to the old server. Do not push a frontend change expecting the existing workflow to update the public site until its target and authentication are reconciled.
+- For now build from the current server source, apply only the intended changes, package the standalone output, preserve `.env`, `data`, and `backups`, run migrations before restart, and retain the prior release for rollback.
+
+The host and key in the legacy instructions below are historical; do not use them as the current production target.
 
 Use this host only for Reizo paths and service operations. It may contain other services; do not modify them.
 
