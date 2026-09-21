@@ -1,5 +1,7 @@
 "use client";
 
+import PortalFooter from "@/components/PortalFooter";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -167,6 +169,7 @@ export default function AccountShell({ children }: { children: ReactNode }) {
 
           <main className="portal-account-main">{children}</main>
         </div>
+        <PortalFooter />
       </div>
 
       <nav aria-label="个人中心导航" className="portal-account-mobile-nav">

@@ -1,0 +1,48 @@
+.footer {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(90px, 1fr)) minmax(440px, 2.7fr);
+  align-items: start;
+  gap: 24px 28px;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 250px;
+  margin-top: 24px;
+  padding: 46px clamp(28px, 5.5vw, 104px);
+  border-top: 1px solid #dce7f5;
+  background: linear-gradient(110deg, #f5f9fe, #f8fbff 65%, #f5f8fc);
+  color: #718399;
+  text-align: left;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+}
+.column { min-width: 0; }
+.footer .column h3 {
+  margin: 0 0 16px;
+  color: #172b4d;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 700;
+}
+.footer a { color: #718399; text-decoration: none; }
+.footer a:hover { color: #1760d8; }
+.footer a:focus-visible { outline: 2px solid #1760d8; outline-offset: 4px; border-radius: 2px; }
+.footer .column a { display: block; margin-top: 8px; font-size: 14px; line-height: 22px; }
+.brand { display: flex; flex-direction: column; align-items: flex-end; padding-top: 8px; text-align: right; }
+.footer .brand strong { display: inline-flex; align-items: center; gap: 10px; color: #14274b; font-size: 24px; line-height: 30px; letter-spacing: .14em; }
+.brand img { width: 30px; height: 30px; object-fit: contain; }
+.footer .brand p { margin: 12px 0 0; color: #718399; font-size: 14px; line-height: 22px; }
+.meta { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px 14px; margin-top: 46px; }
+.footer .meta small { color: #8293ad; font-size: 12px; line-height: 20px; white-space: nowrap; }
+.legal { display: flex; align-items: center; }
+.footer .legal a { display: inline-block; padding: 0 12px; border-left: 1px solid #bdcadd; font-size: 12px; line-height: 14px; white-space: nowrap; }
+.footer .legal a:last-child { padding-right: 0; }
+@media (min-width: 761px) and (max-width: 1200px) {
+  .footer { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .brand { grid-column: 1 / -1; }
+  .meta { margin-top: 24px; }
+}
+@media (max-width: 760px) {
+  .footer { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(100%, 100vw); padding: 28px 20px; }
+  .brand { grid-column: 1 / -1; align-items: flex-start; text-align: left; padding-top: 12px; }
+  .meta { justify-content: flex-start; margin-top: 24px; }
+  .footer .legal a:first-child { padding-left: 0; border-left: 0; }
+}

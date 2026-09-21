@@ -1,5 +1,7 @@
 "use client";
 
+import PortalFooter from "@/components/PortalFooter";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -172,6 +174,7 @@ export default function DocsShell({ children }: { children: ReactNode }) {
           ) : null}
           <main className="docs-main">{children}</main>
         </div>
+        <PortalFooter />
       </div>
     </div>
   );
