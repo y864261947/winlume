@@ -27,7 +27,9 @@ export const defaultPortalContent: PortalContentConfig = {
     { id: "gpt-5-6-sol", imageUrl: "/figma-home/featured/slide-gpt-5-6-sol.png", alt: "Model Review · GPT-5.6 Sol", href: "/products?cate=api", enabled: true },
   ],
   notifications: [
-    { id: "welcome", title: "Reizo 门户已更新", body: "热门应用工具、API 模型与智能体入口已完成升级。", href: "/", enabled: true, createdAt: "2026-08-26T00:00:00.000Z" },
+    {"id":"release-20260921-conversation","title":"版本更新｜对话管理升级","body":"Agent工作台支持对话归档，可集中查看已归档对话，并随时恢复到对话列表。","href":"/studio","enabled":true,"createdAt":"2026-09-21T02:00:00.000Z"},
+    {"id":"release-20260921-tools","title":"版本更新｜应用工具体验优化","body":"按使用场景查找常用工具，应用工具与 Skills 分区展示，任务入口更清晰。","href":"/products?cate=app","enabled":true,"createdAt":"2026-09-21T02:00:00.000Z"},
+    {"id":"release-20260921-models","title":"版本更新｜模型选择更便捷","body":"优化模型搜索、供应商分类与切换面板，方便在对话中选择适合当前任务的模型。","href":"/studio","enabled":true,"createdAt":"2026-09-21T02:00:00.000Z"},
   ],
   modelVendors: [],
   applicationShowcase: [
