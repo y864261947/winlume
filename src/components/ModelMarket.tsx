@@ -1275,8 +1275,10 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
             <div className="portal-bottom-brand">
               <strong><Image className="portal-footer-mark" src="/brand/logo-day.png" alt="" width={26} height={26} unoptimized />REIZO</strong>
               <p>从 AI 能力到智能体，每一步都更简单。</p>
-              <small>© 2026 Reizo. All rights reserved.</small>
-              <FooterLegalLinks />
+              <div className="portal-footer-meta">
+                <small>© 2026 Reizo. All rights reserved.</small>
+                <FooterLegalLinks />
+              </div>
             </div>
           </footer>
         </section>
@@ -1466,7 +1468,10 @@ export default function ModelMarket({ initialContent }: { initialContent?: Porta
             <div className="portal-ed-footer-brand">
               <strong><Image className="portal-footer-mark" src="/brand/logo-day.png" alt="" width={26} height={26} unoptimized />Reizo</strong>
               <p>把 AI 能力放进每天的工作里。</p>
-              <FooterLegalLinks />
+              <div className="portal-footer-meta">
+                <small>© 2026 Reizo. All rights reserved.</small>
+                <FooterLegalLinks />
+              </div>
             </div>
           </footer>
         </div>
