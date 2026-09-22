@@ -341,3 +341,10 @@ export const portalContentSettings = pgTable(
     updatedAt,
   },
 );
+
+/** Private service credentials. Never included in the public portal settings. */
+export const serviceIntegrations = pgTable("service_integrations", {
+  id: varchar("id", { length: 40 }).primaryKey(),
+  value: jsonb("value").$type<Record<string, unknown>>().notNull(),
+  updatedAt,
+});

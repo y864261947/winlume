@@ -106,6 +106,8 @@ function AccountNav({
           label: "平台",
           items: [
             { href: "/account/portal", label: "门户内容管理", mobileLabel: "门户", icon: PanelsTopLeft },
+            { href: "/account/services", label: "服务接入", mobileLabel: "服务", icon: Settings2 },
+            { href: "/account/service-pricing", label: "模型与服务定价", mobileLabel: "定价", icon: Receipt },
             { href: "/account/feedback", label: "反馈列表", mobileLabel: "反馈", icon: MessageSquareWarning },
             { href: "/account/skills", label: "Skill 配置", mobileLabel: "Skill", icon: Wrench },
           ],

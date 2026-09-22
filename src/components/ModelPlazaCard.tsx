@@ -44,6 +44,22 @@ export function ModelPlazaCard({ model, docsHref, selected, onSelect, variant = 
   const favoriteId = `model:${model.model_name}`;
   const favorite = favorites.includes(favoriteId);
 
+  if (model.catalog_only) {
+    return (
+      <article className="portal-directory-model-card" aria-label={`${model.model_name}，展示预览`}>
+        <div className="portal-directory-model-main">
+          <span className="portal-directory-model-logo" style={{ background: vendor.heroGradient }}>
+            <img src={vendor.logo} alt="" />
+          </span>
+          <span className="portal-directory-model-title"><strong>{model.model_name}</strong><small>{vendor.brandLabel}</small></span>
+          <span className="portal-directory-model-hot">展示预览</span>
+        </div>
+        <div className="portal-directory-model-tags">{tags.slice(0, 3).map((tag) => <span key={tag.label}>{tag.label}</span>)}</div>
+        <p className="mt-4 text-sm text-slate-500">正式调用与计费尚未开放</p>
+      </article>
+    );
+  }
+
   if (variant === "directory") {
     return (
       <Link
