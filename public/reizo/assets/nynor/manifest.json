@@ -1,0 +1,61 @@
+{
+  "brand": "NYNOR",
+  "status": "用户提供，暂用案例素材",
+  "processing": "仅 JPEG 网页格式转换；保留原图尺寸、色彩、构图、图内文字；源文件未修改",
+  "images": [
+    {
+      "file": "motion-bw.jpg",
+      "source": "/Users/zhen/.codex/generated_images/01a109f4-7f92-7d12-8e04-61f32a856459/exec-09042de6-2353-4437-a2b5-fc222394341e.png",
+      "description": "黑白运动特写",
+      "bytes": 319735
+    },
+    {
+      "file": "sprint-sand.jpg",
+      "source": "/Users/zhen/.codex/generated_images/01a109f4-7f92-7d12-8e04-61f32a856459/exec-13042dd0-20b7-4977-af1a-490ee42e1228.png",
+      "description": "砂色背景跑步海报",
+      "bytes": 493482
+    },
+    {
+      "file": "collection.jpg",
+      "source": "/Users/zhen/.codex/generated_images/01a109f4-7f92-7d12-8e04-61f32a856459/exec-cfb4e568-8af0-4653-9eaa-e4fc0fdd27d8.png",
+      "description": "服饰与帽子系列静物",
+      "bytes": 523934
+    },
+    {
+      "file": "trail.jpg",
+      "source": "/Users/zhen/.codex/generated_images/01a109f4-7f92-7d12-8e04-61f32a856459/exec-e8b2c5a6-5882-443c-81f4-a6d26f192b72.png",
+      "description": "山野跑步场景",
+      "bytes": 583681
+    },
+    {
+      "file": "city-duo.jpg",
+      "source": "/Users/zhen/.codex/generated_images/01a109f4-7f92-7d12-8e04-61f32a856459/exec-38802833-b705-42e5-bbab-240b39a31088.png",
+      "description": "城市双人跑步海报",
+      "bytes": 476597
+    },
+    {
+      "file": "run-club.jpg",
+      "source": "/Users/zhen/.codex/generated_images/01a109f4-7f92-7d12-8e04-61f32a856459/exec-9b22dca1-2b6f-4981-bedb-f230399ae9dd.png",
+      "description": "黑白跑团海报",
+      "bytes": 492925
+    },
+    {
+      "file": "community.jpg",
+      "source": "/Users/zhen/.codex/generated_images/01a109f4-7f92-7d12-8e04-61f32a856459/exec-10cdf810-3330-4b97-9505-44ba7f292aa1.png",
+      "description": "日光下的跑者肖像",
+      "bytes": 489844
+    },
+    {
+      "file": "fabric-detail.jpg",
+      "source": "/Users/zhen/.codex/generated_images/01a109f4-7f92-7d12-8e04-61f32a856459/exec-034ea174-47c9-46f3-a75c-188cc85a53c8.png",
+      "description": "运动上衣背部图案细节",
+      "bytes": 573703
+    },
+    {
+      "file": "made-to-move.jpg",
+      "source": "/Users/zhen/.codex/generated_images/01a109f4-7f92-7d12-8e04-61f32a856459/exec-0f4ff19d-45b0-481a-aaee-65a85cd16d2d.png",
+      "description": "蓝色背景品牌主视觉",
+      "bytes": 538543
+    }
+  ]
+}

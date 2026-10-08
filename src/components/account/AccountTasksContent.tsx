@@ -1,139 +1,64 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, CheckCircle2, ChevronDown, FileCog, MoreVertical, RefreshCw, Search, TimerReset, Workflow } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ConsolePage } from "@/components/console/ConsolePage";
-import { StatefulButton } from "@/components/motion/button/stateful";
-import { Tabs, TabsList, TabsTrigger } from "@/components/motion/tabs";
+import { useModals } from "@/components/providers";
+import { getConsoleOverview } from "@/lib/console/client";
+import type { ConsoleOverview } from "@/lib/console/types";
 import type { Session } from "@/lib/agent/types";
+import { filterTaskRecords } from "./task-records";
 
-type TaskFilter = "all" | "running" | "queued" | "completed";
-type TaskStatus = Exclude<TaskFilter, "all">;
-
-type TaskItem = { session: Session; status: TaskStatus; progress: number; remaining: string; workspace: string };
-
-const statusCopy: Record<TaskStatus, { label: string; tone: string }> = {
-  running: { label: "进行中", tone: "is-running" },
-  queued: { label: "排队中", tone: "is-queued" },
-  completed: { label: "已完成", tone: "is-completed" },
-};
-
-function toTaskItem(session: Session, index: number): TaskItem {
-  const presets: Array<Omit<TaskItem, "session">> = [
-    { status: "running", progress: 68, remaining: "预计剩余：2 分钟", workspace: "内容营销工作台" },
-    { status: "running", progress: 41, remaining: "预计剩余：6 分钟", workspace: "数据分析工作台" },
-    { status: "running", progress: 75, remaining: "预计剩余：1 分钟", workspace: "视觉与创意工作台" },
-    { status: "queued", progress: 0, remaining: "预计开始：1 分钟后", workspace: "开发与代码工作台" },
-    { status: "completed", progress: 100, remaining: "任务已完成", workspace: "财务与报表工作台" },
-    { status: "completed", progress: 100, remaining: "任务已完成", workspace: "财务与法务工作台" },
-  ];
-  return { session, ...presets[index % presets.length] };
-}
-
-const formatTime = (value: string) => new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+const number = (value: number | string) => new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(Number(value));
+const time = (value: string) => new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 export default function AccountTasksContent() {
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const { account, accountLoading, openLogin } = useModals();
+  const [result, setResult] = useState<{ owner: string; syncedAt: number; sessions: Session[]; overview?: ConsoleOverview; error?: string; walletError?: string } | null>(null);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<TaskFilter>("all");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const load = useCallback(async () => {
-    setLoading(true); setError("");
-    try {
-      const response = await fetch("/api/sessions", { cache: "no-store" });
-      if (!response.ok) throw new Error(response.status === 401 ? "请先登录后查看任务" : "任务列表暂时不可用");
-      const payload = await response.json() as { sessions?: Session[] };
-      setSessions(payload.sessions ?? []);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "任务列表暂时不可用"); }
-    finally { setLoading(false); }
-  }, []);
-
+  const [period, setPeriod] = useState("all");
+  const [attempt, setAttempt] = useState(0);
+  const [pending, setPending] = useState(false);
+  const userId = account?.id;
   useEffect(() => {
-    const timer = window.setTimeout(() => { void load(); }, 0);
-    return () => window.clearTimeout(timer);
-  }, [load]);
-
-  const tasks = useMemo(() => sessions.map(toTaskItem), [sessions]);
-  const counts = useMemo(() => ({
-    all: tasks.length,
-    running: tasks.filter((task) => task.status === "running").length,
-    queued: tasks.filter((task) => task.status === "queued").length,
-    completed: tasks.filter((task) => task.status === "completed").length,
-  }), [tasks]);
-  const visible = useMemo(() => tasks.filter((task) => {
-    const matchesFilter = filter === "all" || task.status === filter;
-    const haystack = `${task.session.title} ${task.session.model} ${task.workspace}`.toLowerCase();
-    return matchesFilter && haystack.includes(query.trim().toLowerCase());
-  }), [filter, query, tasks]);
-  const recentDone = tasks.filter((task) => task.status === "completed").slice(0, 3);
-  const filters: Array<{ id: TaskFilter; label: string }> = [
-    { id: "all", label: `全部 ${counts.all}` },
-    { id: "running", label: `进行中 ${counts.running}` },
-    { id: "queued", label: `排队中 ${counts.queued}` },
-    { id: "completed", label: `已完成 ${counts.completed}` },
-  ];
-
-  return (
-    <ConsolePage
-      title="任务看板"
-      actions={
-        <StatefulButton
-          state={loading ? "loading" : "idle"}
-          loadingText="刷新中"
-          icon={<RefreshCw className="h-4 w-4" aria-hidden />}
-          variant="secondary"
-          size="sm"
-          onClick={() => void load()}
-        >
-          刷新
-        </StatefulButton>
-      }
-    >
-      <div className="account-task-board">
-
-      <section className="account-task-summary" aria-label="任务概览">
-        <article><span className="account-task-summary-icon"><FileCog aria-hidden /></span><div><small>全部任务</small><strong>{counts.all}</strong><p>进行中 {counts.running} · 排队中 {counts.queued} · 已完成 {counts.completed}</p></div></article>
-        <article><span className="account-task-summary-icon"><TimerReset aria-hidden /></span><div><small>进行中任务</small><strong>{counts.running}</strong><p>占全部 {counts.all ? Math.round((counts.running / counts.all) * 100) : 0}%</p></div></article>
-        <article><span className="account-task-summary-icon is-green"><CheckCircle2 aria-hidden /></span><div><small>已完成任务</small><strong>{counts.completed}</strong><p>占全部 {counts.all ? Math.round((counts.completed / counts.all) * 100) : 0}%</p></div></article>
-        <article className="account-task-quota"><span className="account-task-summary-icon is-quota"><Activity aria-hidden /></span><div><small>会员剩余额度</small><strong>80%</strong><p>本月可用</p></div></article>
-      </section>
-
-      <div className="account-task-board-layout">
-        <main>
-          <div className="account-task-board-filters">
-            <Tabs value={filter} onValueChange={(value) => setFilter(value as TaskFilter)} variant="pill">
-              <TabsList aria-label="任务状态筛选" className="border border-border">
-                {filters.map((item) => <TabsTrigger key={item.id} value={item.id}>{item.label}</TabsTrigger>)}
-              </TabsList>
-            </Tabs>
-            <div className="account-task-filter-tools"><label><Search aria-hidden /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务名称或关键词" /></label><button type="button" className="account-task-workspace-filter">全部工作台<ChevronDown aria-hidden /></button></div>
-          </div>
-
-          {loading ? <p className="account-task-empty">正在同步任务…</p> : error ? <p className="account-task-empty">{error}</p> : visible.length === 0 ? <div className="account-task-empty"><Workflow aria-hidden /><strong>还没有匹配的任务</strong><span>进入智能体工作区创建第一个任务。</span><Link href="/studio">开始创作</Link></div> : (
-            <div className="account-task-board-list">
-              {visible.map((task) => {
-                const state = statusCopy[task.status];
-                return <article key={task.session.id} className={`account-task-board-item ${state.tone}`}>
-                  <span className="account-task-board-item-icon"><Workflow aria-hidden /></span>
-                  <div className="account-task-board-item-body"><div className="account-task-board-item-title"><strong>{task.session.title || "未命名任务"}</strong><em>{task.workspace}</em></div><p>{task.status === "completed" ? "任务已生成完成，可进入工作区查看结果" : `${task.session.model} 正在处理任务内容`}</p><div className="account-task-progress"><span><i style={{ width: `${task.progress}%` }} /></span><b>{task.progress}%</b></div><small>开始时间：{formatTime(task.session.updatedAt)} <span>{task.remaining}</span></small></div>
-                  <div className="account-task-board-item-side"><em className={state.tone}>{state.label}</em><button type="button" aria-label="更多任务操作"><MoreVertical aria-hidden /></button><Link href={`/studio?session=${encodeURIComponent(task.session.id)}`}>{task.status === "completed" ? "查看结果" : task.status === "queued" ? "取消任务" : "查看详情"}<ChevronDown aria-hidden /></Link></div>
-                </article>;
-              })}
-            </div>
-          )}
-        </main>
-
-        <aside className="account-task-insights">
-          <section className="account-task-token-card"><div className="account-task-insight-head"><h2>Token 消耗概览</h2><button type="button">今天<ChevronDown aria-hidden /></button></div><p>总消耗 Token</p><strong>1.24M</strong><small>≈ ¥0.25</small><div className="account-task-donut"><b>1.24M</b><span>Tokens</span></div><ul><li><i className="is-running" />进行中任务 <b>860K (69.4%)</b></li><li><i className="is-completed" />已完成任务 <b>320K (25.8%)</b></li><li><i className="is-queued" />排队中任务 <b>60K (4.8%)</b></li></ul></section>
-          <section className="account-task-quota-card"><span>80%</span><div><strong>会员剩余额度</strong><p>本月可用 · 重置日期：2026-09-30</p></div></section>
-          <section className="account-task-speed-card"><div className="account-task-insight-head"><h2>实时消耗速率</h2><span>（每分钟）</span></div><div className="account-task-speed-graph" aria-label="Token 消耗趋势图"><i /><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="account-task-speed-time"><span>13:00</span><span>13:15</span><span>13:30</span><span>13:45</span></div></section>
-          <section className="account-task-recent"><div className="account-task-insight-head"><h2>最近完成的任务</h2><button type="button">查看全部</button></div>{recentDone.length ? recentDone.map((task) => <Link href={`/studio?session=${encodeURIComponent(task.session.id)}`} key={task.session.id}><CheckCircle2 aria-hidden />{task.session.title}<span>{formatTime(task.session.updatedAt).slice(-5)}</span></Link>) : <p>完成的任务会显示在这里。</p>}</section>
-        </aside>
-      </div>
-      </div>
-    </ConsolePage>
-  );
+    if (!userId) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    Promise.allSettled([
+      fetch("/api/sessions", { cache: "no-store", signal: controller.signal }).then(async response => {
+        if (!response.ok) throw new Error(response.status === 401 ? "登录已过期，请重新登录。" : "任务列表暂不可用，请重试。");
+        return (await response.json() as { sessions: Session[] }).sessions;
+      }), getConsoleOverview(),
+    ]).then(([sessions, overview]) => {
+      if (cancelled) return;
+      setResult({ owner: userId, syncedAt: Date.now(), sessions: sessions.status === "fulfilled" ? sessions.value : [],
+        error: sessions.status === "rejected" ? String(sessions.reason instanceof Error ? sessions.reason.message : "任务读取失败") : undefined,
+        overview: overview.status === "fulfilled" ? overview.value : undefined,
+        walletError: overview.status === "rejected" ? "额度暂时无法同步，可前往钱包重试。" : undefined });
+      setPending(false);
+    });
+    return () => { cancelled = true; controller.abort(); };
+  }, [userId, attempt]);
+  const current = result?.owner === userId ? result : null;
+  const loading = accountLoading || (!!account && (!current || pending));
+  const wallet = current?.overview?.wallet;
+  const allowance = wallet?.membershipAllowance;
+  const visible = useMemo(() => filterTaskRecords(current?.sessions ?? [], query, period === "all" ? null : Number(period), current?.syncedAt ?? 0), [current, period, query]);
+  const balance = !account ? "—" : !wallet ? loading ? "读取中…" : "暂不可用" : wallet.syncStatus === "unavailable" ? "暂不可用" : `${number(wallet.availableCredits)} ${wallet.currency}`;
+  return <ConsolePage title="任务看板" actions={<button className="ac-subtle" disabled={loading || !account} onClick={() => { setPending(true); setAttempt(value => value + 1); }}>{loading ? "同步中…" : "刷新记录 ↻"}</button>}>
+    <div className="ac-dashboard-controls"><span className="ac-status">{account ? loading ? "正在同步" : "账户已连接" : "待登录"}</span><label>记录范围<select value={period} onChange={event => setPeriod(event.target.value)}><option value="all">全部时间</option><option value="1">最近 24 小时</option><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></label><Link className="ac-subtle" href="/studio">进入工作台 ↗</Link></div>
+    <div className="ac-task-metrics">{[["running", "进行中", "正在执行的工作台任务"], ["complete", "已完成", "已交付的工作台任务"], ["queued", "排队中", "等待可用执行名额"], ["attention", "需处理", "待确认需求或执行异常"]].map(([tone, label, hint]) => <article key={tone}><p><i className={tone} />{label}</p><strong>—</strong><small>{hint}</small></article>)}</div>
+    <p className="ac-note">运行状态与进度暂未同步，历史任务可在下方打开查看。</p>
+    <div className="ac-dashboard-grid">
+      <section className="ac-dashboard-card"><div className="ac-section-title"><h2>并发任务</h2><span className="ac-dim">使用中 / 可用上限</span></div><div className="ac-concurrency-value"><strong>— <span>/ —</span></strong><Link href="/account/pricing">查看会员 →</Link></div><div className="ac-capacity-track" aria-hidden="true" /><p className="ac-note">并发使用情况尚未同步。工作台并发名额不等同于 API 限流。</p><div className="ac-pending-line"><span className="ac-dim">任务记录</span><span>{loading ? "读取中…" : current?.error ? "暂不可用" : account ? `${current?.sessions.length ?? 0} 条` : "登录后查看"}</span></div></section>
+      <section className="ac-dashboard-card ac-credit-card"><div className="ac-section-title"><h2>剩余额度</h2><Link href="/account/wallet">钱包 →</Link></div><dl><div><dt>会员当期剩余</dt><dd>{!account ? "—" : allowance?.status === "active" ? number(allowance.remainingUnits) : wallet ? "未开通" : loading ? "读取中…" : "暂不可用"}</dd></div><div><dt>账户余额</dt><dd>{balance}</dd></div><div><dt>每日体验</dt><dd>待开放</dd></div></dl><p className="ac-note">{current?.walletError || "工作台与 API 共用账户余额，实际权益以已开通方案为准。"}</p></section>
+      <section className="ac-dashboard-card ac-token-card"><div className="ac-section-title"><h2>Token 消耗</h2><Link href="/account/logs">查看调用日志 →</Link></div><div className="ac-token-summary">{["总 Token", "输入 Token", "输出 Token"].map(label => <div key={label}><strong>—</strong><small>{label}</small></div>)}</div><div className="ac-chart-empty"><span>{account ? "用量趋势尚未汇总，可在调用日志中查看每次用量。" : "登录后查看调用用量"}</span></div><p className="ac-note">Token 表示模型用量，不等于扣减额度；图片、视频等按对应计费单位记录。</p></section>
+    </div>
+    <div className="ac-section-title"><h2>最近任务</h2><Link href="/studio">前往工作台 →</Link></div>
+    <div className="reizo-task-search"><label>查找任务<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索任务名称或模型" /></label><span className="ac-note">{account && !loading && !current?.error ? `${visible.length} 条记录` : "登录后查看任务记录"}</span></div>
+    <div className="ac-table-wrap"><table className="ac-table reizo-task-table"><thead><tr><th scope="col">任务</th><th scope="col">状态 / 进度</th><th scope="col">使用模型</th><th scope="col">更新时间</th></tr></thead><tbody>
+      {loading || current?.error || !account || !visible.length ? <tr><td colSpan={4}><div className="ac-empty"><h3>{loading ? "正在同步任务…" : current?.error || (!account ? "登录后，任务在这里汇总" : "没有匹配的任务")}</h3><p>{!account ? "登录后查看历史任务与账户用量。" : "可以调整筛选条件，或前往工作台开始创作。"}</p>{!account ? <button className="ac-button" disabled={accountLoading} onClick={() => openLogin()}>登录账户 ↗</button> : current?.error ? <button className="ac-subtle" onClick={() => { setPending(true); setAttempt(value => value + 1); }}>重新同步</button> : <Link href="/studio">开始创作 ↗</Link>}</div></td></tr>
+      : visible.map(session => <tr key={session.id}><td><Link href={`/studio?session=${encodeURIComponent(session.id)}`}>{session.title || "未命名任务"}</Link><small>打开工作台查看 →</small></td><td><span className="ac-status">待同步</span></td><td>{session.model || "—"}</td><td>{time(session.updatedAt)}</td></tr>)}
+    </tbody></table></div>
+  </ConsolePage>;
 }

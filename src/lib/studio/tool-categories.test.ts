@@ -14,21 +14,21 @@ import {
 describe("Studio tool categories", () => {
   it("exposes the eight first-level categories in grid order", () => {
     expect(listStudioToolCategories().map((category) => category.name)).toEqual([
-      "内容与营销",
-      "视觉与媒体",
-      "电商与销售",
-      "法务与财务",
-      "产品与研发",
-      "办公与管理",
-      "数据与科研",
-      "开发与代码",
+      "内容营销",
+      "视觉媒体",
+      "电商销售",
+      "法务财务",
+      "产品研发",
+      "办公管理",
+      "数据科研",
+      "代码开发",
     ]);
   });
 
   it("resolves known ids and rejects unknown slugs", () => {
     expect(isStudioToolCategoryId("visual-media")).toBe(true);
     expect(isStudioToolCategoryId("图片处理")).toBe(false);
-    expect(getStudioToolCategory("ecommerce-sales")?.name).toBe("电商与销售");
+    expect(getStudioToolCategory("ecommerce-sales")?.name).toBe("电商销售");
     expect(getStudioToolCategory("not-a-category")).toBeNull();
     expect(studioToolCategoryHref("legal-finance")).toBe(
       "/studio/tools?catalog=legal-finance",

@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import ApplicationDirectory from "@/components/ApplicationDirectory";
-import PortalHeader from "@/components/PortalHeader";
+import ReizoHeader from "@/components/reizo/ReizoHeader";
 import { RealModelGrid } from "@/components/RealModelGrid";
 import {
   type PlazaCapabilityFilter,
@@ -19,7 +19,6 @@ import {
 } from "@/lib/catalog/plaza-filters";
 import type { PlazaModel } from "@/lib/catalog";
 import { modelDescription, modelPriceLines, modelTags, resolvePlazaVendor } from "@/lib/catalog/plaza-display";
-import { usePortalCanvasScale } from "@/components/usePortalCanvasScale";
 
 interface Props {
   initialCate?: string;
@@ -69,7 +68,6 @@ export default function ProductsExplorer({
   initialCategory,
 }: Props) {
   const router = useRouter();
-  usePortalCanvasScale();
 
   const mode = resolveMode(initialCate);
   const [query, setQuery] = useState(initialQuery ?? "");
@@ -111,9 +109,9 @@ export default function ProductsExplorer({
     : MODEL_CATEGORIES.find((category) => category.id === capability)?.label ?? "全部 API 模型";
 
   return (
-    <div className="portal-home portal-density-shell">
-      <div className="portal-frame pb-16">
-        <PortalHeader productMode={mode === "apps" ? "app" : "api"} />
+    <div className="reizo-site reizo-page-directory">
+      <ReizoHeader />
+      <div className="reizo-directory-frame pb-16">
 
         {mode === "apps" ? (
           <ApplicationDirectory initialQuery={initialQuery} initialCategory={initialCategory} />

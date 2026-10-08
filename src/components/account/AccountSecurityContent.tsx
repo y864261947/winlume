@@ -16,7 +16,7 @@ export default function AccountSecurityContent() {
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
 
-  if (!account) return <section className="account-personal-empty"><LockKeyhole aria-hidden /><h1>登录后修改密码</h1><p>使用当前密码验证身份后，可为账户设置新的登录密码。</p><button type="button" onClick={() => openLogin("login")}>登录 / 注册</button></section>;
+  if (!account) return <ConsolePage title="账户安全"><section className="reizo-account-login"><LockKeyhole aria-hidden /><h2>登录后管理账户安全</h2><p>使用当前密码验证身份后，可为账户设置新的登录密码。</p><button className="ac-button" type="button" onClick={() => openLogin("login")}>登录账户 ↗</button></section></ConsolePage>;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

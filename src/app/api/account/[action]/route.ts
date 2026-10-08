@@ -347,6 +347,8 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/acc
       display_name: user.displayName,
       email: user.email ?? "",
       ...balance,
+      image: platformUser.image,
+      has_password: Boolean(platformUser.passwordHash),
       group: "personal",
       platform_role: user.platformRole,
     },

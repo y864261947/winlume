@@ -239,6 +239,7 @@ function ComposerModelCombobox({
   onCustom,
   triggerClassName,
   className,
+  side = "top",
 }: {
   model: string;
   groups: ModelVendorGroup[];
@@ -248,6 +249,7 @@ function ComposerModelCombobox({
   onCustom: () => void;
   triggerClassName?: string;
   className?: string;
+  side?: "top" | "bottom";
 }) {
   const active = groups.find((group) => group.models.includes(model)) ?? null;
   const available = useMemo(
@@ -312,7 +314,7 @@ function ComposerModelCombobox({
           }
         </ComboboxValue>
       </ComboboxTrigger>
-      <ComboboxContent side="top" align="start" sideOffset={8} className="w-72">
+      <ComboboxContent side={side} avoidCollisions={false} align="start" sideOffset={8} className="review-model-menu w-80">
         <ComboboxInput placeholder="搜索模型或提供商…" />
         <ComboboxList ariaLabel="可用模型">
           {recentVisible.length ? (
@@ -693,6 +695,7 @@ export default function Composer({
     Partial<Record<ComposerMode, "available" | "degraded" | "needs_setup" | "unavailable">>
   >({});
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modeOpen, setModeOpen] = useState(false);
   const [generationModel, setGenerationModel] = useState("");
   const [voiceListening, setVoiceListening] = useState(false);
   const [allSkills, setAllSkills] = useState<SkillMeta[]>([]);
@@ -2126,8 +2129,8 @@ export default function Composer({
         default="none"
       >
         <BorderBeam
-          active={!disabled}
-          borderRadius={24}
+          active={false}
+          borderRadius={18}
           className={`composer-border-beam mx-auto w-full ${
             isHero ? "max-w-none" : "max-w-3xl"
           }`}
@@ -2409,6 +2412,7 @@ export default function Composer({
             </div>
           ) : (
             <ComposerModelCombobox
+                side={isHero ? "bottom" : "top"}
               model={model}
               groups={modelVendorGroups}
               disabled={disabled || modelsLoading}
@@ -2926,6 +2930,7 @@ export default function Composer({
               </div>
             ) : (
               <ComposerModelCombobox
+                side={isHero ? "bottom" : "top"}
                 model={model}
                 groups={modelVendorGroups}
                 disabled={disabled || modelsLoading}
@@ -2946,6 +2951,7 @@ export default function Composer({
               open={settingsOpen}
               onOpenChange={(open) => {
                 setSettingsOpen(open);
+                if (open) setModeOpen(false);
                 if (open) {
                   closeMenu();
                   setMentionOpen(false);
@@ -2962,18 +2968,19 @@ export default function Composer({
                   ref={settingsButtonRef}
                   aria-haspopup="dialog"
                   aria-expanded={settingsOpen}
-                  title="高级设置"
-                  aria-label="高级设置"
+                  title="任务设置"
+                  aria-label="任务设置"
                 >
                   <SlidersHorizontal className="h-[18px] w-[18px]" />
                 </button>
               </PopoverTrigger>
               <PopoverContent
                 align="end"
-                side="top"
+                side={isHero ? "bottom" : "top"}
+                avoidCollisions={false}
                 sideOffset={8}
                 collisionPadding={12}
-                aria-label="高级设置"
+                aria-label="任务设置"
                 onCloseAutoFocus={(event) => {
                   event.preventDefault();
                   settingsButtonRef.current?.focus();
@@ -2981,12 +2988,12 @@ export default function Composer({
                 className="composer-settings-popover w-[21rem] max-w-[calc(100vw-2rem)]"
               >
                 <div className="composer-settings-heading">
-                  <span>高级设置</span>
+                  <span>任务设置</span>
                   <button type="button" aria-label="关闭设置" onClick={() => setSettingsOpen(false)}><X className="h-4 w-4" /></button>
                 </div>
                 {!isImageGenerationModel(model) ? (
                   <label className="composer-settings-field">
-                    <span>生图模型</span>
+                    <span>图片模型</span>
                     <MotionSelect value={generationModel || "auto"} onValueChange={(value) => setGenerationModel(value === "auto" ? "" : value)} disabled={disabled}>
                       <MotionSelectTrigger className="w-full"><MotionSelectValue /></MotionSelectTrigger>
                       <MotionSelectContent className="composer-mode-menu">
@@ -3027,39 +3034,18 @@ export default function Composer({
                     </label>
                   </div>
                 ) : null}
+                <div className="review-preference-footer"><small>用于下一次发送</small><button type="button" onClick={()=>{setGenerationModel('');setImageSize('1024x1024');setImageCount(1);}}>恢复默认</button></div>
               </PopoverContent>
             </Popover>
-            <MotionSelect
-              value={composerMode}
-              disabled={disabled}
-              onValueChange={(value) => {
-                setSettingsOpen(false);
-                selectComposerMode(value as ComposerMode);
-              }}
-              className="w-auto"
-            >
-              <MotionSelectTrigger className="composer-mode-trigger">
-                <ComposerModeIcon mode={composerMode} />
-                <MotionSelectValue placeholder="对话" />
-              </MotionSelectTrigger>
-              <MotionSelectContent className="composer-mode-menu min-w-40">
-                {COMPOSER_MODE_ITEMS.map((item) => {
-                  const unavailable =
-                    item.id === "video" ||
-                    capabilityAvailability[item.id] === "needs_setup" ||
-                    capabilityAvailability[item.id] === "unavailable";
-                  return (
-                    <MotionSelectItem
-                      key={item.id}
-                      value={item.id}
-                      disabled={unavailable}
-                    >
-                      {item.id === "chat" ? "对话" : item.label}
-                    </MotionSelectItem>
-                  );
+            <Popover open={modeOpen} onOpenChange={open=>{setModeOpen(open);if(open)setSettingsOpen(false);}}>
+              <PopoverTrigger asChild><button type="button" className="composer-mode-trigger" disabled={disabled} aria-label="任务方式"><ComposerModeIcon mode={composerMode}/><span>{COMPOSER_MODE_ITEMS.find(item=>item.id===composerMode)?.label}</span><ChevronDown size={13}/></button></PopoverTrigger>
+              <PopoverContent side={isHero ? "bottom" : "top"} avoidCollisions={false} align="end" sideOffset={8} className="review-mode-popover" aria-label="任务方式">
+                {COMPOSER_MODE_ITEMS.map(item=>{
+                  const unavailable=item.id==='video'||capabilityAvailability[item.id]==='needs_setup'||capabilityAvailability[item.id]==='unavailable';
+                  return <button key={item.id} type="button" disabled={unavailable} aria-pressed={item.id===composerMode} onClick={()=>{selectComposerMode(item.id);setModeOpen(false);}}><span><strong>{item.label}</strong><small>{item.title}{unavailable&&item.id!=='video'?' · 暂不可用':''}</small></span>{item.id===composerMode&&<Check size={16}/>}</button>;
                 })}
-              </MotionSelectContent>
-            </MotionSelect>
+              </PopoverContent>
+            </Popover>
             <button
               type="button"
               onClick={toggleVoice}

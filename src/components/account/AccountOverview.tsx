@@ -1,57 +1,37 @@
 "use client";
-
 import Link from "next/link";
-import { KeyRound, Mail, PieChart, ShieldCheck, UserPlus, UserRound, WalletCards, Workflow } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+
+
+import { useEffect, useState } from "react";
+import AccountAvatar from "./AccountAvatar";
 import { useModals } from "@/components/providers";
-import { ConsolePage } from "@/components/console/ConsolePage";
-import { AnimatedNumber } from "@/components/motion/animated-number";
 import { getConsoleOverview } from "@/lib/console/client";
 import type { ConsoleOverview } from "@/lib/console/types";
-
-const fmt = (value: number) => new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value);
+import type { Account } from "@/lib/account";
 
 export default function AccountOverview() {
-  const { account, openLogin, openMembership } = useModals();
-  const [overview, setOverview] = useState<ConsoleOverview | null>(null);
-  const [error, setError] = useState("");
-  const load = useCallback(async () => {
-    try { setOverview(await getConsoleOverview()); } catch (reason) { setError(reason instanceof Error ? reason.message : "账户信息暂不可用"); }
-  }, []);
+  const { account, accountLoading, openLogin } = useModals();
+  const [result, setResult] = useState<{ owner: Account["id"]; overview?: ConsoleOverview; error?: string } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const userId = account?.id;
   useEffect(() => {
-    if (!account) return;
-    const timer = window.setTimeout(() => { void load(); }, 0);
-    return () => window.clearTimeout(timer);
-  }, [account, load]);
-
-  if (!account) return <section className="account-personal-empty"><UserRound aria-hidden /><h1>登录后查看个人中心</h1><p>账户信息、额度、API密钥 与任务看板会汇总在这里。</p><button type="button" onClick={() => openLogin("login")}>登录 / 注册</button></section>;
-
-  const available = overview?.wallet.availableCredits ?? 0;
-  const used = overview?.wallet.usedCredits ?? 0;
-  const remaining = available + used > 0 ? Math.round((available / (available + used)) * 100) : 100;
-  const displayName = account.display_name || account.username;
-
-  return (
-    <ConsolePage title="个人资料">
-      {error ? <p className="portal-account-notice">{error}</p> : null}
-      <div className="account-personal">
-      <div className="account-personal-stats">
-        <article><WalletCards aria-hidden /><span>余额</span><strong>{overview?.wallet.syncStatus === "unavailable" ? "暂不可用" : <AnimatedNumber value={available} format={(n) => `¥${fmt(n)}`} />}</strong><Link href="/account/wallet">去充值</Link></article>
-        <article><Workflow aria-hidden /><span>累计消费</span><strong>{overview?.wallet.syncStatus === "unavailable" ? "暂不可用" : <AnimatedNumber value={used} format={fmt} />}</strong><Link href="/account/usage">使用明细</Link></article>
-        <article><PieChart aria-hidden /><span>会员剩余额度</span><strong><AnimatedNumber value={remaining} format={(n) => `${Math.round(n)}%`} /></strong><button type="button" onClick={openMembership}>额度说明</button></article>
-      </div>
-      <section className="account-personal-panel">
-        <h2>账户信息</h2>
-        <div><UserRound aria-hidden /><strong>用户名</strong><em>{displayName}</em><span>已登录</span></div>
-        <div><Mail aria-hidden /><strong>绑定邮箱</strong><em>{account.email || "暂未绑定"}</em><Link href="/account/personalization">修改</Link></div>
-      </section>
-      <section className="account-personal-panel">
-        <h2>安全与接入</h2>
-        <div><ShieldCheck aria-hidden /><strong>账户安全</strong><em>定期更新登录凭据并保护账号。</em><Link href="/account/security">修改密码</Link></div>
-        <div><UserPlus aria-hidden /><strong>邀请好友</strong><em>生成专属邀请链接，邀请朋友或团队成员。</em><Link href="/account/invite">去邀请</Link></div>
-        <div><KeyRound aria-hidden /><strong>API密钥</strong><em>{overview ? `${overview.keys.active} 个可用密钥` : "正在读取"}</em><Link href="/account/keys">管理密钥</Link></div>
-      </section>
-      </div>
-    </ConsolePage>
-  );
+    if (!userId) return;
+    let cancelled = false;
+    getConsoleOverview().then(overview => { if (!cancelled) setResult({ owner: userId, overview }); }).catch(reason => { if (!cancelled) setResult({ owner: userId, error: reason instanceof Error ? reason.message : "账户信息暂不可用" }); });
+    return () => { cancelled = true; };
+  }, [userId, attempt]);
+  const overview = result?.owner === userId ? result?.overview : undefined;
+  const error = result?.owner === userId ? result?.error : undefined;
+  const wallet = overview?.wallet;
+  const allowance = wallet?.membershipAllowance;
+  const balance = !account ? "—" : !wallet ? "读取中…" : wallet.syncStatus === "unavailable" ? "暂不可用" : new Intl.NumberFormat("zh-CN", { style: "currency", currency: wallet.currency || "CNY", maximumFractionDigits: 2 }).format(wallet.availableCredits);
+  return <section className="ac-panel reizo-overview">
+    <div className="ac-panel-heading"><p>我的账户</p><h1>账户概览</h1></div>
+    <div className="ac-profile"><AccountAvatar image={account?.image} /><div><h2>{accountLoading ? "正在读取账户…" : account ? account.display_name || account.username : "登录后，查看你的账户"}</h2><p>{account?.email || "个人资料、钱包与会员，都在这里管理。"}</p></div>{account ? <Link className="ac-button" href="/account/personalization">资料与设置 ↗</Link> : <button className="ac-button" disabled={accountLoading} onClick={() => openLogin()}>登录账户 ↗</button>}</div>
+    {error && <div role="alert" className="reizo-notice">{error} <button onClick={() => setAttempt(attempt + 1)}>重试</button></div>}
+    <div className="ac-section-title"><h2>可用额度</h2><Link href="/account/usage">查看明细 →</Link></div>
+    <div className="ac-balances ac-balances-main"><article><p>会员月度额度 <span>当期权益</span></p><strong>{!account ? "—" : !wallet ? (error ? "暂不可用" : "读取中…") : allowance?.status === "active" ? new Intl.NumberFormat("zh-CN").format(Number(allowance.remainingUnits)) : "未开通"}</strong><small>{allowance?.status === "active" ? `重置日期：${new Date(allowance.resetsAt).toLocaleDateString("zh-CN")}` : "已开通权益以账户实际配置为准"}</small></article><article><p>账户余额 <span>工作台与 API 共用</span></p><strong>{error ? "暂不可用" : balance}</strong><small>充值与使用明细可在钱包查看</small></article></div>
+    <div className="ac-overview-bottom"><section className="ac-membership-summary"><div><p>当前会员</p><h2>{!account ? "登录后查看" : wallet ? wallet.subscription.status === "active" ? wallet.subscription.name : "按量使用" : error ? "暂不可用" : "读取中…"}</h2><span>方案、有效期与权益信息</span></div><Link href="/account/pricing">管理我的权益 →</Link></section><div className="ac-quick-links"><Link href="/account/wallet"><span><strong>购买额度</strong><small>按需充值，查看账户余额</small></span><span>↗</span></Link><Link href="/pricing"><span><strong>比较会员方案</strong><small>了解模型价格与计费方式</small></span><span>↗</span></Link></div></div>
+    <div className="ac-identity-summary"><div><h2>登录方式与账户关联</h2><p>{account ? account.email || "尚未绑定邮箱" : "登录后查看"}</p><small>账户安全与个人资料集中管理</small></div><Link href="/account/security">管理账户 →</Link></div>
+  </section>;
 }

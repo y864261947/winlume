@@ -1,0 +1,26 @@
+/* Timings match account-welcome.js: 720ms glass, 900ms text, 2s read, 900ms exit. */
+:root .account-welcome{--welcome-tint:rgba(213,226,242,.22);--welcome-ink:#172c45;background:transparent;border:0;border-radius:0;box-shadow:none;color:var(--welcome-ink)}
+:root[data-theme=dark] .account-welcome{--welcome-tint:rgba(16,28,46,.32);--welcome-ink:#f3f7ff}
+:root .account-welcome.is-visible{background:var(--welcome-tint)}
+:root .account-welcome.is-leaving{background:transparent}
+:root .account-welcome p{color:var(--welcome-ink);text-shadow:0 2px 3px rgba(20,39,64,.10),0 8px 18px rgba(20,39,64,.18),0 20px 42px rgba(20,39,64,.10)}
+:root[data-theme=dark] .account-welcome p{text-shadow:0 2px 4px rgba(0,8,20,.24),0 9px 22px rgba(0,8,20,.34),0 22px 48px rgba(0,8,20,.20)}
+.account-welcome{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;overflow:hidden;background:rgba(34,48,69,0);backdrop-filter:blur(0) saturate(1);-webkit-backdrop-filter:blur(0) saturate(1);transition:background-color .72s ease,backdrop-filter .72s ease,-webkit-backdrop-filter .72s ease;cursor:default}
+.account-welcome:not([open]){display:none}
+.account-welcome::backdrop{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+.account-welcome::before{content:"";position:absolute;inset:-15%;pointer-events:none;background:radial-gradient(ellipse at center,rgba(229,239,255,.1),rgba(229,239,255,.025) 45%,transparent 70%);opacity:0;transform:scale(.94);transition:opacity .72s ease,transform .72s ease,filter .9s ease}
+.account-welcome.is-visible{background:var(--welcome-tint);backdrop-filter:blur(9px) saturate(1.08);-webkit-backdrop-filter:blur(9px) saturate(1.08)}
+.account-welcome.is-visible::before{opacity:1;transform:scale(1)}
+.account-welcome p{position:relative;margin:0;color:#fff;font-family:Inter,-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;font-size:clamp(30px,4.7vw,62px);font-weight:450;line-height:1.4;letter-spacing:-.025em;text-shadow:0 3px 26px #132a4330;opacity:0;transform:translateY(-36px);filter:blur(5px);transition:transform .9s cubic-bezier(.22,1,.36,1),opacity .9s ease,filter .9s ease;user-select:none;text-align:center;padding:24px}
+.account-welcome.is-readable p{opacity:1;transform:translateY(0);filter:blur(0)}
+.account-welcome.is-leaving{background:rgba(34,48,69,0);backdrop-filter:blur(0) saturate(1);-webkit-backdrop-filter:blur(0) saturate(1);transition-duration:.9s}
+.account-welcome.is-leaving::before{opacity:0;transform:scale(1.2);filter:blur(12px);transition-duration:.9s}
+.account-welcome.is-leaving p{opacity:0;transform:translateY(0) scale(1.06);filter:blur(9px);transition:opacity .9s ease,transform .9s ease,filter .9s ease}
+@media(prefers-reduced-motion:reduce){
+  .account-welcome{transition-duration:.15s}
+  .account-welcome::before{display:none}
+  .account-welcome.is-visible{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .account-welcome p,.account-welcome.is-readable p,.account-welcome.is-leaving p{transform:none;filter:none;transition:opacity .15s ease}
+  .account-welcome.is-leaving{backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0);transition-duration:.2s}
+  .account-welcome.is-leaving p{transition-duration:.2s}
+}

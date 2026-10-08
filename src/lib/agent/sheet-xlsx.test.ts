@@ -125,7 +125,7 @@ describe("sheetContentToXlsxBuffer", () => {
 
     const exported = await sheetContentToXlsxBuffer(edited.content);
     const roundTrip = new ExcelJS.Workbook();
-    await roundTrip.xlsx.load(exported);
+    await roundTrip.xlsx.load(new Uint8Array(exported).buffer);
     const worksheet = roundTrip.worksheets[0]!;
     const cell = worksheet.getCell("A1");
 
@@ -141,7 +141,7 @@ describe("sheetContentToXlsxBuffer", () => {
 
     const exported = await sheetContentToXlsxBuffer(created.content);
     const roundTrip = new ExcelJS.Workbook();
-    await roundTrip.xlsx.load(exported);
+    await roundTrip.xlsx.load(new Uint8Array(exported).buffer);
     const worksheet = roundTrip.worksheets[0]!;
 
     expect(worksheet.getCell("A1").value).toBe("a");

@@ -62,6 +62,19 @@ export const users = pgTable(
   ],
 );
 
+export const emailChanges = pgTable("email_changes", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  id: uuid("id").defaultRandom().notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  previousEmail: varchar("previous_email", { length: 320 }),
+  authVersion: integer("auth_version").notNull(),
+  codeHash: varchar("code_hash", { length: 64 }).notNull(),
+  previousCodeHash: varchar("previous_code_hash", { length: 64 }),
+  attempts: integer("attempts").default(0).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const authChallengePurposeEnum = pgEnum("auth_challenge_purpose", ["signup", "password_reset"]);
 
 export const authChallenges = pgTable(

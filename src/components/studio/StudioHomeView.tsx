@@ -179,7 +179,8 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
     let cancelled = false;
     const timer = window.setTimeout(() => {
       const prompt = searchParams.get("prompt");
-      const skill = searchParams.get("skill");
+      const entrySkills = [...new Set(searchParams.getAll("skill").map(value => value.trim()).filter(Boolean))].slice(0, 10);
+      const skill = entrySkills[0];
       const skillName = searchParams.get("skillName")?.trim();
       const tool = searchParams.get("tool")?.trim();
       const modelParam = searchParams.get("model")?.trim();
@@ -197,7 +198,7 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
         setDraft(`请使用${skillName}完成这个任务`);
       }
       if (skill) {
-        setSelectedSkillIds([skill]);
+        setSelectedSkillIds(entrySkills);
         void fetch(`/api/skills?id=${encodeURIComponent(skill)}`, {
           credentials: "same-origin",
         })
@@ -559,7 +560,7 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
             {!docking ? (
               <div className="studio-home-intro mb-8 text-center">
                 <h1 className="text-[28px] font-semibold leading-tight text-[#172033]">
-                  今天想完成什么？
+                  今天，想完成什么<span>？</span>
                 </h1>
               </div>
             ) : null}
@@ -618,9 +619,13 @@ function StudioHomeInner({ active, tabId }: { active: boolean; tabId: string }) 
               placeholder={
                 starting
                 ? "正在进入对话…"
-                  : "输入需求，或输入 @ 引用产物、/选择技能"
+                  : "输入你的想法，或一件待完成的事…"
               }
             />
+            {!docking && <div className="reizo-quick-start" aria-label="选择任务起点">
+              {["帮我整理资料，提炼关键结论", "分析这份数据，找出变化与原因", "帮我写一份清晰的工作汇报", "根据需求编写代码与测试"].map((prompt, index) => <button type="button" key={prompt} disabled={starting} onClick={() => setDraft(prompt)}>{["资料研究", "数据分析", "文案写作", "代码开发"][index]}</button>)}
+              <Link href="/studio/inspire">更多场景 ↗</Link>
+            </div>}
           </div>
         </div>
       </section>

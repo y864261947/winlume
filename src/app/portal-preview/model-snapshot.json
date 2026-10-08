@@ -1,0 +1,447 @@
+[
+  {
+    "id": "vendor-l0kedla",
+    "name": "OpenAI",
+    "key": "openai",
+    "logoUrl": "/vendors/openai.svg",
+    "category": "image",
+    "enabled": true,
+    "models": [
+      {
+        "name": "gpt-image-2",
+        "endpointTypes": [
+          "openai"
+        ]
+      },
+      {
+        "name": "gpt-image-2.5",
+        "endpointTypes": [
+          "openai"
+        ]
+      },
+      {
+        "name": "gpt-image-2.5-flare",
+        "endpointTypes": [
+          "openai"
+        ]
+      },
+      {
+        "name": "gpt-image-2.5-sunburst",
+        "endpointTypes": [
+          "openai"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "vendor-a5riir1",
+    "name": "OpenAI",
+    "key": "openai",
+    "logoUrl": "/vendors/openai.svg",
+    "category": "llm",
+    "enabled": true,
+    "models": [
+      {
+        "name": "gpt-5.3-codex-spark",
+        "endpointTypes": [
+          "openai"
+        ]
+      },
+      {
+        "name": "gpt-5.4",
+        "endpointTypes": [
+          "openai"
+        ]
+      },
+      {
+        "name": "gpt-6-astra",
+        "endpointTypes": [
+          "openai"
+        ]
+      },
+      {
+        "name": "gpt-5.5",
+        "endpointTypes": [
+          "openai"
+        ]
+      },
+      {
+        "name": "gpt-5.6-terra",
+        "endpointTypes": [
+          "openai"
+        ]
+      },
+      {
+        "name": "gpt-5.6-sol",
+        "endpointTypes": [
+          "openai"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "vendor-h6qsf09",
+    "name": "ANTHROPIC",
+    "key": "anthropic",
+    "logoUrl": "/vendors/anthropic.svg",
+    "category": "llm",
+    "enabled": true,
+    "models": [
+      {
+        "name": "claude-fable-5",
+        "endpointTypes": [
+          "chat"
+        ]
+      },
+      {
+        "name": "claude-opus-5",
+        "endpointTypes": [
+          "chat"
+        ]
+      },
+      {
+        "name": "claude-opus-4-8",
+        "endpointTypes": [
+          "chat"
+        ]
+      },
+      {
+        "name": "claude-opus-4-7",
+        "endpointTypes": [
+          "chat"
+        ]
+      },
+      {
+        "name": "claude-opus-4-6",
+        "endpointTypes": [
+          "chat"
+        ]
+      },
+      {
+        "name": "claude-sonnet-4-6",
+        "endpointTypes": [
+          "chat"
+        ]
+      },
+      {
+        "name": "claude-sonnet-5",
+        "endpointTypes": [
+          "chat"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "vendor-sy0cif7",
+    "name": "Gemini",
+    "key": "google",
+    "logoUrl": "/vendors/google.svg",
+    "category": "llm",
+    "enabled": true,
+    "models": [
+      {
+        "name": "gemini-3.8-flash",
+        "endpointTypes": [
+          "chat"
+        ]
+      },
+      {
+        "name": "gemini-3.7-flash",
+        "endpointTypes": [
+          "chat"
+        ]
+      },
+      {
+        "name": "gemini-3.6-flash",
+        "endpointTypes": [
+          "chat"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "vendor-4nthlq0",
+    "name": "deepseek",
+    "key": "deepseek",
+    "logoUrl": "/vendors/deepseek.svg",
+    "category": "llm",
+    "enabled": true,
+    "models": [
+      {
+        "name": "deepseek-v4-flash",
+        "endpointTypes": [
+          "chat"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "relay-sync-xai-video",
+    "name": "xAI",
+    "key": "xai",
+    "logoUrl": "/vendors/xai.svg",
+    "category": "video",
+    "enabled": true,
+    "models": [
+      {
+        "name": "grok-imagine-video",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "grok-imagine-video-1.5",
+        "endpointTypes": [
+          "video"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "relay-sync-alibaba-video",
+    "name": "通义万相",
+    "key": "alibaba",
+    "logoUrl": "/vendors/alibaba.svg",
+    "category": "video",
+    "enabled": true,
+    "models": [
+      {
+        "name": "wan3.0-video",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "wan3.0-video-prime",
+        "endpointTypes": [
+          "video"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "relay-sync-minimax-video",
+    "name": "MiniMax",
+    "key": "minimax",
+    "logoUrl": "/vendors/minimax.svg",
+    "category": "video",
+    "enabled": true,
+    "models": [
+      {
+        "name": "MiniMaxH3-2k",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "MiniMaxH3-2k-sec",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "MiniMaxH3-2k-sec-nf",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "MiniMaxH3-2k-pro",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "MiniMaxH3-2k-pro-sec",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "MiniMaxH3-2k-pro-sec-nf",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "MiniMaxH3-480p",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "MiniMaxH3-480p-sec",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "MiniMaxH3-480p-sec-nf",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "MiniMaxH3-720p",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "MiniMaxH3-720p-sec",
+        "endpointTypes": [
+          "video"
+        ]
+      },
+      {
+        "name": "MiniMaxH3-720p-sec-nf",
+        "endpointTypes": [
+          "video"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "vendor-google-banana-image",
+    "name": "Google Gemini",
+    "key": "google",
+    "logoUrl": "/vendors/google.svg",
+    "category": "image",
+    "enabled": true,
+    "models": [
+      {
+        "name": "gemini-3.1-flash-image",
+        "endpointTypes": [
+          "gemini"
+        ]
+      },
+      {
+        "name": "gemini-3.1-flash-image-preview",
+        "endpointTypes": [
+          "gemini"
+        ]
+      },
+      {
+        "name": "gemini-3-pro-image",
+        "endpointTypes": [
+          "gemini"
+        ]
+      },
+      {
+        "name": "gemini-3-pro-image-preview",
+        "endpointTypes": [
+          "gemini"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "service-preview-elevenlabs",
+    "name": "ElevenLabs",
+    "key": "elevenlabs",
+    "logoUrl": "/vendors/elevenlabs.svg",
+    "category": "audio",
+    "enabled": true,
+    "models": [
+      {
+        "name": "eleven_multilingual_v2",
+        "endpointTypes": [
+          "audio"
+        ],
+        "description": "测试接入已通过；展示预览，正式调用与计费尚未开放。"
+      }
+    ]
+  },
+  {
+    "id": "service-preview-groq",
+    "name": "Groq",
+    "key": "groq",
+    "logoUrl": "/vendors/groq.svg",
+    "category": "audio",
+    "enabled": true,
+    "models": [
+      {
+        "name": "whisper-large-v3-turbo",
+        "endpointTypes": [
+          "audio"
+        ],
+        "description": "测试接入已通过；展示预览，正式调用与计费尚未开放。"
+      }
+    ]
+  },
+  {
+    "id": "service-preview-tavily",
+    "name": "Tavily",
+    "key": "tavily",
+    "logoUrl": "/vendors/tavily.svg",
+    "category": "other",
+    "enabled": true,
+    "models": [
+      {
+        "name": "Tavily Search",
+        "endpointTypes": [
+          "search"
+        ],
+        "description": "测试接入已通过；展示预览，正式调用与计费尚未开放。"
+      }
+    ]
+  },
+  {
+    "id": "service-preview-jina-reader",
+    "name": "Jina Reader",
+    "key": "jina-reader",
+    "logoUrl": "/vendors/jina.svg",
+    "category": "other",
+    "enabled": true,
+    "models": [
+      {
+        "name": "Jina Reader",
+        "endpointTypes": [
+          "reader"
+        ],
+        "description": "测试接入已通过；展示预览，正式调用与计费尚未开放。"
+      }
+    ]
+  },
+  {
+    "id": "service-preview-jina",
+    "name": "Jina",
+    "key": "jina",
+    "logoUrl": "/vendors/jina.svg",
+    "category": "embed",
+    "enabled": true,
+    "models": [
+      {
+        "name": "jina-embeddings-v3",
+        "endpointTypes": [
+          "embeddings"
+        ],
+        "description": "测试接入已通过；展示预览，正式调用与计费尚未开放。"
+      },
+      {
+        "name": "jina-reranker-v2-base-multilingual",
+        "endpointTypes": [
+          "rerank"
+        ],
+        "description": "测试接入已通过；展示预览，正式调用与计费尚未开放。"
+      }
+    ]
+  },
+  {
+    "id": "service-preview-openrouter",
+    "name": "OpenRouter",
+    "key": "openrouter",
+    "logoUrl": "/vendors/openrouter.svg",
+    "category": "embed",
+    "enabled": true,
+    "models": [
+      {
+        "name": "openai/text-embedding-3-small",
+        "endpointTypes": [
+          "embeddings"
+        ],
+        "description": "测试接入已通过；展示预览，正式调用与计费尚未开放。"
+      }
+    ]
+  }
+]

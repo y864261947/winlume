@@ -20,15 +20,16 @@ import {
 } from "@/lib/studio/studio-mode";
 import { WorkspaceTabsProvider } from "@/lib/studio/workspace-tabs";
 import StudioSidebar from "./StudioSidebar";
+import "./studio-review.css";
 import StudioViewTransition from "./StudioViewTransition";
 import WorkspaceTabBar from "./WorkspaceTabBar";
 import WorkspaceTabsHost from "./WorkspaceTabsHost";
+import { useAppearance } from "@/components/reizo/AppearanceProvider";
 
 type HeaderSlotCtx = { setHeader: (node: ReactNode) => void };
 const HeaderSlotContext = createContext<HeaderSlotCtx | null>(null);
 export type StudioTheme = "dark" | "light";
-const StudioThemeContext = createContext<StudioTheme>("dark");
-const STUDIO_THEME_STORAGE_KEY = "reizo:studio-theme";
+const StudioThemeContext = createContext<StudioTheme>("light");
 
 export function useStudioTheme(): StudioTheme {
   return useContext(StudioThemeContext);
@@ -66,7 +67,7 @@ export default function StudioShell({ children }: { children: ReactNode }) {
   const showSessionSidebar = studioShowsSessionSidebar(mode);
   const showCanvas = mode === "workbench" && isStudioCanvasPath(pathname);
   const [header, setHeader] = useState<ReactNode>(null);
-  const [theme, setTheme] = useState<StudioTheme>("dark");
+  const { theme, setAppearance: updateTheme } = useAppearance();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const sidebarToggledRef = useRef(false);
@@ -79,19 +80,6 @@ export default function StudioShell({ children }: { children: ReactNode }) {
   // wipes the header via its unmount-style cleanup even though nothing
   // actually unmounted.
   const headerSlotCtx = useMemo(() => ({ setHeader }), []);
-
-  useEffect(() => {
-    const storedTheme = window.localStorage.getItem(STUDIO_THEME_STORAGE_KEY);
-    if (storedTheme === "light") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- restores an explicit Studio preference after the dark default renders.
-      setTheme("light");
-    }
-  }, []);
-
-  const updateTheme = useCallback((nextTheme: StudioTheme) => {
-    setTheme(nextTheme);
-    window.localStorage.setItem(STUDIO_THEME_STORAGE_KEY, nextTheme);
-  }, []);
 
   useEffect(() => {
     const documentRoot = document.documentElement;
@@ -129,7 +117,7 @@ export default function StudioShell({ children }: { children: ReactNode }) {
       <HeaderSlotContext.Provider value={headerSlotCtx}>
       <StudioThemeContext.Provider value={theme}>
         <div
-          className="studio-root relative flex h-dvh min-h-0 w-full overflow-hidden"
+          className="studio-root reizo-studio relative flex h-dvh min-h-0 w-full overflow-hidden"
           data-theme={theme}
           data-studio-mode={mode}
           data-sidebar-collapsed={

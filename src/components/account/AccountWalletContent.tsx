@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, CreditCard, Ticket, TrendingUp, WalletCards } from "lucide-react";
+import { ArrowUpRight, CreditCard, Ticket } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ConsoleUsageCharts } from "@/components/account/ConsoleUsageCharts";
 import { ConsoleEmptyState, ConsolePage } from "@/components/console/ConsolePage";
@@ -20,11 +20,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { StatTile } from "@/components/ui/stat-tile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { DEFAULT_QUOTA_PER_UNIT } from "@/lib/catalog/plaza-display";
-import { remainingAllowancePercent } from "@/lib/billing/model";
 import {
   createConsoleTopup,
   getConsoleOrganizations,
@@ -211,7 +209,6 @@ export default function AccountWalletContent() {
     : overview?.activeOrganization ?? null;
   const canManageWallet = activeOrganization?.role === "owner" || activeOrganization?.role === "admin";
   const allowance = overview?.wallet.membershipAllowance ?? { status: "not_configured" as const };
-  const allowancePercent = remainingAllowancePercent(allowance);
   const available = accountUsage
     ? creditsFromQuota(accountUsage.quota)
     : overview?.wallet.availableCredits ?? 0;
@@ -295,7 +292,7 @@ export default function AccountWalletContent() {
 
   return (
     <ConsolePage
-      title="钱包与充值"
+      title="钱包与账单"
     >
       {organizations.length > 1 && organizationId ? (
         <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
@@ -330,23 +327,11 @@ export default function AccountWalletContent() {
 
       {overview ? (
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <StatTile label="会员额度" value={allowancePercent === null ? "尚未配置" : `剩余 ${allowancePercent}%`}
-              hint={allowance.status === "active" ? `重置时间：${new Date(allowance.resetsAt).toLocaleString("zh-CN")}` : "月度额度方案启用后展示剩余比例与重置时间"} />
-            <StatTile
-              label="充值余额"
-              value={!accountUsage && overview?.wallet.syncStatus === "unavailable" ? "暂不可用" : amount(available)}
-              hint={`${overview.wallet.currency} · 按实际模型用量计费`}
-              icon={WalletCards}
-              tone="primary"
-            />
-            <StatTile
-              label="累计已用"
-              value={!accountUsage && overview?.wallet.syncStatus === "unavailable" ? "暂不可用" : amount(used)}
-              hint="以当前工作区实际消费为准"
-              icon={TrendingUp}
-            />
+          <div className="ac-balances ac-balances-main">
+            <article><p>会员月度额度 <span>当期权益</span></p><strong>{allowance.status === "active" ? amount(Number(allowance.remainingUnits)) : "未开通"}</strong><small>{allowance.status === "active" ? `重置日期：${new Date(allowance.resetsAt).toLocaleDateString("zh-CN")}` : "已开通权益以账户实际配置为准"}</small></article>
+            <article><p>账户余额 <span>工作台与 API 共用</span></p><strong>{!accountUsage && overview.wallet.syncStatus === "unavailable" ? "暂不可用" : amount(available)}</strong><small>{overview.wallet.currency} · 按实际模型用量计费</small></article>
           </div>
+          <p className="ac-note">累计已用：{!accountUsage && overview.wallet.syncStatus === "unavailable" ? "暂不可用" : amount(used)} · 以当前工作区实际消费为准</p>
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <Card>
@@ -439,7 +424,7 @@ export default function AccountWalletContent() {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    未配置支付网关（EPAY_*）。配置后即可在此发起支付宝 / 微信充值。
+                    在线支付暂未开放，可以使用已有兑换码，或联系支持了解充值方式。
                   </p>
                 )}
               </CardContent>

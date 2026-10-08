@@ -1,0 +1,22 @@
+/* Curated, fictional deliverables for product demonstrations. No customer data. */
+(() => {
+  const studio='/reizo/assets/campaign-studio-v1.png', lifestyle='/reizo/assets/campaign-lifestyle-v1.png';
+  const photo=(src,alt)=>`<img src="${src}" alt="${alt}" loading="lazy">`;
+  const chart='<svg viewBox="0 0 340 70" role="img" aria-label="4月至9月示例收入：82、91、88、104、110、128万元"><path class="report-grid" d="M0 15H340M0 40H340M0 65H340"/><path class="report-area" d="M0 60L68 49L136 53L204 33L272 25L340 4V70H0Z"/><path class="report-line" d="M0 60L68 49L136 53L204 33L272 25L340 4"/></svg>';
+  function markup(kind){
+    if(kind==='commerce')return `<div class="sample-output sample-commerce"><div class="sample-photo main-shot">${photo(studio,'银色随行杯的极简工作室主图')}<span>01 / 产品主图</span></div><div class="sample-photo detail-shot">${photo(studio,'随行杯金属材质特写')}<span>02 / 材质细节</span></div><div class="sample-photo">${photo(lifestyle,'窗边山景中的随行杯场景图')}<span>03 / 生活场景</span></div></div>`;
+    if(kind==='video')return `<div class="sample-output sample-film"><div class="film-main">${photo(lifestyle,'短视频分镜：晨光中的随行杯')}<span class="film-caption">把片刻宁静，带在身边。</span><span class="film-time">01 — 开场 / 00:00–00:03</span></div><div class="film-strip">${photo(studio,'分镜02：产品全貌')}${photo(lifestyle,'分镜03：生活场景')}<span>3 个镜头<br>分镜与字幕方案</span></div></div>`;
+    if(kind==='finance')return `<div class="sample-output sample-report"><header><span>经营月报 / SEPTEMBER</span><small>示例数据</small></header><h3>收入增长，利润质量同步改善。</h3><div class="report-metrics"><div><small>营业收入</small><strong>128<span>万</span></strong><em>环比 +16.4%</em></div><div><small>毛利率</small><strong>42.6<span>%</span></strong><em>较上月 +2.1pp</em></div><div><small>经营净现金流</small><strong>21.8<span>万</span></strong><em>较上月 +4.2万</em></div></div>${chart}<footer><span>04月</span><span>06月</span><span>09月</span></footer></div>`;
+    if(kind==='legal')return `<div class="sample-output sample-document"><header><span>合同审查 / REVIEW</span><small>示例条款</small></header><h3>合作协议 · 重点复核清单</h3><div class="clause"><b>01</b><div><strong>验收标准不够明确</strong><p>建议补充交付清单、验收期限和反馈方式。</p></div><em>待复核</em></div><div class="clause"><b>02</b><div><strong>尾款支付依赖验收确认</strong><p>将付款节点与双方确认的验收记录关联。</p></div></div><footer>需由专业法务结合完整合同复核</footer></div>`;
+    if(kind==='code')return `<div class="sample-output sample-code"><header><span>timeout.test.ts</span><small>测试草案</small></header><pre><span>it</span>('超时后返回可重试错误', async () =&gt; {\n  mockServer.delay(5_000);\n  const res = await fetchWithTimeout(\n    '/items', 1_000\n  );\n  <span>expect</span>(res.error).toBe('TIMEOUT');\n});</pre><footer>复现超时 → 校验错误 → 验证重试</footer></div>`;
+    return `<div class="sample-output sample-document"><header><span>行业研究 / BRIEF</span><small>内容示例</small></header><h3>便携饮具：从功能到日常体验</h3><div class="research-point"><b>01</b><p>围绕通勤与办公场景组织产品表达。</p></div><div class="research-point"><b>02</b><p>区分外观偏好与可验证的功能卖点。</p></div><div class="research-point"><b>03</b><p>以小规模内容测试验证选题，再扩大投放。</p></div><footer>研究假设 · 待用户访谈与数据验证</footer></div>`;
+  }
+  const titles={commerce:'随行杯 · 电商视觉套图',video:'随行杯 · 生活方式短视频分镜',finance:'9 月经营分析报告',legal:'合作合同复核清单',code:'订单接口测试草案',research:'便携饮具行业研究摘要'};
+  function open(kind){
+    let d=document.querySelector('#sample-deliverable-dialog');
+    if(!d){d=document.createElement('dialog');d.id='sample-deliverable-dialog';d.className='sample-dialog';document.body.append(d);d.addEventListener('click',e=>{if(e.target.closest('[data-close-sample]'))d.close();if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}});}
+    d.innerHTML=`<div class="sample-dialog-heading"><div><small>成果示例</small><h2>${titles[kind]||titles.research}</h2></div><button data-close-sample aria-label="关闭成果预览">×</button></div>${markup(kind)}${kind==='finance'?'<div class="sample-analysis"><h3>本月观察</h3><p>收入由 110 万增长至 128 万。毛利率由 40.5% 提升至 42.6%，对应毛利约 54.5 万；收入增长与毛利率提升共同贡献增量。</p><h3>下一步核实</h3><p>拆分渠道与品类贡献，核查折扣、退货及回款周期。当前汇总数据不足以判断增长原因。</p><small>全部为虚构演示数据，不代表任何公司的实际经营表现。</small></div>':''}${kind==='commerce'||kind==='video'?`<div class="sample-downloads"><a href="${studio}" download="随行杯-产品主图.png">下载产品主图 ↓</a><a href="${lifestyle}" download="随行杯-生活场景.png">下载场景图 ↓</a></div><p class="sample-disclosure">AI 生成的视觉示例；分镜为静态画面，不是已生成视频。</p>`:''}`;
+    d.showModal();
+  }
+  window.ReizoSamples={markup,photo,studio,lifestyle,open};
+})();

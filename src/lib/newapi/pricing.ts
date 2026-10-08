@@ -6,13 +6,19 @@ export type PricingCatalog = { models: PlazaModel[]; groups: Record<string, numb
 export async function readNewApiPricing(): Promise<PricingCatalog> {
   const base = process.env.NEW_API_URL?.trim().replace(/\/+$/, "");
   if (!base) throw new Error("未配置计费服务。");
-  const responses = await Promise.all(["pricing", "status"].map(path => fetch(`${base}/api/${path}`, {
-    cache: "no-store", signal: AbortSignal.timeout(12_000),
-  })));
-  if (responses.some(response => !response.ok)) throw new Error("读取实际费率失败，请稍后重试。");
-  const [pricing, status] = await Promise.all(responses.map(response => response.json()));
-  const quotaPerUnit = Number(status.data?.quota_per_unit);
-  if (!pricing.success || !Array.isArray(pricing.data) || !status.success || !Number.isFinite(quotaPerUnit) || quotaPerUnit <= 0) {
+  const token = process.env.NEW_API_ADMIN_TOKEN?.trim();
+  const [pricing, status] = await Promise.all(["pricing", "status"].map(async path => {
+    const response = await fetch(`${base}/api/${path}`, {
+      cache: "no-store", signal: AbortSignal.timeout(12_000),
+      ...(path === "pricing" && token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+    });
+    if (!response.ok) throw new Error("读取实际费率失败，请稍后重试。");
+    return response.json();
+  })).catch(() => {
+    throw new Error("读取实际费率失败，请稍后重试。");
+  });
+  const quotaPerUnit = Number(status?.data?.quota_per_unit);
+  if (!pricing?.success || !Array.isArray(pricing.data) || !status?.success || !Number.isFinite(quotaPerUnit) || quotaPerUnit <= 0) {
     throw new Error("计费服务返回的费率无效。");
   }
   return { models: pricing.data, groups: pricing.group_ratio ?? {}, quotaPerUnit };

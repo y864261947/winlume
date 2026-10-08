@@ -2,6 +2,8 @@
 
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import LoginModal from "./LoginModal";
+import LoginWelcome from "./LoginWelcome";
+import { clearOAuthWelcome, consumeOAuthWelcome } from "@/lib/login-welcome";
 import SearchModal from "./SearchModal";
 import MembershipModal from "./MembershipModal";
 import type { Product } from "@/data/products";
@@ -66,6 +68,15 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [balanceConfig, setBalanceConfig] = useState<BalanceConfig | null>(null);
   const [accountLoading, setAccountLoading] = useState(true);
   const accountRequestVersion = useRef(0);
+  const [welcome, setWelcome] = useState<{ name: string; id: number } | null>(null);
+  const welcomeSequence = useRef(0);
+  const finishWelcome = useCallback(() => setWelcome(null), []);
+  const welcomeAccount = useCallback((nextAccount: Account) => {
+    setLoginOpen(false);
+    setSearchOpen(false);
+    setMembershipOpen(false);
+    setWelcome({ name: nextAccount.display_name || nextAccount.username, id: ++welcomeSequence.current });
+  }, []);
 
   const refreshAccount = useCallback(async () => {
     const requestVersion = ++accountRequestVersion.current;
@@ -80,20 +91,26 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       });
     try {
       const currentAccount = await getAccount();
-      if (requestVersion === accountRequestVersion.current) setAccount(currentAccount);
+      if (requestVersion === accountRequestVersion.current) {
+        setAccount(currentAccount);
+        if (consumeOAuthWelcome()) welcomeAccount(currentAccount);
+      }
     } catch {
       if (requestVersion === accountRequestVersion.current) setAccount(null);
     } finally {
       await configPromise;
       if (requestVersion === accountRequestVersion.current) setAccountLoading(false);
     }
-  }, []);
+  }, [welcomeAccount]);
 
   const completeLogin = useCallback((nextAccount: Account) => {
+    ++accountRequestVersion.current;
+    clearOAuthWelcome();
     setAccount(nextAccount);
     setAccountLoading(false);
+    welcomeAccount(nextAccount);
     void getBalanceConfig().then(setBalanceConfig).catch(() => setBalanceConfig(null));
-  }, []);
+  }, [welcomeAccount]);
   const openLogin = useCallback<ModalContextValue["openLogin"]>(() => { setLoginOpen(true); }, []);
   const closeLogin = useCallback(() => setLoginOpen(false), []);
   const openSearch = useCallback(() => setSearchOpen(true), []);
@@ -116,6 +133,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     // Invalidate an in-flight account request before clearing the UI. Without
     // this, a request started before logout can restore the old account.
     ++accountRequestVersion.current;
+    clearOAuthWelcome();
+    setWelcome(null);
     setAccount(null);
     setAccountLoading(false);
     try {
@@ -196,6 +215,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       <LoginModal open={loginOpen} onClose={closeLogin} />
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
       <MembershipModal open={membershipOpen} onClose={() => setMembershipOpen(false)} />
+      {welcome && account && <LoginWelcome key={welcome.id} name={welcome.name} onFinished={finishWelcome} />}
     </ModalContext.Provider>
   );
 }

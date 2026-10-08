@@ -1,10 +1,10 @@
-import LandingPage from "@/components/reizo/LandingPage";
+import DesignPage from "@/components/reizo/DesignPage";
 
 export const metadata = {
-  title: "REIZO 睿舟 — Agent、创作画布与多模型 API",
-  description: "把工作交给 Agent，在画布上继续创作。REIZO 连接对话、资料、图像与视频，支持多模型会员和 API 调用。",
+  title: "睿舟 REIZO — 让每一次创作，都用上更合适的模型",
+  description: "在 REIZO 工作台连接模型、资料与成果，让创作、分析、研发与办公持续推进。",
 };
 
 export default function Home() {
-  return <LandingPage />;
+  return <DesignPage page="home" />;
 }

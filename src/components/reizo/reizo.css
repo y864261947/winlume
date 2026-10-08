@@ -1,0 +1,186 @@
+/* The supplied REIZO design, integrated with the existing application controls. */
+.reizo-site { min-width: 0; min-height: 100dvh; width: 100%; --background: #f8f9f6; --foreground: #182923; --card: #fff; --card-foreground: #182923; --primary: #167760; --primary-foreground: #fff; --muted-foreground: #68746c; --border: #dfe4dc; --ring: #167760; }
+.reizo-site [hidden] { display: none !important; }
+.reizo-site .reizo-presentation { display: contents; }
+.reizo-site .reizo-legacy-content { width:min(1280px,calc(100% - 48px)); margin:36px auto; min-width:0; }
+.reizo-site .reizo-directory-frame { width:min(1280px,calc(100% - 48px)); margin:36px auto; }
+.reizo-site .portal-catalog-models { width:100%; min-width:0; }
+.login-modal { background:#fcfcfa !important; color:#182923 !important; border:1px solid #dfe4dc !important; border-radius:16px !important; box-shadow:0 24px 80px #18292324 !important; }
+.login-modal .login-modal-glow { display:none; }
+.login-modal .login-modal-heading,.login-modal .login-modal-brand-name,.login-modal .login-modal-label { color:#182923 !important; }
+.login-modal .login-modal-submit { background:#182923 !important; border-radius:7px; box-shadow:none !important; }
+.login-modal input { background:white !important; color:#182923 !important; border:1px solid #dfe4dc !important; border-radius:7px; }
+.login-modal .login-modal-text-btn { color:#167760 !important; }
+.login-modal .login-modal-note { color:#68746c !important; }
+.reizo-studio[data-theme=light] :is(.studio-session-root,.studio-session-thread,.studio-header-slot) { background:#fcfcfa !important; }
+.reizo-studio[data-theme=light] .studio-works-list-strip { background:#f3f1ed; }
+.reizo-site .portal-support-container { width:100%; min-width:0; }
+.reizo-site .site-header { width: 100%; }
+.reizo-site .navigation nav { gap: clamp(16px, 2.4vw, 34px); }
+.reizo-site .navigation a[aria-current=page] { color: var(--green); }
+.reizo-site .reizo-account-control { position: relative; margin-right: 20px; }
+.reizo-site .site-account-link { display:flex; align-items:center; gap:7px; padding:8px 0; font-size:14px; background:none; max-width:150px; }
+.reizo-site .site-account-link span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.reizo-site .site-account-link svg { width:18px; height:18px; flex:none; }
+.reizo-site .reizo-account-menu { position:absolute; z-index:80; top:45px; right:0; width:225px; padding:12px; background:white; border:1px solid var(--line); border-radius:12px; box-shadow:0 14px 50px #18292318; }
+.reizo-site .reizo-account-menu strong { display:block; padding:8px 10px 12px; border-bottom:1px solid var(--line); margin-bottom:6px; overflow-wrap:anywhere; }
+.reizo-site .reizo-account-menu a,.reizo-site .reizo-account-menu button { display:flex; gap:10px; align-items:center; padding:9px 10px; width:100%; border-radius:6px; font-size:14px; text-align:left; background:none; }
+.reizo-site .reizo-account-menu :is(a,button):hover { background:var(--mint); }
+.reizo-site .reizo-account-menu p { font-size:12px; color:#ae3535; }
+.reizo-site .footer-grid { display:grid; grid-template-columns:2fr repeat(3,1fr); gap:50px; }
+.reizo-site .footer-bottom>div { display:flex; flex-wrap:wrap; gap:22px; }
+.reizo-site .reizo-actions { display:flex; align-items:center; flex-wrap:wrap; gap:24px; margin-top:28px; }
+.reizo-site .api-hero { display:grid; grid-template-columns:1.4fr 1fr; align-items:center; gap:70px; padding-block:80px; }
+.reizo-site .api-hero h1 { font-size:clamp(34px,3.7vw,52px); line-height:1.35; letter-spacing:-.04em; }
+.reizo-site .api-hero h1 span { color:var(--green); }
+.reizo-site .reizo-api-art { display:flex; align-items:center; flex-direction:column; padding:32px; border:1px solid var(--line); border-radius:16px; background:radial-gradient(#abbcac50 1px, transparent 1px) 0 0/18px 18px; }
+.reizo-site .reizo-api-art>span,.reizo-site .reizo-api-art>strong { padding:13px 25px; border:1px solid var(--line); border-radius:9px; background:white; }
+.reizo-site .reizo-api-art>strong { color:var(--green); font-size:23px; }
+.reizo-site .reizo-api-art>i { height:34px; width:1px; background:#9bbcae; }
+.reizo-site .reizo-api-art>div { display:flex; gap:20px; padding:16px; background:white; border:1px solid var(--line); border-radius:10px; }
+.reizo-site .catalog-section { padding-block:56px 76px; }
+.reizo-site .reizo-catalog-filters { display:flex; gap:16px; }
+.reizo-site .reizo-search { flex:1; }
+.reizo-site .reizo-catalog-filters input,.reizo-site .reizo-catalog-filters select { background:white; border:1px solid var(--line); border-radius:7px; height:46px; padding:0 16px; font:inherit; font-size:14px; width:100%; }
+.reizo-site .reizo-category-tabs { display:flex; flex-wrap:wrap; gap:8px; margin-block:22px; }
+.reizo-site .reizo-category-tabs button { padding:7px 14px; border-radius:6px; background:transparent; font-size:13px; }
+.reizo-site .reizo-category-tabs button[aria-pressed=true] { background:var(--ink); color:white; }
+.reizo-site .reizo-catalog-meta { margin:12px 0; font-size:12px; color:var(--muted); }
+.reizo-site .reizo-table-scroll { overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:white; }
+.reizo-site .reizo-model-table { width:100%; border-collapse:collapse; font-size:13px; text-align:left; }
+.reizo-site .reizo-model-table th { color:var(--muted); font-weight:500; background:#f0f3ed; }
+.reizo-site .reizo-model-table :is(th,td) { padding:20px; border-bottom:1px solid var(--line); }
+.reizo-site .reizo-model-table tr:last-child td { border-bottom:0; }
+.reizo-site .reizo-model-table strong { display:block; font-size:14px; overflow-wrap:anywhere; }
+.reizo-site .reizo-model-table small { display:block; color:var(--muted); margin-top:3px; }
+.reizo-site .reizo-model-price { display:grid; gap:5px; white-space:nowrap; font-size:12px; }
+.reizo-site .reizo-model-table .text-link { font-size:12px; white-space:nowrap; }
+.reizo-site .model-identity { display:flex; align-items:center; gap:12px; }
+.reizo-site .reizo-vendor-mark { display:grid; place-items:center; width:34px; height:34px; border:1px solid var(--line); border-radius:8px; flex:none; font-weight:600; background:#fafbf8; }
+.reizo-site .reizo-empty { padding:55px 24px; background:white; border:1px solid var(--line); border-radius:10px; text-align:center; color:var(--muted); }
+.reizo-site .reizo-empty .button { margin-top:16px; }
+.reizo-site .reizo-pagination { display:flex; align-items:center; justify-content:flex-end; gap:12px; margin-top:18px; font-size:13px; }
+.reizo-site .reizo-pagination button { padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:white; }
+.reizo-site button:disabled { opacity:.55; }
+.reizo-site .quickstart-section { padding-block:72px; background:#edf0e9; }
+.reizo-site .reizo-code { padding:26px; overflow:auto; font:12px/1.8 ui-monospace,monospace; min-height:275px; }
+.reizo-site .reizo-copy { font-size:12px; background:transparent; color:#d9e4d0; }
+.reizo-site .billing-section { padding-block:80px; }
+.reizo-site .reizo-pricing-heading { text-align:center; padding:72px 0 44px; }
+.reizo-site .reizo-pricing-heading h1 { font-size:clamp(34px,4vw,52px); line-height:1.35; letter-spacing:-.04em; }
+.reizo-site .reizo-pricing-heading>p:last-child { color:var(--muted); margin-top:20px; }
+.reizo-site .payg-strip { display:flex; justify-content:space-between; align-items:center; gap:28px; padding:28px 32px; background:#edf2ea; border:1px solid #d8e1d2; border-radius:10px; }
+.reizo-site .payg-strip p { color:var(--muted); font-size:14px; margin-top:8px; }
+.reizo-site .membership-pending { margin-top:28px; font-size:13px; line-height:1.8; color:var(--muted); }
+.reizo-site.reizo-page-pricing .plan-button:disabled { cursor:not-allowed; opacity:1; }
+.reizo-site .pricing-faq { max-width:850px; padding-block:70px; }
+.reizo-site .pricing-faq details { border-bottom:1px solid var(--line); padding:22px 0; }
+.reizo-site .pricing-faq summary { display:flex; justify-content:space-between; gap:20px; cursor:pointer; }
+.reizo-site .pricing-faq details p { margin-top:14px; color:var(--muted); font-size:14px; }
+.reizo-site .pricing-ending { display:flex; align-items:center; justify-content:space-between; padding-block:55px 80px; }
+/* Account layout uses the design's real sidebar and content proportions. */
+.reizo-site .ac-shell { width:min(1280px,calc(100% - 112px)); display:grid; grid-template-columns:210px minmax(0,1fr); gap:48px; margin:40px auto 80px; min-height:650px; }
+.reizo-site .ac-sidebar { position:sticky; top:108px; height:fit-content; background:transparent; border:0; border-radius:0; padding:0; }
+.reizo-site .portal-account-side-title { font-size:18px; padding:0 12px 14px; }
+.reizo-site .portal-account-side-nav { display:flex; flex-direction:column; gap:18px; }
+.reizo-site .portal-account-side-kicker { color:#899288; font-size:11px; font-weight:400; }
+.reizo-site .portal-account-side-nav a { display:flex; align-items:center; gap:10px; border:0; padding:10px 12px; font-size:13px; line-height:1.4; border-radius:6px; color:#637167; }
+.reizo-site .portal-account-side-nav a svg { width:16px; height:16px; }
+.reizo-site .portal-account-side-nav a.is-active { color:#285e47; background:#e9eee4; font-weight:500; }
+.reizo-site .portal-account-side-help { border-top:1px solid var(--line); margin-top:24px; padding:20px 12px; display:grid; gap:12px; font-size:12px; }
+.reizo-site .portal-account-side-help a { display:flex; gap:8px; align-items:center; }
+.reizo-site .portal-account-side-help svg { width:15px; height:15px; }
+.reizo-site .ac-content { min-width:0; width:100%; border:0; background:transparent; padding:0; border-radius:0; box-shadow:none; }
+.reizo-site .ac-content>div { padding:0; }
+.reizo-site .ac-content h1 { font-size:30px; font-weight:600; line-height:1.4; color:var(--ink); }
+.reizo-site .ac-content :is(input,select,textarea) { accent-color:var(--green); }
+.reizo-site .ac-content [data-slot=card] { border-radius:10px; box-shadow:none; }
+.reizo-site .ac-content .reizo-overview { display:block; padding:0; background:transparent; border:0; border-radius:0; box-shadow:none; }
+.reizo-site .reizo-notice { border:1px solid #e5b8aa; padding:14px; margin-bottom:18px; font-size:13px; }
+.reizo-site .reizo-notice button { text-decoration:underline; background:none; }
+.reizo-site .portal-account-mobile-nav { display:none; }
+/* Keep the detailed API docs; bring their shell onto the new responsive canvas. */
+.reizo-site.docs-root { min-width:0; background:var(--paper); }
+.reizo-site.docs-root .docs-body { width:min(1280px,calc(100% - 80px)) !important; min-width:0 !important; margin:32px auto; grid-template-columns:230px minmax(0,1fr) !important; }
+.reizo-site.docs-root .docs-sidebar { width:auto !important; background:transparent; }
+.reizo-site.docs-root .docs-main { min-width:0 !important; width:auto !important; }
+/* Studio keeps its streaming, uploads, tools and durable artifacts. */
+.studio-root.reizo-studio { font-family:Inter,-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; padding:12px 12px 12px 0; }
+.studio-root.reizo-studio[data-theme=light] { background:#f3f1ed; color:#292825; --background:#fcfcfa; --foreground:#292825; --border:#e7e4de; --primary:#ad735a; --studio-sidebar-w:238px; }
+.reizo-studio .studio-sidebar-container { --studio-sidebar-w:238px; background:transparent; }
+.reizo-studio .studio-sidebar-panel { padding:22px 18px 8px !important; border-right:0; background:transparent !important; box-shadow:none; }
+.reizo-studio[data-theme=light] .studio-sidebar-panel:before,.reizo-studio[data-theme=light] .studio-sidebar-panel:after { display:none; }
+.reizo-studio .studio-sidebar-panel>div:first-child { margin-bottom:28px; }
+.reizo-studio .studio-sidebar-brand { padding-inline:0; gap:7px; }
+.reizo-studio .studio-logo-mark { width:26px; height:29px; background:none; border:0; box-shadow:none; }
+.reizo-studio .studio-brand-wordmark { font-size:20px; letter-spacing:-.8px; font-weight:800; color:inherit; }
+.reizo-studio .studio-sidebar-panel>div:first-child>button { width:24px; height:28px; }
+.reizo-studio .studio-sidebar-panel>div:first-child>button svg { width:14px; height:14px; }
+.reizo-studio .studio-liquid-glass:before,.reizo-studio .studio-liquid-glass:after { display:none; }
+.reizo-studio .studio-sidebar-panel>nav>.studio-nav-item:first-child { border:1px solid #e4e0d8; background:#faf9f6; margin-bottom:14px; }
+.reizo-studio .studio-nav-item { border-radius:8px; font-size:13px; padding-block:9px; }
+.reizo-studio[data-theme=light] .studio-nav-item { color:#827f78; }
+.reizo-studio[data-theme=light] .studio-nav-item:hover { background:#ece9e3; color:#292825; }
+.reizo-studio[data-theme=light] .studio-nav-active { background:#e9e5de; color:#48423b; box-shadow:none; }
+.reizo-studio[data-theme=light]>.relative.z-\[1\] { background:#fcfcfa; border:1px solid #e7e4de; border-radius:14px; overflow:hidden; }
+.reizo-studio[data-theme=light] .studio-home-canvas { background:#fcfcfa !important; }
+.reizo-studio .studio-home-canvas:before,.reizo-studio .studio-home-canvas:after { display:none; }
+.reizo-studio .studio-home-hero-inner { padding-bottom:16vh !important; }
+.reizo-studio .studio-home-intro { margin-bottom:30px; text-align:left; }
+.reizo-studio .studio-home-intro h1 { font-size:clamp(28px,3vw,40px) !important; font-weight:500; letter-spacing:-.045em; line-height:1.4; }
+.reizo-studio[data-theme=light] .studio-home-intro h1 { color:#292825 !important; }
+.reizo-studio .studio-home-intro h1 span { color:#ad735a; }
+.reizo-studio .studio-liquid-glass { border-radius:15px !important; }
+.reizo-studio[data-theme=light] .studio-liquid-glass { border:1px solid #dedad3 !important; background:#fff !important; box-shadow:0 4px 20px #29282505 !important; backdrop-filter:none !important; }
+.reizo-studio[data-theme=light] .studio-liquid-glass-surface,.reizo-studio[data-theme=light] .studio-liquid-glass-scene { background:transparent !important; box-shadow:none !important; }
+.reizo-studio[data-theme=light] .composer-send-button { background:#ad735a !important; color:white !important; border-radius:9px; }
+.reizo-studio[data-theme=light] .composer-icon-button,.reizo-studio[data-theme=light] .composer-selected-model { color:#827f78; }
+.reizo-studio .reizo-quick-start { display:flex; flex-wrap:wrap; gap:9px; margin-top:18px; }
+.reizo-studio .reizo-quick-start button,.reizo-studio .reizo-quick-start a { padding:7px 12px; border:1px solid #e7e4de; border-radius:7px; font-size:12px; background:transparent; color:#827f78; cursor:pointer; }
+.reizo-studio .reizo-quick-start button:hover { background:#f4eae4; color:#80533e; }
+.reizo-studio[data-theme=light] .studio-workspace-tabbar { background:#f3f1ed; border-color:#e7e4de; }
+.reizo-studio[data-theme=light] .studio-home-utility { border:0; box-shadow:none; color:#827f78; background:transparent; }
+.reizo-studio .studio-home-utility-group>span { display:none; }
+@media(max-width:1000px) {
+  .reizo-site .shell { width:calc(100% - 48px); }
+  .reizo-site .api-hero { gap:32px; }
+  .reizo-site .ac-shell { width:calc(100% - 48px); grid-template-columns:180px minmax(0,1fr); gap:24px; }
+  .reizo-site .footer-grid { gap:28px; }
+}
+@media(max-width:960px) {
+  .reizo-site.docs-root .docs-body { width:calc(100% - 32px) !important; display:block !important; }
+  .reizo-site.docs-root .docs-sidebar { width:min(300px,88vw) !important; background:#fcfcfa; z-index:90; }
+  .reizo-site.docs-root .docs-backdrop { z-index:85; }
+}
+@media(max-width:760px) {
+  .reizo-site .shell { width:calc(100% - 36px); }
+  .reizo-site .site-header { height:70px; }
+  .reizo-site .site-header.enterprise-header { height:auto; }
+  .reizo-site .reizo-account-control { margin-left:auto; margin-right:14px; }
+  .reizo-site .site-account-link { max-width:110px; }
+  .reizo-site .api-hero { grid-template-columns:1fr; padding-block:45px; }
+  .reizo-site .reizo-api-art { padding:24px; }
+  .reizo-site .reizo-catalog-filters { flex-direction:column; gap:10px; }
+  .reizo-site .reizo-model-table { min-width:700px; }
+  .reizo-site .reizo-model-table :is(th,td) { padding:14px; }
+  .reizo-site .payg-strip,.reizo-site .pricing-ending { align-items:flex-start; flex-direction:column; }
+  .reizo-site .reizo-pricing-heading { padding-top:44px; }
+  .reizo-site .footer-grid { grid-template-columns:repeat(2,1fr); }
+  .reizo-site .footer-brand { grid-column:1/-1; }
+  .reizo-site .ac-shell { display:block; width:calc(100% - 32px); margin-top:22px; }
+  .reizo-site.reizo-page-account .ac-sidebar { display:block; position:static; margin-bottom:24px; }
+  .reizo-site .portal-account-side-nav { display:flex; flex-direction:row; overflow-x:auto; gap:16px; padding-bottom:12px; }
+  .reizo-site .portal-account-side-nav>div { display:contents; }
+  .reizo-site .portal-account-side-kicker { display:none; }
+  .reizo-site .portal-account-side-nav a { white-space:nowrap; }
+  .reizo-site .portal-account-side-title,.reizo-site .portal-account-side-help { display:none; }
+  .reizo-site .ac-content h1 { font-size:25px; }
+  .studio-root.reizo-studio { padding:0; }
+  .reizo-studio[data-theme=light]>.relative.z-\[1\] { border-radius:0; border:0; }
+  .reizo-studio .studio-home-intro h1 { font-size:29px !important; }
+  .reizo-studio .studio-home-hero-inner { padding-inline:20px !important; }
+  .reizo-studio .studio-sidebar-container[data-mobile-open=true] { background:#f3f1ed; z-index:70; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .reizo-site *, .reizo-site *:before, .reizo-site *:after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}

@@ -1,4 +1,7 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useContext, type ReactNode } from "react";
+import { AccountPageContext } from "@/components/account/AccountPageContext";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 
 export function ConsolePage({
@@ -14,6 +17,16 @@ export function ConsolePage({
   actions?: ReactNode;
   children: ReactNode;
 }) {
+  const accountPage = useContext(AccountPageContext);
+  if (accountPage) return (
+    <section className="ac-panel reizo-account-panel">
+      <header className="ac-panel-heading reizo-account-heading">
+        <div><p>{accountPage.group}</p><h1>{accountPage.title || title}</h1>{(accountPage.description || description) && <p className="ac-description">{accountPage.description || description}</p>}</div>
+        {actions && <div className="reizo-account-actions">{actions}</div>}
+      </header>
+      <div className="reizo-account-body">{children}</div>
+    </section>
+  );
   return (
     <div className="w-full p-5 sm:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-5">

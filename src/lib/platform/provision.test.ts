@@ -36,7 +36,7 @@ function fakeDatabase(overrides: { txShouldFail?: boolean } = {}) {
     update: () => ({ set: () => ({ where: async () => {} }) }),
   };
   return {
-    transaction: async (callback: (tx: typeof tx) => Promise<unknown>) => callback(tx),
+    transaction: async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
   } as unknown as Parameters<typeof provisionPlatformUser>[0];
 }
 

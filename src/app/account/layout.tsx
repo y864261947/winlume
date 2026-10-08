@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import AccountShell from "@/components/account/AccountShell";
 import { site } from "@/data/site";
+import "@/components/account/account-theme.css";
 
 export const metadata: Metadata = {
   title: `${site.name} 账户与个人中心`,

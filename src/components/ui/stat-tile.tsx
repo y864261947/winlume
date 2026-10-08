@@ -26,7 +26,7 @@ function StatTile({
   };
 
   return (
-    <div className={cn("rounded-xl border border-line bg-surface p-5 shadow-sm", className)}>
+    <div data-slot="stat-tile" className={cn("rounded-xl border border-line bg-surface p-5 shadow-sm", className)}>
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm text-ink-500">{label}</p>
         {Icon ? (

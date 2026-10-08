@@ -82,10 +82,14 @@ export default function SkillWaterfall({
   catalog,
   query,
   heading = "技能",
+  selectedIds,
+  onToggleSkill,
 }: {
   catalog?: string;
   query?: string;
   heading?: string;
+  selectedIds?: string[];
+  onToggleSkill?: (skill: SkillMeta) => void;
 }) {
   const [skills, setSkills] = useState<SkillMeta[]>([]);
   const [total, setTotal] = useState(0);
@@ -141,9 +145,9 @@ export default function SkillWaterfall({
   );
 
   useEffect(() => {
-    setSkills([]);
-    setHasMore(false);
     const timer = window.setTimeout(() => {
+      setSkills([]);
+      setHasMore(false);
       void load(0);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -216,9 +220,8 @@ export default function SkillWaterfall({
             );
             const dept = departmentLabel(skill.category);
             return (
-              <Link
+              <div
                 key={skill.id}
-                href={skillHref(skill)}
                 className="studio-catalog-card"
                 style={catalogAccentStyle(tag?.accent ?? "#64748b")}
               >
@@ -245,11 +248,8 @@ export default function SkillWaterfall({
                     {skill.description}
                   </p>
                 ) : null}
-                <span className="mt-auto inline-flex items-center gap-1 pt-4 text-[13px] font-medium text-ink-700">
-                  挂到工作台
-                  <ArrowRight className="studio-catalog-card-go h-3.5 w-3.5" />
-                </span>
-              </Link>
+                {onToggleSkill ? <button type="button" className="review-skill-add" aria-label={`${selectedIds?.includes(skill.id) ? "移除" : "添加"}${skill.name}`} aria-pressed={selectedIds?.includes(skill.id) ?? false} disabled={!selectedIds?.includes(skill.id) && (selectedIds?.length ?? 0) >= 10} onClick={() => onToggleSkill(skill)}>{selectedIds?.includes(skill.id) ? "✓ 已添加" : "＋ 添加技能"}</button> : <Link href={skillHref(skill)} className="mt-auto inline-flex items-center gap-1 pt-4 text-[13px] font-medium text-ink-700">挂到工作台<ArrowRight className="studio-catalog-card-go h-3.5 w-3.5" /></Link>}
+              </div>
             );
           })}
         </div>

@@ -1,0 +1,33 @@
+/* Adapt the October palette to real React controls and portalled account UI. */
+html[data-theme] body{background:var(--paper);color:var(--ink)}
+html[data-theme] .reizo-site{--background:var(--paper);--foreground:var(--ink);--card:var(--surface);--card-foreground:var(--ink);--primary-foreground:var(--on-primary);--muted-foreground:var(--muted);--border:var(--line);--ring:var(--blue);background:var(--paper);color:var(--ink)}
+html[data-theme] .reizo-site .reizo-account-control{margin-left:20px}
+html[data-theme] .reizo-site :is(.reizo-account-menu,.reizo-api-art,.reizo-api-art>span,.reizo-api-art>strong,.reizo-api-art>div,.reizo-catalog-filters input,.reizo-catalog-filters select,.reizo-model-table,.reizo-model-table thead){background:var(--surface);color:var(--ink);border-color:var(--line)}
+html[data-theme] .reizo-site.docs-root{--docs-bg:var(--paper);--docs-bg-muted:var(--soft);--docs-surface:var(--surface);--docs-border:var(--line);--docs-border-strong:var(--blue);--docs-text:var(--ink);--docs-text-secondary:var(--muted);--docs-muted:var(--muted);--docs-faint:var(--faint);--docs-code-bg:var(--soft);--docs-code-fg:var(--ink)}
+html[data-theme] .reizo-site .reizo-account-menu :is(a,button):hover{background:var(--hover)}
+html[data-theme] .reizo-site .reizo-model-table :is(th,td){border-color:var(--line)}
+html[data-theme] .reizo-site :is(.reizo-pricing-heading h1,.pricing-ending h2,.reizo-account-menu strong){color:var(--ink)}
+.appearance-switch{display:flex;gap:4px;align-items:center;margin-block:18px}
+.appearance-switch button{padding:7px 11px;border:1px solid transparent;border-radius:6px;color:var(--muted);font-size:12px;cursor:pointer}
+.appearance-switch button[aria-pressed=true]{background:var(--hover);border-color:var(--line);color:var(--ink)}
+html[data-theme] .login-modal{background:var(--surface)!important;color:var(--ink)!important;border-color:var(--line)!important}
+html[data-theme] .login-modal :is(.login-modal-heading,.login-modal-brand-name,.login-modal-label){color:var(--ink)!important}
+html[data-theme] .login-modal input{background:var(--paper)!important;color:var(--ink)!important;border-color:var(--line)!important}
+html[data-theme] .login-modal .login-modal-submit{background:var(--blue)!important;color:var(--on-primary)!important}
+html[data-theme] .login-modal .login-modal-text-btn{color:var(--blue)!important}
+html[data-theme] .login-modal .login-modal-note{color:var(--muted)!important}
+html[data-theme] .reizo-site.reizo-page-account,
+html[data-theme] body:has(.reizo-page-account) :is([role=dialog],[role=listbox],[role=menu],[data-slot=select-content],[data-slot=popover-content]){
+ --color-canvas:var(--paper);--color-surface:var(--surface);--color-ink-950:var(--ink);--color-ink-900:var(--ink);--color-ink-800:var(--ink);--color-ink-700:var(--ink);--color-ink-600:var(--muted);--color-ink-500:var(--muted);--color-ink-400:var(--faint);--color-ink-300:var(--line);--color-line:var(--line);--color-line-strong:var(--line);
+ --color-primary-50:var(--blue-soft);--color-primary-100:var(--blue-soft);--color-primary-200:var(--line);--color-primary-400:var(--blue);--color-primary-500:var(--blue);--color-primary-600:var(--blue);--color-primary-700:var(--blue);
+ --color-background:var(--paper);--color-foreground:var(--ink);--color-card:var(--surface);--color-card-foreground:var(--ink);--color-popover:var(--surface);--color-popover-foreground:var(--ink);--color-primary:var(--blue);--color-primary-foreground:var(--on-primary);--color-secondary:var(--soft);--color-secondary-foreground:var(--ink);--color-muted:var(--soft);--color-muted-foreground:var(--muted);--color-accent:var(--blue-soft);--color-accent-foreground:var(--ink);--color-border:var(--line);--color-input:var(--line);--color-ring:var(--blue);--color-sky-200:var(--blue-soft);--color-sky-300:var(--line);--color-sky-500:var(--blue);--color-blue-500:var(--blue);--color-blue-600:var(--blue);
+}
+html[data-theme] .reizo-site.reizo-page-account .reizo-account-body :is([data-slot=card],[data-slot=stat-tile],[data-slot=empty],input:not([type=checkbox]):not([type=radio]),select,textarea,[data-slot=select-trigger]){background:var(--surface);color:var(--ink);border-color:var(--line)}
+html[data-theme] .reizo-site.reizo-page-account :is(.ac-balances strong,[data-slot=stat-tile]>p:first-of-type){color:var(--ink)}
+html[data-theme] .reizo-site.reizo-page-account :is(.ac-nav-group a svg,.ac-note,.ac-description){color:var(--muted)}
+html[data-theme] .reizo-site.reizo-page-account .ac-nav-group a[aria-current=page] svg{color:var(--blue)}
+html[data-theme] .reizo-site.reizo-page-account :is(.ac-avatar,[data-slot=stat-tile]>div>span){background:var(--blue-soft);color:var(--blue)}
+html[data-theme] .reizo-site.reizo-page-account .reizo-account-body th{background:var(--soft);color:var(--muted)}
+html[data-theme] .reizo-site.reizo-page-account .reizo-account-body :is(input,textarea,select,button,a):focus-visible{outline-color:var(--blue)}
+html[data-theme] .studio-root.reizo-studio{--review-paper:var(--paper);--review-sidebar:var(--sidebar);--review-surface:var(--surface);--review-ink:var(--ink);--review-muted:var(--muted);--review-line:var(--line);--review-hover:var(--hover);--review-accent:var(--blue);--review-accent-soft:var(--blue-soft);--review-soft:var(--soft);--review-primary:var(--blue);--review-on-primary:var(--on-primary)}
+@media(max-width:760px){html[data-theme] .reizo-site .reizo-account-control{margin-left:auto;margin-right:10px}}

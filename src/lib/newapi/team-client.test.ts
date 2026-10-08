@@ -45,7 +45,7 @@ afterEach(() => {
 
 describe("loginAndMintPat", () => {
   it("logs in, carries the JWT access_token into the PAT-mint call at /api/user/token, and returns the PAT", async () => {
-    const fetchMock = vi.fn(async (url: string) => {
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url) => {
       if (url.endsWith("/api/user/login")) {
         return new Response(JSON.stringify({ success: true, data: { access_token: "jwt-abc123" } }), { status: 200 });
       }

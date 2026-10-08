@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Archive, ChartNoAxesCombined, LoaderCircle, LogOut, Settings2, UserRound, Wallet } from "lucide-react";
 import { useModals } from "@/components/providers";
+import AccountAvatar from "@/components/account/AccountAvatar";
 import { formatBalance } from "@/lib/account";
 import {
   DropdownMenu,
@@ -136,9 +137,9 @@ export default function StudioAccountControl({
                 aria-label="打开账户菜单"
                 className="studio-account-trigger flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left shadow-none outline-none ring-0 transition-colors duration-150 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
               >
-                <span className="studio-user-avatar flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold">
+                {account.image ? <AccountAvatar image={account.image} size={36} /> : <span className="studio-user-avatar flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold">
                   {avatarLetter}
-                </span>
+                </span>}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-ink-900">
                     {name}
@@ -166,8 +167,8 @@ export default function StudioAccountControl({
               登
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-medium text-ink-900">登录 / 注册</span>
-              <span className="text-[12px] text-ink-500">没有账户也可以在这里创建</span>
+              <span className="block text-sm font-medium text-ink-900">登录账户</span>
+              <span className="text-[12px] text-ink-500">继续你的工作</span>
             </span>
           </button>
         )}

@@ -453,7 +453,7 @@ export interface GenerateImageParams {
   size: "1024x1024" | "1024x1536" | "1536x1024";
   n: number;
   model?: string;
-  /** Present → calls the image-edit endpoint with every image in order. */
+  /** Reference images in order: Gemini inlineData or OpenAI image-edit uploads. */
   sourceImages?: { bytes: Buffer; mimeType: string }[];
   token?: string;
   /** @deprecated ignored — retained only for call-site compatibility, not read for auth. */
@@ -509,9 +509,112 @@ async function resolveGeneratedImage(
 /** Default image model — the only model id verified reachable on the image gateway token as of 2026-07-29. */
 const DEFAULT_IMAGE_MODEL = "gpt-image-2";
 
+const GEMINI_IMAGE_MODELS = new Set([
+  "gemini-3.1-flash-image",
+  "gemini-3.1-flash-image-preview",
+  "gemini-3-pro-image",
+  "gemini-3-pro-image-preview",
+]);
+
+// Raster formats only: generated artifacts can be served from our own origin.
+const GEMINI_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+const GEMINI_IMAGE_ASPECT_RATIOS: Record<GenerateImageParams["size"], string> = {
+  "1024x1024": "1:1",
+  "1024x1536": "2:3",
+  "1536x1024": "3:2",
+};
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function geminiInlineImages(value: unknown): GeneratedImage[] {
+  const json = asRecord(value);
+  if (!json || json.error != null) throw new Error("Gemini image generation failed");
+  const images: GeneratedImage[] = [];
+  for (const candidate of Array.isArray(json.candidates) ? json.candidates : []) {
+    const content = asRecord(asRecord(candidate)?.content);
+    for (const part of Array.isArray(content?.parts) ? content.parts : []) {
+      const inline = asRecord(asRecord(part)?.inlineData);
+      if (!inline) continue;
+      const { mimeType, data } = inline;
+      if (typeof mimeType !== "string" || !GEMINI_IMAGE_MIME_TYPES.has(mimeType)
+        || typeof data !== "string" || !data.length
+        || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) continue;
+      // Buffer.from silently accepts malformed base64. Round-trip validation
+      // accepts padded and unpadded encodings, but rejects truncated/invalid data.
+      const bytes = Buffer.from(data, "base64");
+      if (!bytes.length || bytes.toString("base64").replace(/=+$/, "") !== data.replace(/=+$/, "")
+        || (data.includes("=") && data.length % 4 !== 0)) continue;
+      images.push({ bytes, mimeType });
+    }
+  }
+  if (!images.length) throw new Error("Gemini image API returned no valid inline images");
+  return images;
+}
+
+async function generateGeminiImages(
+  params: GenerateImageParams,
+  model: string,
+  baseUrl: string,
+  token: string,
+  fetchImpl: typeof fetch,
+): Promise<GeneratedImage[]> {
+  if (!Number.isInteger(params.n) || params.n < 1 || params.n > 4) {
+    throw new Error("Gemini image count must be an integer between 1 and 4");
+  }
+  const aspectRatio = Object.hasOwn(GEMINI_IMAGE_ASPECT_RATIOS, params.size)
+    ? GEMINI_IMAGE_ASPECT_RATIOS[params.size] : undefined;
+  if (!aspectRatio) throw new Error("Unsupported Gemini image size");
+  const parts: Array<Record<string, unknown>> = [{ text: params.prompt }];
+  for (const image of params.sourceImages ?? []) {
+    if (!GEMINI_IMAGE_MIME_TYPES.has(image.mimeType) || !image.bytes.length) {
+      throw new Error("Gemini source images must be non-empty PNG, JPEG, WebP or GIF images");
+    }
+    parts.push({ inlineData: { mimeType: image.mimeType, data: image.bytes.toString("base64") } });
+  }
+  const body = JSON.stringify({
+    contents: [{ role: "user", parts }],
+    generationConfig: {
+      responseModalities: ["TEXT", "IMAGE"],
+      // Gemini controls pixel dimensions; preserve the requested shape exactly.
+      imageConfig: { aspectRatio },
+    },
+  });
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const images: GeneratedImage[] = [];
+  // Native generateContent does not support OpenAI's n. Request serially,
+  // collecting every inline image, and stop once the requested count is met.
+  while (images.length < params.n) {
+    let response: Response;
+    let text: string;
+    try {
+      response = await fetchImpl(`${baseUrl}/v1beta/models/${model}:generateContent`, {
+        method: "POST", headers, body, cache: "no-store", signal: AbortSignal.timeout(300_000),
+      });
+      text = await response.text();
+    } catch {
+      // Transport errors can contain request bodies/credentials; never echo them.
+      throw new Error("Gemini image request failed or timed out");
+    }
+    if (!response.ok) throw new Error(`Gemini image request failed (HTTP ${response.status})`);
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error("Gemini image API returned invalid JSON");
+    }
+    images.push(...geminiInlineImages(json));
+  }
+  return images.slice(0, params.n);
+}
+
 /**
  * Image generation shares the same `REIZO_SERVICE_KEY` service-account
- * bearer token as chat completions.
+ * bearer token as chat completions. Gemini image models use generateContent.
  */
 export async function generateImage(
   params: GenerateImageParams,
@@ -520,6 +623,9 @@ export async function generateImage(
   const token = params.token ?? process.env.REIZO_SERVICE_KEY ?? "";
   const model = params.model ?? process.env.REIZO_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL;
   const fetchImpl = params.fetchImpl ?? fetch;
+  if (GEMINI_IMAGE_MODELS.has(model)) {
+    return generateGeminiImages(params, model, baseUrl, token, fetchImpl);
+  }
   const isEdit = Boolean(params.sourceImages?.length);
   const path = isEdit ? "/v1/images/edits" : "/v1/images/generations";
   const url = `${baseUrl}${path}`;

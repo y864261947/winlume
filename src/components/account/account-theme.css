@@ -1,0 +1,195 @@
+/* Account surfaces follow the supplied account.html, including portal dialogs. */
+.reizo-site.reizo-page-account,
+body:has(.reizo-page-account) :is([role="dialog"], [role="listbox"], [role="menu"], [data-slot="select-content"], [data-slot="popover-content"]) {
+  --color-canvas: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink-950: var(--ink);
+  --color-ink-900: var(--ink);
+  --color-ink-800: var(--ink);
+  --color-ink-700: var(--muted);
+  --color-ink-600: var(--muted);
+  --color-ink-500: var(--muted);
+  --color-ink-400: var(--faint);
+  --color-ink-300: var(--line);
+  --color-line: var(--line);
+  --color-line-strong: var(--line);
+  --color-primary-50: var(--blue-soft);
+  --color-primary-100: var(--blue-soft);
+  --color-primary-200: var(--line);
+  --color-primary-400: var(--blue);
+  --color-primary-500: var(--blue);
+  --color-primary-600: var(--blue);
+  --color-primary-700: var(--blue);
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--blue);
+  --color-primary-foreground: #fff;
+  --color-secondary: var(--soft);
+  --color-secondary-foreground: var(--muted);
+  --color-muted: var(--soft);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--blue-soft);
+  --color-accent-foreground: var(--ink);
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--blue);
+  --color-sky-200: var(--line);
+  --color-sky-300: var(--line);
+  --color-sky-500: var(--blue);
+  --color-blue-500: var(--blue);
+  --color-blue-600: var(--blue);
+  --color-emerald-50: #f1f4ee;
+  --color-emerald-100: #e5ece0;
+  --color-emerald-600: #60816b;
+  --color-emerald-700: #4b6b55;
+  color: var(--ink);
+  font-family: Arial, "Microsoft YaHei", "PingFang SC", sans-serif;
+}
+.reizo-site.reizo-page-account { background: var(--paper); }
+.reizo-site.reizo-page-account .ac-shell { width: min(1200px, calc(100% - 96px)); grid-template-columns: 190px minmax(0, 1fr); gap: 48px; }
+.reizo-site.reizo-page-account .ac-sidebar-title { display: flex; align-items: center; gap: 11px; font-size: 18px; padding: 0 12px; margin-bottom: 22px; }
+.reizo-site.reizo-page-account .ac-sidebar-title svg { width: 19px; height: 19px; stroke-width: 1.5; }
+.reizo-site.reizo-page-account .ac-nav-group a svg { width: 16px; height: 16px; flex: none; color: var(--muted); stroke-width: 1.4; }
+.reizo-site.reizo-page-account .ac-nav-group a[aria-current="page"] svg { color: var(--blue); }
+.reizo-site.reizo-page-account .reizo-account-help { display: grid; gap: 15px; margin: 24px 12px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.reizo-site.reizo-page-account .reizo-account-help a { display: flex; align-items: center; gap: 9px; }
+.reizo-site.reizo-page-account .reizo-account-help svg { width: 15px; height: 15px; }
+.reizo-site.reizo-page-account .reizo-account-panel { display: block; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.reizo-site.reizo-page-account .reizo-account-heading { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; }
+.reizo-site.reizo-page-account .reizo-account-heading > div:first-child { flex: 1; min-width: 220px; }
+.reizo-site.reizo-page-account .reizo-account-heading > div > p:first-child { color: var(--muted); font-size: 12px; margin-bottom: 9px; }
+.reizo-site.reizo-page-account .ac-content h1 { font-size: 30px; font-weight: 550; letter-spacing: -.035em; }
+.reizo-site.reizo-page-account .reizo-account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 29px; }
+.reizo-site.reizo-page-account .reizo-account-actions button { min-height: 40px; border-radius: 7px; font-size: 13px; padding: 9px 14px; }
+.reizo-site.reizo-page-account .reizo-account-body { min-width: 0; }
+/* Keep utility-based business controls functional under the original site's resets. */
+.reizo-site.reizo-page-account :is(.reizo-account-body, .reizo-account-actions) :is(button, a)[class]:not([class*="ac-"]):not([class*="account-"]) { color: revert-layer; border: revert-layer; font: revert-layer; }
+.reizo-site.reizo-page-account .reizo-account-body :is(h2, h3, p)[class]:not([class*="ac-"]):not([class*="account-"]) { margin: revert-layer; font-weight: revert-layer; }
+.reizo-site.reizo-page-account .reizo-account-body .border { border-color: var(--line); }
+.reizo-site.reizo-page-account .reizo-account-body :is(.shadow-sm, .shadow-md) { box-shadow: none; }
+.reizo-site.reizo-page-account .reizo-account-body :is(.rounded-xl, .rounded-2xl) { border-radius: 9px; }
+.reizo-site.reizo-page-account .reizo-account-body :is([data-slot="card"], [data-slot="stat-tile"]) { border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: none; }
+.reizo-site.reizo-page-account [data-slot="card-header"] { border: 0; padding: 23px 23px 0; gap: 8px; }
+.reizo-site.reizo-page-account [data-slot="card-title"] { font-size: 17px; font-weight: 550; }
+.reizo-site.reizo-page-account [data-slot="card-content"] { padding: 22px 23px; }
+.reizo-site.reizo-page-account [data-slot="stat-tile"] > p:first-of-type { font: 400 32px/1.4 Arial, sans-serif; color: var(--ink); }
+.reizo-site.reizo-page-account [data-slot="stat-tile"] > div > span { background: var(--soft); color: var(--blue); border-radius: 50%; }
+.reizo-site.reizo-page-account [data-slot="empty"] { border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: none; padding: 48px 20px; }
+.reizo-site.reizo-page-account .reizo-account-body :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea, [data-slot="select-trigger"]) { border-color: var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font-size: 13px; }
+.reizo-site.reizo-page-account .reizo-account-body :is(input:not([type="checkbox"]):not([type="radio"]), select, [data-slot="select-trigger"]) { min-height: 40px; }
+.reizo-site.reizo-page-account .reizo-account-body :is(input, textarea, select):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; box-shadow: none; }
+.reizo-site.reizo-page-account .reizo-account-body table { font-size: 13px; text-align: left; border-collapse: collapse; }
+.reizo-site.reizo-page-account .reizo-account-body th { background: var(--soft); color: var(--muted); font-weight: 400; padding: 14px 16px; white-space: nowrap; }
+.reizo-site.reizo-page-account .reizo-account-body td { padding: 16px; border-bottom: 1px solid var(--line); }
+.reizo-site.reizo-page-account .reizo-account-body :is(button, a):focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.reizo-site.reizo-page-account .ac-balances strong { color: var(--ink); }
+.reizo-site.reizo-page-account .ac-avatar { background: var(--blue-soft); color: var(--blue); }
+.reizo-site.reizo-page-account .ac-description, .reizo-site.reizo-page-account .ac-note { line-height: 1.85; }
+.reizo-site.reizo-page-account .reizo-account-profile { margin-bottom: 32px; }
+.reizo-site.reizo-page-account .reizo-account-profile dl div { align-items: baseline; }
+.reizo-site.reizo-page-account .reizo-account-profile dd { text-align: right; overflow-wrap: anywhere; min-width: 0; }
+.reizo-site.reizo-page-account .reizo-account-profile dt { flex: none; }
+.reizo-site.reizo-page-account .reizo-account-login { text-align: center; padding: 48px 20px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+.reizo-site.reizo-page-account .reizo-account-login > svg { margin: 0 auto 16px; width: 25px; height: 25px; color: var(--blue); }
+.reizo-site.reizo-page-account .reizo-account-login h2 { font-size: 18px; font-weight: 500; }
+.reizo-site.reizo-page-account .reizo-account-login p { color: var(--muted); font-size: 13px; line-height: 1.8; margin: 10px 0 20px; }
+.reizo-site.reizo-page-account :is(.account-security-panel, .account-invite-panel) { background: var(--surface); border-color: var(--line); border-radius: 9px; box-shadow: none; }
+.reizo-site.reizo-page-account .account-security-intro { border-color: var(--line); }
+.reizo-site.reizo-page-account .account-security-intro > span { background: var(--blue-soft); color: var(--blue); border-radius: 50%; }
+.reizo-site.reizo-page-account :is(.account-security-intro h2, .account-invite-panel h2) { color: var(--ink); font-weight: 550; }
+.reizo-site.reizo-page-account :is(.account-security-intro p, .account-security form label) { color: var(--muted); font-weight: 400; }
+.reizo-site.reizo-page-account :is(.account-security form button, .account-invite-link button, .account-invite-actions button) { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 500; border-radius: 7px; }
+.reizo-site.reizo-page-account .account-invite-actions a { background: var(--surface); border-color: var(--line); color: var(--green); font-weight: 400; border-radius: 7px; }
+.reizo-site.reizo-page-account .reizo-task-search { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px; margin: 18px 0; }
+.reizo-site.reizo-page-account .reizo-task-search label { display: grid; gap: 8px; font-size: 12px; color: var(--muted); min-width: min(280px, 100%); }
+.reizo-site.reizo-page-account .reizo-task-search input { padding: 10px 12px; border: 1px solid var(--line); }
+.reizo-site.reizo-page-account .reizo-task-table .ac-status { white-space: nowrap; }
+.reizo-site.reizo-page-account .reizo-task-table td:first-child { max-width: 260px; overflow-wrap: anywhere; }
+.reizo-site.reizo-page-account .reizo-task-table a { color: var(--green); }
+.reizo-site.reizo-page-account .reizo-task-table small { display: block; color: var(--muted); margin-top: 5px; }
+.reizo-site.reizo-page-account .ac-task-metrics strong { color: var(--ink); }
+.reizo-site.reizo-page-account .reizo-membership-error { margin-top: 18px; }
+.reizo-site.reizo-page-account .ac-current-plan dd { font-size: 20px; color: var(--ink); overflow-wrap: anywhere; }
+body:has(.reizo-page-account) [role="dialog"] { border-color: var(--line); border-radius: 12px; }
+@media (max-width: 1100px) {
+  .reizo-site.reizo-page-account .ac-shell { width: calc(100% - 48px); grid-template-columns: 166px minmax(0, 1fr); gap: 28px; }
+  .reizo-site.reizo-page-account .reizo-account-body .lg\:grid-cols-\[minmax\(0\,1fr\)_20rem\],
+  .reizo-site.reizo-page-account .reizo-account-body .lg\:grid-cols-\[minmax\(0\,1fr\)_19rem\] { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .reizo-site.reizo-page-account .ac-shell { display: block; width: 100%; margin: 0 0 48px; }
+  .reizo-site.reizo-page-account .ac-sidebar { position: static; padding: 14px 18px; background: var(--soft); border-bottom: 1px solid var(--line); margin: 0; }
+  .reizo-site.reizo-page-account .ac-sidebar-title, .reizo-site.reizo-page-account .reizo-account-help, .reizo-site.reizo-page-account .ac-logout { display: none; }
+  .reizo-site.reizo-page-account .ac-nav { display: flex; gap: 6px; overflow-x: auto; }
+  .reizo-site.reizo-page-account .ac-nav-group { display: contents; }
+  .reizo-site.reizo-page-account .ac-nav-group > p { display: none; }
+  .reizo-site.reizo-page-account .ac-nav-group a { flex: none; white-space: nowrap; }
+  .reizo-site.reizo-page-account .ac-nav-group svg { display: none; }
+  .reizo-site.reizo-page-account .ac-content { padding: 25px 20px; }
+  .reizo-site.reizo-page-account .ac-content h1 { font-size: 27px; }
+  .reizo-site.reizo-page-account .reizo-account-actions { padding-top: 0; }
+  .reizo-site.reizo-page-account .reizo-account-body .sm\:grid-cols-3 { grid-template-columns: 1fr; }
+  .reizo-site.reizo-page-account .account-invite-link { grid-template-columns: 1fr; }
+  .reizo-site.reizo-page-account .account-invite-actions { flex-wrap: wrap; }
+  .reizo-site.reizo-page-account .ac-dashboard-controls { flex-wrap: wrap; }
+  .reizo-site.reizo-page-account .ac-dashboard-controls > label { margin-left: 0; }
+  .reizo-site.reizo-page-account .ac-current-plan dl { grid-template-columns: 1fr; }
+}
+
+/* Editable profile controls share the account design's shared October palette. */
+.reizo-account-profile .reizo-profile-identity { display:flex;align-items:center;gap:16px;margin:16px 0 24px; }
+.reizo-profile-identity>div { flex:1;min-width:0; }
+.reizo-profile-identity h3 { overflow-wrap:anywhere; }
+.reizo-account-profile dl>div { display:flex;justify-content:space-between;gap:20px;padding:16px 0;border-bottom:1px solid var(--line); }
+.reizo-account-profile dt { flex-shrink:0; }
+.reizo-account-profile dd { display:flex;align-items:center;justify-content:flex-end;gap:20px;text-align:right;overflow-wrap:anywhere;min-width:0; }
+.reizo-account-profile dd button { flex-shrink:0;color:var(--blue); }
+.reizo-profile-form { margin:24px 0;padding:24px;border:1px solid var(--line);border-radius:10px;background:var(--soft); }
+.reizo-profile-form fieldset { border:0;padding:0;min-width:0;display:grid;gap:18px; }
+.reizo-profile-form legend { font-size:17px;font-weight:600;margin-bottom:18px; }
+.reizo-profile-form label { display:grid;gap:8px;font-size:14px; }
+.reizo-profile-form input { width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit; }
+.reizo-profile-form input:focus-visible { outline:2px solid var(--blue);outline-offset:2px; }
+.reizo-profile-form small,.reizo-profile-hint { color:var(--muted);font-size:12px;line-height:1.7; }
+.reizo-profile-form button:disabled,.reizo-account-profile button:disabled { cursor:wait;opacity:.55; }
+.reizo-profile-actions { display:flex;gap:12px;flex-wrap:wrap;align-items:center; }
+.reizo-profile-form .ac-button-primary { background:var(--ink);color:#fff;border-color:var(--ink); }
+.reizo-profile-preview { width:96px;height:96px;border-radius:50%;object-fit:cover; }
+.reizo-profile-error { color:#a83e32;font-size:14px;margin:16px 0; }
+.reizo-profile-notice { color:#356049;font-size:14px;margin:16px 0; }
+@media(max-width:600px) {
+ .reizo-profile-identity { flex-wrap:wrap; }
+ .reizo-account-profile dd { flex-wrap:wrap;gap:8px; }
+ .reizo-profile-form { padding:16px; }
+ .reizo-profile-form input { font-size:16px; }
+}
+
+/* 2026-09-30 compact task dashboard. */
+/* Denser task dashboard; preserve existing account data and navigation. */
+.reizo-site.reizo-page-account .ac-panel-heading{margin-bottom:24px}
+.reizo-site.reizo-page-account .ac-dashboard-controls{margin-bottom:18px}
+.reizo-site.reizo-page-account .ac-task-metrics{gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface);margin-bottom:22px}
+.reizo-site.reizo-page-account .ac-task-metrics article{border:0;border-right:1px solid var(--line);border-radius:0;padding:17px 20px}
+.reizo-site.reizo-page-account .ac-task-metrics article:last-child{border-right:0}
+.reizo-site.reizo-page-account .ac-task-metrics strong{margin:7px 0;font-size:30px;color:var(--ink)}
+.reizo-site.reizo-page-account .ac-task-metrics small{font-size:12px;color:var(--muted)}
+.reizo-site.reizo-page-account .ac-task-metrics p{font-size:14px}
+.reizo-site.reizo-page-account .ac-dashboard-grid{gap:16px}
+.reizo-site.reizo-page-account .ac-dashboard-card{padding:22px;border-radius:12px;box-shadow:none}
+.reizo-site.reizo-page-account .ac-dashboard-card .ac-section-title{margin-bottom:17px}
+.reizo-site.reizo-page-account .ac-credit-card{background:var(--soft)}
+.reizo-site.reizo-page-account .ac-credit-card dl{margin:0}
+.reizo-site.reizo-page-account .ac-credit-card dl>div{padding:10px 0}
+.reizo-site.reizo-page-account .ac-credit-card dd{font-size:22px;color:var(--ink)}
+.reizo-site.reizo-page-account .ac-note{font-size:12px;line-height:1.8;color:var(--muted)}
+.reizo-site.reizo-page-account .ac-concurrency-value strong{font-size:32px}
+.reizo-site.reizo-page-account .ac-capacity-track{margin-top:16px}
+.reizo-site.reizo-page-account .ac-pending-line{margin-top:16px;padding-top:15px}
+.reizo-site.reizo-page-account .ac-chart-empty{height:104px}
+.reizo-site.reizo-page-account .ac-token-summary{gap:clamp(22px,5vw,70px)}
+.reizo-site.reizo-page-account .ac-token-summary small{font-size:12px}
+@media(max-width:600px){.reizo-site.reizo-page-account .ac-task-metrics article{border-bottom:1px solid var(--line);padding:15px}.reizo-site.reizo-page-account .ac-task-metrics article:nth-child(2){border-right:0}.reizo-site.reizo-page-account .ac-task-metrics article:nth-child(n+3){border-bottom:0}.reizo-site.reizo-page-account .ac-task-metrics small{font-size:11px}.reizo-site.reizo-page-account .ac-dashboard-card{padding:18px}}

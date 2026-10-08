@@ -1,4 +1,5 @@
 import { signIn, signOut } from "next-auth/react";
+import { clearOAuthWelcome, markOAuthWelcome } from "@/lib/login-welcome";
 import { DEFAULT_QUOTA_PER_UNIT } from "@/lib/catalog/plaza-display";
 
 export interface BalanceConfig {
@@ -19,6 +20,8 @@ export interface Account {
   username: string;
   display_name?: string;
   email?: string;
+  image?: string | null;
+  has_password?: boolean;
   quota?: number;
   used_quota?: number;
   request_count?: number;
@@ -51,6 +54,24 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function getAccount() { return api<Account>("/api/account/self"); }
+export async function saveProfileName(name: string) {
+  return api<{ display_name: string; image: string | null }>("/api/account/profile", { method: "POST", body: JSON.stringify({ action: "name", name }) });
+}
+export async function saveProfileAvatar(file: File) {
+  const response = await fetch("/api/account/profile", { method: "POST", credentials: "same-origin", headers: { "content-type": file.type }, body: file });
+  const payload = await responsePayload<{ image: string }>(response);
+  if (!response.ok || !payload.success || !payload.data) throw new Error(payload.message || "头像保存失败。");
+  return payload.data;
+}
+export async function removeProfileAvatar() {
+  return api<{ image: null }>("/api/account/profile", { method: "POST", body: JSON.stringify({ action: "avatar-remove" }) });
+}
+export async function startEmailChange(email: string, currentPassword: string) {
+  return api<{ email: string; requiresCurrentEmailCode: boolean; resendIn: number }>("/api/account/profile", { method: "POST", body: JSON.stringify({ action: "email-start", email, currentPassword }) });
+}
+export async function confirmEmailChange(email: string, code: string, currentEmailCode: string) {
+  return api<{ changed: boolean }>("/api/account/profile", { method: "POST", body: JSON.stringify({ action: "email-confirm", email, code, currentEmailCode }) });
+}
 export async function getBalanceConfig() { return api<BalanceConfig>("/api/account/config"); }
 export async function login(username: string, password: string) {
   const result = await signIn("credentials", { username, password, redirect: false });
@@ -68,12 +89,16 @@ function oauthCallbackUrl(callbackUrl?: string) {
 
 /** Starts the Google OAuth redirect (full navigation). */
 export async function loginWithGoogle(callbackUrl?: string) {
-  await signIn("google", { callbackUrl: oauthCallbackUrl(callbackUrl) });
+  markOAuthWelcome();
+  try { await signIn("google", { callbackUrl: oauthCallbackUrl(callbackUrl) }); }
+  catch (error) { clearOAuthWelcome(); throw error; }
 }
 
 /** Starts the GitHub OAuth redirect (full navigation). */
 export async function loginWithGitHub(callbackUrl?: string) {
-  await signIn("github", { callbackUrl: oauthCallbackUrl(callbackUrl) });
+  markOAuthWelcome();
+  try { await signIn("github", { callbackUrl: oauthCallbackUrl(callbackUrl) }); }
+  catch (error) { clearOAuthWelcome(); throw error; }
 }
 export async function register(input: { username: string; password: string; email: string; display_name: string }) {
   const response = await fetch("/api/account/register", {

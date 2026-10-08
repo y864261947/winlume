@@ -1,6 +1,6 @@
 "use client";
 
-import PortalFooter from "@/components/PortalFooter";
+import ReizoFooter from "@/components/reizo/ReizoFooter";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -22,12 +22,14 @@ import {
   PanelsTopLeft,
   WalletCards,
   Wrench,
+  UserRound,
 } from "lucide-react";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { AccountPageContext, accountPages } from "./AccountPageContext";
+import { ConsolePage } from "@/components/console/ConsolePage";
 import { useModals } from "@/components/providers";
-import PortalHeader from "@/components/PortalHeader";
+import ReizoHeader from "@/components/reizo/ReizoHeader";
 import { cn } from "@/lib/utils";
-import { usePortalCanvasScale } from "@/components/usePortalCanvasScale";
 
 type NavItem = {
   href: string;
@@ -45,43 +47,40 @@ type NavGroup = {
 
 const groups: NavGroup[] = [
   {
-    label: "账户",
+    label: "我的账户",
     items: [
-      { href: "/account", label: "个人资料", mobileLabel: "资料", icon: LayoutDashboard, exact: true },
-      { href: "/account/tasks", label: "任务看板", mobileLabel: "任务", icon: ClipboardList },
+      { href: "/account", label: "账户概览", mobileLabel: "概览", icon: LayoutDashboard, exact: true },
+      { href: "/account/personalization", label: "资料与设置", mobileLabel: "设置", icon: Settings2 },
       { href: "/account/security", label: "账户安全", mobileLabel: "安全", icon: LockKeyhole },
-      { href: "/account/personalization", label: "偏好设置", mobileLabel: "设置", icon: Settings2 },
     ],
   },
   {
-    label: "会员与计费",
+    label: "钱包与会员",
     items: [
-      { href: "/account/wallet", label: "钱包与充值", mobileLabel: "钱包", icon: WalletCards, aliases: ["/account/usage"] },
-      { href: "/account/pricing", label: "会员方案", mobileLabel: "会员", icon: Receipt },
+      { href: "/account/wallet", label: "钱包与账单", mobileLabel: "钱包", icon: WalletCards, aliases: ["/account/usage"] },
+      { href: "/account/pricing", label: "我的会员", mobileLabel: "会员", icon: Receipt },
+      { href: "/account/invite", label: "邀请好友", mobileLabel: "邀请", icon: UserPlus },
       { href: "/account/enterprise", label: "对公结算", mobileLabel: "对公", icon: Building2 },
     ],
   },
   {
     label: "开发与协作",
     items: [
-      { href: "/account/keys", label: "API密钥", mobileLabel: "密钥", icon: KeyRound },
+      { href: "/account/tasks", label: "任务看板", mobileLabel: "任务", icon: ClipboardList },
+      { href: "/account/keys", label: "API 密钥", mobileLabel: "密钥", icon: KeyRound },
       { href: "/account/logs", label: "调用日志", mobileLabel: "日志", icon: ScrollText },
       { href: "/account/team", label: "团队管理", mobileLabel: "团队", icon: UsersRound },
     ],
   },
   {
-    label: "社区",
+    label: "帮助与支持",
     items: [
-      { href: "/account/invite", label: "邀请好友", mobileLabel: "邀请", icon: UserPlus },
       { href: "/account/community", label: "交流社区", mobileLabel: "社区", icon: Store },
     ],
   },
 ];
 
-const mobileHrefs = ["/account", "/account/tasks", "/account/wallet", "/account/keys", "/account/invite"];
-const mobileItems = mobileHrefs.flatMap((href) =>
-  groups.flatMap((group) => group.items).filter((item) => item.href === href),
-);
+const requiresAccount = new Set(["/account/wallet", "/account/personalization", "/account/keys", "/account/logs", "/account/team", "/account/usage"]);
 
 function isActive(pathname: string, item: NavItem) {
   const paths = [item.href, ...(item.aliases ?? [])];
@@ -115,10 +114,10 @@ function AccountNav({
       ]
     : groups;
   return (
-    <nav aria-label="个人中心导航" className="portal-account-side-nav">
+    <nav aria-label="我的账户导航" className="ac-nav">
       {navGroups.map((group) => (
-        <div key={group.label} className="flex flex-col gap-1">
-          <p className="portal-account-side-kicker px-2.5 pt-2">{group.label}</p>
+        <div key={group.label} className="ac-nav-group">
+          <p>{group.label}</p>
           {group.items.map((item) => {
             const Icon = item.icon;
             const active = isActive(pathname, item);
@@ -143,54 +142,44 @@ function AccountNav({
 
 export default function AccountShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { account } = useModals();
+  const { account, accountLoading, openLogin, signOut } = useModals();
+  const [logoutError, setLogoutError] = useState("");
+  const [loggingOut, setLoggingOut] = useState(false);
   const isAdmin = account?.platform_role === "admin";
-  usePortalCanvasScale();
 
   return (
-    <div className="portal-home portal-density-shell">
-      <div className="portal-frame portal-account-frame">
-        <PortalHeader />
+    <div className="reizo-site reizo-page-account account-page">
+      <div className="reizo-account-frame">
+        <ReizoHeader />
 
-        <div className="portal-account-layout">
-          <aside className="portal-account-side">
-            <h2 className="portal-account-side-title">个人中心</h2>
+        <div className="ac-shell">
+          <aside className="ac-sidebar">
+            <h2 className="ac-sidebar-title"><UserRound aria-hidden />我的账户</h2>
             <AccountNav pathname={pathname} isAdmin={isAdmin} />
-            <div className="portal-account-side-help">
-              <p>帮助与支持</p>
+            {account && <button className="ac-logout" disabled={loggingOut} onClick={async () => {
+              setLoggingOut(true); setLogoutError("");
+              try { await signOut(); } catch { setLogoutError("退出失败，请重试。"); } finally { setLoggingOut(false); }
+            }}>{loggingOut ? "正在退出…" : "退出登录"}<span>↗</span></button>}
+            {logoutError && <p className="ac-note" role="alert">{logoutError}</p>}
+            <div className="reizo-account-help">
               <Link href="/docs" target="_blank" rel="noreferrer">
                 <BookOpen aria-hidden />
                 文档中心
               </Link>
-              <Link href="https://reizo-ai.com/support/contact" target="_blank" rel="noreferrer">
+              <Link href="/support#contact">
                 <CircleHelp aria-hidden />
                 帮助支持
               </Link>
             </div>
           </aside>
 
-          <main className="portal-account-main">{children}</main>
+          <main className="ac-content" id="account-content"><AccountPageContext.Provider value={accountPages[pathname] ?? { group: isAdmin ? "平台管理" : "我的账户", title: "", description: "" }}>
+            {requiresAccount.has(pathname) && !account ? <ConsolePage title="我的账户"><section className="reizo-account-login"><UserRound aria-hidden /><h2>{accountLoading ? "正在读取账户…" : `登录后查看${accountPages[pathname]?.title || "账户信息"}`}</h2><p>连接你的账户，安全地管理资料、用量与协作。</p><button className="ac-button" disabled={accountLoading} onClick={() => openLogin()}>登录账户 ↗</button></section></ConsolePage> : children}
+          </AccountPageContext.Provider></main>
         </div>
-        <PortalFooter />
+        <ReizoFooter />
       </div>
 
-      <nav aria-label="个人中心导航" className="portal-account-mobile-nav">
-        {mobileItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(pathname, item);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={active ? "page" : undefined}
-              className={active ? "is-active" : undefined}
-            >
-              <Icon aria-hidden />
-              <span>{item.mobileLabel ?? item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
     </div>
   );
 }

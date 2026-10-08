@@ -18,7 +18,7 @@ import {
   Sun,
 } from "lucide-react";
 import { useModals } from "@/components/providers";
-import ReizoLogo from "@/components/ReizoLogo";
+import Image from "next/image";
 import { listSessions, patchSession } from "@/lib/studio/api";
 import { listProjects } from "@/lib/studio/api";
 import type { Project, Session } from "@/lib/agent/types";
@@ -43,9 +43,10 @@ type NavItem = {
 };
 
 const primaryNav: NavItem[] = [
-  { href: "/studio", label: "开始创作", icon: Sparkles, exact: true },
-  { href: "/studio/tools", label: "全部工具", icon: LayoutGrid },
-  { href: "/studio/artifacts", label: "我的作品", icon: FolderKanban },
+  { href: "/studio", label: "新建任务", icon: Sparkles, exact: true },
+  { href: "/studio/tasks", label: "任务看板", icon: LayoutGrid },
+  { href: "/studio/tools", label: "工具与技能", icon: LayoutGrid },
+  { href: "/studio/artifacts", label: "我的成果", icon: FolderKanban },
 ];
 
 function navActive(pathname: string, href: string, exact?: boolean) {
@@ -89,6 +90,8 @@ export default function StudioSidebar({
   const { openHomeTab, tabs, closeTab } = useWorkspaceTabs();
   const [recent, setRecent] = useState<Session[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
+  const [showAllProjects, setShowAllProjects] = useState<Record<string, boolean>>({});
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
@@ -156,14 +159,14 @@ export default function StudioSidebar({
   }
 
   useEffect(() => {
-    if (!account) { setRecent([]); return; }
     let cancelled = false;
     const timer = window.setTimeout(() => {
       if (cancelled) return;
+      if (!account) { setRecent([]); setRecentLoading(false); return; }
       setRecentLoading(true);
       listSessions()
         .then((sessions) => {
-          if (!cancelled) setRecent(sessions.slice(0, 8));
+          if (!cancelled) setRecent(sessions);
         })
         .catch(() => {
           if (!cancelled) setRecent([]);
@@ -207,14 +210,15 @@ export default function StudioSidebar({
     };
   }, [account, pathname]);
 
-  const sessionCounts = useMemo(() => {
-    const counts = new Map<string, number>();
+  const projectSessions = useMemo(() => {
+    const grouped = new Map<string, Session[]>();
+    for (const project of projects) grouped.set(project.id, []);
     for (const session of recent) {
-      if (!session.projectId) continue;
-      counts.set(session.projectId, (counts.get(session.projectId) ?? 0) + 1);
+      if (session.projectId) grouped.get(session.projectId)?.push(session);
     }
-    return counts;
-  }, [recent]);
+    return grouped;
+  }, [recent, projects]);
+  const unassigned = recent.filter(session => !session.projectId || !projectSessions.has(session.projectId)).slice(0, 8);
 
   return (
     <aside
@@ -225,7 +229,7 @@ export default function StudioSidebar({
       <div className="mb-5 flex items-center gap-1">
         <Link href="/" className="studio-sidebar-brand flex min-w-0 flex-1 items-center gap-2 px-2" title="Reizo" aria-label="Reizo 首页">
           <span className="studio-logo-mark flex h-8 w-8 shrink-0 items-center justify-center">
-            <ReizoLogo theme={theme} size={32} priority />
+            <Image src="/reizo/assets/reizo-mark.png" alt="Reizo" width={26} height={29} priority unoptimized />
           </span>
           <span className="studio-brand-wordmark truncate">REIZO</span>
         </Link>
@@ -335,27 +339,23 @@ export default function StudioSidebar({
                 </button>
               ) : (
                 <ul className="flex flex-col gap-0.5">
-                  {projects.slice(0, 12).map((project) => {
-                    const active = pathname === `/studio/p/${project.id}`;
-                    const count = sessionCounts.get(project.id);
-                    return (
-                      <li key={project.id}>
-                        <Link
-                          href={`/studio/p/${encodeURIComponent(project.id)}`}
-                          className={`studio-nav-item flex min-w-0 items-center gap-2 rounded-[12px] px-3 py-2 text-[13px] outline-none transition-colors focus-visible:outline-none ${
-                            active ? "studio-nav-active" : "text-[#615A73]"
-                          }`}
-                          title={project.description || project.name}
-                        >
-                          <span className="min-w-0 flex-1 truncate">{project.name}</span>
-                          {count ? (
-                            <span className="shrink-0 text-[11px] tabular-nums text-[#AAA2B2]">
-                              {count}
-                            </span>
-                          ) : null}
-                        </Link>
-                      </li>
-                    );
+                  {projects.map((project) => {
+                    const sessions = projectSessions.get(project.id) ?? [];
+                    const expanded = expandedProjects[project.id] ?? sessions.some(session => session.id === viewedSessionId);
+                    return <li key={project.id} className="review-project-tree">
+                      <div className="review-project-folder">
+                        <button type="button" aria-expanded={expanded} onClick={() => setExpandedProjects(current => ({...current, [project.id]: !expanded}))} title={project.name}>
+                          <ChevronRight size={13} className={expanded ? "rotate-90" : ""}/><FolderKanban size={14}/><span>{project.name}</span><small>{sessions.length}</small>
+                        </button>
+                        <button type="button" aria-label={`在「${project.name}」新建对话`} title="新建对话" onClick={() => router.push(`/studio?projectId=${encodeURIComponent(project.id)}&new=${crypto.randomUUID()}`)}><Plus size={14}/></button>
+                      </div>
+                      {expanded && <div className="review-project-children">
+                        {(showAllProjects[project.id] ? sessions : sessions.slice(0,4)).map(session => <Link key={session.id} href={`/studio/c/${encodeURIComponent(session.id)}`} title={session.title} className={session.id === viewedSessionId ? "studio-nav-active" : ""}><span>{session.title || "未命名对话"}</span>{unreadIds.has(session.id) && <i aria-label="未读回复"/>}</Link>)}
+                        {!sessions.length && <small>暂无对话</small>}
+                        {sessions.length > 4 && <button type="button" onClick={() => setShowAllProjects(current => ({...current,[project.id]: !current[project.id]}))}>{showAllProjects[project.id] ? '收起对话' : `更多对话（${sessions.length-4}）`}</button>}
+                        <Link className="review-project-manage" href={`/studio/p/${encodeURIComponent(project.id)}`}>管理项目 ↗</Link>
+                      </div>}
+                    </li>;
                   })}
                 </ul>
               )}
@@ -383,11 +383,11 @@ export default function StudioSidebar({
                   <LoaderCircle className="size-3.5 animate-spin" />
                   加载中…
                 </p>
-              ) : recent.length === 0 ? (
+              ) : unassigned.length === 0 ? (
                 <p className="px-3 py-1.5 text-xs leading-5 text-[#8A8298]">暂无会话</p>
               ) : (
                 <ul className="flex flex-col gap-0.5">
-                  {recent.map((s) => {
+                  {unassigned.map((s) => {
                     const active = pathname === `/studio/c/${s.id}`;
                     return (
                       <li key={s.id} className="flex min-w-0 items-center">
@@ -446,7 +446,8 @@ export default function StudioSidebar({
         onClose={() => setProjectDialogOpen(false)}
         onCreated={(project) => {
           setProjects((current) => [project, ...current.filter((item) => item.id !== project.id)]);
-          router.push(`/studio/p/${encodeURIComponent(project.id)}`);
+          setExpandedProjects(current => ({...current, [project.id]: true}));
+          if (!projectsOpen) toggleProjectsOpen();
         }}
       />
       <StudioSearchDialog initialArchived={archiveView} open={searchOpen} onClose={() => setSearchOpen(false)} />

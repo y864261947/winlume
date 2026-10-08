@@ -1,117 +1,34 @@
 "use client";
-
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, LoaderCircle } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import SkillWaterfall from "@/components/studio/SkillWaterfall";
 import StudioCatalogFilter from "@/components/studio/StudioCatalogFilter";
-import { catalogAccentStyle } from "@/lib/studio/skill-mark";
-import {
-  getStudioToolCategory,
-  isStudioToolCategoryId,
-  type StudioToolCategoryId,
-} from "@/lib/studio/tool-categories";
+import LibraryArtwork from "@/components/studio/LibraryArtwork";
+import { getStudioToolCategory, isStudioToolCategoryId } from "@/lib/studio/tool-categories";
 import { studioToolHref } from "@/lib/studio/studio-mode";
-import {
-  listStudioTools,
-  listStudioToolsByCategory,
-} from "@/lib/studio/tool-catalog";
+import { listStudioTools } from "@/lib/studio/tool-catalog";
+import { libraryTaskHref, REVIEW_ROLES, REVIEW_STARTERS } from "@/lib/studio/review-library";
 
-function parseCatalog(raw: string | null): "all" | StudioToolCategoryId {
-  const value = raw?.trim();
-  if (!value || value === "all") return "all";
-  return isStudioToolCategoryId(value) ? value : "all";
+function ToolsCatalog() {
+  const params = useSearchParams();
+  const raw = params.get("catalog") ?? "all";
+  const catalog = isStudioToolCategoryId(raw) ? raw : "all";
+  const [tab, setTab] = useState("tools");
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Array<{ id: string; name: string }>>([]);
+  const entries = [
+    ...listStudioTools().map(tool => ({ ...tool, href: studioToolHref(tool.id), artwork: tool.id === "ecommerce-image-set" ? "commerce" : "" })),
+    ...REVIEW_STARTERS.map(starter => ({ ...starter, id: starter.name, href: libraryTaskHref(starter.prompt) })),
+  ].filter(item => (catalog === "all" || item.category === catalog) && `${item.name} ${item.summary}`.toLowerCase().includes(query.toLowerCase()));
+  const roles = REVIEW_ROLES.filter(role => (catalog === "all" || role.category === catalog) && `${role.name} ${role.note}`.includes(query.trim()));
+  return <div className="review-library">
+    <header className="review-heading"><h1>工具与技能</h1>{selected.length > 0 && <Link className="review-library-selection" href={libraryTaskHref("", selected.map(skill => skill.id))}>带入任务 · {selected.length} 项能力 →</Link>}</header>
+    <div className="review-toolbar"><div className="review-tabs" aria-label="工具类型">{[["tools", "任务工具"], ["roles", "角色"], ["skills", "技能"]].map(([id, label]) => <button key={id} aria-pressed={tab === id} onClick={() => setTab(id)}>{label}</button>)}</div><input className="review-search" aria-label="搜索工具与技能" placeholder="搜索你想完成的事" type="search" value={query} onChange={e => setQuery(e.target.value)} /></div>
+    <StudioCatalogFilter active={catalog} />
+    {selected.length > 0 && <div className="review-selected-skills" aria-label="已选技能">{selected.map(skill => <button key={skill.id} onClick={() => setSelected(items => items.filter(item => item.id !== skill.id))} aria-label={`移除${skill.name}`}>{skill.name} ×</button>)}<small>最多选择 10 项</small></div>}
+    {tab === "skills" ? <SkillWaterfall catalog={catalog} query={query} selectedIds={selected.map(skill => skill.id)} onToggleSkill={skill => setSelected(items => items.some(item => item.id === skill.id) ? items.filter(item => item.id !== skill.id) : items.length < 10 ? [...items, { id: skill.id, name: skill.name }] : items)} /> : tab === "roles" ? <div className="review-role-grid">{roles.map(role => <article className="review-role-card" key={role.id}><div className="review-role-heading"><span className="review-role-avatar">{role.initial}</span><div><small>{getStudioToolCategory(role.category)?.name}</small><h2>{role.name}</h2></div></div><p>{role.note}</p><div className="review-role-bottom"><small>{role.deliver}</small><Link href={libraryTaskHref(role.prompt, selected.map(skill => skill.id))}>使用角色 ↗</Link></div></article>)}{!roles.length && <p className="review-empty">没有匹配的角色。</p>}</div> : <div className="studio-catalog-grid review-tool-grid">{entries.map(tool => { const category = getStudioToolCategory(tool.category); const Icon = category?.icon; return <Link key={tool.id} href={tool.href} className={`studio-catalog-card review-designed-tool${tool.artwork ? " has-artwork" : ""}`}>{tool.artwork ? <LibraryArtwork kind={tool.artwork} /> : <span className="studio-catalog-mark">{Icon && <Icon size={19} />}</span>}<div className="review-tool-body"><small>{category?.name}</small><h2>{tool.name}</h2><p>{tool.summary}</p><span className="review-card-action">开始任务 <ArrowRight size={14} /></span></div></Link>; })}{!entries.length && <div className="review-empty">没有匹配的工具，试试其他分类或关键词。</div>}</div>}
+  </div>;
 }
-
-function StudioToolsCatalog() {
-  const searchParams = useSearchParams();
-  const catalog = parseCatalog(searchParams.get("catalog"));
-  const category = catalog === "all" ? null : getStudioToolCategory(catalog);
-  const tools =
-    catalog === "all" ? listStudioTools() : listStudioToolsByCategory(catalog);
-
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-6xl px-5 py-7 max-sm:pt-14 sm:px-6 sm:py-9">
-        <header>
-          <h1 className="text-xl font-bold tracking-tight text-ink-950">
-            全部工具
-          </h1>
-          <p className="mt-2 text-sm text-ink-500">
-            {category
-              ? category.summary
-              : "点卡片挂到工作台，或打开一个固定工具。"}
-          </p>
-        </header>
-
-        <StudioCatalogFilter active={catalog} />
-
-        {tools.length > 0 ? (
-          <section className="pt-5" aria-labelledby="category-tools-heading">
-            <h2
-              id="category-tools-heading"
-              className="text-sm font-semibold tracking-tight text-ink-900"
-            >
-              工具
-              <span className="ml-1.5 font-normal tabular-nums text-ink-400">
-                {tools.length}
-              </span>
-            </h2>
-            <div className="studio-catalog-grid mt-3">
-              {tools.map((tool) => {
-                const tag = getStudioToolCategory(tool.category);
-                const ToolIcon = tag?.icon;
-                return (
-                  <Link
-                    key={tool.id}
-                    href={studioToolHref(tool.id)}
-                    className="studio-catalog-card"
-                    style={catalogAccentStyle(tag?.accent ?? "#64748b")}
-                  >
-                    {ToolIcon ? (
-                      <span className="studio-catalog-mark">
-                        <ToolIcon className="h-4 w-4" />
-                      </span>
-                    ) : null}
-                    <h3 className="mt-4 line-clamp-2 text-sm font-semibold tracking-tight text-ink-900">
-                      {tool.name}
-                    </h3>
-                    <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-ink-500">
-                      {tool.summary}
-                    </p>
-                    <span className="mt-auto inline-flex items-center gap-1 pt-4 text-[13px] font-medium text-ink-700">
-                      打开工具
-                      <ArrowRight className="studio-catalog-card-go h-3.5 w-3.5" />
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
-
-        <div className={tools.length > 0 ? "pt-8" : "pt-5"}>
-          <SkillWaterfall catalog={catalog} heading="技能" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StudioToolsFallback() {
-  return (
-    <div className="flex min-h-0 flex-1 items-center gap-2 px-6 text-sm text-ink-500">
-      <LoaderCircle className="h-4 w-4 animate-spin" />
-      正在加载工具…
-    </div>
-  );
-}
-
-export default function StudioToolsPage() {
-  return (
-    <Suspense fallback={<StudioToolsFallback />}>
-      <StudioToolsCatalog />
-    </Suspense>
-  );
-}
+export default function StudioToolsPage() { return <Suspense fallback={<div className="review-empty">正在加载工具…</div>}><ToolsCatalog /></Suspense>; }

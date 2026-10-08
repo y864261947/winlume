@@ -104,11 +104,9 @@ function LoginForm({ onClose }: { onClose: () => void }) {
     setNotice("");
   };
 
-  const finish = async (loginId: string, loginPassword: string, message: string) => {
+  const finish = async (loginId: string, loginPassword: string) => {
     const account = await login(loginId, loginPassword);
     completeLogin(account);
-    setNotice(message);
-    window.setTimeout(onClose, 700);
     void refreshAccount();
   };
 
@@ -156,7 +154,7 @@ function LoginForm({ onClose }: { onClose: () => void }) {
   };
 
   const submitPassword = async () => {
-    await finish(identifier, password, "已登录。");
+    await finish(identifier, password);
   };
 
   const submitRegister = async () => {
@@ -177,7 +175,7 @@ function LoginForm({ onClose }: { onClose: () => void }) {
     setUsername(normalized);
     if (result.debugCode) setNotice(`开发模式验证码：${result.debugCode}`);
     if (result.status === "created") {
-      await finish(email, password, "账户已创建并登录。");
+      await finish(email, password);
       return;
     }
     setResendIn(60);
@@ -187,7 +185,7 @@ function LoginForm({ onClose }: { onClose: () => void }) {
 
   const submitVerify = async () => {
     await verifySignup({ email, code: code.trim() });
-    await finish(email, password, "账户已创建并登录。");
+    await finish(email, password);
   };
 
   const submitRecover = async () => {
@@ -205,7 +203,7 @@ function LoginForm({ onClose }: { onClose: () => void }) {
       return;
     }
     await completeRecovery({ identifier, code: code.trim(), password: nextPassword });
-    await finish(identifier, nextPassword, "密码已更新，已为你登录。");
+    await finish(identifier, nextPassword);
   };
 
   const submit = async (event: FormEvent) => {

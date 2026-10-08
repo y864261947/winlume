@@ -370,7 +370,7 @@ describe("streamGatewayChat auth", () => {
   it("sends REIZO_SERVICE_KEY as a Bearer token when no explicit token is passed", async () => {
     const originalKey = process.env.REIZO_SERVICE_KEY;
     process.env.REIZO_SERVICE_KEY = "wl_service_test";
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
       new Response("data: [DONE]\n\n", { headers: { "content-type": "text/event-stream" } }),
     );
     try {

@@ -26,7 +26,7 @@ import type {
   ConsolePresets,
   ConsoleToolPreset,
 } from "@/lib/console/types";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ConsoleEmptyState, ConsolePage } from "./ConsolePage";
 
 type Scope = "personal" | "organization";
@@ -192,7 +192,7 @@ function PresetList({
   </div>;
 }
 
-export default function ConsolePersonalizationContent() {
+export default function ConsolePersonalizationContent({ profile }: { profile?: ReactNode } = {}) {
   const [data, setData] = useState<ConsolePresets | null>(null);
   const [scope, setScope] = useState<Scope>("personal");
   const [loading, setLoading] = useState(true);
@@ -250,6 +250,7 @@ export default function ConsolePersonalizationContent() {
   }
 
   return <ConsolePage title="偏好设置" actions={canManage ? <><button type="button" onClick={() => setDialog({ kind: "personality", preset: null })} className="inline-flex items-center gap-2 border border-line bg-surface px-3 py-2 text-sm font-medium text-ink-800 hover:bg-canvas"><Plus className="h-4 w-4" />新建人格</button><button type="button" onClick={() => setDialog({ kind: "tool", preset: null })} className="inline-flex items-center gap-2 bg-ink-950 px-3 py-2 text-sm font-medium text-white hover:bg-ink-800"><Plus className="h-4 w-4" />新建工具</button></> : undefined}>
+    {profile}
     {error ? <p role="alert" className="mb-4 border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p> : null}
     {loading ? <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-ink-500"><LoaderCircle className="h-4 w-4 animate-spin" />正在加载预设…</div> : null}
     {!loading && data ? <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">

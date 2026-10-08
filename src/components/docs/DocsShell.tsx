@@ -1,6 +1,6 @@
 "use client";
 
-import PortalFooter from "@/components/PortalFooter";
+import ReizoFooter from "@/components/reizo/ReizoFooter";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -14,16 +14,14 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import PortalHeader from "@/components/PortalHeader";
+import ReizoHeader from "@/components/reizo/ReizoHeader";
 import { apiCategories } from "@/data/docs/api-catalog";
-import { usePortalCanvasScale } from "@/components/usePortalCanvasScale";
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export default function DocsShell({ children }: { children: ReactNode }) {
-  usePortalCanvasScale();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -141,9 +139,9 @@ export default function DocsShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="portal-home docs-root portal-density-shell">
-      <div className="portal-frame docs-frame">
-        <PortalHeader />
+    <div className="reizo-site reizo-page-docs docs-root">
+      <div className="reizo-docs-frame">
+        <ReizoHeader />
 
         {/* 仅移动端：打开侧栏；桌面不显示二级条，避免与主导航粘连 */}
         <div className="docs-shell-bar">
@@ -174,7 +172,7 @@ export default function DocsShell({ children }: { children: ReactNode }) {
           ) : null}
           <main className="docs-main">{children}</main>
         </div>
-        <PortalFooter />
+        <ReizoFooter />
       </div>
     </div>
   );
