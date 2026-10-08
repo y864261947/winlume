@@ -16,19 +16,7 @@ export default function initialize(scope: ReturnType<typeof createDesignScope>) 
   if (!panel || !tabs.length) return;
   let active: Project = "design";
   let ready = false;
-  let paused = false;
   let loadingTimer = 0;
-  const caption = document.createElement('div');
-  caption.className = 'project-experience-caption';
-  const captionText = document.createElement('span');
-  captionText.textContent = '客户端示例 · 流程回放';
-  const playback = document.createElement('button');
-  playback.type = 'button';
-  playback.textContent = '暂停回放';
-  playback.setAttribute('aria-pressed', 'false');
-  playback.disabled = true;
-  caption.append(captionText, playback);
-  scope.document.querySelector('.scene-tabs')?.after(caption);
   const frame = document.createElement("iframe");
   frame.className = "project-experience-frame";
   frame.title = `REIZO 工作台 · ${projects[active]}`;
@@ -65,20 +53,12 @@ export default function initialize(scope: ReturnType<typeof createDesignScope>) 
       ready = true;
       scope.clearTimeout(loadingTimer);
       loading.hidden = true;
-      playback.disabled = false;
       panel.setAttribute("aria-busy", "false");
       request();
-      frame.contentWindow?.postMessage({ type: 'reizo-experience-playback', paused }, window.location.origin);
     } else if (event.data?.type === "reizo-experience-project" && isProject(event.data.project)) {
       select(event.data.project, false);
     }
   }) as EventListener);
-  scope.listen(playback, 'click', () => {
-    paused = !paused;
-    playback.textContent = paused ? '继续回放' : '暂停回放';
-    playback.setAttribute('aria-pressed', String(paused));
-    frame.contentWindow?.postMessage({ type: 'reizo-experience-playback', paused }, window.location.origin);
-  });
   const watchLoading = () => {
     scope.clearTimeout(loadingTimer);
     loadingTimer = scope.setTimeout(() => {
@@ -91,7 +71,6 @@ export default function initialize(scope: ReturnType<typeof createDesignScope>) 
   });
   scope.listen(retry, "click", () => {
     ready = false;
-    playback.disabled = true;
     loading.hidden = false;
     panel.setAttribute("aria-busy", "true");
     retry.hidden = true;

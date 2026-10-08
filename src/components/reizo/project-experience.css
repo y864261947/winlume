@@ -5,9 +5,5 @@
 .reizo-site .project-experience-loading button { padding: 8px 18px; border: 1px solid #e5e5e5; border-radius: 8px; color: #171717; cursor: pointer; }
 .reizo-site .project-experience-loading button[hidden] { display: none; }
 .reizo-site .showcase-stage { overflow: hidden; }
-.reizo-site .project-experience-caption { order: 3; display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 12px 4px 0; color: var(--muted, #737373); font-size: 12px; }
-.reizo-site .project-experience-caption button { padding: 5px 10px; border: 1px solid currentColor; border-radius: 6px; cursor: pointer; font: inherit; color: inherit; background: transparent; }
-.reizo-site .project-experience-caption button:disabled { opacity: .5; cursor: wait; }
-.reizo-site .project-experience-caption button:focus-visible,
 .reizo-site .project-experience-loading button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 @media (max-width: 760px) { .reizo-site #scene-panel { height: 680px; max-height: 85svh; min-height: 480px; } }
