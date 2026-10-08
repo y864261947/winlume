@@ -10,6 +10,7 @@ import business from "./generated/business.json";
 import cases from "./generated/cases.json";
 import support from "./generated/support.json";
 import contact from "./generated/business-contact.json";
+import "./project-experience.css";
 
 const pages = { home, agent, business, cases, support, contact };
 export type DesignPageName = keyof typeof pages;
@@ -28,7 +29,7 @@ export default function DesignPage({ page }: { page: DesignPageName }) {
     let cancelled = false;
     async function initialize() {
       const modules = page === "home"
-        ? await Promise.all([import("./generated/showcase-scenes"), import("./generated/home"), import("./generated/capability-stage"), import("./generated/connected-work"), import("./generated/woven-divider")])
+        ? await Promise.all([import("./project-experience"), import("./generated/home"), import("./generated/capability-stage"), import("./generated/connected-work"), import("./generated/woven-divider")])
         : page === "business"
           ? await Promise.all([import("./generated/business"), import("./generated/business-motion"), import("./generated/business-particles")])
           : await Promise.all([import("./generated/site-pages")]);

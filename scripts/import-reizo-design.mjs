@@ -80,6 +80,10 @@ for (const name of scripts) {
   if(name==='home') {
     code=code.replace(/  const menu=.*?[\s\S]*?  const scenes=/,'  const scenes=');
     code=code.replace("$('.site-header').classList.toggle('is-compact',scrollY>70);",'');
+    // The real desktop renderer owns the homepage demonstration. Keep only
+    // the surrounding marketing interactions when importing a new design.
+    code=code.replace(/\bconst scenes\s*=[\s\S]*?(?=\bconst code\s*=)/,
+      '// Scene playback is owned by project-experience.ts.\n  ');
   }
   // Register every listener with the component lifetime, including dynamically
   // created demo controls. Timers and observers use the same disposable scope.
@@ -90,6 +94,10 @@ for (const name of scripts) {
         return ts.factory.createCallExpression(ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier('lifetime'),'listen'),undefined,[ts.factory.createIdentifier('window'),...node.arguments.map(a=>ts.visitNode(a,visit))]);
       }
       if(ts.isCallExpression(node)&&ts.isPropertyAccessExpression(node.expression)&&node.expression.name.text==='addEventListener') {
+        if(name==='home' && node.expression.expression.getText(ast)==='motion' && node.getText(ast).includes('paintStep')) {
+          return ts.factory.createCallExpression(ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier('lifetime'),'listen'),undefined,
+            [ts.factory.createIdentifier('motion'),ts.factory.createStringLiteral('change'),ts.factory.createIdentifier('updateScroll')]);
+        }
         return ts.factory.createCallExpression(ts.factory.createPropertyAccessExpression(ts.factory.createIdentifier('lifetime'),'listen'),undefined,[ts.visitNode(node.expression.expression,visit),...node.arguments.map(a=>ts.visitNode(a,visit))]);
       }
       return ts.visitEachChild(node,visit,context);
