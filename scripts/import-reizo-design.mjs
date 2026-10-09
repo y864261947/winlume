@@ -79,6 +79,7 @@ for (const name of scripts) {
   if(name==='site-pages') code=code.replace(/  const menu = [\s\S]*?  document.querySelectorAll\('\[data-draft-form\]'\)/,"  document.querySelectorAll('[data-draft-form]')");
   if(name==='home') {
     code=code.replace(/  const menu=.*?[\s\S]*?  const scenes=/,'  const scenes=');
+    // ReizoHeader subscribes to scrolling and owns the same 70px compact state.
     code=code.replace("$('.site-header').classList.toggle('is-compact',scrollY>70);",'');
     // The real desktop renderer owns the homepage demonstration. Keep only
     // the surrounding marketing interactions when importing a new design.

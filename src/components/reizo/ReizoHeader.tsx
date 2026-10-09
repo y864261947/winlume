@@ -4,15 +4,26 @@ import AccountAvatar from "@/components/account/AccountAvatar";
 import Image from "next/image";
 
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { LogOut, UserRound, Wallet, Settings, KeyRound } from "lucide-react";
 import { useModals } from "@/components/providers";
 
 const links = [["/", "首页"], ["/agent", "工作台"], ["/models", "API 接口"], ["/business", "企业服务"], ["/pricing", "会员与价格"]];
 
+function subscribeToScroll(onChange: () => void) {
+  window.addEventListener("scroll", onChange, { passive: true });
+  return () => window.removeEventListener("scroll", onChange);
+}
+
+const getCompactSnapshot = () => window.scrollY > 70;
+const getServerCompactSnapshot = () => false;
+
 export default function ReizoHeader({ enterprise = false }: { enterprise?: boolean }) {
   const pathname = usePathname();
+  // The imported homepage script cannot own the real account/navigation header.
+  const scrolled = useSyncExternalStore(subscribeToScroll, getCompactSnapshot, getServerCompactSnapshot);
+  const compact = pathname === "/" && !enterprise && scrolled;
   const { account, accountLoading, openLogin, signOut } = useModals();
   const [navOpen, setNavOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -28,7 +39,7 @@ export default function ReizoHeader({ enterprise = false }: { enterprise?: boole
     return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
   }, [accountOpen]);
   const navigation = enterprise ? [["#capabilities", "服务能力"], ["#solutions", "行业方案"], ["#cases", "客户案例"], ["#insights", "洞察与指南"]] : links;
-  return <header className={`site-header${enterprise ? " enterprise-header" : ""}`}>
+  return <header className={`site-header${enterprise ? " enterprise-header" : ""}${compact ? " is-compact" : ""}`}>
     {enterprise && <div className="enterprise-utility"><div className="shell"><Link href="/">← 返回产品首页</Link><span>AI 咨询 · 定制开发 · 企业落地</span></div></div>}
     <div className="shell navigation">
       <Link className="brand" href={enterprise ? "/business" : "/"} aria-label={enterprise ? "REIZO 企业服务首页" : "REIZO 首页"}><Image unoptimized src="/reizo/assets/reizo-mark.png" alt="" width="32" height="32" /><span>REIZO</span>{enterprise && <small>企业服务</small>}</Link>
