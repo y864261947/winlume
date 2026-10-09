@@ -1,10 +1,12 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 
 
 import { useEffect, useMemo, useState } from "react";
 import { fetchPlaza, type PlazaModel } from "@/lib/catalog";
 import { modelPriceLines, resolvePlazaVendor } from "@/lib/catalog/plaza-display";
+import { getVendorByKey, type PlazaVendor } from "@/lib/catalog/vendors";
 import ReizoHeader from "./ReizoHeader";
 import ReizoFooter from "./ReizoFooter";
 import apiHero from "./generated/api-hero.json";
@@ -13,6 +15,16 @@ const categories: Record<string, string> = { all: "全部模型", llm: "文本�
 function Price({ model }: { model: PlazaModel }) {
   const price = modelPriceLines(model);
   return price.kind === "ratio" ? <div className="reizo-model-price"><span>{price.input}</span><span>{price.output}</span></div> : <span>{price.text}</span>;
+}
+
+function VendorMark({ vendor }: { vendor: PlazaVendor }) {
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const sources = [...new Set([vendor.logo, getVendorByKey(vendor.key).logo, "/vendors/other.svg"])];
+  const source = sources[sourceIndex];
+  return <span className="reizo-vendor-mark">
+    {source ? <Image src={source} alt="" width={24} height={24} unoptimized
+      onError={() => setSourceIndex(index => index + 1)} /> : <span aria-hidden="true">{vendor.name.slice(0, 1)}</span>}
+  </span>;
 }
 
 export function ModelCatalog() {
@@ -38,7 +50,7 @@ export function ModelCatalog() {
     <div className="reizo-catalog-filters"><label className="reizo-search"><span className="sr-only">搜索模型</span><input type="search" placeholder="搜索模型名称或提供方" value={query} onChange={event => { setQuery(event.target.value); setPage(1); }} /></label><label><span className="sr-only">提供方</span><select value={vendor} onChange={event => { setVendor(event.target.value); setPage(1); }}><option value="all">全部提供方</option>{vendors.map(name => <option key={name}>{name}</option>)}</select></label></div>
     <div className="reizo-category-tabs" aria-label="模型类型">{Object.entries(categories).map(([key, label]) => <button key={key} aria-pressed={category === key} onClick={() => { setCategory(key); setPage(1); }}>{label}</button>)}</div>
     <p className="reizo-catalog-meta" role="status">{status === "ready" ? `${filtered.length} 个模型 · 价格以实际调用的模型、参数与账户分组为准` : status === "loading" ? "正在读取模型目录…" : "模型目录暂不可用"}</p>
-    {status === "error" ? <div className="reizo-empty" role="alert"><p>{error}</p><button className="button" onClick={() => { setStatus("loading"); setAttempt(attempt + 1); }}>重新加载</button></div> : status === "loading" ? <div className="reizo-empty">正在同步模型与价格…</div> : filtered.length === 0 ? <div className="reizo-empty">没有匹配的模型，请调整搜索或筛选条件。</div> : <div className="reizo-table-scroll"><table className="reizo-model-table"><thead><tr><th>模型 / 提供方</th><th>能力</th><th>参考价格</th><th>状态</th><th>开始使用</th></tr></thead><tbody>{filtered.slice((currentPage - 1) * 8, currentPage * 8).map(model => { const vendor = resolvePlazaVendor(model); return <tr key={model.model_name}><td><div className="model-identity"><span className="reizo-vendor-mark">{vendor.name.slice(0, 1)}</span><div><strong>{model.model_name}</strong><small>{vendor.name}</small></div></div></td><td>{categories[model.portal_category || "other"]}</td><td><Price model={model} /></td><td><span className="model-status">{model.catalog_only ? "目录展示" : "已接入"}</span></td><td><Link className="text-link" href={model.catalog_only ? "/docs" : `/studio?model=${encodeURIComponent(model.model_name)}`}>{model.catalog_only ? "查看文档" : "使用模型"} ↗</Link></td></tr>; })}</tbody></table></div>}
+    {status === "error" ? <div className="reizo-empty" role="alert"><p>{error}</p><button className="button" onClick={() => { setStatus("loading"); setAttempt(attempt + 1); }}>重新加载</button></div> : status === "loading" ? <div className="reizo-empty">正在同步模型与价格…</div> : filtered.length === 0 ? <div className="reizo-empty">没有匹配的模型，请调整搜索或筛选条件。</div> : <div className="reizo-table-scroll"><table className="reizo-model-table"><thead><tr><th>模型 / 提供方</th><th>能力</th><th>参考价格</th><th>状态</th><th>开始使用</th></tr></thead><tbody>{filtered.slice((currentPage - 1) * 8, currentPage * 8).map(model => { const vendor = resolvePlazaVendor(model); return <tr key={model.model_name}><td><div className="model-identity"><VendorMark key={`${vendor.key}:${vendor.logo}`} vendor={vendor} /><div><strong>{model.model_name}</strong><small>{vendor.name}</small></div></div></td><td>{categories[model.portal_category || "other"]}</td><td><Price model={model} /></td><td><span className="model-status">{model.catalog_only ? "目录展示" : "已接入"}</span></td><td><Link className="text-link" href={model.catalog_only ? "/docs" : `/studio?model=${encodeURIComponent(model.model_name)}`}>{model.catalog_only ? "查看文档" : "使用模型"} ↗</Link></td></tr>; })}</tbody></table></div>}
     {status === "ready" && filtered.length > 0 && <div className="reizo-pagination"><span>{currentPage} / {totalPages}</span><button disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>上一页</button><button disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)}>下一页</button></div>}
   </section>;
 }

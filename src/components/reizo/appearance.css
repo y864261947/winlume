@@ -10,6 +10,33 @@ html[data-theme] .reizo-site :is(.reizo-pricing-heading h1,.pricing-ending h2,.r
 .appearance-switch{display:flex;gap:4px;align-items:center;margin-block:18px}
 .appearance-switch button{padding:7px 11px;border:1px solid transparent;border-radius:6px;color:var(--muted);font-size:12px;cursor:pointer}
 .appearance-switch button[aria-pressed=true]{background:var(--hover);border-color:var(--line);color:var(--ink)}
+/* Live API controls use different markup from the imported prototype. */
+html[data-theme] .reizo-site.reizo-page-api {
+  & :is(.reizo-table-scroll,.reizo-empty,.reizo-pagination button,.benefit-card) {
+    background:var(--surface);color:var(--ink);border-color:var(--line);
+  }
+  & .reizo-model-table th {background:var(--canvas);color:var(--muted);}
+  & .reizo-category-tabs button {color:var(--muted);}
+  & .reizo-category-tabs button[aria-pressed=true] {background:var(--blue-soft);color:var(--blue);}
+  & .reizo-catalog-filters :is(input,select,option) {background:var(--surface);color:var(--ink);}
+  & .reizo-catalog-filters input::placeholder {color:var(--muted);}
+  & .benefit-card h3 {color:var(--ink);}
+  & .benefit-card p {color:var(--muted);}
+  /* Keep original brand colors, including black marks, on a small neutral tile.
+     Never apply the prototype's blanket white-logo filter to these assets. */
+  & .reizo-vendor-mark {background:#f7f8fa;color:#171c24;border-color:var(--line);}
+  & .reizo-vendor-mark img {display:block;width:24px;height:24px;object-fit:contain;filter:none;}
+  & .code-window {background:var(--api-code);color:#edf0f5;border-color:#33465c;box-shadow:var(--shadow);}
+  & .code-toolbar {background:#20364a;border-color:#33465c;}
+  & .code-tabs button {color:#b8c9da;}
+  & .code-tabs button[aria-pressed=true] {color:#fff;border-color:#72b5f4;}
+  & :is(.code-footer,.reizo-copy) {color:#b8c9da;border-color:#33465c;}
+  @media(hover:hover) and (pointer:fine) {
+    & .reizo-category-tabs button:hover,
+    & .reizo-pagination button:not(:disabled):hover {background:var(--hover);color:var(--blue);}
+    & .benefit-card:hover {border-color:var(--blue);}
+  }
+}
 html[data-theme] .login-modal{background:var(--surface)!important;color:var(--ink)!important;border-color:var(--line)!important}
 html[data-theme] .login-modal :is(.login-modal-heading,.login-modal-brand-name,.login-modal-label){color:var(--ink)!important}
 html[data-theme] .login-modal input{background:var(--paper)!important;color:var(--ink)!important;border-color:var(--line)!important}
