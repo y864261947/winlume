@@ -4,6 +4,7 @@ import "@/components/reizo/generated/design.css";
 import "@/components/reizo/reizo.css";
 import "@/components/reizo/generated/theme.css";
 import "@/components/reizo/appearance.css";
+import "@/components/reizo/business-appearance.css";
 import AppearanceProvider from "@/components/reizo/AppearanceProvider";
 import { ModalProvider } from "@/components/providers";
 import { site } from "@/data/site";

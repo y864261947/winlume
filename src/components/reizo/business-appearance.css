@@ -1,0 +1,191 @@
+/* The imported enterprise illustrations use a fixed daytime palette. Keep these
+   overrides outside generated assets so design imports retain the dark theme. */
+html[data-theme="dark"] .reizo-site.reizo-page-business.business-page {
+  --deep-blue: var(--blue);
+  --service-rule: var(--line);
+
+  & .enterprise-utility {
+    background: var(--canvas);
+    border-color: var(--line);
+  }
+
+  & .business-hero {
+    background: linear-gradient(180deg, var(--paper), #192436 70%, var(--paper));
+  }
+
+  & .hero-atmosphere {
+    background: radial-gradient(ellipse at 50% 36%, #172335cc, transparent 70%);
+  }
+
+  & :is(.enterprise-hero-copy h1, .solution-description h3, .enterprise-final h2,
+    .delivery-steps h3, .footer-column h2, .story-frame h4, .insight-body strong,
+    .solution-workflow li strong, .workflow-result strong, .story-proposal dd) {
+    color: var(--ink);
+  }
+
+  & :is(.brand small, .enterprise-utility > .shell, .enterprise-lede,
+    .hero-principle, .hero-bottom, .business-heading > p, .service-list summary small,
+    .service-detail, .service-scope, .solution-description > p, .solution-label,
+    .solution-facts dt, .solution-facts dd, .solution-footnote, .case-intro,
+    .case-source, .case-reading > p, .case-reading li p, .insight-body,
+    .insight-list summary small, .delivery-steps li > span, .delivery-steps p,
+    .delivery-steps small, .delivery-promise > p, .enterprise-final .shell > p,
+    .enterprise-final .product-return-note, .footer-legal a, .socials button,
+    .boundary-caption, .security-visual > p, .security-file span,
+    .security-footnote > p, .motion-controls, .motion-replay, .workflow-top,
+    .workflow-top > span:last-child, .solution-workflow li small,
+    .workflow-result small, .workflow-result > div > span, .story-proposal dt) {
+    color: var(--muted);
+  }
+
+  & :is(.enterprise-hero-copy h1 > span, .business-kicker,
+    .enterprise-hero-copy .business-kicker, .enterprise-utility a,
+    .business-section-nav a, .text-link, .service-deliverables,
+    .service-list summary i, .insight-category, .insight-list summary i,
+    .case-reading li > span, .solution-footnote a, .product-return-note a,
+    .security-footnote a, .delivery-promise > span, .workflow-top > span:first-child,
+    .boundary-tags, .security-file, .material-icon, .material-stamp,
+    .solution-workflow li > b, .solution-workflow .human-step > b) {
+    color: var(--blue);
+  }
+
+  & :is(.enterprise-hero-copy .business-kicker > span, .hero-bottom i) {
+    background: var(--blue);
+  }
+
+  & :is(.brand small, .business-section-nav, .text-link, .case-reading li + li,
+    .solution-workflow, .workflow-top, .solution-workflow li,
+    .workflow-result, .result-sheet, .security-principles article,
+    .security-footnote, .boundary-tags span + span, .delivery-steps li,
+    .story-proposal dl > div, .language-picker #language-toggle, #language-menu) {
+    border-color: var(--line);
+  }
+
+  & :is(.business-secondary, .particle-toggle) {
+    background: color-mix(in srgb, var(--surface) 75%, transparent);
+    color: var(--ink);
+    border-color: var(--line);
+  }
+
+  & :is(.business-secondary:hover, .particle-toggle:hover,
+    .service-list summary:hover, .insight-list summary:hover,
+    .case-reading li:hover, .icon-button:hover) {
+    background: var(--hover);
+    color: var(--ink);
+  }
+
+  & :is(.enterprise-utility a:hover, .business-section-nav a:hover,
+    .service-list summary:hover strong, .insight-list summary:hover strong,
+    .motion-replay:hover, .footer-column :is(a, button):hover, .socials button:hover) {
+    color: var(--blue);
+  }
+
+  & .solutions-section {
+    background: linear-gradient(180deg, var(--paper), var(--canvas) 16%, var(--canvas) 85%, var(--paper));
+  }
+
+  & .solution-tabs button { color: var(--muted); }
+  & .solution-tabs button[aria-selected="true"] {
+    background: var(--blue-soft);
+    color: var(--blue);
+    box-shadow: none;
+  }
+
+  & :is(.solution-workflow, .result-sheet, .security-file, .story-proposal,
+    .route-steps > span, .brief-message, .material-sheet) {
+    background: var(--surface);
+    border-color: var(--line);
+    box-shadow: var(--shadow);
+  }
+
+  & :is(.workflow-top, .proposal-signoff) { background: var(--canvas); }
+  & :is(.workflow-result, .solution-workflow .human-step > b,
+    #language-menu button:first-child) {
+    background: var(--blue-soft);
+    color: var(--blue);
+  }
+
+  & .solution-workflow li > span {
+    background: var(--canvas);
+    border-color: var(--line);
+    color: var(--muted);
+  }
+
+  & .solution-workflow[data-motion-stage] :is(li.is-active, li.is-done) > span {
+    background: var(--blue-soft);
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+
+  & .solution-workflow[data-motion-stage]:not([data-motion-stage="4"]) .workflow-result {
+    border-color: var(--line);
+  }
+
+  & .result-sheet i { background: var(--line); }
+  & .result-sheet i:first-child { background: var(--blue); }
+  & .motion-controls::before {
+    background: linear-gradient(to right, var(--blue) calc(var(--motion-progress, 1) * 100%), var(--line) 0);
+  }
+
+  & :is(.case-reading, .enterprise-final) {
+    background: linear-gradient(135deg, var(--blue-soft), var(--canvas));
+  }
+
+  /* Preserve the deployment panel's intentionally contrasting blue surface. */
+  & .deployment-panel {
+    background: radial-gradient(ellipse at 100% 0, #365c8a55, transparent 60%), #1b3554;
+    box-shadow: var(--shadow);
+  }
+
+  & .deployment-panel .business-heading > p { color: #b8c9e3; }
+
+  & .security-visual {
+    background: radial-gradient(ellipse at 50% 45%, #253c58, var(--canvas) 55%, var(--paper) 78%);
+  }
+
+  & .security-boundary {
+    background: linear-gradient(150deg, #253c5833, #19243630);
+    border-color: #49617d;
+    box-shadow: inset 0 0 0 9px #202e424d;
+  }
+
+  & .security-seal svg { fill: var(--surface); stroke: var(--blue); }
+  & .security-seal svg rect { fill: var(--blue-soft); }
+  & .security-principles svg { stroke: var(--blue); }
+  & .delivery-steps li::before { background: var(--blue); box-shadow: 0 0 0 5px var(--paper); }
+  & .delivery-steps li:hover { border-color: var(--blue); }
+  & #language-menu button:disabled { color: var(--muted); }
+
+  /* All four frames of the consulting animation share the same night palette. */
+  & .capability-scene.consult-story {
+    background: radial-gradient(ellipse at 6% 0, #304c6b66, transparent 65%), linear-gradient(145deg, #25364d, #1b293c 64%, var(--canvas));
+    border-color: #3a4d66;
+    box-shadow: inset 0 1px 0 #ffffff0a, var(--shadow);
+  }
+
+  & .capability-scene::before {
+    background: radial-gradient(ellipse at 53% 47%, #344e7055, transparent 74%);
+  }
+
+  & .brief-orbit::before {
+    background: var(--surface);
+    border-color: var(--line);
+    box-shadow: 0 0 0 15px #253c5855, 0 0 0 16px #49617d66;
+  }
+
+  & .brief-orbit > span { border-color: var(--canvas); }
+  & :is(.brief-message, .material-sheet, .route-steps > span) { color: var(--ink); }
+  & :is(.material-sheet > i, .material-right .material-grid i) { background: var(--line); }
+  & :is(.material-left, .route-steps > span:last-child) {
+    background: #302c25;
+    border-color: #524a3b;
+    color: #e4d2ad;
+  }
+
+  & :is(.material-left .material-icon, .proposal-signoff > span) { color: #d6b77f; }
+  & .material-left > i { background: #524a3b; }
+  & .material-center { background: #1b3554; color: #edf0f5; }
+  & .material-center > i { background: #a3bdd94d; }
+  & .material-right .material-icon { color: var(--blue); }
+  & .proposal-signoff { color: var(--muted); }
+}
