@@ -21,9 +21,9 @@ const getServerCompactSnapshot = () => false;
 
 export default function ReizoHeader({ enterprise = false }: { enterprise?: boolean }) {
   const pathname = usePathname();
-  // The imported homepage script cannot own the real account/navigation header.
+  // All product pages share this navigation; imported scripts must not own it.
   const scrolled = useSyncExternalStore(subscribeToScroll, getCompactSnapshot, getServerCompactSnapshot);
-  const compact = pathname === "/" && !enterprise && scrolled;
+  const compact = !enterprise && scrolled;
   const { account, accountLoading, openLogin, signOut } = useModals();
   const [navOpen, setNavOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -39,7 +39,10 @@ export default function ReizoHeader({ enterprise = false }: { enterprise?: boole
     return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
   }, [accountOpen]);
   const navigation = enterprise ? [["#capabilities", "服务能力"], ["#solutions", "行业方案"], ["#cases", "客户案例"], ["#insights", "洞察与指南"]] : links;
-  return <header className={`site-header${enterprise ? " enterprise-header" : ""}${compact ? " is-compact" : ""}`}>
+  return <>
+    {/* Home already reserves space in its hero; other pages previously used a sticky header. */}
+    {!enterprise && pathname !== "/" && <div className="reizo-header-spacer" aria-hidden="true" />}
+    <header className={`site-header${enterprise ? " enterprise-header" : " reizo-scroll-header"}${compact ? " is-compact" : ""}`}>
     {enterprise && <div className="enterprise-utility"><div className="shell"><Link href="/">← 返回产品首页</Link><span>AI 咨询 · 定制开发 · 企业落地</span></div></div>}
     <div className="shell navigation">
       <Link className="brand" href={enterprise ? "/business" : "/"} aria-label={enterprise ? "REIZO 企业服务首页" : "REIZO 首页"}><Image unoptimized src="/reizo/assets/reizo-mark.png" alt="" width="32" height="32" /><span>REIZO</span>{enterprise && <small>企业服务</small>}</Link>
@@ -61,5 +64,6 @@ export default function ReizoHeader({ enterprise = false }: { enterprise?: boole
       <Link className="button nav-cta" href={enterprise ? "/business/contact" : "/studio"}>{enterprise ? "联系企业顾问" : "开始使用"} <span>↗</span></Link>
       <button className="menu-toggle icon-button" aria-expanded={navOpen} aria-controls="main-nav" aria-label={navOpen ? "收起导航" : "展开导航"} onClick={() => setNavOpen(!navOpen)}><span /><span /></button>
     </div>
-  </header>;
+    </header>
+  </>;
 }

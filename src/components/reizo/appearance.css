@@ -31,3 +31,29 @@ html[data-theme] .reizo-site.reizo-page-account .reizo-account-body th{backgroun
 html[data-theme] .reizo-site.reizo-page-account .reizo-account-body :is(input,textarea,select,button,a):focus-visible{outline-color:var(--blue)}
 html[data-theme] .studio-root.reizo-studio{--review-paper:var(--paper);--review-sidebar:var(--sidebar);--review-surface:var(--surface);--review-ink:var(--ink);--review-muted:var(--muted);--review-line:var(--line);--review-hover:var(--hover);--review-accent:var(--blue);--review-accent-soft:var(--blue-soft);--review-soft:var(--soft);--review-primary:var(--blue);--review-on-primary:var(--on-primary)}
 @media(max-width:760px){html[data-theme] .reizo-site .reizo-account-control{margin-left:auto;margin-right:10px}}
+
+/* Shared React navigation overrides the prototype's non-home sticky header.
+   Keep its flow space constant so crossing the scroll threshold cannot move content. */
+.reizo-site .reizo-header-spacer{height:84px;flex-shrink:0}
+html[data-theme] .reizo-site[class*="reizo-page-"] .site-header.reizo-scroll-header{
+  position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;height:84px;
+  border:1px solid transparent;border-bottom-color:var(--line);border-radius:0;box-shadow:none;
+  transition:width .55s var(--ease),top .55s var(--ease),height .55s var(--ease),border-radius .55s var(--ease),box-shadow .55s var(--ease);
+}
+html[data-theme] .reizo-site[class*="reizo-page-"] .site-header.reizo-scroll-header.is-compact{
+  top:14px;width:min(1160px,calc(100% - 48px));height:66px;border-radius:100px;
+  border-color:var(--line);box-shadow:0 8px 35px #102a4210;
+}
+@media(max-width:1100px){
+  html[data-theme] .reizo-site[class*="reizo-page-"] .site-header.reizo-scroll-header.is-compact{width:calc(100% - 32px)}
+}
+@media(max-width:850px){
+  .reizo-site .reizo-header-spacer{height:73px}
+  html[data-theme] .reizo-site[class*="reizo-page-"] .site-header.reizo-scroll-header{height:73px}
+  html[data-theme] .reizo-site[class*="reizo-page-"] .site-header.reizo-scroll-header.is-compact{height:62px}
+}
+@media(max-width:600px){
+  .reizo-site .reizo-header-spacer{height:68px}
+  html[data-theme] .reizo-site[class*="reizo-page-"] .site-header.reizo-scroll-header{height:68px}
+  html[data-theme] .reizo-site[class*="reizo-page-"] .site-header.reizo-scroll-header.is-compact{top:9px;width:calc(100% - 22px);height:58px}
+}
