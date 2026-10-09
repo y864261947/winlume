@@ -23,7 +23,7 @@ export default function ReizoHeader({ enterprise = false }: { enterprise?: boole
   const pathname = usePathname();
   // All product pages share this navigation; imported scripts must not own it.
   const scrolled = useSyncExternalStore(subscribeToScroll, getCompactSnapshot, getServerCompactSnapshot);
-  const compact = !enterprise && scrolled;
+  const compact = scrolled;
   const { account, accountLoading, openLogin, signOut } = useModals();
   const [navOpen, setNavOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -41,13 +41,13 @@ export default function ReizoHeader({ enterprise = false }: { enterprise?: boole
   const navigation = enterprise ? [["#capabilities", "服务能力"], ["#solutions", "行业方案"], ["#cases", "客户案例"], ["#insights", "洞察与指南"]] : links;
   return <>
     {/* Home already reserves space in its hero; other pages previously used a sticky header. */}
-    {!enterprise && pathname !== "/" && <div className="reizo-header-spacer" aria-hidden="true" />}
-    <header className={`site-header${enterprise ? " enterprise-header" : " reizo-scroll-header"}${compact ? " is-compact" : ""}`}>
-    {enterprise && <div className="enterprise-utility"><div className="shell"><Link href="/">← 返回产品首页</Link><span>AI 咨询 · 定制开发 · 企业落地</span></div></div>}
+    {pathname !== "/" && <div className="reizo-header-spacer" aria-hidden="true" />}
+    <header className={`site-header reizo-scroll-header${enterprise ? " enterprise-header" : ""}${compact ? " is-compact" : ""}`}>
     <div className="shell navigation">
       <Link className="brand" href={enterprise ? "/business" : "/"} aria-label={enterprise ? "REIZO 企业服务首页" : "REIZO 首页"}><Image unoptimized src="/reizo/assets/reizo-mark.png" alt="" width="32" height="32" /><span>REIZO</span>{enterprise && <small>企业服务</small>}</Link>
       <nav id="main-nav" className={navOpen ? "open" : undefined} aria-label="主导航">
         {navigation.map(([href, label]) => <Link key={href} href={href} onClick={() => setNavOpen(false)} aria-current={pathname === href ? "page" : undefined} className={href === "/pricing" ? "nav-membership" : undefined}>{label}</Link>)}
+        {enterprise && <Link href="/" className="enterprise-product-return" onClick={() => setNavOpen(false)}>返回产品 <span aria-hidden="true">↗</span></Link>}
       </nav>
       {!enterprise && <Link href="/pricing" className="nav-membership-account" aria-current={pathname === "/pricing" ? "page" : undefined}>会员与价格</Link>}
       <div className="reizo-account-control" ref={menu}>

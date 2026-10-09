@@ -1,10 +1,8 @@
-/* Enterprise navigation has two rows; the product header's fixed height and
-   full-width shell must not override its layout. */
+/* Enterprise navigation shares the product header's scroll geometry, with
+   its own aligned content and account actions. */
 html[data-theme] .reizo-site.reizo-page-business.business-page .site-header.enterprise-header {
-  height: auto;
   background: color-mix(in srgb, var(--paper) 94%, transparent);
 
-  & .enterprise-utility > .shell,
   & .navigation {
     width: min(1280px, calc(100% - 96px));
     max-width: 1280px;
@@ -12,11 +10,16 @@ html[data-theme] .reizo-site.reizo-page-business.business-page .site-header.ente
     padding-inline: 0;
   }
 
-  & .enterprise-utility { height: 32px; }
-  & .navigation { height: 80px; gap: 20px; }
+  & .navigation { height: 100%; gap: 20px; }
+  &.is-compact .navigation { width: 100%; padding-inline: 25px; gap: 14px; }
   & .brand { margin-right: 0; flex-shrink: 0; }
   & .brand small { font-size: 12px; letter-spacing: .02em; }
-  & .navigation nav { gap: 26px; }
+  & .navigation nav { gap: 22px; }
+  & .navigation nav a.enterprise-product-return {
+    padding-left: 18px;
+    border-left: 1px solid var(--line);
+    color: var(--blue);
+  }
 
   & .reizo-account-control {
     flex: 0 0 auto;
@@ -47,21 +50,29 @@ html[data-theme] .reizo-site.reizo-page-business.business-page .site-header.ente
   }
 
   @media (max-width: 1050px) {
-    & .enterprise-utility > .shell,
     & .navigation { width: calc(100% - 56px); }
-    & .navigation { height: 72px; gap: 14px; }
+    & .navigation { gap: 14px; }
     & .navigation nav { left: -28px; right: -28px; padding: 16px 28px; }
+    &.is-compact .navigation nav { left: 0; right: 0; }
     & .navigation nav a { border-radius: 8px; }
+    & .navigation nav a.enterprise-product-return {
+      margin-top: 4px;
+      padding: 16px 8px 12px;
+      border-left: 0;
+      border-top: 1px solid var(--line);
+      border-radius: 0;
+    }
     & .navigation nav a:hover { background: var(--hover); }
     & .menu-toggle { width: 40px; height: 40px; }
   }
 
   @media (max-width: 600px) {
-    & .enterprise-utility > .shell,
     & .navigation { width: calc(100% - 32px); }
-    & .enterprise-utility > .shell { font-size: 11px; }
-    & .enterprise-utility > .shell > span { display: none; }
-    & .navigation { height: 64px; gap: 8px; }
+    & .navigation { gap: 8px; }
+    &.is-compact .navigation { padding-inline: 10px; gap: 6px; }
+    &.is-compact .brand { font-size: 20px; gap: 4px; }
+    &.is-compact .brand img { width: 24px; height: 24px; }
+    &.is-compact .site-account-link { width: 32px; padding: 2px; }
     & .brand { gap: 6px; }
     & .brand small { display: none; }
     & .site-account-link {
@@ -83,11 +94,6 @@ html[data-theme] .reizo-site.reizo-page-business.business-page .site-header.ente
 html[data-theme="dark"] .reizo-site.reizo-page-business.business-page {
   --deep-blue: var(--blue);
   --service-rule: var(--line);
-
-  & .enterprise-utility {
-    background: var(--canvas);
-    border-color: var(--line);
-  }
 
   & .business-hero {
     background: linear-gradient(180deg, var(--paper), #192436 70%, var(--paper));
