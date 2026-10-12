@@ -11,6 +11,11 @@ import cases from "./generated/cases.json";
 import support from "./generated/support.json";
 import contact from "./generated/business-contact.json";
 import "./project-experience.css";
+import HomeShowcase from "./HomeShowcase";
+
+// Keep the imported surrounding design; the showcase is owned by React.
+const homeMain = home.html.split('<main id="main">')[1].split('</main>');
+const homeSections = homeMain[0].split(/<section class="showcase shell"[\s\S]*?<\/section>/);
 
 const pages = { home, agent, business, cases, support, contact };
 export type DesignPageName = keyof typeof pages;
@@ -24,12 +29,12 @@ export default function DesignPage({ page }: { page: DesignPageName }) {
     if (!root.current) return;
     const element = root.current;
     // Reset presentation-owned DOM for Strict Mode and client navigation.
-    element.innerHTML = content.html;
+    if (page !== "home") element.innerHTML = content.html;
     const scope = createDesignScope(element, element.parentElement ?? element);
     let cancelled = false;
     async function initialize() {
       const modules = page === "home"
-        ? await Promise.all([import("./project-experience"), import("./generated/home"), import("./generated/capability-stage"), import("./generated/connected-work"), import("./generated/woven-divider")])
+        ? await Promise.all([import("./generated/home"), import("./generated/capability-stage"), import("./generated/connected-work"), import("./generated/woven-divider")])
         : page === "business"
           ? await Promise.all([import("./generated/business"), import("./generated/business-motion"), import("./generated/business-particles")])
           : await Promise.all([import("./generated/site-pages")]);
@@ -42,6 +47,14 @@ export default function DesignPage({ page }: { page: DesignPageName }) {
   return <div data-theme={theme} className={`reizo-site reizo-page-${page === "home" ? "index" : page} ${content.bodyClass}`}>
     <ReizoHeader enterprise={page === "business"} />
     {/* Trusted, versioned design markup only; never pass user or API content here. */}
-    <div ref={root} className="reizo-presentation" dangerouslySetInnerHTML={markup} />
+    {page === "home" ? <div ref={root} className="reizo-presentation">
+      <a className="skip-link" href="#main">跳至正文</a>
+      <main id="main">
+        <div dangerouslySetInnerHTML={{ __html: homeSections[0] }} />
+        <HomeShowcase />
+        <div dangerouslySetInnerHTML={{ __html: homeSections[1] }} />
+      </main>
+      <div dangerouslySetInnerHTML={{ __html: homeMain[1] }} />
+    </div> : <div ref={root} className="reizo-presentation" dangerouslySetInnerHTML={markup} />}
   </div>;
 }
