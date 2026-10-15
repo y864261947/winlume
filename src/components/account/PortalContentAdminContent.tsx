@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { PORTAL_IMAGE_MAX_FILE_BYTES } from "@/lib/portal/content-limits";
 import type { PortalImageAdjust } from "@/lib/portal/content-config";
+import { prepareCatalogImport } from "@/lib/portal/catalog-import";
 import PortalImageAdjustDialog from "./PortalImageAdjustDialog";
 import ModelPricingDialog from "./ModelPricingDialog";
 import { applicationTools, defaultToolPresentation, normalizeToolPresentation, resolveApplicationTools, representativeTools, toolCategoryDescriptions, type ToolPresentation } from "@/lib/portal/application-tools";
@@ -210,7 +211,7 @@ function groupCatalog(models: CatalogModel[]): Vendor[] {
       key,
       logoUrl: model.vendor_logo || "/vendors/other.svg",
       category,
-      enabled: true,
+      enabled: false,
       models: [],
     };
     current.models.push({
@@ -924,7 +925,7 @@ function CapabilityShowcaseManager({
 function VendorEditor({ vendors, catalogVendors, onChange, onSave, saving, onLoadCatalog, catalogLoading, catalogLoaded, catalogError }: {
   vendors: Vendor[]; catalogVendors: Vendor[]; onChange: (next: Vendor[]) => void;
   onSave: () => void; saving: boolean;
-  onLoadCatalog: () => void; catalogLoading: boolean; catalogLoaded: boolean; catalogError: string;
+  onLoadCatalog: (force?: boolean) => void; catalogLoading: boolean; catalogLoaded: boolean; catalogError: string;
 }) {
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -948,7 +949,7 @@ function VendorEditor({ vendors, catalogVendors, onChange, onSave, saving, onLoa
     setModelText(modelsToText(vendor.models));
     setDraftError("");
   };
-  const addVendor = () => openEditor({ id: uid("vendor"), name: "", key: "", logoUrl: "", category: "llm", enabled: true, models: [] });
+  const addVendor = () => openEditor({ id: uid("vendor"), name: "", key: "", logoUrl: "", category: "llm", enabled: false, models: [] });
   const updateDraft = (patch: Partial<Vendor>) => {
     const id = draft?.id;
     setDraft((current) => current?.id === id && current ? { ...current, ...patch } : current);
@@ -1003,10 +1004,20 @@ function VendorEditor({ vendors, catalogVendors, onChange, onSave, saving, onLoa
       <details className="rounded-xl border border-dashed border-border p-4" onToggle={(event) => { if (event.currentTarget.open) onLoadCatalog(); }}>
         <summary className="cursor-pointer text-sm font-medium">从已同步目录导入{catalogLoaded ? ` · ${catalogVendors.length} 条提供商分类` : ""}</summary>
         {catalogLoading && <p role="status" className="mt-3 text-sm text-muted-foreground">正在读取可导入目录…</p>}
-        {catalogError && <div role="alert" className="mt-3 flex items-center gap-3 text-sm text-red-600"><span>{catalogError}</span><Button type="button" variant="outline" size="sm" onClick={onLoadCatalog}>重试导入目录</Button></div>}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">仅补充尚未添加的精确模型名，保留已有配置。导入后先编辑，再手动保存并发布；新提供商默认隐藏。</p>
+          <Button type="button" variant="outline" size="sm" disabled={catalogLoading} onClick={() => onLoadCatalog(true)}>刷新目录</Button>
+        </div>
+        {catalogError && <div role="alert" className="mt-3 flex items-center gap-3 text-sm text-red-600"><span>{catalogError}</span><Button type="button" variant="outline" size="sm" disabled={catalogLoading} onClick={() => onLoadCatalog(true)}>重试导入目录</Button></div>}
         <input aria-label="搜索可导入提供商" placeholder="搜索可导入提供商" value={importQuery} onChange={(event) => setImportQuery(event.target.value)} className="mt-3 h-9 w-full rounded-md border border-border bg-background px-3 text-sm" />
         <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto">
-          {importCandidates.map((vendor) => <div key={`${vendor.key}-${vendor.category}`} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-3"><div className="flex items-center gap-3"><img src={vendor.logoUrl} alt="" className="h-7 w-7 object-contain" /><div className="text-sm"><strong>{vendor.name}</strong><span className="ml-2 text-muted-foreground">{categoryLabel(vendor.category)} · {vendor.models.length} 个模型</span></div></div><Button type="button" variant="outline" size="sm" disabled={saving || vendors.length >= 80 || vendors.some((item) => item.key === vendor.key && item.category === vendor.category)} onClick={() => openEditor({ ...vendor, id: uid("vendor") })}>{vendors.some((item) => item.key === vendor.key && item.category === vendor.category) ? "已添加" : "导入并编辑"}</Button></div>)}
+          {importCandidates.map((vendor) => {
+            const { draft: importDraft, editingId: importId, addedCount } = prepareCatalogImport(vendors, vendor);
+            return <div key={`${vendor.key}-${vendor.category}`} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
+              <div className="flex items-center gap-3"><img src={vendor.logoUrl} alt="" className="h-7 w-7 object-contain" /><div className="text-sm"><strong>{vendor.name}</strong><span className="ml-2 text-muted-foreground">{categoryLabel(vendor.category)} · {vendor.models.length} 个模型 · 可补充 {addedCount} 个</span></div></div>
+              <Button type="button" variant="outline" size="sm" disabled={saving || catalogLoading || !addedCount || (!importId && vendors.length >= 80)} onClick={() => openEditor(importId ? importDraft : { ...importDraft, id: uid("vendor") }, importId !== null)}>{!addedCount ? "已全部添加" : importId ? "补充并编辑" : "导入并编辑"}</Button>
+            </div>;
+          })}
           {catalogLoaded && !importCandidates.length && <p className="py-3 text-sm text-muted-foreground">暂无可导入的提供商。</p>}
         </div>
       </details>
@@ -1143,8 +1154,8 @@ export default function PortalContentAdminContent({ initialSection = "carousel" 
       setLoading(false);
     }
   }, []);
-  const loadCatalog = async () => {
-    if (catalogLoading || catalogLoaded) return;
+  const loadCatalog = async (force = false) => {
+    if (catalogLoading || (catalogLoaded && !force)) return;
     setCatalogLoading(true);
     setCatalogError("");
     try {

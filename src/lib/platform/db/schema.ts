@@ -62,6 +62,17 @@ export const users = pgTable(
   ],
 );
 
+// Desktop credentials are independent of browser cookies; only their hashes are stored.
+export const desktopSessions = pgTable("desktop_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+  codeHash: varchar("code_hash", { length: 64 }).notNull(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  authVersion: integer("auth_version"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [index("desktop_sessions_expires_index").on(table.expiresAt)]);
+
 export const emailChanges = pgTable("email_changes", {
   userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
   id: uuid("id").defaultRandom().notNull(),
