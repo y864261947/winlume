@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
-import type { PlatformDatabase } from "../db/client";
+import type { PlatformDatabase, PlatformDatabaseSession } from "../db/client";
 import { teamNewApiMapping } from "../db/schema";
 import { decryptSecret, encryptSecret } from "../../newapi/crypto";
 import { loginAndMintPat } from "../../newapi/team-client";
@@ -18,7 +18,7 @@ export interface CreateTeamNewApiMappingInput {
 type Transaction = Pick<PlatformDatabase, "insert">;
 
 export class TeamNewApiMappingRepository {
-  constructor(private readonly database?: PlatformDatabase) {}
+  constructor(private readonly database?: PlatformDatabaseSession) {}
 
   async create(tx: Transaction, input: CreateTeamNewApiMappingInput): Promise<TeamNewApiMappingRecord> {
     const [record] = await tx

@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
-const mocks = vi.hoisted(() => ({ db: vi.fn(), auth: vi.fn(), limit: vi.fn(), mode: vi.fn() }));
+const mocks = vi.hoisted(() => ({ db: vi.fn(), auth: vi.fn(), limit: vi.fn(), mode: vi.fn(), models: vi.fn(), revoke: vi.fn() }));
+vi.mock("@/lib/platform/desktop-model-session", () => ({
+  resolveDesktopModelSession: mocks.models, revokeDesktopModelSession: mocks.revoke,
+  DesktopModelSessionError: class extends Error { constructor(message: string, public status: number) { super(message); } },
+}));
 vi.mock("@/lib/platform/db/client", () => ({ getPlatformDb: mocks.db }));
 vi.mock("@/lib/auth/session", () => ({ getCurrentAuthContext: mocks.auth }));
 vi.mock("@/lib/platform/rate-limit", () => ({ consumeRateLimit: mocks.limit }));
@@ -19,6 +23,16 @@ const select = (rows: unknown[]) => ({ from: () => ({ where: () => ({ limit: asy
 beforeEach(() => { vi.resetAllMocks(); vi.stubEnv("NEXTAUTH_URL", origin); mocks.mode.mockReturnValue("reizo"); mocks.limit.mockReturnValue(true); mocks.auth.mockResolvedValue({ userId: 'u', authVersion: 1 }); mocks.db.mockReturnValue({}); });
 
 describe("desktop auth routes", () => {
+  it("requires the desktop bearer for model bootstrap and keeps the response uncached", async () => {
+    expect((await GET(req('model-session'), context('model-session'))).status).toBe(401);
+    expect(mocks.models).not.toHaveBeenCalled();
+    mocks.models.mockResolvedValue({ credential: { apiKey: 'sk-device-test' } });
+    const response = await GET(req('model-session', 'GET', { token: grant.token }), context('model-session'));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(mocks.models).toHaveBeenCalledOnce();
+    expect((await response.json()).credential.apiKey).toBe('sk-device-test');
+  });
   it("starts with hashed persistence and does not put the token in the browser URL", async () => {
     const values = vi.fn(async () => undefined);
     mocks.db.mockReturnValue({ delete: () => ({ where: async () => undefined }), insert: () => ({ values }) });
@@ -94,16 +108,27 @@ describe("desktop auth routes", () => {
       return (request.method === 'POST' ? POST : request.method === 'DELETE' ? DELETE : GET)(request, context(action));
     };
     const open = vi.fn<(url: string) => Promise<void>>().mockResolvedValue(undefined);
-    const deps = { origin, fetch: fetcher, read: () => disk, write: (value: object | null) => { disk = value; }, open, connected: vi.fn() };
+    const modelLease = { organizationId: 'org-1', organizationName: 'Workspace', apiKey: 'sk-device-test', baseUrl: 'https://gateway.example/v1',
+      expiresAt: new Date(Date.now() + 600_000).toISOString(), models: [{ id: 'chat-1', name: 'Chat' }] };
+    mocks.models.mockResolvedValue({ credential: modelLease });
+    const deps = { origin, fetch: fetcher, read: () => disk, write: (value: object | null) => { disk = value; }, open, connected: vi.fn(), modelSessions: true };
     const client = new AccountService(deps);
     const pending = await client.start(); expect(pending.status).toBe('pending');
     expect((await client.refresh()).status).toBe('pending');
     const requestId = new URL(open.mock.calls[0][0]).searchParams.get('request');
     expect((await POST(req('approve', 'POST', { origin, body: { requestId, code: pending.code } }), context('approve'))).status).toBe(200);
-    expect(await client.refresh()).toMatchObject({ status: 'authenticated', user: { id: 'u', displayName: 'Test' } });
+    const connected = await client.refresh();
+    expect(connected).toMatchObject({ status: 'authenticated', user: { id: 'u', displayName: 'Test' }, models: { ready: true, organizationId: 'org-1' } });
+    expect(JSON.stringify(connected)).not.toContain('sk-device-test');
+    expect(client.modelCredential()).toEqual(modelLease);
     expect(disk).not.toBeNull(); expect(deps.connected).toHaveBeenCalledOnce();
-    const restart = new AccountService(deps); expect((await restart.refresh()).status).toBe('authenticated');
+    const restart = new AccountService(deps);
+    expect(restart.modelCredential()).toBeNull();
+    expect((await restart.refresh()).status).toBe('authenticated');
+    mocks.models.mockResolvedValue({ credential: { ...modelLease, organizationId: 'org-2' } });
+    await restart.refresh(); expect(restart.modelCredential().organizationId).toBe('org-2');
     await restart.logout(); expect(disk).toBeNull(); expect(row).toBeNull();
+    expect(restart.modelCredential()).toBeNull(); expect(mocks.revoke).toHaveBeenCalledOnce();
     expect((await client.refresh()).status).toBe('signed-out');
   });
 });

@@ -1,6 +1,6 @@
 import { and, eq, gt, isNull, or, sql } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
-import type { PlatformDatabase } from "../db/client";
+import type { PlatformDatabaseSession } from "../db/client";
 import { apiKeys } from "../db/schema";
 import { generateApiKey, hashApiKey } from "../api-keys";
 import { encryptSecret } from "../../newapi/crypto";
@@ -22,7 +22,7 @@ export interface CreateApiKeyInput {
 }
 
 export class ApiKeyRepository {
-  constructor(private readonly database: PlatformDatabase) {}
+  constructor(private readonly database: PlatformDatabaseSession) {}
 
   async create(input: CreateApiKeyInput): Promise<{ record: ApiKeyRecord; plaintext: string }> {
     const name = input.name.trim();

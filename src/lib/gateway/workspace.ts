@@ -1,4 +1,4 @@
-import type { PlatformDatabase } from "../platform/db/client";
+import type { PlatformDatabaseSession } from "../platform/db/client";
 import { TeamNewApiMappingRepository } from "../platform/repositories/team-new-api-mapping";
 import { decryptSecret } from "../newapi/crypto";
 import { createTeamToken, fetchTeamTokenKey, findTeamTokenIdByName, revokeTeamToken,
@@ -20,7 +20,7 @@ export interface WorkspaceGateway {
 /** Transitional adapter; replaces neither the production backend nor billing. */
 class NewApiWorkspaceGateway implements WorkspaceGateway {
   private readonly mappings: TeamNewApiMappingRepository;
-  constructor(database: PlatformDatabase, private readonly organizationId: string) {
+  constructor(database: PlatformDatabaseSession, private readonly organizationId: string) {
     this.mappings = new TeamNewApiMappingRepository(database);
   }
   private async authorized<T>(operation: (credential: string) => Promise<T>): Promise<T> {
@@ -44,7 +44,7 @@ class NewApiWorkspaceGateway implements WorkspaceGateway {
   balance() { return this.authorized(pat => getTeamBalance(pat)); }
 }
 
-export function workspaceGateway(database: PlatformDatabase, organizationId: string): WorkspaceGateway {
+export function workspaceGateway(database: PlatformDatabaseSession, organizationId: string): WorkspaceGateway {
   // Fail closed: codex-proxy cannot be enabled before its contract is implemented.
   const backend = process.env.REIZO_GATEWAY_BACKEND?.trim() || "new-api";
   if (backend !== "new-api") throw new Error("所选模型网关尚未完成接入。");

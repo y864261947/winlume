@@ -1,5 +1,44 @@
 # Desktop account authorization — 2026-10-15
 
+## Model bridge update — 2026-10-23
+
+Desktop grants now authorize `GET /api/desktop-auth/model-session`. It checks the
+live account and current workspace membership, then returns a device-specific
+new-api auto Token, public `/v1` gateway URL, expiry and Chat Completions catalog.
+The bridge uses the existing organization/new-api mapping and `api_keys.metadata`
+to associate device keys with desktop sessions. It does not disclose the workspace's
+shared hidden Studio key or management PAT. No additional schema migration is
+required beyond `0015_desktop_sessions` from the login release.
+
+Tokens expire after ten minutes (or earlier when the desktop grant expires) and
+renew when fewer than two minutes remain. Disabled/revoked keys stay disabled;
+automatic expiry can renew after revalidation. Workspace switches revoke old leases.
+Logout expires the desktop grant first, revokes its keys, then deletes the grant;
+failed revocation remains retryable. Offline local logout cannot confirm remote
+revocation; upstream access can remain until the last lease expires. In-flight
+model requests are not cancelled. Device-row locks serialize bootstrap/logout,
+and repository operations reuse the transaction connection to avoid pool starvation.
+
+For this bridge, `REIZO_AUTH_MODE=reizo` and `REIZO_GATEWAY_BACKEND=new-api` are
+required (both are defaults). Configure `NEW_API_URL` for token management. If it
+is internal, set `NEW_API_PUBLIC_URL` to the publicly reachable HTTPS root origin
+of the same new-api deployment, without `/v1`. Without an override, the bridge uses
+`NEW_API_URL` as its public address too. Existing mapping/secret encryption settings
+must remain valid. Model management calls now have bounded request timeouts.
+
+Release the matching desktop changes and restart/rebuild its main process. A fresh
+client with no manual key automatically uses `reizo-account` when login/bootstrap
+succeeds. Existing manual keys remain separate. The text catalog uses the actual
+device token and includes only models advertising `supported_endpoint_types: ["openai"]`.
+Images, videos and a unified capabilities catalog are subsequent work.
+
+Verification: 52 web tests and 33 desktop tests pass, including the actual desktop
+client/web-handler contract, key lifecycle, membership/workspace changes, concurrent
+refresh/logout and a mocked text completion through the real SDK transport. Both
+projects pass TypeScript. Targeted lint has no errors (desktop files retain non-null
+assertion warnings). Production PostgreSQL/new-api acceptance, deployment and installer
+creation have not been performed. The original release notes below are historical.
+
 Web half of Reizo Studio's system-browser login. It reuses existing Reizo/PostgreSQL
 accounts, browser login UI, configured Google/GitHub providers and authVersion checks.
 Legacy New API auth mode returns 503.

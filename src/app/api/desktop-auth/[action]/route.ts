@@ -5,6 +5,7 @@ import { getPlatformDb } from "@/lib/platform/db/client";
 import { desktopSessions, users } from "@/lib/platform/db/schema";
 import { consumeRateLimit } from "@/lib/platform/rate-limit";
 import { createDesktopGrant, desktopBearer, desktopCodeHash, desktopRequestId, desktopUserIsValid, desktopWebOrigin, DESKTOP_SESSION_MS, hashDesktopSecret } from "@/lib/platform/desktop-auth";
+import { DesktopModelSessionError, resolveDesktopModelSession, revokeDesktopModelSession } from "@/lib/platform/desktop-model-session";
 
 export const runtime = "nodejs";
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
@@ -12,7 +13,7 @@ type Context = { params: Promise<{ action: string }> };
 
 async function handle(request: Request, context: Context): Promise<Response> {
   const { action } = await context.params;
-  const allowed = action === "start" || action === "approve" ? "POST" : action === "request" ? "GET" : action === "session" ? "GET,DELETE" : "";
+  const allowed = action === "start" || action === "approve" ? "POST" : action === "request" || action === "model-session" ? "GET" : action === "session" ? "GET,DELETE" : "";
   if (!allowed) return json({ error: "Not found" }, 404);
   if (!allowed.split(",").includes(request.method)) return json({ error: "Method not allowed" }, 405);
   if (getAuthMode() !== "reizo") return json({ error: "桌面登录需要 Reizo 账号服务。" }, 503);
@@ -54,7 +55,9 @@ async function handle(request: Request, context: Context): Promise<Response> {
   const token = desktopBearer(request);
   if (!token) return json({ error: "登录已失效，请重新登录。" }, 401);
   const tokenHash = hashDesktopSecret(token);
+  if (action === "model-session") return json(await resolveDesktopModelSession(db, tokenHash));
   if (request.method === "DELETE") {
+    await revokeDesktopModelSession(db, tokenHash);
     await db.delete(desktopSessions).where(eq(desktopSessions.tokenHash, tokenHash));
     return json({ revoked: true });
   }
@@ -68,6 +71,6 @@ async function handle(request: Request, context: Context): Promise<Response> {
 
 async function route(request: Request, context: Context) {
   try { return await handle(request, context); }
-  catch { return json({ error: "桌面登录服务暂不可用，请稍后重试。" }, 503); }
+  catch (error) { return json({ error: error instanceof DesktopModelSessionError ? error.message : "桌面登录服务暂不可用，请稍后重试。" }, error instanceof DesktopModelSessionError ? error.status : 503); }
 }
 export { route as GET, route as POST, route as DELETE };

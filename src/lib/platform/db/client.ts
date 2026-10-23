@@ -4,6 +4,8 @@ import { getDatabaseConfig } from "./config";
 import * as schema from "./schema";
 
 export type PlatformDatabase = NodePgDatabase<typeof schema>;
+/** Shared query surface for a database pool or its existing transaction connection. */
+export type PlatformDatabaseSession = PlatformDatabase | Parameters<Parameters<PlatformDatabase["transaction"]>[0]>[0];
 
 export class DatabaseNotConfiguredError extends Error {
   constructor() {
