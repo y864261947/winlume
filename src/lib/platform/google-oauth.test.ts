@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { DrizzleQueryError } from "drizzle-orm/errors";
 import {
   authenticateGitHubOAuth,
   authenticateGoogleOAuth,
@@ -179,6 +180,65 @@ describe("Google OAuth helpers", () => {
       provider: "github",
       providerAccountId: "gh-99",
     });
+  });
+
+  it("retries a GitHub username collision wrapped by Drizzle without linking the existing username", async () => {
+    const created = platformUser({ id: "new-github-user", username: "alice-w-abcdef" });
+    const conflict = Object.assign(new Error("duplicate username"), {
+      code: "23505", constraint: "users_username_unique",
+    });
+    const repository = {
+      users: { findById: vi.fn(), findByEmail: vi.fn().mockResolvedValue(null), recordSuccessfulLogin: vi.fn() },
+      identities: { findByProviderAccount: vi.fn().mockResolvedValue(null), create: vi.fn() },
+      provision: vi.fn()
+        .mockRejectedValueOnce(new DrizzleQueryError("insert into users", [], conflict))
+        .mockResolvedValueOnce(created),
+    };
+
+    const user = await authenticateGitHubOAuth({
+      providerAccountId: "github-new", email: "new@example.com", usernameHint: "Alice-W",
+    }, repository);
+
+    expect(user?.id).toBe(created.id);
+    expect(repository.provision).toHaveBeenCalledTimes(2);
+    expect(repository.provision.mock.calls[0][0].username).toBe("alice-w");
+    expect(repository.provision.mock.calls[1][0].username).toMatch(/^alice-w-[a-f0-9]{6}$/);
+    expect(repository.identities.create).toHaveBeenCalledWith({
+      userId: created.id, provider: "github", providerAccountId: "github-new",
+    });
+  });
+
+  it.each(["users_email_unique", "not_a_unique_violation"])("does not retry unrelated database errors (%s)", async (constraint) => {
+    const cause = Object.assign(new Error("database failure"), {
+      code: constraint === "users_email_unique" ? "23505" : "08006", constraint,
+    });
+    const failure = new DrizzleQueryError("insert into users", [], cause);
+    const repository = {
+      users: { findById: vi.fn(), findByEmail: vi.fn().mockResolvedValue(null), recordSuccessfulLogin: vi.fn() },
+      identities: { findByProviderAccount: vi.fn().mockResolvedValue(null), create: vi.fn() },
+      provision: vi.fn().mockRejectedValue(failure),
+    };
+    await expect(authenticateGitHubOAuth({
+      providerAccountId: "github-new", email: "new@example.com", usernameHint: "Alice-W",
+    }, repository)).rejects.toBe(failure);
+    expect(repository.provision).toHaveBeenCalledTimes(1);
+    expect(repository.identities.create).not.toHaveBeenCalled();
+  });
+
+  it("stops retrying repeated wrapped username conflicts after six attempts", async () => {
+    const failure = new DrizzleQueryError("insert into users", [], Object.assign(new Error("duplicate username"), {
+      code: "23505", constraint: "users_username_unique",
+    }));
+    const repository = {
+      users: { findById: vi.fn(), findByEmail: vi.fn().mockResolvedValue(null), recordSuccessfulLogin: vi.fn() },
+      identities: { findByProviderAccount: vi.fn().mockResolvedValue(null), create: vi.fn() },
+      provision: vi.fn().mockRejectedValue(failure),
+    };
+    await expect(authenticateGitHubOAuth({
+      providerAccountId: "github-new", email: "new@example.com", usernameHint: "Alice-W",
+    }, repository)).rejects.toBe(failure);
+    expect(repository.provision).toHaveBeenCalledTimes(6);
+    expect(repository.identities.create).not.toHaveBeenCalled();
   });
 
   it("rejects unverified email and suspended users", async () => {

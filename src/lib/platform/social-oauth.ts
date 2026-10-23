@@ -87,6 +87,19 @@ function uniqueUsernameCandidate(stem: string): string {
   return `${base}-${suffix}`.slice(0, 64);
 }
 
+function isUsernameConflict(error: unknown): boolean {
+  const seen = new Set<object>();
+  // Drizzle wraps PostgreSQL errors in cause, so the outer error has no code.
+  while (error && typeof error === "object" && !seen.has(error)) {
+    seen.add(error);
+    if ("code" in error && error.code === "23505") {
+      return !("constraint" in error) || error.constraint === "users_username_unique";
+    }
+    error = "cause" in error ? error.cause : undefined;
+  }
+  return false;
+}
+
 function toPlatformAuthUser(user: PlatformUserRecord): PlatformAuthUser {
   const displayName = user.displayName || user.username;
   return {
@@ -200,10 +213,7 @@ export async function authenticateSocialOAuth(
       });
       break;
     } catch (error) {
-      const code = typeof error === "object" && error !== null && "code" in error
-        ? (error as { code?: string }).code
-        : undefined;
-      if (code === "23505" && attempt < 5) continue;
+      if (isUsernameConflict(error) && attempt < 5) continue;
       throw error;
     }
   }
