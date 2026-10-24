@@ -218,10 +218,14 @@ const EMPTY_WALLET = {
   },
 };
 
-async function walletFromCurrentOrganization(context: ConsoleRequestContext) {
+async function walletFromCurrentOrganization(context: ConsoleRequestContext, targetOrganizationId?: string) {
   const user = await context.repositories.users.findById(context.userId);
-  const organizationId = user?.currentOrganizationId;
+  const organizationId = targetOrganizationId ?? user?.currentOrganizationId;
   if (!organizationId) return { ...EMPTY_WALLET };
+  if (targetOrganizationId) {
+    const membership = (await context.repositories.organizations.listMembershipsForUser(context.userId)).some(item => item.organizationId === targetOrganizationId);
+    if (!membership) throw new ConsoleRequestError("你已不属于此工作区。", 403, "organization_forbidden");
+  }
   const mapping = await context.repositories.teamNewApiMapping.findByOrganizationId(organizationId);
   if (!mapping) return { ...EMPTY_WALLET };
   try {
@@ -248,9 +252,10 @@ async function walletFromCurrentOrganization(context: ConsoleRequestContext) {
  */
 export async function getConsoleWalletDetails(
   context: ConsoleRequestContext,
+  organizationId?: string,
 ): Promise<ConsoleWalletDetails> {
   return {
-    wallet: await walletFromCurrentOrganization(context),
+    wallet: await walletFromCurrentOrganization(context, organizationId),
     ledger: [],
     paymentOrders: [],
   };

@@ -32,7 +32,8 @@ export default function DesktopConnect({ requestId }: { requestId: string }) {
       <p className="mb-3 text-sm text-zinc-500">REIZO STUDIO</p>
       <h1 className="mb-4 text-2xl font-semibold">{done ? "工作台已获授权" : "登录桌面工作台"}</h1>
       {done ? <p role="status">请返回 Reizo Studio，工作台会自动完成登录。你可以关闭此页面。</p> : <>
-        <p className="mb-6 text-sm leading-6 text-zinc-600">使用你的 Reizo 网页账号登录。请输入桌面工作台显示的确认码；仅批准你刚刚在自己设备上发起的请求。</p>
+        <p className="mb-3 text-sm leading-6 text-zinc-600">使用你的 Reizo 网页账号登录。请输入桌面工作台显示的确认码；仅批准你刚刚在自己设备上发起的请求。</p>
+        <p className="mb-6 text-sm leading-6 text-zinc-600">登录后，工作台可使用当前工作区的模型、查看余额和充值记录，并按你的操作创建充值订单。付款仍需在网页收银台完成。</p>
         {error && <p role="alert" className="mb-4 text-sm text-red-700">{error}</p>}
         {!valid ? <p className="text-sm">{error ? "请从桌面工作台重新发起。" : "正在检查请求…"}</p> : accountLoading ? <p>正在读取账号…</p> : !account ?
           <button className="w-full rounded-full bg-zinc-900 px-5 py-3 text-white" onClick={() => openLogin()}>登录或注册 Reizo 账号</button> :
