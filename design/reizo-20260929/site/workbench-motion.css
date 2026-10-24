@@ -1,0 +1,58 @@
+/* A small gathering-and-blooming mascot, shared by both product demonstrations. */
+.reizo-thought{position:relative;display:inline-block;width:66px;height:29px;flex:none;color:var(--green);vertical-align:middle}
+.reizo-thought i,.reizo-thought b{position:absolute;display:block;background:currentColor;border-radius:50%}
+.thought-core{left:28px;top:8px;width:13px;height:13px;animation:thought-gather 2.4s ease-in-out infinite}
+.thought-core:before,.thought-core:after{content:"";position:absolute;top:4px;width:2px;height:3px;border-radius:50%;background:var(--paper)}
+.thought-core:before{left:3px}.thought-core:after{right:3px}
+.thought-seed{left:5px;top:12px;width:5px;height:5px;animation:thought-arrive 2.4s ease-in-out infinite}
+.thought-out{left:35px;top:12px;width:5px;height:5px;animation:thought-leave 2.4s ease-in-out infinite}
+.reizo-thought b{left:32px;top:12px;width:4px;height:4px;animation:thought-bloom 2.4s ease-out infinite}
+@keyframes thought-arrive{0%{transform:translateX(0) scale(.7);opacity:0}12%{opacity:.7}38%,100%{transform:translateX(24px) scale(.2);opacity:0}}
+@keyframes thought-gather{0%,15%{transform:scale(.35);opacity:.6}37%{transform:scale(1.25,.95);opacity:1}51%{transform:scale(1.45);opacity:1}64%,82%{transform:scale(.15);opacity:0}100%{transform:scale(.35);opacity:.6}}
+@keyframes thought-bloom{0%,48%{transform:translate(0,0) scale(.1);opacity:0}56%{opacity:.65}78%,100%{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0}}
+@keyframes thought-leave{0%,65%{transform:translateX(0);opacity:0}75%{opacity:.7}100%{transform:translateX(23px) scale(.3);opacity:0}}
+.thinking-line{gap:2px}.hero-demo.is-paused .reizo-thought *{animation-play-state:paused}
+.workbench{height:620px;min-height:620px;grid-template-rows:minmax(0,1fr)}
+.workbench .work-sidebar{min-height:0;overflow:auto;scrollbar-width:thin}
+.workbench .task-pane{height:100%}
+.workbench .task-header{flex:none}.workbench .work-title{color:var(--ink);font-size:12px;font-weight:550}
+.work-playback{display:flex;gap:5px;flex:none}
+.work-playback button{display:grid;place-items:center;width:27px;height:27px;border-radius:5px;background:transparent;color:var(--muted);font-size:16px;font-weight:400}
+.work-playback button:hover{background:var(--mint)}
+.workbench .task-content{min-height:0;overflow:auto;scrollbar-width:thin}
+.workbench [hidden]{display:none!important}
+.work-agent-body{min-width:0;flex:1}
+.work-thinking{display:flex;align-items:center;gap:5px;margin-top:15px;font-size:11px;color:var(--muted)}
+.work-confirm{margin-top:15px;padding:15px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.work-confirm h3{font-size:12px;font-weight:550;line-height:1.7}
+.work-directions{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}
+.work-directions button{padding:6px 10px;border:1px solid var(--line);border-radius:5px;background:var(--white);font-size:11px;color:var(--muted)}
+.work-directions button[aria-pressed=true]{border-color:var(--green);color:var(--green);background:var(--mint)}
+.work-confirm-action{padding:8px 11px;border-radius:5px;background:var(--ink);color:var(--white);font-size:11px}
+.work-confirmed{margin-top:14px;padding:9px 11px;border-radius:5px;background:var(--mint);color:var(--green);font-size:11px}
+.workbench .work-complete{color:var(--green)}
+.workbench .canvas-pane{height:100%;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--green) 25%,transparent) transparent}
+.workbench .flow-surface{position:relative;inset:auto;left:0;transform:none;width:100%;height:790px}
+.flow-node{animation:canvas-emerge .5s var(--ease) both;width:40%;padding:10px;text-align:left;font:inherit;color:var(--ink)}
+.flow-a{top:22px;left:6%}.flow-b{top:36px;right:6%}
+.flow-c{top:180px;left:6%}.flow-d{top:180px;right:6%;animation-delay:.35s}
+.flow-e{top:355px;left:26%;width:48%}.flow-f{top:515px;left:10%;width:80%}.flow-g{top:665px;left:26%;width:48%}
+.flow-node.is-chosen{border-color:var(--green);box-shadow:0 0 0 1px color-mix(in srgb,var(--green) 15%,transparent)}
+.flow-node.is-chosen .node-selection{color:var(--green)}
+.flow-node:disabled{cursor:default;opacity:1}
+.flow-node h3{font-size:11px;line-height:1.5}.flow-node .node-type{font-size:9px}
+.canvas-mood{position:relative;height:65px;margin:8px 0 0;border-radius:4px;background:linear-gradient(145deg,#ede3cb 48%,#c1cbb2 49%);overflow:hidden;display:grid;place-items:center}
+.canvas-mood i{width:24px;height:40px;z-index:1;border-radius:5px;background:linear-gradient(90deg,#60705a,#a3b295 50%,#64775d);box-shadow:5px 5px 8px #22382425}
+.canvas-mood i:after{content:"";display:block;height:15px;background:#e9eedcab;margin:16px 4px 0;border-radius:1px}
+.canvas-mood b{position:absolute;right:9px;top:-8px;width:20px;height:78px;background:#ffffff50;transform:rotate(30deg)}
+.canvas-mood.mood-1{background:linear-gradient(135deg,#e5e8df,#c9d7c4)}
+.canvas-mood.mood-1 i{transform:rotate(-13deg) scale(1.1)}
+.canvas-storyboard{display:flex;gap:5px}.canvas-storyboard .canvas-mood{flex:1;height:55px}.canvas-storyboard .canvas-mood i{transform:scale(.75)}
+.canvas-final-video{position:relative}.canvas-final-video>span{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;width:25px;height:25px;display:grid;place-items:center;background:#18352388;color:white;font-size:10px}
+.canvas-wire{stroke-dasharray:1;stroke-dashoffset:0;animation:canvas-connect .65s ease-out both}
+@keyframes canvas-emerge{from{opacity:0;transform:translateY(9px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes canvas-connect{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+.workbench:not(.is-running) .reizo-thought *{animation-play-state:paused}
+@media(max-width:900px){.workbench{height:auto;min-height:0;grid-template-rows:540px 440px}.workbench .canvas-pane{height:440px}.workbench .flow-surface{width:min(560px,100%);margin-inline:auto}.workbench .task-pane{height:540px}}
+@media(max-width:600px){.workbench{grid-template-rows:auto 470px 430px}.workbench .task-pane{height:470px}.workbench .canvas-pane{height:430px}.workbench .task-header{height:50px}.workbench .task-content{padding:18px 17px}.work-confirm{padding:12px}.work-directions button{padding:7px 9px}.workbench .work-agent p{font-size:12px}.flow-node h3{font-size:10px}.flow-node .node-type{font-size:9px}}
+@media(prefers-reduced-motion:reduce){.reizo-thought *{animation:none!important}.reizo-thought b,.thought-seed,.thought-out{display:none}.thought-core{transform:none;opacity:1}.flow-node,.canvas-wire{animation:none!important}}

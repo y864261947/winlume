@@ -116,7 +116,9 @@ mkdirSync(join(stage, "data"), { recursive: true });
   cpSync(join(root, "drizzle", "meta", "_journal.json"), join(drizzleStage, "meta", "_journal.json"));
   for (const entry of readdirSync(join(root, "drizzle"))) {
     if (!entry.endsWith(".sql")) continue;
-    cpSync(join(root, "drizzle", entry), join(drizzleStage, entry));
+    // Migration hashes must match Linux production, including when packaged
+    // from a Windows checkout with core.autocrlf enabled.
+    writeFileSync(join(drizzleStage, entry), readFileSync(join(root, "drizzle", entry), "utf8").replace(/\r\n/g, "\n"), "utf8");
   }
   mkdirSync(join(stage, "scripts"), { recursive: true });
   cpSync(join(root, "scripts", "db-migrate.mjs"), join(stage, "scripts", "db-migrate.mjs"));

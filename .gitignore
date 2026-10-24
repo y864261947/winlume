@@ -54,6 +54,19 @@ next-env.d.ts
 .superpowers/
 AGENTS.md
 
+# model probe: live upstream channel credentials and result reports
+/probe-channels*.json
+!/probe-channels.example.json
+/probe-report*.json
+
+# model cost ledger (commercial data: upstream costs and markup policy)
+/model-costs.json
+/model-cost-report*.html
+/relay-models.json
+/relay-inventory.json
+/catalog-sync.json
+/sku-catalog*.json
+
 # runtime data
 /data/users/
 /data/*.db
@@ -65,3 +78,11 @@ AGENTS.md
 /services/gateway/gateway.exe
 /services/gateway/pricing-import
 /services/gateway/pricing-import.exe
+.gstack/
+
+# Local agent attachments, operational scratch files and generated build tools.
+/.mossx/
+/output/
+/dev-server.log
+/upstream-gap-report.json
+/upstream-gap-report.md

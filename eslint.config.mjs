@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "_deploy_clean/**",
+    "design/reizo-20260929/**",
     "next-env.d.ts",
   ]),
 ]);

@@ -1,5 +1,9 @@
 /* Adapt the October palette to real React controls and portalled account UI. */
 html[data-theme] body{background:var(--paper);color:var(--ink)}
+/* Shift the desktop product menu left by 10% of the header width. */
+@media(min-width:1051px){
+  html[data-theme] .reizo-site[class*="reizo-page-"] .site-header:not(.enterprise-header) .navigation nav{left:40%}
+}
 html[data-theme] .reizo-site{--background:var(--paper);--foreground:var(--ink);--card:var(--surface);--card-foreground:var(--ink);--primary-foreground:var(--on-primary);--muted-foreground:var(--muted);--border:var(--line);--ring:var(--blue);background:var(--paper);color:var(--ink)}
 html[data-theme] .reizo-site .reizo-account-control{margin-left:20px}
 html[data-theme] .reizo-site :is(.reizo-account-menu,.reizo-api-art,.reizo-api-art>span,.reizo-api-art>strong,.reizo-api-art>div,.reizo-catalog-filters input,.reizo-catalog-filters select,.reizo-model-table,.reizo-model-table thead){background:var(--surface);color:var(--ink);border-color:var(--line)}

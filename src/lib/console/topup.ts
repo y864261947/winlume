@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import { DEFAULT_QUOTA_PER_UNIT } from "@/lib/catalog/plaza-display";
 import { addNewApiUserQuota } from "@/lib/newapi/admin-client";
@@ -91,6 +91,7 @@ export function getConsoleTopupConfig(): ConsoleTopupConfig {
     currency: "CNY",
     creditsPerUnit: CREDITS_PER_CNY,
     minTopup: min,
+    maxTopup: maxTopup(),
     amountOptions: EPAY_AMOUNT_OPTIONS.filter((value) => value >= min),
     methods: configuredMethods(),
   };
@@ -150,6 +151,8 @@ export interface CreateTopupInput {
   amount: number;
   paymentMethod: string;
   userAgent?: string | null;
+  /** Server-issued scope plus caller request ID; retries reuse the same unpaid order. */
+  idempotencyKey?: string;
 }
 
 export interface CreateTopupResult {
@@ -195,7 +198,9 @@ export async function createConsoleTopupOrder(
     throw new ConsoleRequestError("平台数据库尚未配置。", 503, "platform_not_configured");
   }
 
-  const tradeNo = newTradeNo();
+  const tradeNo = input.idempotencyKey
+    ? `RZD${createHash("sha256").update(JSON.stringify([input.organizationId, context.userId, input.idempotencyKey])).digest("hex").slice(0, 20)}`
+    : newTradeNo();
   const credits = amount * CREDITS_PER_CNY;
   const payMoney = amount.toFixed(2);
   const base = absoluteBaseUrl();
@@ -210,7 +215,7 @@ export async function createConsoleTopupOrder(
     returnUrl: `${base}/account/wallet?order=${encodeURIComponent(tradeNo)}`,
   });
 
-  await database.insert(epayOrders).values({
+  const insert = database.insert(epayOrders).values({
     tradeNo,
     organizationId: input.organizationId,
     userId: context.userId,
@@ -222,7 +227,28 @@ export async function createConsoleTopupOrder(
     currency: "CNY",
     status: "pending",
   });
+  if (input.idempotencyKey) {
+    await insert.onConflictDoNothing({ target: epayOrders.tradeNo });
+    const [saved] = await database.select().from(epayOrders).where(eq(epayOrders.tradeNo, tradeNo)).limit(1);
+    if (!saved || saved.organizationId !== input.organizationId || saved.userId !== context.userId ||
+      saved.paymentMethod !== method || saved.payMoney !== payMoney || saved.amountCredits !== credits) {
+      throw new ConsoleRequestError("此充值请求编号已用于其他订单，请刷新后重试。", 409, "topup_identity_conflict");
+    }
+  } else await insert;
 
+  return { tradeNo, url: purchase.url, params: purchase.params };
+}
+
+/** Rebuild the same signed cashier form for an existing unpaid order; never creates an order. */
+export async function getConsoleTopupCashier(organizationId: string, tradeNo: string): Promise<CreateTopupResult> {
+  const config = getEpayConfig();
+  if (!config) throw new ConsoleRequestError("在线充值尚未配置。", 503, "topup_not_configured");
+  const order = await getConsolePaymentOrder(organizationId, tradeNo);
+  if (!order || order.status !== "pending") throw new ConsoleRequestError("此订单已结束或不属于当前工作区。", 409, "topup_not_pending");
+  const base = absoluteBaseUrl();
+  const purchase = buildEpayPurchase(config, { type: order.paymentMethod, outTradeNo: order.reference,
+    name: `Reizo 充值 ${order.credits} 积分`, money: order.amount.toFixed(2), device: "pc",
+    notifyUrl: `${base}/api/pay/epay/notify`, returnUrl: `${base}/account/wallet?order=${encodeURIComponent(order.reference)}` });
   return { tradeNo, url: purchase.url, params: purchase.params };
 }
 

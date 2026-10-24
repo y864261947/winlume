@@ -27,7 +27,8 @@
 .startButton { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 40px; padding: 0 20px; border-radius: 8px; background: #10162c; color: white; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .startButton svg { width: 14px; }
 .headerActions .menuButton, .mobileNav { display: none; }
-.hero { position: relative; background: radial-gradient(ellipse at 76% 44%, #e5e9ff 0%, transparent 42%), radial-gradient(ellipse at 4% 8%, #eaf7ff 0%, transparent 42%), linear-gradient(172deg, #f8fbff 0%, #f4f9ff 66%, #fff 100%); }
+/* Contain the rotated divider: its vertical extent grows on wide screens. */
+.hero { position: relative; overflow: clip; background: radial-gradient(ellipse at 76% 44%, #e5e9ff 0%, transparent 42%), radial-gradient(ellipse at 4% 8%, #eaf7ff 0%, transparent 42%), linear-gradient(172deg, #f8fbff 0%, #f4f9ff 66%, #fff 100%); }
 .hero::after { content: ""; position: absolute; width: 90%; height: 90px; right: -20%; bottom: -40px; background: white; border-radius: 50%; transform: rotate(-5deg); pointer-events: none; }
 .heroInner { position: relative; z-index: 1; display: grid; grid-template-columns: 1.07fr 1fr; align-items: center; gap: 44px; max-width: 1376px; margin: 0 auto; padding: 56px 48px 62px; }
 .heroBadge { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 21px; font-size: 12px; letter-spacing: .08em; color: #5d7fa4; }

@@ -1,0 +1,42 @@
+.usage-comparison,.benefit-comparison{padding-block:70px;border-top:1px solid var(--line)}
+.benefit-table .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.compare-heading{display:flex;justify-content:space-between;align-items:end;gap:24px;margin-bottom:30px}
+.compare-heading h2{font-size:clamp(26px,3vw,38px);font-weight:550;letter-spacing:-.04em;line-height:1.35}
+.compare-heading>a{font-size:14px;color:var(--blue);white-space:nowrap;padding-bottom:4px}
+.usage-tabs{display:inline-flex;gap:4px;padding:5px;background:var(--canvas);border:1px solid var(--line);border-radius:12px;margin-bottom:20px}
+.usage-tabs button{padding:10px 22px;border-radius:8px;background:transparent;color:var(--muted);font-size:14px}
+.usage-tabs button[aria-pressed=true]{background:var(--surface);color:var(--blue);box-shadow:0 2px 8px #172c4510}
+.usage-calculator{padding:28px;background:var(--surface);border:1px solid var(--line);border-radius:18px}
+.usage-controls{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:20px}
+.usage-controls label{display:grid;gap:8px;font-size:12px;color:var(--muted)}
+.usage-controls select,.usage-controls input{width:100%;min-width:0;padding:12px 14px;border:1px solid var(--line);background:var(--paper);border-radius:9px;color:var(--ink);font:inherit;font-size:14px;min-height:46px}
+.usage-controls input[aria-invalid=true]{border-color:#c75b64}
+.usage-rate-note{font-size:12px;color:var(--muted);margin-top:14px;min-height:22px}
+.usage-results{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:24px}
+.usage-results article{padding:22px 16px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.usage-results article.usage-pro{border-color:color-mix(in srgb,var(--blue) 40%,var(--line));background:var(--blue-soft)}
+.usage-results h3{font-size:16px;font-weight:600}.usage-allowance{font-size:12px;color:var(--muted);margin-top:5px}
+.usage-quantity{font-size:clamp(24px,2.5vw,34px);font-weight:600;color:var(--blue);margin-top:24px;font-variant-numeric:tabular-nums;line-height:1.3;overflow-wrap:anywhere}
+.usage-quantity small{font-size:13px;margin-left:7px;font-weight:400}.usage-pending{font-size:22px;color:var(--faint);font-weight:400}
+.usage-period{font-size:11px;color:var(--muted);margin-top:8px;min-height:18px}
+.usage-calculation-note{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:22px}
+.usage-details{margin-top:18px;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.usage-details summary{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;font-size:14px;cursor:pointer;list-style:none}
+.usage-details summary::-webkit-details-marker{display:none}.usage-details[open] summary>span{transform:rotate(45deg)}
+.usage-details>p,.usage-footnote{font-size:12px;line-height:1.9;color:var(--muted)}.usage-details>p{padding:16px 22px}.usage-footnote{margin-top:18px;max-width:980px}
+.usage-table-scroll,.benefit-table-scroll{overflow:auto;overscroll-behavior-inline:contain}
+.usage-model-table,.benefit-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;text-align:left}
+.usage-model-table{min-width:680px}.usage-model-table th,.usage-model-table td{padding:16px 22px;border-top:1px solid var(--line)}
+.usage-model-table td{color:var(--muted)}.usage-model-table th{font-weight:500}
+.benefit-table-scroll{border:1px solid var(--line);border-radius:16px;background:var(--surface)}
+.benefit-table{min-width:950px;table-layout:fixed}.benefit-table th,.benefit-table td{padding:17px 14px;border-bottom:1px solid var(--line);vertical-align:middle;text-align:center}
+.benefit-table th:first-child{width:190px;text-align:left;padding-left:22px;font-weight:500}
+.benefit-table td{color:var(--muted);font-size:12px}.benefit-table thead th{font-size:17px;padding-block:24px;font-weight:600;background:var(--surface)}
+.benefit-table thead small{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:5px}
+.benefit-table .compare-pro{background:color-mix(in srgb,var(--blue-soft) 60%,var(--surface))}
+.benefit-table .benefit-group th{background:var(--canvas);font-size:12px;color:var(--blue);letter-spacing:.04em;padding-block:12px}
+.benefit-table tbody tr:last-child>*{border-bottom:0}
+.benefit-notes{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:22px;font-size:12px;color:var(--muted);line-height:1.85}
+.benefit-notes strong{display:block;color:var(--ink);font-size:13px;font-weight:500;margin-bottom:4px}
+@media(max-width:800px){.usage-comparison,.benefit-comparison{padding-block:42px}.usage-controls{grid-template-columns:1fr 1fr}.usage-cost{grid-column:1/-1}.usage-calculator{padding:18px}.usage-results{grid-template-columns:repeat(2,minmax(0,1fr))}.usage-results article:last-child{grid-column:1/-1}.usage-results article{padding:18px}.usage-quantity{margin-top:16px}.compare-heading{align-items:start;flex-direction:column;gap:12px}.benefit-notes{grid-template-columns:1fr;gap:16px}}
+@media(prefers-reduced-motion:reduce){.usage-comparison *{scroll-behavior:auto}}

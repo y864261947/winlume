@@ -1,0 +1,24 @@
+/* An independent, full-width woven interlude before the closing invitation. */
+.woven-divider{--weave-ground:#e7ebe2;--weave-dark:#365747;--weave-sage:#a1ab8f;--weave-cream:#d3ccb7;position:relative;isolation:isolate;width:100%;margin-top:clamp(44px,5.3vw,76px);padding:20px 0;background:linear-gradient(180deg,var(--paper) 0%,var(--weave-ground) 30%,var(--weave-ground) 70%,var(--paper) 100%);overflow:hidden}
+.woven-art{display:block;width:100%;height:112px;overflow:hidden}
+.woven-thread{fill:none;stroke-width:3.2;stroke-linecap:round;stroke:var(--weave-dark)}
+.woven-thread.sage{stroke:var(--weave-sage)}
+.woven-thread.cream{stroke:var(--weave-cream)}
+.woven-clearance{fill:none;stroke:var(--weave-ground);stroke-width:6.8;stroke-linecap:butt}
+.woven-glint{fill:none;stroke:#fff;stroke-opacity:.17;stroke-width:.65;stroke-linecap:round;transform:translateY(-.6px)}
+.woven-reveal{transform:scaleX(1);transform-origin:0 0;animation:weave-thread 16s cubic-bezier(.45,0,.2,1) infinite both;animation-delay:var(--thread-delay);animation-play-state:paused}
+.woven-reveal.woven-spine{animation-name:weave-spine}
+.woven-divider.is-running .woven-reveal{animation-play-state:running}
+.woven-divider:hover .woven-reveal{animation-play-state:paused}
+.woven-pause{position:absolute;right:24px;bottom:7px;width:24px;height:24px;border:1px solid #82917b55;border-radius:50%;background:var(--paper);color:var(--weave-dark);font-size:10px;padding:0;opacity:0;transition:opacity .2s}
+.woven-divider:hover .woven-pause,.woven-pause:focus-visible,.woven-pause[aria-pressed=true]{opacity:1}
+.woven-divider + .start-section{padding-top:76px}
+@keyframes weave-thread{0%,2%{transform:scaleX(0)}12%,48%{transform:scaleX(1)}60%,100%{transform:scaleX(0)}}
+@keyframes weave-spine{0%,2%{transform:scaleX(0)}35%,60%{transform:scaleX(1)}88%,100%{transform:scaleX(0)}}
+html[data-palette=blue] .woven-divider{--weave-ground:#e9ecf2;--weave-dark:#3159bd;--weave-sage:#989ead;--weave-cream:#d4cdbf}
+html[data-palette=brand] .woven-divider{--weave-ground:#e8e0f3;--weave-dark:#643ac0;--weave-sage:#aaa0be;--weave-cream:#d4cda4}
+html[data-palette=morandi] .woven-divider{--weave-ground:#e1e5eb;--weave-dark:#62768d;--weave-sage:#b5a0a9;--weave-cream:#d0c9bc}
+html[data-palette=khaki] .woven-divider{--weave-ground:#e3d8c6;--weave-dark:#60422e;--weave-sage:#a98e61;--weave-cream:#c5b395}
+html[data-palette=navy] .woven-divider{--weave-ground:#E7E2CE;--weave-dark:#112250;--weave-sage:#3B507D;--weave-cream:#BEB7A7}
+@media(max-width:600px){.woven-divider{padding:14px 0}.woven-art{height:88px}.woven-pause{opacity:.65;right:14px;bottom:4px;width:21px;height:21px}.woven-divider + .start-section{padding-top:52px}}
+@media(prefers-reduced-motion:reduce){.woven-reveal{animation:none!important;transform:scaleX(1)}.woven-pause{display:none}}

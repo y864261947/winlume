@@ -5,14 +5,15 @@ description: Connect to, inspect, deploy, and operate the Reizo production serve
 
 # Connect Reizo Server
 
-## Current production target — confirmed 2026-09-21
+## Current production target — confirmed 2026-10-08
 
 - Public origin `https://reizo-ai.com` now resolves to `40.160.139.134`; SSH user is `ubuntu`.
 - The user supplied password access in the current session. Pass it through a temporary environment variable; never write it into repository files or logs. No local key for this host has been confirmed.
 - Runtime: `/opt/reizo`, service `reizo`, port `3001`.
-- Current source/build: `/opt/reizo-footer-build-20260921`, based on `/opt/reizo-build-banana-20260919`, preserving the production pricing updates.
-- GitHub's `DEPLOY_HOST` still points to the old server. Do not push a frontend change expecting the existing workflow to update the public site until its target and authentication are reconciled.
-- For now build from the current server source, apply only the intended changes, package the standalone output, preserve `.env`, `data`, and `backups`, run migrations before restart, and retain the prior release for rollback.
+- Current release is GitHub master `3a2079d08250282df65ba583d272b6ee92998fec`, BUILD_ID `zy6nWhwhfpm1WfesMsPqk`, deployed successfully by Actions run `37873566492` on 2026-10-09. API catalogue dark appearance now covers table headers, filters, pagination, billing cards and code examples. Model rows display resolved supplier brand logos with local fallbacks. Enterprise header is now a single row with a return-to-product link in the navigation. It shares the product header scroll compaction and stable spacer, centered desktop links, right-aligned account/CTA, and visible mobile avatars. The utility row was removed at the user’s request. Enterprise dark appearance is complete, including hero, illustrations, workflow cards and security content; daytime styling is preserved. The shared product header now compacts on scroll on home, Agent, API and other product pages, with stable page spacing. It includes the October 8 design, motion and retained business functions. Immediate rollback runtime: `/opt/reizo.previous` (build `uhWgxu6EL2JVe7u68qCGz`). Preserved manual build source: `/opt/reizo-motion-build-20261008`. `/agent` now embeds the new labelled standalone showcase; the previously preserved October 6 interaction is no longer linked. All prior application routes remain. See `docs/operations/reizo-motion-20261008.md` and `docs/operations/reizo-design-20261008.md` for source scope, reconstruction, build and deployment evidence.
+- User reported the server expires on 2026-10-20; recheck availability before operations after that date.
+- The earlier Git/source mismatch was reconciled and merged into remote master on 2026-10-08 at `3cb68c8`. Automatic deployment succeeded; `/studio/tasks` and account/profile routes returned 200. The original local master was fast-forwarded to `3a2079d` on 2026-10-09 while preserving its unpublished staged/unstaged changes; do not reset or overwrite its existing index. Continue from fetched remote master or the attached release worktree.
+- Prefer the reconciled remote master baseline and its existing deployment workflow. Preserve `.env`, `data`, and `backups`, apply migrations before restart, and retain the previous release. On 2026-10-08 the deployed environment was byte-identical to the previous release and systemd reported active/running with zero restarts.
 
 The host and key in the legacy instructions below are historical; do not use them as the current production target.
 

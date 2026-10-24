@@ -1,0 +1,30 @@
+{
+  "_comment": "复制为 probe-channels.json 后填入真实 apiKey。该文件已被 .gitignore 排除，切勿提交填好的副本。三家均已验证为 new-api，故 kind 都填 new-api：可通过 X-Oneapi-Request-Id 回查 /api/log/self 拿到每次调用的精确扣费。",
+  "channels": [
+    {
+      "_comment": "云飞 —— new-api rc.21「不吃坤肉(生图版)」。13 个模型 / 12 个分组。注意 gpt-image-2 的 model_price=1 是基准，真实成本由 group_ratio 决定（0.008 ~ 0.15，差 18.8 倍）。",
+      "name": "yunfei",
+      "baseUrl": "https://img.yunfei.best",
+      "apiKey": "sk-填入云飞的令牌",
+      "kind": "new-api",
+      "models": ["gpt-image-2", "gemini-3-pro-image-preview", "veo-3.1-fast", "veo-3.1-quality"]
+    },
+    {
+      "_comment": "小安 22codex —— new-api rc.24。68 个模型 / 25 个分组。-sec 后缀模型是 quota_type=0，每秒单价在 video_price 字段。注意 grok-imagine-video-1.5 的 video_price 存在分辨率倒挂，拉取成本时会被自动拦截。",
+      "name": "22codex",
+      "baseUrl": "https://app.22codex.xyz",
+      "apiKey": "sk-填入小安控制台「令牌管理」创建的令牌",
+      "kind": "new-api",
+      "models": ["gpt-image-2", "MiniMaxH3-720p", "MiniMaxH3-720p-sec", "wan3.0-video-prime", "grok-imagine-video"]
+    },
+    {
+      "_comment": "卡藏 KACANG —— new-api rc.20「内部自用站」。80 个模型，/api/pricing 未暴露分组倍率。",
+      "name": "kacang",
+      "baseUrl": "https://newapi.prompt-hubs.com",
+      "apiKey": "sk-填入卡藏控制台创建的令牌",
+      "kind": "new-api",
+      "logToken": "可选：用于读取 /api/log/self 的 PAT，留空则复用 apiKey",
+      "models": ["gpt-image-2-1k", "nano-banana-pro", "grok-imagine-video-1.5", "minimax_h3"]
+    }
+  ]
+}

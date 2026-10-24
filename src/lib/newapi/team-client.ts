@@ -175,6 +175,7 @@ export async function createTeamToken(
       ...tokenLimitFields(settings),
     }),
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
   await parseEnvelope(response);
 }
@@ -232,6 +233,7 @@ export async function fetchTeamToken(pat: string, tokenId: number): Promise<Team
     method: "GET",
     headers: teamHeaders(pat),
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
   const data = requireData(
     await parseEnvelope<{
@@ -287,6 +289,7 @@ export async function updateTeamToken(
       }),
     }),
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
   await parseEnvelope(response);
 }
@@ -296,6 +299,7 @@ export async function findTeamTokenIdByName(pat: string, name: string): Promise<
     method: "GET",
     headers: teamHeaders(pat),
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
   const data = requireData(
     await parseEnvelope<{ items: { id: number; name: string }[] }>(response),
@@ -309,6 +313,7 @@ export async function fetchTeamTokenKey(pat: string, tokenId: number): Promise<s
     method: "POST",
     headers: teamHeaders(pat),
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
   const data = requireData(await parseEnvelope<{ key: string }>(response), response.status);
   return `sk-${data.key}`;
@@ -319,6 +324,7 @@ export async function revokeTeamToken(pat: string, tokenId: number): Promise<voi
     method: "DELETE",
     headers: teamHeaders(pat),
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
   await parseEnvelope(response);
 }
