@@ -1,0 +1,13 @@
+.ac-avatar-editor{display:flex;align-items:center;gap:23px;padding:24px 0 20px;margin-top:5px;border-bottom:1px solid var(--line,#e2e4dc)}
+.ac-avatar-pick{position:relative;flex:none;width:82px;height:82px;border:0;padding:0;border-radius:50%;background:none;cursor:pointer}
+#profile-avatar-preview{display:grid;place-items:center;width:82px;height:82px;border-radius:50%;overflow:hidden;background:#eee5d8;border:1px solid #e0d4c2;color:#816348;font-size:30px;font-weight:500}
+#profile-avatar-preview>svg{width:32px;height:32px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round}
+.ac-avatar-camera{position:absolute;right:-1px;bottom:0;display:grid;place-items:center;width:25px;height:25px;background:#fbfcf8;border:1px solid #d7d7cd;border-radius:50%;box-shadow:0 2px 4px #383e2910;color:#787e70}.ac-avatar-camera svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.5}
+.ac-avatar-editor h3{font-size:15px;font-weight:550;margin:0}.ac-avatar-editor p{font-size:12px;color:var(--muted,#72766f);margin:5px 0 13px}.ac-avatar-actions{display:flex;align-items:center;gap:16px}.ac-avatar-actions .ac-subtle{padding:7px 12px;font-size:12px}#profile-avatar-remove{padding:5px 0;border:0;background:none;font:inherit;font-size:12px;color:#8a7260;cursor:pointer}#profile-avatar-remove[hidden]{display:none}.ac-avatar-editor button:disabled{opacity:.5;cursor:default}
+#profile-avatar-status:empty{display:none}
+.ac-avatar,.site-account-avatar,#account-toggle .account-avatar{overflow:hidden}
+.ac-avatar>img,.site-account-avatar>img,#account-toggle .account-avatar>img,#profile-avatar-preview>img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.navigation .site-account-control .site-account-link.has-custom-avatar{overflow:hidden;padding:0;border-color:#d9d9d0}
+.site-account-link.has-custom-avatar>span{width:100%;height:100%;display:block}
+.site-account-link.has-custom-avatar>span>img{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%}
+@media(max-width:480px){.ac-avatar-editor{gap:17px}.ac-avatar-pick,#profile-avatar-preview{width:68px;height:68px}.ac-avatar-editor p{font-size:11px}}

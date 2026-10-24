@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="REIZO 会员与价格：无需订阅也能按量使用，四档月度会员提供包含额度与额外用量优惠，Agent 工作台和 API 共用 Credits。">
+  <title>会员与价格 — 睿舟 REIZO</title>
+  <link rel="icon" href="assets/reizo-mark.png"><link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="platform-nav.css"><link rel="stylesheet" href="pricing.css">
+  <script src="pricing.js" defer></script>
+<link rel="stylesheet" href="account-nav.css"><script src="demo-session.js" defer></script><script src="account-menu.js" defer></script><link rel="stylesheet" href="account-welcome.css"><script src="account-welcome.js" defer></script><link rel="stylesheet" href="account-avatar.css"><script src="account-avatar.js" defer></script></head>
+<body class="pricing-page">
+<a class="skip-link" href="#main">跳至正文</a>
+<header class="site-header"><div class="shell navigation">
+  <a class="brand" href="index.html" aria-label="REIZO 首页"><img src="assets/reizo-mark.png" alt=""><span>REIZO</span></a>
+  <nav id="main-nav" aria-label="主导航"><a href="index.html">首页</a><a href="agent.html">Agent 工作台</a><a href="api.html">API 接口</a><a href="business.html">企业服务</a><a class="nav-membership" href="pricing.html" aria-current="page">会员与价格</a></nav>
+  <a class="site-account-link" href="account.html" aria-label="登录或查看我的账户"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><span>登录</span></a><a class="button nav-cta" href="studio.html">开始使用 <span>↗</span></a><button class="menu-toggle icon-button" aria-expanded="false" aria-controls="main-nav" aria-label="展开导航"><span></span><span></span></button>
+</div></header>
+<main id="main">
+  <section class="pricing-first shell" aria-labelledby="pricing-title">
+    <div class="pricing-intro"><p class="pricing-kicker"><span aria-hidden="true"></span>会员与价格</p><h1 id="pricing-title">按量购买，<span>或订阅会员。</span></h1><p>不订阅，也能使用。会员每月包含额度，超出后享用量优惠。<br>会员与另购额度可在工作台、API 共用，不必分别充值。</p></div>
+    <section class="payg-strip" aria-labelledby="payg-title">
+      <div class="payg-name"><p class="payg-eyebrow">按量付费 · 无需订阅</p><h2 id="payg-title">直接购买额度</h2><p>按需购买，自由使用。</p></div>
+      <div class="payg-benefits"><strong>购买额度长期有效</strong><p>无订阅月费 · 按标准费率扣减<br>Agent 工作台与 API 共用</p></div>
+      <div class="payg-cta"><button class="button payg-action" data-plan="payg">直接购买额度 <span aria-hidden="true">↗</span></button><p>已有会员，也可在此补充额度</p></div>
+    </section>
+    <div class="plans-caption"><h2>选择适合你的会员</h2><span>人民币 · 月付</span></div>
+    <div class="plans-grid">
+      <article class="plan-card" aria-labelledby="plan-core">
+        <div class="plan-name"><h3 id="plan-core">Core <span>基础</span></h3></div>
+        <p class="plan-description">偶尔探索，轻量使用</p>
+        <p class="plan-price"><span>¥</span>29<small>/ 月</small></p>
+        <button class="button plan-button" data-plan="core">选择 Core<span aria-hidden="true">↗</span></button>
+        <div class="plan-allocation"><strong>10,000</strong><span>点额度 / 月</span></div>
+        <p class="allocation-note">当前订阅月有效，未用完不结转</p>
+        <div class="plan-extra">
+          <div class="plan-discount"><span>超出月度额度后</span><strong>9.75 折</strong></div>
+          <p class="plan-example">原需 100 点，另购余额只扣 <b>97.5 点</b></p>
+          <p class="discount-note">仅会员有效期内，使用另购余额时生效</p>
+        </div>
+        <ul class="plan-features">
+          <li><span aria-hidden="true">✓</span><div class="plan-concurrency"><strong>1 个任务</strong>同时进行<small>指工作台任务，超过数量后排队</small></div></li>
+          <li><span aria-hidden="true">✓</span><div><strong>每日登录领 100 点</strong><small>当日有效，不累计；仅限工作台</small></div></li>
+          <li><span aria-hidden="true">✓</span><div><strong>多模型 · Agent 工作台</strong><small>按任务选择模型，实际使用消耗额度</small></div></li>
+          <li><span aria-hidden="true">✓</span><div><strong>月度及另购额度可用于 API</strong><small>与工作台共用，无需分别充值</small></div></li>
+        </ul>
+        <p class="plan-validity">另购额度长期有效。<br>会员到期后，另购余额恢复标准扣减。</p>
+      </article>
+      <article class="plan-card" aria-labelledby="plan-plus">
+        <div class="plan-name"><h3 id="plan-plus">Plus <span>进阶</span></h3></div>
+        <p class="plan-description">日常工作，持续使用</p>
+        <p class="plan-price"><span>¥</span>69<small>/ 月</small></p>
+        <button class="button plan-button" data-plan="plus">选择 Plus<span aria-hidden="true">↗</span></button>
+        <div class="plan-allocation"><strong>30,000</strong><span>点额度 / 月</span></div>
+        <p class="allocation-note">当前订阅月有效，未用完不结转</p>
+        <div class="plan-extra">
+          <div class="plan-discount"><span>超出月度额度后</span><strong>9.5 折</strong></div>
+          <p class="plan-example">原需 100 点，另购余额只扣 <b>95 点</b></p>
+          <p class="discount-note">仅会员有效期内，使用另购余额时生效</p>
+        </div>
+        <ul class="plan-features">
+          <li><span aria-hidden="true">✓</span><div class="plan-concurrency"><strong>2 个任务</strong>同时进行<small>指工作台任务，超过数量后排队</small></div></li>
+          <li><span aria-hidden="true">✓</span><div><strong>每日登录领 100 点</strong><small>当日有效，不累计；仅限工作台</small></div></li>
+          <li><span aria-hidden="true">✓</span><div><strong>多模型 · Agent 工作台</strong><small>按任务选择模型，实际使用消耗额度</small></div></li>
+          <li><span aria-hidden="true">✓</span><div><strong>月度及另购额度可用于 API</strong><small>与工作台共用，无需分别充值</small></div></li>
+        </ul>
+        <p class="plan-validity">另购额度长期有效。<br>会员到期后，另购余额恢复标准扣减。</p>
+      </article>
+      <article class="plan-card plan-featured" aria-labelledby="plan-pro">
+        <div class="plan-name"><h3 id="plan-pro">Pro <span>专业</span></h3><span class="plan-tag">高频之选</span></div>
+        <p class="plan-description">高频创作，多任务推进</p>
+        <p class="plan-price"><span>¥</span>129<small>/ 月</small></p>
+        <button class="button plan-button" data-plan="pro">选择 Pro<span aria-hidden="true">↗</span></button>
+        <div class="plan-allocation"><strong>80,000</strong><span>点额度 / 月</span></div>
+        <p class="allocation-note">当前订阅月有效，未用完不结转</p>
+        <div class="plan-extra">
+          <div class="plan-discount"><span>超出月度额度后</span><strong>9.25 折</strong></div>
+          <p class="plan-example">原需 100 点，另购余额只扣 <b>92.5 点</b></p>
+          <p class="discount-note">仅会员有效期内，使用另购余额时生效</p>
+        </div>
+        <ul class="plan-features">
+          <li><span aria-hidden="true">✓</span><div class="plan-concurrency"><strong>4 个任务</strong>同时进行<small>指工作台任务，超过数量后排队</small></div></li>
+          <li><span aria-hidden="true">✓</span><div><strong>每日登录领 100 点</strong><small>当日有效，不累计；仅限工作台</small></div></li>
+          <li><span aria-hidden="true">✓</span><div><strong>多模型 · Agent 工作台</strong><small>按任务选择模型，实际使用消耗额度</small></div></li>
+          <li><span aria-hidden="true">✓</span><div><strong>月度及另购额度可用于 API</strong><small>与工作台共用，无需分别充值</small></div></li>
+        </ul>
+        <p class="plan-validity">另购额度长期有效。<br>会员到期后，另购余额恢复标准扣减。</p>
+      </article>
+      <article class="plan-card" aria-labelledby="plan-max">
+        <div class="plan-name"><h3 id="plan-max">Max <span>旗舰</span></h3></div>
+        <p class="plan-description">更大用量，更从容创作</p>
+        <p class="plan-price"><span>¥</span>229<small>/ 月</small></p>
+        <button class="button plan-button" data-plan="max">选择 Max<span aria-hidden="true">↗</span></button>
+        <div class="plan-allocation"><strong>180,000</strong><span>点额度 / 月</span></div>
+        <p class="allocation-note">当前订阅月有效，未用完不结转</p>
+        <div class="plan-extra">
+          <div class="plan-discount"><span>超出月度额度后</span><strong>9 折</strong></div>
+          <p class="plan-example">原需 100 点，另购余额只扣 <b>90 点</b></p>
+          <p class="discount-note">仅会员有效期内，使用另购余额时生效</p>
+        </div>
+        <ul class="plan-features">
+          <li><span aria-hidden="true">✓</span><div class="plan-concurrency"><strong>6 个任务</strong>同时进行<small>指工作台任务，超过数量后排队</small></div></li>
+          <li><span aria-hidden="true">✓</span><div><strong>每日登录领 100 点</strong><small>当日有效，不累计；仅限工作台</small></div></li>
+          <li><span aria-hidden="true">✓</span><div><strong>多模型 · Agent 工作台</strong><small>按任务选择模型，实际使用消耗额度</small></div></li>
+          <li><span aria-hidden="true">✓</span><div><strong>月度及另购额度可用于 API</strong><small>与工作台共用，无需分别充值</small></div></li>
+        </ul>
+        <p class="plan-validity">另购额度长期有效。<br>会员到期后，另购余额恢复标准扣减。</p>
+      </article>
+    </div>
+    <div class="pricing-fineprint"><p>额度单位为 Credits，非 Token；示例仅用于说明折扣，不代表任务报价。每日 100 点面向所有登录用户，无需订阅。</p><a href="#rules">查看完整规则 ↓</a></div>
+    <nav class="pricing-resources" aria-label="价格相关资源"><a href="api.html#catalog">模型单价与计费单位 <span>↗</span></a><a href="api.html">API 接入文档 <span>↗</span></a><a href="business.html">企业定制服务 <span>↗</span></a></nav>
+  </section>
+  <section class="pricing-faq shell" id="rules" aria-labelledby="faq-title"><div><p class="pricing-kicker">再多了解一点</p><h2 id="faq-title">常见问题</h2></div><div class="faq-list">
+    <details><summary>Credits 和 Token，有什么区别？</summary><p>Credits 是 REIZO 的用量额度；Token 是部分模型衡量输入、输出的单位。不同模型也可能按图片、时长或次数计费，因此不存在通用于所有模型的“一个 Token 等于多少 Credits”。具体单价与扣费换算需在调用前查看，不能把 Credits 数直接当成 Token 数。</p><a href="api.html#catalog">查看模型目录 ↗</a></details>
+    <details><summary>不买会员，工作台和 API 都能用吗？</summary><p>可以。会员不是使用门槛；无需订阅也能购买额度，按标准费率使用工作台和 API。会员主要提供每月包含额度，以及会员有效期内的额外用量折扣，不代表所有模型无限量使用。</p></details>
+    <details><summary>“同时进行几个任务”，具体是什么意思？</summary><p>指工作台内可同时执行的完整任务：Core 1 个、Plus 2 个、Pro 4 个、Max 6 个。超过数量的任务进入队列，等前面的任务完成后继续，不会因为达到数量上限就直接报错。它不是一个任务内部调用模型的数量，也不代表 API 的请求速率或并发限制；API 限额需单独查看。</p></details>
+    <details><summary>每天的 100 点需要签到吗？API 也能用吗？</summary><p>不需要手动签到。每天首次登录自动领取 100 点，每个账户每天一次，不要求购买会员。按北京时间，当日结束后未用完的部分失效，不会累计。每日体验额度仅限工作台使用、不适用于 API；工作台先用每日额度，再用会员月度额度，最后用另购余额。只有另购余额的消耗可享有效会员的折扣。</p></details>
+    <details><summary>先扣哪种额度？未用完会过期吗？</summary><p>工作台依次使用：每日体验额度 → 会员当期额度 → 另购余额。API 不使用每日体验额度，先扣会员当期额度，再扣另购余额。每日体验额度在北京时间当天结束后失效；会员包含额度在当前订阅月结束时失效，不是统一在自然月月底清零；另购余额长期有效。每日及会员包含额度按标准额度扣减，不叠加会员折扣。</p></details>
+    <details><summary>会员折扣怎么用？到期后会怎样？</summary><p>以 Max 为例，会员包含额度已用完，标准消耗 100 点的任务，从另购余额只扣 90 点；会员到期后同样用量扣 100 点。购买额度的标准价格对所有用户一致，优惠发生在使用时，不发生在充值时。会员有效期内，超出套餐的用量按当前等级折扣扣减；到期后，后续使用恢复标准扣减，之前购买的余额保持不变。因此，一次订阅不会把未来用量永久锁定为会员价。</p></details>
+    <details id="split-credits"><summary>一个任务跨过两种额度，怎么扣？</summary><p>每日体验额度已用完或不适用时，先用会员包含额度，不足部分再用另购余额。例如 Max 会员有效期内，任务标准用量为 100 Credits，会员还剩 40 Credits：先扣会员额度 40，再从另购余额扣 60 × 0.9 = 54 Credits。会员包含的 40 Credits 不再叠加折扣。</p></details>
+    <details><summary>会员是否包含模型厂商的官方会员？</summary><p>REIZO 会员是在本平台使用已接入的模型与相关能力，不等于获得各模型厂商官网的独立会员账号或全部专属权益。具体可用模型以平台目录与账户权限为准。</p></details>
+    <details id="economy-rules"><summary>有低峰优惠或经济模式吗？</summary><p>经济模式正在筹备中，计划让可等待的任务通过排队处理获得更低的用量成本。仅向支持的模型与任务开放，具体价格另行公布，当前不承诺全部模型半价。开放后，提交前会说明价格与预计等待时间，由你确认；确认后锁定本次价格，不因排队跨时段而涨价。经济模式与会员折扣取更优惠的一项，不叠加。</p></details>
+    <details><summary>可以季付、年付，或者中途升级吗？</summary><p>当前页面展示月付方案。季付、年付以及中途升级的补差价规则尚待确定，将在开放前明确说明；本页不预先承诺折扣或立即生效方式。</p></details>
+  </div></section>
+  <section class="pricing-ending shell"><div><h2>先开始，再选适合的用量。</h2><p>不必先订阅，先从你想完成的那件事开始。</p></div><a class="button" href="studio.html">开始使用 REIZO <span>↗</span></a></section>
+</main>
+<footer class="site-footer">
+  <div class="shell footer-grid">
+    <section class="footer-brand"><a class="brand" href="index.html"><img src="assets/reizo-mark.png" alt="">REIZO</a><p>睿舟 REIZO 是一个集成 Agent、AI 模型、API 与应用能力的一体化 AI 平台，让个人、开发者与企业更简单、更高效地使用 AI，完成创作、分析、研发与办公。</p><div class="socials" id="socials" aria-label="社交媒体"></div></section>
+    <section class="footer-column"><h2>服务</h2><a href="agent.html">智能体</a><a href="api.html#catalog">模型与 API</a><a href="business.html">企业级 AI 解决方案</a><a href="agent.html">云端智能体</a><a href="business.html#capabilities">定制功能开发</a><a href="business.html#capabilities">咨询与培训</a></section>
+    <section class="footer-column"><h2>资源</h2><a href="support.html#downloads">下载</a><a href="docs.html">开发文档</a><a href="support.html#changelog">更新日志</a><a href="api.html#billing">模型计费</a><a href="support.html#community">交流论坛</a><a href="support.html#contact">使用支持</a></section>
+    <section class="footer-column"><h2>关于</h2><a href="support.html#about">关于我们</a><a href="business-contact.html">商务合作</a><a href="support.html#careers">招聘</a></section>
+  </div>
+  <div class="shell footer-bottom"><span>© 2026 REIZO. All rights reserved.</span><div class="footer-legal"><div class="language-picker"><button id="language-toggle" aria-expanded="false" aria-controls="language-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>简体中文 <span>⌄</span></button><div id="language-menu" hidden><button aria-current="true">简体中文 <span>✓</span></button><button disabled>English <small>即将上线</small></button></div></div><a href="support.html#privacy">法律及隐私政策</a><a href="support.html#terms">服务条款</a><a href="support.html#security">安全性</a></div></div>
+</footer>
+<dialog id="plan-dialog" aria-labelledby="plan-dialog-title" aria-describedby="plan-dialog-note">
+  <button class="dialog-close icon-button" id="plan-dialog-close" aria-label="关闭方案详情">×</button><p class="pricing-kicker">你选择的方案</p><h2 id="plan-dialog-title">会员方案</h2><p class="dialog-price" id="plan-dialog-price"></p>
+  <dl class="plan-summary" id="plan-summary"></dl><p class="checkout-note" id="plan-dialog-note">当前页面尚未接入支付；选择方案不会创建订单或扣费。实际开通前需确认结算价格与规则。</p>
+  <a class="button" href="studio.html">先体验工作台 <span>↗</span></a><button class="dialog-back" id="plan-dialog-back">继续比较方案</button>
+</dialog>
+<dialog id="footer-dialog" aria-labelledby="footer-dialog-title"><button class="dialog-close icon-button" aria-label="关闭">×</button><h2 id="footer-dialog-title"></h2><p class="footer-pending">该入口的正式内容或地址尚未配置；本页不展示未确认的政策或联系方式。</p><a class="button" href="support.html#contact">联系使用支持 <span>↗</span></a></dialog>
+</body></html>

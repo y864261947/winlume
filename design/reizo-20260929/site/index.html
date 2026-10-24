@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN" data-palette="green">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="睿舟 REIZO：一个会员，集合多种先进 AI 模型。通过 Agent 工作台与画布完成创作、分析、研发与办公。">
+  <meta name="theme-color" content="#f8f9f6">
+  <title>睿舟 REIZO — 让每一次创作，都用上更合适的模型</title>
+  <link rel="icon" href="assets/reizo-mark.png">
+  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="theme-blue.css" id="blue-palette" media="not all">
+  <link rel="stylesheet" href="theme-brand.css" id="brand-palette" media="not all">
+  <link rel="stylesheet" href="theme-morandi.css" id="morandi-palette" media="not all">
+  <link rel="stylesheet" href="theme-khaki.css" id="khaki-palette" media="not all">
+  <link rel="stylesheet" href="theme-navy-sand.css" id="navy-palette" media="not all">
+  <link rel="stylesheet" href="palette-preview.css">
+  <link rel="stylesheet" href="woven-divider.css">
+  <link rel="stylesheet" href="hero-demo.css">
+  <link rel="stylesheet" href="workbench-motion.css">
+  <link rel="stylesheet" href="model-choice.css">
+  <link rel="stylesheet" href="connected-work.css">
+  <script src="connected-work.js" defer></script>
+  <link rel="stylesheet" href="platform-nav.css">
+  <script src="workbench-motion.js" defer></script>
+  <script src="ui.js" defer></script>
+  <script src="palette-preview.js" defer></script>
+  <script src="woven-divider.js" defer></script>
+<link rel="stylesheet" href="account-nav.css"><script src="demo-session.js" defer></script><script src="account-menu.js" defer></script><link rel="stylesheet" href="account-welcome.css"><script src="account-welcome.js" defer></script><script src="site-login.js" defer></script><link rel="stylesheet" href="account-avatar.css"><script src="account-avatar.js" defer></script></head>
+<body>
+<a class="skip-link" href="#main">跳至正文</a>
+<header class="site-header">
+  <div class="shell navigation">
+    <a class="brand" href="#top" aria-label="REIZO 首页"><img src="assets/reizo-mark.png" alt="" width="32" height="32"><span>REIZO</span></a>
+    <nav id="main-nav" aria-label="主导航">
+      <a href="index.html" aria-current="page">首页</a><a href="agent.html">Agent 工作台</a><a href="api.html">API 接口</a><a href="business.html">企业服务</a><a class="nav-membership" href="pricing.html">会员与价格</a>
+    </nav>
+    <a class="site-account-link" href="account.html" aria-label="登录或查看我的账户"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><span>登录</span></a><a class="button nav-cta" href="studio.html">开始使用 <span>↗</span></a>
+    <button class="menu-toggle icon-button" aria-expanded="false" aria-controls="main-nav" aria-label="展开导航"><span></span><span></span></button>
+  </div>
+</header>
+<main id="main">
+  <section class="hero shell" id="top">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <h1>让每一次创作，<br><span>都用上更合适的模型。</span></h1>
+        <p class="hero-lede">一个会员，自由使用多种先进模型。自己选，或交给 REIZO 按任务自动匹配，让创作兼顾品质与效率。</p>
+        <a class="button hero-cta" href="studio.html">开始使用 REIZO <span>↗</span></a>
+        <div class="hero-benefits" aria-label="平台优势"><span><i>✓</i> 无需 VPN</span><span><i>✓</i> 多模型会员</span><span><i>✓</i> 更低 Token 价格</span></div>
+      </div>
+      <div class="hero-demo" aria-label="Agent 任务流程演示">
+        <div class="demo-top"><div class="demo-wordmark"><img src="assets/reizo-mark.png" alt="">REIZO Agent</div></div>
+        <div class="hero-demo-body">
+          <nav class="hero-task-nav" aria-label="选择演示场景"><div id="hero-task-list"></div></nav>
+          <div class="hero-stage" id="hero-stage" aria-label="当前任务演示"></div>
+        </div>
+        <div class="demo-bottom"><div class="stage-progress" aria-label="任务进度"><span>理解需求</span><i></i><span>确认方向</span><i></i><span>交付成果</span></div><button class="icon-button pause-hero" aria-label="暂停演示" aria-pressed="false">Ⅱ</button></div>
+      </div>
+    </div>
+    <div class="model-band"><p>连接先进模型与工具</p><div class="marquee" tabindex="0" aria-label="支持的模型与工具；悬停或聚焦可暂停滚动"><div class="marquee-track" id="model-track"></div></div></div>
+  </section>
+
+  <section class="benefits-section shell" aria-label="REIZO 的优势">
+    <div class="benefits-grid">
+      <article class="benefit-card">
+        <div class="benefit-art model-stack" aria-hidden="true"><span><img src="assets/openai.svg" alt=""></span><span><img src="assets/anthropic.svg" alt=""></span><span><img src="assets/gemini.svg" alt=""></span></div>
+        <h2>一个会员即可享受<br>多种先进模型会员待遇。</h2>
+        <p>无需分别订阅多个平台，在同一个会员中使用多种先进模型能力。</p>
+      </article>
+      <article class="benefit-card">
+        <div class="benefit-art access-art" aria-hidden="true"><svg viewBox="0 0 112 52"><circle cx="29" cy="26" r="20"/><ellipse cx="29" cy="26" rx="9" ry="20"/><path d="M9 26h40M13 15h32M13 37h32"/><path class="art-arrow" d="M66 14v24m-7-7 7 7 7-7M84 8v30m-7-7 7 7 7-7"/></svg></div>
+        <h2>无需 VPN，<br>更低 Token 价格。</h2>
+        <p>打开 REIZO 即可开始工作；以更友好的 Token 成本持续创作与探索。</p>
+      </article>
+      <article class="benefit-card">
+        <div class="benefit-art routing-art" aria-hidden="true"><svg viewBox="0 0 112 52"><path d="M22 26h20c15 0 12-16 29-16h16M42 26c15 0 12 16 29 16h16M42 26h45"/><circle cx="17" cy="26" r="9"/><rect x="87" y="4" width="12" height="12" rx="4"/><rect x="87" y="20" width="12" height="12" rx="4"/><rect x="87" y="36" width="12" height="12" rx="4"/></svg></div>
+        <h2>自由选模型，<br>也能自动匹配。</h2>
+        <dl class="model-choice-explainer">
+          <div><dt>自己选</dt><dd>在工作台随时切换你熟悉或偏好的模型。</dd></div>
+          <div><dt>REIZO 自动</dt><dd>选择后，按任务匹配更擅长写作、图像、视频等工作的模型，并持续优化选择。</dd></div>
+        </dl>
+      </article>
+    </div>
+  </section>
+
+  <section class="workspace-section" id="workspace">
+    <div class="shell">
+      <div class="section-heading"><h2>一个工作台，<br>让任务与画布协同推进。</h2><p>把需求交给 Agent，让合适的能力协同完成。<br>资料、过程与成果，都在同一处展开。</p></div>
+      <div class="workbench" aria-label="工作台交互演示">
+        <aside class="work-sidebar">
+          <div class="brand small-brand"><img src="assets/reizo-mark.png" alt="">REIZO</div>
+          <button class="new-task" id="new-task"><span>＋</span> 新建任务</button>
+          <span class="sidebar-label">工作空间</span>
+          <button class="my-tasks" id="my-tasks"><span>▤</span> 我的任务</button>
+          <span class="sidebar-label recent-label">最近任务</span>
+          <div class="recent-tasks" id="recent-tasks"></div>
+          <div class="sidebar-bottom"><span class="avatar">R</span><span>我的工作空间<small>REIZO 会员</small></span><span>⌄</span></div>
+        </aside>
+        <section class="task-pane" aria-label="任务内容" id="task-pane"></section>
+        <aside class="canvas-pane" aria-label="文件与成果关联画布" id="canvas-pane"></aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="api-section shell" id="developers">
+    <div class="api-grid">
+      <div class="section-copy"><p class="eyebrow">面向开发者</p><h2>开放 API 接口，<br>按量调用，按需付费。</h2><p>统一接入多种模型能力，按实际用量付费。<br>以更低的 Token 成本，把 AI 直接接入你的产品。</p><a class="text-link" href="api.html">查看 API 文档 <span>↗</span></a></div>
+      <div class="code-window"><div class="code-toolbar"><div class="code-tabs" aria-label="代码示例语言"><button data-code="python" aria-pressed="true">Python</button><button data-code="javascript" aria-pressed="false">JavaScript</button><button data-code="curl" aria-pressed="false">cURL</button></div><button id="copy-code" class="copy-code" aria-label="复制代码">复制</button></div><pre><code id="code-content"></code></pre><div class="code-footer"><span><i></i> 统一接口，多种模型</span><span>按量付费</span></div></div>
+    </div>
+  </section>
+
+  <section class="connected-work shell" id="connected-work" aria-labelledby="connected-title">
+    <div class="connected-copy"><p class="eyebrow">围绕电脑客户端，随时接续</p><h2 id="connected-title">工作交给电脑，<br>离开也能掌控。</h2><p>手机和网页都是远程入口。查看进度、确认方向、追加指令，让同一个任务在电脑客户端继续推进。</p>
+      <div class="connected-steps" role="group" aria-label="查看协同过程">
+        <button type="button" data-connect-step="0" aria-pressed="true"><span>01</span><strong>电脑开始处理</strong><small>资料留在工作上下文中</small></button>
+        <button type="button" data-connect-step="1" aria-pressed="false"><span>02</span><strong>手机确认方向</strong><small>外出时，也能给出下一步指令</small></button>
+        <button type="button" data-connect-step="2" aria-pressed="false"><span>03</span><strong>电脑接续执行</strong><small>远程指令回到原来的任务</small></button>
+        <button type="button" data-connect-step="3" aria-pressed="false"><span>04</span><strong>网页查看成果</strong><small>换一台设备，接着验收</small></button>
+      </div>
+      <p class="connected-condition">远程操作需电脑在线，且 REIZO 客户端保持运行。</p>
+    </div>
+    <div class="connected-demo" data-connect-phase="0" aria-label="电脑执行、手机确认、网页验收的协同示意">
+      <div class="connected-scene">
+        <div class="remote-caption"><span></span> REIZO 电脑客户端 <small>任务执行端</small></div>
+        <div class="remote-desktop"><div class="remote-toolbar"><span class="remote-dots">● ● ●</span><span>产品短视频</span><span>↗</span></div><div class="remote-desktop-body"><div class="remote-request">把产品素材制作成一条 30 秒短视频。</div><div class="remote-agent"><img src="assets/reizo-mark.png" alt=""><span>REIZO <small>正在你的电脑上处理</small></span></div><div class="remote-plan"><span>✓ 整理产品素材</span><span data-remote-plan>正在拆分分镜与节奏</span></div><div class="remote-storyboard"><div><i>01</i><span class="product-bottle"></span><small>产品特写</small></div><div><i>02</i><span class="product-orbit"></span><small>使用场景</small></div><div><i>03</i><span class="product-end">REIZO</span><small>片尾收束</small></div></div><div class="remote-output"><span class="remote-play">▶</span><div><strong>新品短视频.mp4</strong><small>00:30 · 可查看成果</small></div><span>✓</span></div></div></div>
+        <svg class="remote-connection" viewBox="0 0 620 440" preserveAspectRatio="none" aria-hidden="true"><path d="M410 310 C540 310 440 170 540 170"/><path class="remote-signal" d="M410 310 C540 310 440 170 540 170"/></svg>
+        <div class="remote-phone"><div class="phone-speaker"></div><div class="phone-heading">REIZO <span>远程</span></div><small>产品短视频</small><strong data-remote-phone-title>任务已开始</strong><p data-remote-phone-copy>随时查看电脑上的处理进度。</p><div class="phone-mini-art"><span class="product-bottle"></span></div><span class="phone-confirm" data-remote-phone-action>等待确认方向</span><div class="phone-home"></div></div>
+        <div class="remote-web"><span>网页远程入口</span><strong>新品短视频已完成 <i>✓</i></strong><small>查看成果 · 反馈修改</small></div>
+      </div>
+      <div class="connected-caption"><p data-connect-caption>从电脑客户端发起，开始整理素材。</p><button type="button" data-connect-toggle aria-label="暂停协同演示" aria-pressed="false">Ⅱ</button></div>
+    </div>
+  </section>
+
+  <section class="membership-section shell" id="models">
+    <div class="membership-panel">
+      <div class="membership-copy"><p class="eyebrow">把选择权留在手里</p><h2>订阅一次，<br>多模型能力都能使用。</h2><p>不同任务有不同答案。REIZO 让你在一个会员中使用多种模型，并以清晰、友好的 Token 成本继续探索。</p><a class="button light-button" href="pricing.html">查看会员方案 <span>↗</span></a><p class="membership-billing-note">会员与另购额度可在工作台、API 共用；无需订阅也可按量使用。<br>会员额度当期有效，另购余额长期有效。<a href="pricing.html#rules">了解额度与优惠规则 ↗</a></p></div>
+      <div class="membership-visual"><div class="membership-orbit" aria-hidden="true"></div><div class="member-pass"><div class="pass-top"><span class="brand"><img src="assets/reizo-mark.png" alt="">REIZO</span><span>会员</span></div><div class="pass-models" aria-hidden="true"><img src="assets/openai.svg" alt=""><img src="assets/anthropic.svg" alt=""><img src="assets/gemini.svg" alt=""><img src="assets/deepseek.svg" alt=""><img src="assets/kimi.svg" alt=""><span>＋</span></div><h3>多种先进能力，一个会员。</h3><ul><li><span>多模型会员</span><small>按任务灵活选择</small></li><li><span>友好的 Token 成本</span><small>放心持续创作</small></li></ul><div class="pass-bottom"><span><i></i> 无需 VPN，即刻开始</span><span>↗</span></div></div></div>
+    </div>
+  </section>
+
+  <div class="woven-divider" data-woven-divider>
+    <svg class="woven-art" viewBox="0 0 1440 112" aria-hidden="true" focusable="false"></svg>
+    <button class="woven-pause" type="button" aria-label="暂停编织动画" aria-pressed="false"><span aria-hidden="true">Ⅱ</span></button>
+  </div>
+
+  <section class="start-section shell" id="start"><div class="start-mark" aria-hidden="true"><img src="assets/reizo-mark.png" alt=""></div><h2>一个会员，<br>让更多好结果发生。</h2><p>一个会员，集合先进模型的能力。</p><a class="button" href="studio.html">开始使用 REIZO <span>↗</span></a></section>
+</main>
+<footer class="site-footer">
+  <div class="shell footer-grid">
+    <section class="footer-brand"><a class="brand" href="#top"><img src="assets/reizo-mark.png" alt="">REIZO</a><p>睿舟 REIZO 是一个集成 Agent、AI 模型、API 与应用能力的一体化 AI 平台，让个人、开发者与企业更简单、更高效地使用 AI，完成创作、分析、研发与办公。</p><div class="socials" id="socials" aria-label="社交媒体"></div></section>
+    <section class="footer-column"><h2>服务</h2><a href="agent.html">智能体</a><a href="api.html#catalog">模型与 API</a><a href="business.html">企业级 AI 解决方案</a><a href="agent.html">云端智能体</a><a href="business.html#capabilities">定制功能开发</a><a href="business.html#capabilities">咨询与培训</a></section>
+    <section class="footer-column"><h2>资源</h2><a href="support.html#downloads">下载</a><a href="docs.html">开发文档</a><a href="support.html#changelog">更新日志</a><a href="api.html#billing">模型计费</a><a href="support.html#community">交流论坛</a><a href="support.html#contact">使用支持</a></section>
+    <section class="footer-column"><h2>关于</h2><a href="support.html#about">关于我们</a><a href="business-contact.html">商务合作</a><a href="support.html#careers">招聘</a></section>
+  </div>
+  <div class="shell footer-bottom"><span>© 2026 REIZO. All rights reserved.</span><div class="footer-legal"><div class="language-picker"><button id="language-toggle" aria-expanded="false" aria-controls="language-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>简体中文 <span>⌄</span></button><div id="language-menu" hidden><button aria-current="true">简体中文 <span>✓</span></button><button disabled>English <small>即将上线</small></button></div></div><a href="support.html#privacy">法律及隐私政策</a><a href="support.html#terms">服务条款</a><a href="support.html#security">安全性</a></div></div>
+</footer>
+<dialog id="info-dialog" aria-labelledby="dialog-title"><button class="dialog-close icon-button" aria-label="关闭">×</button><div class="dialog-brand"><img src="assets/reizo-mark.png" alt=""></div><p class="eyebrow">REIZO</p><h2 id="dialog-title"></h2><div id="dialog-copy"></div><button class="button" id="dialog-action">体验工作台演示 <span>→</span></button></dialog>
+<div class="toast" id="toast" role="status"></div>
+<aside class="palette-preview" aria-label="临时配色对比工具">
+  <span>配色对比</span>
+  <div role="group" aria-label="选择页面配色">
+    <button type="button" data-palette-choice="green" aria-pressed="true"><i class="green-swatch"></i>墨绿版</button>
+    <button type="button" data-palette-choice="blue" aria-pressed="false"><i class="blue-swatch"></i>电光蓝版</button>
+    <button type="button" data-palette-choice="brand" aria-pressed="false"><i class="brand-swatch"></i>电紫版</button>
+    <button type="button" data-palette-choice="morandi" aria-pressed="false"><i class="morandi-swatch"></i>莫兰迪版</button>
+    <button type="button" data-palette-choice="khaki" aria-pressed="false"><i class="khaki-swatch"></i>卡其棕版</button>
+    <button type="button" data-palette-choice="navy" aria-pressed="false"><i class="navy-swatch"></i>海军蓝米沙</button>
+  </div>
+</aside>
+<dialog id="site-login-dialog" class="site-login-dialog" aria-labelledby="site-login-title">
+  <button type="button" class="site-login-close" id="site-login-close" aria-label="关闭登录窗口">×</button>
+  <div class="site-login-brand"><img src="assets/reizo-mark.png" alt=""><span>REIZO</span></div>
+  <h2 id="site-login-title">欢迎回来</h2><p class="site-login-lede">登录，继续你的工作与创作。</p>
+  <div class="site-login-providers">
+    <button type="button" data-site-login-provider="wechat"><svg viewBox="0 0 28 28" aria-hidden="true"><path d="M11 4C5.5 4 2 7.3 2 11.4c0 2.4 1.3 4.5 3.5 5.8L5 20l3.4-1.7c.8.2 1.7.3 2.6.3 5 0 9-3.2 9-7.2S16 4 11 4Z" fill="currentColor"/><path d="M19 11c4.5 0 7 2.7 7 5.9 0 1.9-.9 3.5-2.5 4.5l.4 2.4-2.7-1.3c-.7.2-1.4.2-2.2.2-3.8 0-7-2.6-7-5.8s3.2-5.9 7-5.9Z" fill="currentColor" stroke="white" stroke-width="1.2"/></svg>微信登录</button>
+    <button type="button" data-site-login-provider="google"><span class="site-login-google" aria-hidden="true">G</span>Google 登录</button>
+  </div>
+  <div class="site-login-divider"><span>或使用账户密码</span></div>
+  <form id="site-login-form" autocomplete="off">
+    <label for="site-login-user">账户<input id="site-login-user" name="user" placeholder="邮箱或用户名" autocomplete="off" required></label>
+    <label for="site-login-password">密码</label>
+    <div class="site-login-password"><input id="site-login-password" name="password" type="password" autocomplete="off" required><button type="button" id="site-login-visibility" aria-label="显示密码" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+    <p id="site-login-error" role="alert"></p>
+    <button class="site-login-submit" type="submit">登录 <span aria-hidden="true">→</span></button>
+  </form>
+</dialog>
+</body>
+</html>

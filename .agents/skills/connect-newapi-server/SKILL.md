@@ -5,6 +5,15 @@ description: Connect to and operate the new-api server (104.160.47.89) — the L
 
 # Connecting to the new-api server
 
+## Current target — confirmed 2026-09-29
+
+The user supplied `40.160.141.231`, user `ubuntu`, as the server holding the current SMTP configuration. Inspection confirmed `new-api-native.service`, `new-api-redis.service`, PostgreSQL 16, and `/etc/new-api/native.env`. SMTP options are populated in the relay database. The old `104.160.47.89` endpoint timed out; do not assume it is the current target.
+
+Use the user-provided password only through a temporary process environment variable. The session helper `output/reizo-profile/mail-ssh.mjs` pins this host's public key in `output/reizo-profile/mail-host-key.pub`. Do not print SMTP tokens or database DSNs. The REIZO task copied SMTP settings to the REIZO runtime environment and verified authentication without modifying this relay or sending test emails. See `docs/operations/reizo-frontend-20260929.md`.
+
+The connection examples below describe the historical endpoint and require adjustment to the confirmed host above.
+
+
 This is a **separate machine** from the by-your-side app server (38.76.188.156) — it runs
 `new-api`, a self-hosted LLM relay/proxy panel that by-your-side's `.env` channels
 (`RELAY_CHANNEL_*`) point at via `v2api.top`. Plain `ssh user@host` hangs on the interactive

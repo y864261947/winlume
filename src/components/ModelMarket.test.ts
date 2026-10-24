@@ -111,9 +111,11 @@ describe("homepage API categories", () => {
   });
 
   it("routes support footer links to dedicated destinations", () => {
-    expect(source).toContain('{ label: "常见问题", href: "/support/faq" }');
-    expect(source).toContain('{ label: "联系支持", href: "/support/contact" }');
-    expect(source).toContain('{ label: "商务合作", href: "/business" }');
+    expect(source).toContain("<PortalFooter");
+    const footer = readFileSync(join(__dirname, "PortalFooter.tsx"), "utf8");
+    expect(footer).toContain('{ label: "常见问题", href: "/support/faq" }');
+    expect(footer).toContain('{ label: "联系支持", href: "/support/contact" }');
+    expect(footer).toContain('{ label: "商务合作", href: "/business" }');
   });
 
   it("routes homepage quick tools to their application categories", () => {

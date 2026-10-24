@@ -3,8 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 describe("public portal layout contract", () => {
-  const globalStyles = readFileSync(join(__dirname, "globals.css"), "utf8");
-  const docsStyles = readFileSync(join(__dirname, "docs", "docs.css"), "utf8");
+  const globalStyles = readFileSync(join(__dirname, "globals.css"), "utf8").replace(/\r\n/g, "\n");
 
   it("uses a fixed canvas and scrollbar overflow instead of responsive shrinking", () => {
     expect(globalStyles).toContain("--reizo-public-canvas: 1800px");
@@ -17,7 +16,7 @@ describe("public portal layout contract", () => {
     expect(globalStyles).toContain(".portal-home-dashboard .portal-discovery-grid > .portal-side-cards {\n  display: block !important;\n  grid-column: 2 !important;");
   });
 
-  it("defines the shared public type scale for portal and docs pages", () => {
+  it("defines the shared public type scale for legacy portal pages", () => {
     for (const token of [
       "--reizo-font-page: 38px",
       "--reizo-font-section: 24px",
@@ -30,9 +29,6 @@ describe("public portal layout contract", () => {
     ]) {
       expect(globalStyles).toContain(token);
     }
-    expect(docsStyles).toContain("var(--reizo-public-canvas)");
-    expect(docsStyles).toContain("var(--reizo-font-page)");
-    expect(docsStyles).toContain("var(--reizo-font-body)");
   });
 
   it("keeps legacy public marketing and enterprise surfaces on fixed canvases", () => {

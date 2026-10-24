@@ -79,3 +79,10 @@ AGENTS.md
 /services/gateway/pricing-import
 /services/gateway/pricing-import.exe
 .gstack/
+
+# Local agent attachments, operational scratch files and generated build tools.
+/.mossx/
+/output/
+/dev-server.log
+/upstream-gap-report.json
+/upstream-gap-report.md

@@ -1,0 +1,16 @@
+.palette-preview{position:fixed;z-index:50;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;padding:7px 8px 7px 16px;background:rgba(255,255,255,.97);border:1px solid #dedee3;border-radius:12px;box-shadow:0 8px 30px #1718211c;color:#282a31;backdrop-filter:blur(15px);white-space:nowrap}
+.palette-preview>span{font-size:12px;color:#7b7c84}
+.palette-preview>div{display:flex;gap:3px}
+.palette-preview button{font-size:13px;display:flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid transparent;border-radius:7px;background:transparent;color:#6b6d77;line-height:1.4}
+.palette-preview button:hover{background:#f5f5f7}
+.palette-preview button[aria-pressed=true]{color:#262833;background:#f0f1f6;border-color:#d9dce6}
+.palette-preview i{width:8px;height:8px;border-radius:50%;display:block}
+.palette-preview .green-swatch{background:#167760}.palette-preview .blue-swatch{background:#315bfa}
+.palette-preview .brand-swatch{background:#7855f5;border:1px solid #6141b1}
+.palette-preview .morandi-swatch{background:#a0827d;border:1px solid #896263}
+.palette-preview .khaki-swatch{background:#ad8b60;border:1px solid #87603e}
+.palette-preview .navy-swatch{background:linear-gradient(90deg,#112250 50%,#E7E2CE 50%);border:1px solid #BEB7A7}
+body{padding-bottom:76px}.toast{bottom:88px}
+@media(min-width:601px) and (max-width:900px){.palette-preview{gap:0;padding:7px;max-width:calc(100% - 20px)}.palette-preview>span{display:none}.palette-preview button{font-size:12px;padding:8px 9px}}
+@media(max-width:600px){.palette-preview{bottom:12px;gap:0;padding:5px;max-width:calc(100% - 20px)}.palette-preview>div{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}.palette-preview button{font-size:11px;padding:7px 9px;gap:5px}.palette-preview>span{display:none}body{padding-bottom:108px}.toast{bottom:115px}}
+@media print{.palette-preview{display:none}body{padding-bottom:0}}

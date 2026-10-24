@@ -5,6 +5,7 @@ import { desktopUserIsValid } from "./desktop-auth";
 import { ApiKeyRepository } from "./repositories/api-keys";
 import { decryptSecret } from "../newapi/crypto";
 import { workspaceGateway } from "../gateway/workspace";
+import { desktopModelCatalog } from "./desktop-model-catalog";
 
 export class DesktopModelSessionError extends Error {
   constructor(message: string, public readonly status: number) { super(message); }
@@ -72,12 +73,20 @@ export async function resolveDesktopModelSession(database: PlatformDatabase, tok
       const baseUrl = `${configured.origin}/v1`;
       const response = await fetch(`${baseUrl}/models`, { headers: { Authorization: `Bearer ${apiKey}` }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(15_000) });
       if (!response.ok) throw new DesktopModelSessionError("模型目录暂不可用，请稍后刷新。", 502);
-      const catalog = await response.json() as { data?: { id?: unknown; supported_endpoint_types?: unknown }[] };
-      // This first release supports Chat Completions. Do not advertise native-only/media models as chat models.
-      const models = [...new Set((Array.isArray(catalog.data) ? catalog.data : []).filter(item => typeof item?.id === "string" && item.id &&
-        Array.isArray(item.supported_endpoint_types) && item.supported_endpoint_types.includes("openai")).map(item => item.id as string))]
-        .sort((a, b) => a.localeCompare(b)).map(id => ({ id, name: id }));
-      if (!models.length) throw new DesktopModelSessionError("当前工作区暂无可用的兼容文本模型。", 403);
+      const upstream = await response.json() as { data?: unknown };
+      let capabilities: unknown = [];
+      // Older gateways can omit capability metadata; basic video requests then
+      // use model defaults without advertising unverified reference/parameter support.
+      try {
+        const metadata = await fetch(`${baseUrl}/canvas/capabilities`, { headers: { Authorization: `Bearer ${apiKey}` }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(5_000) });
+        if (metadata.ok) {
+          const payload = await metadata.json();
+          capabilities = Array.isArray(payload.data) ? payload.data : payload.data?.data;
+        }
+      } catch { /* optional, never expand the token-scoped model list */ }
+      const catalog = desktopModelCatalog(upstream.data, capabilities);
+      const models = catalog.text.map(({ id, name }) => ({ id, name }));
+      if (!models.length && !catalog.image.length && !catalog.video.length) throw new DesktopModelSessionError("当前工作区暂无可用模型。", 403);
       // Logout/user/workspace changes which raced the network work must not receive a fresh credential.
       const [latest] = await tx.select().from(users).where(eq(users.id, user.id)).limit(1);
       const [stillMember] = await tx.select().from(organizationMemberships).where(and(eq(organizationMemberships.userId, user.id), eq(organizationMemberships.organizationId, organization.id))).limit(1);
@@ -86,7 +95,7 @@ export async function resolveDesktopModelSession(database: PlatformDatabase, tok
         throw new DesktopModelSessionError("工作区或账号状态已变化，请刷新后重试。", 403);
       }
       return { credential: { organizationId: organization.id, organizationName: organization.name, apiKey, baseUrl,
-        expiresAt: key.expiresAt.toISOString(), models } };
+        expiresAt: key.expiresAt.toISOString(), models, catalog } };
     } catch (error) {
       // Keep completed key creation/revocation even if discovery fails afterwards.
       // All operations use this connection, avoiding pool starvation while holding the device lock.

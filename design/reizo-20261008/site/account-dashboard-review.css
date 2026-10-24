@@ -1,0 +1,24 @@
+/* Denser task dashboard; preserve existing account data and navigation. */
+#developer .ac-panel-heading{margin-bottom:24px}
+#developer .ac-dashboard-controls{margin-bottom:18px}
+#developer .ac-task-metrics{gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;margin-bottom:22px}
+#developer .ac-task-metrics article{border:0;border-right:1px solid var(--line);border-radius:0;padding:17px 20px}
+#developer .ac-task-metrics article:last-child{border-right:0}
+#developer .ac-task-metrics strong{margin:7px 0;font-size:30px;color:#393e37}
+#developer .ac-task-metrics small{font-size:12px;color:#777c72}
+#developer .ac-task-metrics p{font-size:14px}
+#developer .ac-dashboard-grid{gap:16px}
+#developer .ac-dashboard-card{padding:22px;border-radius:12px;box-shadow:none}
+#developer .ac-dashboard-card .ac-section-title{margin-bottom:17px}
+#developer .ac-credit-card{background:#f3f2ec}
+#developer .ac-credit-card dl{margin:0}
+#developer .ac-credit-card dl>div{padding:10px 0}
+#developer .ac-credit-card dd{font-size:22px;color:#3f443b}
+#developer .ac-note{font-size:12px;line-height:1.8;color:#777c72}
+#developer .ac-concurrency-value strong{font-size:32px}
+#developer .ac-capacity-track{margin-top:16px}
+#developer .ac-pending-line{margin-top:16px;padding-top:15px}
+#developer .ac-chart-empty{height:104px}
+#developer .ac-token-summary{gap:clamp(22px,5vw,70px)}
+#developer .ac-token-summary small{font-size:12px}
+@media(max-width:600px){#developer .ac-task-metrics article{border-bottom:1px solid var(--line);padding:15px}#developer .ac-task-metrics article:nth-child(2){border-right:0}#developer .ac-task-metrics article:nth-child(n+3){border-bottom:0}#developer .ac-task-metrics small{font-size:11px}#developer .ac-dashboard-card{padding:18px}}

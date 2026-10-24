@@ -5,11 +5,11 @@ import { join } from "node:path";
 const navSource = readFileSync(join(__dirname, "PortalHeader.tsx"), "utf8");
 
 const SHELLS = [
-  "ModelMarket.tsx",
-  "ProductsExplorer.tsx",
-  "docs/DocsShell.tsx",
-  "account/AccountShell.tsx",
-  "PortalPricingShell.tsx",
+  ["ModelMarket.tsx", "PortalHeader"],
+  ["ProductsExplorer.tsx", "ReizoHeader"],
+  ["docs/DocsShell.tsx", "ReizoHeader"],
+  ["account/AccountShell.tsx", "ReizoHeader"],
+  ["PortalPricingShell.tsx", "PortalHeader"],
 ] as const;
 
 describe("portal top navigation", () => {
@@ -44,10 +44,11 @@ describe("portal top navigation", () => {
     );
   });
 
-  it("is the only portal chrome used by marketing shells", () => {
-    for (const file of SHELLS) {
+  it("uses the shared header for each portal and Reizo shell without duplicating inline navigation", () => {
+    for (const [file, header] of SHELLS) {
       const source = readFileSync(join(__dirname, file), "utf8");
-      expect(source).toContain("<PortalHeader");
+      expect(source).toContain(`<${header}`);
+      expect(source).not.toContain(header === "PortalHeader" ? "<ReizoHeader" : "<PortalHeader");
       expect(source).not.toContain('className="portal-nav"');
       expect(source).not.toContain("portal-main-links");
     }
